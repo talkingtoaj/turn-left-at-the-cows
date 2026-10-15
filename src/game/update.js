@@ -24,8 +24,8 @@ export function updateGame(state, _dt) {
   }
 }
 
-// Starts mission `index`: grants its start topics, notes its brief, and
-// asks the HUD to show the brief (state.briefPending).
+// Starts mission `index`: grants its start topics, notes its brief (once,
+// here), and asks the HUD to show the mission card (state.briefPending).
 export function startMission(state, index) {
   const m = MISSIONS[index];
   if (!m) return null;
@@ -39,7 +39,7 @@ export function startMission(state, index) {
       missionId: m.id, clockMinutes: state.clockMinutes, brief: true,
     });
   }
-  state.briefPending = index > 0; // mission 1 starts without a pop-up brief
+  state.briefPending = true; // every mission, mission 1 too, opens with its card
   return m;
 }
 

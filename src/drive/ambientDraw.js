@@ -102,11 +102,26 @@ function carShadowTexture(scene) {
 }
 
 const COW_LOOKS = 4;
-function animalTexture(scene, a) {
+// Leg frames: 0 standing, 1 and 2 the two halves of a stride. `t` is the
+// scene time in seconds, used to step the legs of moving animals.
+function animalTexture(scene, a, t) {
   if (a.kind === 'sheep') return bake(scene, 'amb_sheep', 1.4, 2, (g) => drawSheep(g));
-  const v = hashString(String(a.id)) % COW_LOOKS;
+  const h = hashString(String(a.id));
+  if (a.kind === 'horse') {
+    const v = h % HORSE_LOOKS.length;
+    const f = a.moving || a.running ? 1 + (Math.floor(t * (a.running ? 7 : 4) + (h % 10) / 10) % 2) : 0;
+    return bake(scene, `amb_horse_${v}_${f}`, 1.8, 5, (g) => drawHorse(g, HORSE_LOOKS[v], f));
+  }
+  if (a.kind === 'deer') {
+    const f = a.running ? 3 + (Math.floor(t * 9 + (h % 10) / 10) % 2) : (a.moving ? 1 + (Math.floor(t * 5) % 2) : 0);
+    return bake(scene, `amb_deer_${f}`, 1.4, 3.6, (g) => drawDeer(g, f));
+  }
+  const v = h % COW_LOOKS;
   return bake(scene, `amb_cow_${v}`, 1.6, 3.6, (g) => drawCow(g, v));
 }
+
+// Shadow ellipse size [w, l] under each kind of animal.
+const ANIMAL_SHADOW = { sheep: [1.3, 1.7], cow: [1.5, 2.8], horse: [1.3, 3.4], deer: [0.9, 2.0] };
 
 function personTexture(scene, l, index) {
   // drawLocal draws a shadow too; it goes into a throwaway Graphics.
@@ -149,6 +164,82 @@ function drawCow(g, look) {
   g.fillCircle(0.3, -1.05, 0.08);
   g.lineStyle(0.08, 0x2a2622, 1);
   g.lineBetween(0, 1.25, 0.12, 1.6);
+}
+
+// Horse coats: brown, chestnut, grey, bay. [coat, mane and tail, legs]
+const HORSE_LOOKS = [[0x6e4528, 0x2a1a10, 0x3a2414], [0x9a5530, 0x5a2e18, 0x6a3a20], [0xa9a59d, 0x6a6660, 0x7a766e], [0x7a4a2a, 0x1e1612, 0x1e1612]];
+
+// Legs poking out past the body. Frame 1 and 2 swap the diagonal pairs.
+function drawLegs(g, color, w, fy, hy, sx, reach, frame) {
+  if (!frame) return;
+  g.lineStyle(w, color, 1);
+  const k = frame === 1 ? 1 : -1;
+  g.lineBetween(-sx, fy, -sx, fy - reach * (k > 0 ? 1 : 0.3));
+  g.lineBetween(sx, fy, sx, fy - reach * (k > 0 ? 0.3 : 1));
+  g.lineBetween(-sx, hy, -sx, hy + reach * (k > 0 ? 0.3 : 1));
+  g.lineBetween(sx, hy, sx, hy + reach * (k > 0 ? 1 : 0.3));
+}
+
+// Horse: longer and slimmer than a cow, long neck and head, dark mane and tail.
+function drawHorse(g, look, frame) {
+  const [coat, mane, legs] = look;
+  drawLegs(g, legs, 0.18, -0.6, 1.0, 0.3, 0.75, frame);
+  g.fillStyle(mane, 1);
+  g.fillEllipse(0, 1.6 + (frame ? 0.1 : 0), 0.3, 0.9);
+  g.fillStyle(coat, 1);
+  g.fillEllipse(0, 0.65, 1.0, 1.3);
+  g.fillEllipse(0, 0.05, 0.92, 1.9);
+  g.fillEllipse(0, -0.45, 0.9, 1.0);
+  g.fillEllipse(0, -1.05, 0.5, 1.0);
+  g.fillEllipse(0, -1.62, 0.4, 0.8);
+  g.fillStyle(0xffffff, 0.12);
+  g.fillEllipse(0.14, 0.2, 0.42, 1.8);
+  g.lineStyle(0.15, mane, 1);
+  g.lineBetween(0, -0.6, 0, -1.42);
+  g.fillStyle(mane, 1);
+  g.fillCircle(-0.13, -1.4, 0.08);
+  g.fillCircle(0.13, -1.4, 0.08);
+  g.fillStyle(0x2a2622, 1);
+  g.fillEllipse(0, -1.96, 0.24, 0.15);
+}
+
+// Deer: light brown, slim, white tail. Frames 3 and 4 are a bounding run:
+// legs stretched fore and aft, then gathered, with the white tail up.
+function drawDeer(g, frame) {
+  const run = frame >= 3;
+  const legs = 0x6a4a2c;
+  if (run) {
+    g.lineStyle(0.13, legs, 1);
+    if (frame === 3) {
+      g.lineBetween(-0.16, -0.45, -0.12, -1.3);
+      g.lineBetween(0.16, -0.45, 0.12, -1.25);
+      g.lineBetween(-0.18, 0.6, -0.14, 1.5);
+      g.lineBetween(0.18, 0.6, 0.14, 1.45);
+    } else {
+      g.lineBetween(-0.3, -0.35, -0.42, 0.15);
+      g.lineBetween(0.3, -0.35, 0.42, 0.15);
+      g.lineBetween(-0.3, 0.5, -0.42, 0.0);
+      g.lineBetween(0.3, 0.5, 0.42, 0.0);
+    }
+  } else drawLegs(g, legs, 0.12, -0.4, 0.6, 0.2, 0.45, frame);
+  const head = run ? -0.12 : 0;
+  g.fillStyle(0xb08355, 1);
+  g.fillEllipse(0, 0.1, 0.72, 1.5);
+  g.fillEllipse(0, 0.45, 0.76, 0.8);
+  g.fillEllipse(0, -0.68 + head, 0.3, 0.62);
+  g.fillEllipse(0, -1.02 + head, 0.3, 0.46);
+  g.fillStyle(0x8f6a42, 1);
+  g.fillEllipse(0, 0.05, 0.18, 1.1);
+  // Ears.
+  g.fillStyle(0x9a7048, 1);
+  g.fillEllipse(-0.18, -0.9 + head, 0.16, 0.24);
+  g.fillEllipse(0.18, -0.9 + head, 0.16, 0.24);
+  g.fillStyle(0x2a2622, 1);
+  g.fillCircle(0, -1.24 + head, 0.06);
+  // White tail and rump patch, raised as a flag when running.
+  g.fillStyle(0xf4f0e6, 1);
+  g.fillEllipse(0, 0.74, 0.34, 0.24);
+  g.fillEllipse(0, run ? 0.98 : 0.86, run ? 0.24 : 0.14, run ? 0.36 : 0.2);
 }
 
 // ---------- hills (one soft canvas texture per hill) ----------
@@ -278,11 +369,12 @@ export class AmbientView {
       this.ground.add(key, p.x, p.y, (p.heading || 0) * R, inv);
     }
 
+    const t = scene.time.now / 1000;
     for (const a of amb.animals) {
       if (!inView(v, a.x, a.y, 6)) continue;
-      const sheep = a.kind === 'sheep';
-      this.groundShadows.add('amb_puff', a.x - 0.5, a.y - 0.17, (a.heading || 0) * R, (sheep ? 1.3 : 1.5) / 64, (sheep ? 1.7 : 2.8) / 64, 0x000000, 0.4);
-      this.ground.add(animalTexture(scene, a), a.x, a.y, (a.heading || 0) * R, inv);
+      const [sw, sl] = ANIMAL_SHADOW[a.kind] || ANIMAL_SHADOW.cow;
+      this.groundShadows.add('amb_puff', a.x - 0.5, a.y - 0.17, (a.heading || 0) * R, sw / 64, sl / 64, 0x000000, 0.4);
+      this.ground.add(animalTexture(scene, a, t), a.x, a.y, (a.heading || 0) * R, inv);
     }
 
     for (const c of amb.cars) {

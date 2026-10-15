@@ -100,6 +100,7 @@ export const CAMP = {
 
 export const TREE_HIT_R = 1.0;
 export const LOCAL_HIT_R = 0.5;
+export const POLE_R = 0.3; // power line poles (world.powerLines)
 
 // Turn a local rect part into a world rect.
 export function partRect(cx, cy, angle, p) {
@@ -233,8 +234,10 @@ export function landmarkSolids(l, world = null) {
 
 // Field fences: runs of posts along each field's polygon, broken where a road
 // or a mailbox comes close. Shared by the renderer and the collider.
-// Returns [{ fieldId, runs: [[{x, y}, ...], ...] }]; cached per world.
-export const FENCE = { step: 1.5, postR: 0.4, roadPad: 4 };
+// Fields with `fence: null` have none. style: 'wire' | 'rail' (wooden rails,
+// posts further apart).
+// Returns [{ fieldId, field, style, runs: [[{x, y}, ...], ...] }]; cached per world.
+export const FENCE = { step: 1.5, railStep: 2.6, postR: 0.4, roadPad: 4 };
 const fenceCache = new WeakMap();
 export function fenceRuns(world) {
   if (fenceCache.has(world)) return fenceCache.get(world);
@@ -245,13 +248,16 @@ export function fenceRuns(world) {
     || mbs.some((m) => Math.hypot(m.x - x, m.y - y) < 4);
   const out = [];
   for (const f of world.fields || []) {
+    const style = f.fence === undefined ? 'wire' : f.fence;
+    if (!style) continue;
+    const step = style === 'rail' ? FENCE.railStep : FENCE.step;
     // Every post around the loop, with a flag for gaps.
     const pts = [];
     const poly = f.polygon;
     for (let i = 0; i < poly.length; i++) {
       const [ax, ay] = poly[i];
       const [bx, by] = poly[(i + 1) % poly.length];
-      const n = Math.max(1, Math.round(Math.hypot(bx - ax, by - ay) / FENCE.step));
+      const n = Math.max(1, Math.round(Math.hypot(bx - ax, by - ay) / step));
       for (let k = 0; k < n; k++) {
         const x = ax + ((bx - ax) * k) / n;
         const y = ay + ((by - ay) * k) / n;
@@ -274,7 +280,7 @@ export function fenceRuns(world) {
       }
       if (run.length > 1) runs.push(run);
     }
-    out.push({ fieldId: f.id, field: f, runs });
+    out.push({ fieldId: f.id, field: f, style, runs });
   }
   fenceCache.set(world, out);
   return out;
@@ -288,7 +294,7 @@ export function fenceSolids(world) {
 
 // Yards and fields drawn on the ground. Not solid, but trees keep off them.
 // kind: 'concrete' | 'yard' | 'field' | 'gravel'
-function makePads(world) {
+export function makePads(world) {
   const pads = [];
   for (const b of world.buildings) {
     if (b.kind === 'gas') pads.push({ kind: 'concrete', x: b.x, y: b.y - 2, w: b.w + 12, h: b.h + 10, angle: b.angle || 0 });
@@ -374,7 +380,12 @@ function makeTreeRejector(world, pads) {
     ...world.signs.map((s) => ({ x: s.x, y: s.y, r: 8 })),
     ...world.locals.map((l) => ({ x: l.x, y: l.y, r: 10 })),
     ...(world.mailboxes || []).map((m) => ({ x: m.x, y: m.y, r: 4 })),
+    ...(world.props || []).map((p) => ({ x: p.x, y: p.y, r: p.r + 3 })),
+    ...(world.powerLines || []).flatMap((l) => l.poles.map((p) => ({ x: p.x, y: p.y, r: 4 }))),
   ];
+  // Clear circles in a spatial index too (zero-length segments, data = radius).
+  const clearIdx = new SegIndex(48);
+  for (const c of clear) clearIdx.add(c.x, c.y, c.x, c.y, c.r, c.r);
   return function reject(x, y) {
     if (x < 5 || y < 5 || x > world.size.w - 5 || y > world.size.h - 5) return true;
     if (lines.minDist(x, y, (s) => s.data) < 0) return true;
@@ -388,9 +399,31 @@ function makeTreeRejector(world, pads) {
     }
     for (const r of solids) if (Math.abs(x - r.x) < 40 && Math.abs(y - r.y) < 40 && circleHitsRect(x, y, 4, r)) return true;
     for (const p of pads) if (Math.abs(x - p.x) < 120 && Math.abs(y - p.y) < 120 && circleHitsRect(x, y, 5, p)) return true;
-    for (const c of clear) if (Math.abs(x - c.x) < c.r && Math.abs(y - c.y) < c.r && Math.hypot(x - c.x, y - c.y) < c.r) return true;
+    if (clearIdx.minDist(x, y, (s) => s.data) < 0) return true;
     return false;
   };
+}
+
+const centroidOf = (poly) => [
+  poly.reduce((t, p) => t + p[0], 0) / poly.length,
+  poly.reduce((t, p) => t + p[1], 0) / poly.length,
+];
+
+// The polygon edge furthest from any road (by its midpoint): where a windbreak goes.
+export function farEdge(world, poly) {
+  let best = null;
+  let bestD = -1;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    const p = nearestRoadPoint(world, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+    const d = p ? p.d : 0;
+    if (d > bestD) {
+      bestD = d;
+      best = [a, b];
+    }
+  }
+  return best;
 }
 
 // Builds the seeded scenery. Same seed gives the same world every run.
@@ -452,6 +485,37 @@ export function generateScenery(world) {
       const side = rng() < 0.5 ? -1 : 1;
       const off = side * (c.width / 2 + 5 + rng() * 6);
       tryTree(p.x - p.dy * off, p.y + p.dx * off, 'willow', 3 + rng() * 1.5);
+    }
+  }
+
+  // Windbreaks: a row of trees just beyond the field edge furthest from the
+  // road. Own random stream, so the rest of the scenery keeps its sequence.
+  const wrng = makeRng((world.seed ^ 0x77a1c3) >>> 0);
+  for (const f of world.fields || []) {
+    if (!f.windbreak) continue;
+    const [a, b] = farEdge(world, f.polygon);
+    const [cx, cy] = centroidOf(f.polygon);
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const ux = (b[0] - a[0]) / len;
+    const uy = (b[1] - a[1]) / len;
+    // Outward normal: away from the field middle.
+    let nx = -uy;
+    let ny = ux;
+    if ((a[0] - cx) * nx + (a[1] - cy) * ny < 0) {
+      nx = -nx;
+      ny = -ny;
+    }
+    const pine = wrng() < 0.5;
+    for (let d = 3 + wrng() * 3; d < len - 2; d += 6 + wrng() * 2.5) {
+      const off = 5.5 + wrng() * 1.5;
+      const x = a[0] + ux * d + nx * off;
+      const y = a[1] + uy * d + ny * off;
+      if (reject(x, y) || tooClose(x, y, 3.5)) continue;
+      const t = { x, y, kind: pine ? 'pine' : 'oak', r: pine ? 3 + wrng() * 1.2 : 3.6 + wrng() * 1.4, tint: wrng(), windbreak: true };
+      trees.push(t);
+      const k = key(Math.floor(x / CELL), Math.floor(y / CELL));
+      if (!grid.has(k)) grid.set(k, []);
+      grid.get(k).push(t);
     }
   }
 

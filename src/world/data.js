@@ -248,12 +248,14 @@ export const WORLD_SOURCE = {
     { id: 'f_lookout', polygon: [[5130, 70], [5450, 60], [5480, 330], [5300, 380], [5200, 300]], density: 0.0016 },
   ],
 
-  // Fenced fields and pastures. animals: what grazes there (rendered later).
+  // Fenced fields and pastures. animals: what grazes there. The build fills in
+  // missing fence ('wire'), rowAngle (long axis), windbreak and crop, and adds
+  // procedural fields (src/world/fill.js) after these.
   fields: [
     { id: 'fd_hartley', kind: 'pasture', farm: 'hartley', polygon: [[2760, 390], [2900, 390], [2900, 520], [2760, 520]], animals: { kind: 'cows', count: 9 } },
     { id: 'fd_pruitt', kind: 'pasture', farm: 'pruitt', polygon: [[2860, 1080], [2935, 1080], [2935, 1190], [2860, 1190]], animals: { kind: 'sheep', count: 14 } },
     { id: 'fd_okafor', kind: 'pasture', farm: 'okafor', polygon: [[4950, 2050], [5150, 2050], [5150, 2200], [4950, 2200]], animals: { kind: 'cows', count: 16 } },
-    { id: 'fd_okafor_hay', kind: 'crop', farm: 'okafor', polygon: [[5000, 1820], [5160, 1820], [5160, 1950], [5000, 1950]], animals: null },
+    { id: 'fd_okafor_hay', kind: 'crop', crop: 'hay', farm: 'okafor', polygon: [[5000, 1820], [5160, 1820], [5160, 1950], [5000, 1950]], animals: null },
   ],
 
   // Road signs, placed beside a road. Readable when the car is within ~25 m.

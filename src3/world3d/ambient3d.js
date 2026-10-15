@@ -88,6 +88,60 @@ function sheepGeo() {
   return mergeGeometries(parts);
 }
 
+// One leg hanging from the hip at (x, hip, z), swung by `ang` (rad, + = foot forward).
+function leg(x, z, hip, len, w, ang, coat, hoof) {
+  const upper = colored(box(w, len - 0.12, w).translate(0, -(len - 0.12), 0), coat);
+  const foot = colored(box(w * 1.12, 0.12, w * 1.12).translate(0, -len, 0), hoof);
+  return mergeGeometries([upper, foot]).rotateX(ang).translate(x, hip, z);
+}
+
+// Horse, facing -z. Coat parts are white so the instance colour sets the coat
+// (brown, chestnut, grey); mane, tail and hooves stay dark.
+// legs: swing angles [front left, front right, back left, back right].
+function horseGeo(legs) {
+  const W = 0xffffff;
+  const D = 0x3a2e26;
+  const neck = (g, c) => colored(g.rotateX(-0.55).translate(0, 1.45, -0.7), c);
+  const parts = [
+    colored(box(0.56, 0.62, 1.7).translate(0, 0.98, 0), W),
+    neck(box(0.3, 0.88, 0.42).translate(0, 0, 0), W),
+    neck(box(0.08, 0.82, 0.12).translate(0, 0.06, 0.2), D), // mane
+    colored(box(0.26, 0.3, 0.66).translate(0, -0.15, 0).rotateX(-0.6).translate(0, 2.08, -1.33), W), // head
+    colored(box(0.06, 0.14, 0.06).translate(-0.08, 0, 0).translate(0, 2.18, -1.08), W), // ears
+    colored(box(0.06, 0.14, 0.06).translate(0.08, 0, 0).translate(0, 2.18, -1.08), W),
+    colored(box(0.11, 0.8, 0.13).translate(0, -0.8, 0).rotateX(-0.28).translate(0, 1.56, 0.84), D), // tail
+  ];
+  const [fl, fr, bl, br] = legs;
+  parts.push(leg(-0.17, -0.62, 1.06, 1.06, 0.14, fl, W, 0x2a2522));
+  parts.push(leg(0.17, -0.62, 1.06, 1.06, 0.14, fr, W, 0x2a2522));
+  parts.push(leg(-0.17, 0.64, 1.06, 1.06, 0.15, bl, W, 0x2a2522));
+  parts.push(leg(0.17, 0.64, 1.06, 1.06, 0.15, br, W, 0x2a2522));
+  return mergeGeometries(parts);
+}
+
+// Deer, facing -z: light brown with a pale belly, white rump and tail.
+// A raised tail (`flag`) when running.
+function deerGeo(legs, flag = false) {
+  const C = 0xa87a4e;
+  const parts = [
+    colored(box(0.34, 0.42, 1.0).translate(0, 0.74, 0), C),
+    colored(box(0.28, 0.06, 0.78).translate(0, 0.72, 0), 0xe8dcc4), // belly
+    colored(box(0.3, 0.26, 0.04).translate(0, 0.8, 0.5), 0xf4efe6), // rump patch
+    colored(box(0.16, 0.52, 0.2).rotateX(-0.35).translate(0, 1.02, -0.42), C),
+    colored(box(0.16, 0.18, 0.36).translate(0, -0.09, 0).rotateX(-0.4).translate(0, 1.55, -0.66), C), // head
+    colored(box(0.06, 0.06, 0.06).translate(0, 1.42, -0.86), 0x2a2522), // nose
+    colored(box(0.06, 0.15, 0.09).rotateZ(0.5).translate(-0.1, 1.62, -0.58), C), // ears
+    colored(box(0.06, 0.15, 0.09).rotateZ(-0.5).translate(0.1, 1.62, -0.58), C),
+    colored(box(0.11, 0.18, 0.06).translate(0, flag ? 0 : -0.18, 0).rotateX(flag ? 0.5 : 0).translate(0, 1.08, 0.52), 0xfaf8f2), // tail
+  ];
+  const [fl, fr, bl, br] = legs;
+  parts.push(leg(-0.1, -0.38, 0.8, 0.8, 0.08, fl, C, 0x2a2522));
+  parts.push(leg(0.1, -0.38, 0.8, 0.8, 0.08, fr, C, 0x2a2522));
+  parts.push(leg(-0.1, 0.4, 0.8, 0.8, 0.09, bl, C, 0x2a2522));
+  parts.push(leg(0.1, 0.4, 0.8, 0.8, 0.09, br, C, 0x2a2522));
+  return mergeGeometries(parts);
+}
+
 function trafficGeos() {
   const { paint, trim } = carParts(null);
   const wheel = new THREE.CylinderGeometry(0.34, 0.34, 0.26, 8).rotateZ(Math.PI / 2);
@@ -237,8 +291,25 @@ export function createAmbient3D(scene, opts) {
   const carPaint = instanced(tg.paint, vc, MAX_CARS);
   const carTrim = instanced(tg.trim, vc, MAX_CARS);
 
-  const cows = instanced(cowGeo(), vc, MAX_ANIMALS);
-  const sheep = instanced(sheepGeo(), vc, MAX_ANIMALS);
+  // Animals: one instanced mesh per kind and pose. Horses trot by stepping
+  // through stand, diagonal pair A, stand, pair B; deer gallop between a
+  // gathered and an extended pose. Instance colour tints the coat.
+  const STAND = [0, 0, 0, 0];
+  const herd = {
+    cow: { colors: [0xffffff, 0x8a5a3a, 0x3a3030, 0xc8a070, 0xffffff], poses: [instanced(cowGeo(), vc, MAX_ANIMALS)] },
+    sheep: { colors: [0xf2efe6, 0xe6dfcf, 0xfaf8f2], poses: [instanced(sheepGeo(), vc, MAX_ANIMALS)] },
+    horse: {
+      colors: [0x6b4226, 0x8a4b23, 0x9a9590, 0x4a3020, 0xb07a4a, 0xd8d2c8],
+      poses: [STAND, [0.4, -0.3, -0.3, 0.4], [-0.3, 0.4, 0.4, -0.3]].map((l) => instanced(horseGeo(l), vc, MAX_ANIMALS)),
+    },
+    deer: {
+      colors: [0xffffff, 0xf2e8de, 0xe8dccf],
+      poses: [deerGeo(STAND), deerGeo([-0.55, -0.45, 0.6, 0.7], true), deerGeo([0.75, 0.65, -0.7, -0.6], true)]
+        .map((g) => instanced(g, vc, MAX_ANIMALS)),
+    },
+  };
+  const animalMeshes = Object.values(herd).flatMap((h) => h.poses);
+  const animalCount = new Map();
 
   const tex = puffTexture();
   const dust = puffs(MAX_DUST, 0xd9c9a2, 1, tex);
@@ -246,7 +317,7 @@ export function createAmbient3D(scene, opts) {
   const sky = buildSkyClouds(sunDir, 40);
 
   const group = new THREE.Group();
-  group.add(birdBody, birdL, birdR, carPaint, carTrim, cows, sheep, dust.points, smoke.points, sky.mesh);
+  group.add(birdBody, birdL, birdR, carPaint, carTrim, ...animalMeshes, dust.points, smoke.points, sky.mesh);
   scene.add(group);
 
   const m = new THREE.Matrix4();
@@ -339,34 +410,43 @@ export function createAmbient3D(scene, opts) {
       carPaint.instanceMatrix.needsUpdate = carTrim.instanceMatrix.needsUpdate = true;
       if (carPaint.instanceColor) carPaint.instanceColor.needsUpdate = true;
 
-      // Animals: graze with a slow nod; walk with a little bob.
-      let nc = 0;
-      let ns = 0;
+      // Animals: graze with a slow nod; walk with a little bob. Horses trot
+      // through their poses; running deer gallop with a bounding body.
+      for (const mesh of animalMeshes) animalCount.set(mesh, 0);
       for (let i = 0; i < amb.animals.length; i++) {
         const a = amb.animals[i];
         if (!near(a.x, a.y, ANIMAL_R)) continue;
-        const cow = a.kind === 'cow';
-        const mesh = cow ? cows : sheep;
-        const k = cow ? nc : ns;
+        const h = herd[a.kind] || herd.sheep;
+        let pose = 0;
+        let bob = a.moving ? Math.abs(Math.sin(time * 7 + i)) * 0.05 : 0;
+        let pitch = a.moving ? 0 : 0.04 + Math.sin(time * 0.8 + i * 1.7) * 0.03;
+        if (h.poses.length > 1 && a.moving) {
+          if (a.kind === 'deer' && a.running) {
+            const ph = (time * 3.4 + i * 0.37) % 1;
+            pose = ph < 0.5 ? 1 : 2;
+            bob = 0.08 + Math.sin(ph * Math.PI * 2) * 0.12;
+            pitch = Math.sin(ph * Math.PI * 2) * 0.12;
+          } else {
+            const step = Math.floor((time * (a.running ? 7 : 3.5) + i * 0.61) % 4);
+            pose = [1, 0, 2, 0][step];
+            bob = step % 2 ? 0 : 0.05;
+            pitch = 0;
+          }
+        }
+        const mesh = h.poses[pose];
+        const k = animalCount.get(mesh);
         if (k >= MAX_ANIMALS) continue;
-        const bob = a.moving ? Math.abs(Math.sin(time * 7 + i)) * 0.05 : 0;
-        const nod = a.moving ? 0 : 0.04 + Math.sin(time * 0.8 + i * 1.7) * 0.03;
-        e.set(-nod, -a.heading * DEG, 0);
+        e.set(-pitch, -a.heading * DEG, 0);
         q.setFromEuler(e);
         p.set(a.x, groundAt(a.x, a.y) + bob, a.y);
         m.compose(p, q, s1);
         mesh.setMatrixAt(k, m);
-        if (cow) {
-          mesh.setColorAt(k, col.setHex([0xffffff, 0x8a5a3a, 0x3a3030, 0xc8a070, 0xffffff][i % 5]));
-          nc++;
-        } else {
-          mesh.setColorAt(k, col.setHex([0xf2efe6, 0xe6dfcf, 0xfaf8f2][i % 3]));
-          ns++;
-        }
+        mesh.setColorAt(k, col.setHex(h.colors[i % h.colors.length]));
+        animalCount.set(mesh, k + 1);
       }
-      cows.count = nc;
-      sheep.count = ns;
-      for (const mesh of [cows, sheep]) {
+      for (const mesh of animalMeshes) {
+        mesh.count = animalCount.get(mesh);
+        mesh.visible = mesh.count > 0;
         mesh.instanceMatrix.needsUpdate = true;
         if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
       }

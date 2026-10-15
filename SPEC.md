@@ -128,6 +128,20 @@ Best ambient things also give clues.
 - Mission 2: starts at Hartley Farm, overlaps the first map a little, then goes into new land with more people to ask.
 - Each mission can give a printed map with its own lies (1987 county map, or a rough map an NPC sketches for you).
 
+## 6h. Onboarding (LOCKED)
+
+- **Splash page** before the game: title, one line pitch, how it works in a few points, controls, Start.
+- **Mission card** at the start of every mission: title, who gave it, the brief, and the goal's name. Never a distance or a direction.
+- Small "Goal: <name>" line on the HUD. **H** reopens the help.
+
+## 6i. Countryside fill (LOCKED)
+
+- Rural roads should never feel empty. Fill is made from the world seed when the world is built, so it is the same every run and in both engines.
+- What fill makes: fields (wheat, corn, hay, plowed), pastures with cows, sheep or horses, wire and rail fences, windbreak tree rows, hay bales, haystacks, rocks, power poles along paved roads, and deer near forests that run from the car.
+- Fill only goes in safe zones: away from roads, water, towns, buildings, landmarks, NPC spots, and mission places.
+- **Fill never makes clues.** No buildings, mailboxes, signs or names, since "the second farm on the left" or a "HARTLEY" mailbox must stay true. No new herds of the same animal near a crafted farm's herd.
+- Tall corn blocks the view in 3D, which helps the game.
+
 ## 7. MVP scope (LOCKED)
 
 1. Drivable car, simple controls

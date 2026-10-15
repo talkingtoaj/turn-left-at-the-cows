@@ -1,5 +1,6 @@
 // Ambient life for both renderers: birds, traffic, animals, people, dust,
-// chimney smoke, cloud shadows, wind, and sound events (bell, birds, dogs).
+// chimney smoke, cloud shadows, wind, and sound events (bell, birds, dogs,
+// moo, whinny).
 // Plain JS, no Phaser or three. Deterministic from WORLD.seed (given the same
 // player inputs). API: see CONTRACT_P2.md.
 //
@@ -515,12 +516,20 @@ export function createAmbient(world, scenery) {
   }
 
   // ---------- Animals ----------
+  // Field animals (cow, sheep, horse) graze inside their field polygon.
+  // Deer roam free near forest edges and bolt from the player car.
+  // Every animal: { id, kind, x, y, heading, moving, running }.
+  const ANIMAL_KIND = { cows: 'cow', sheep: 'sheep', horses: 'horse' };
+  const ANIMAL_SPEED = { cow: 0.6, sheep: 0.8, horse: 0.9 };
   const animals = [];
   const animalState = [];
+  const herds = []; // fields with animals, for moo / whinny events
   for (const fd of world.fields || []) {
     if (!fd.animals || !fd.animals.count) continue;
     const bb = bbox(fd.polygon);
-    const kind = fd.animals.kind === 'sheep' ? 'sheep' : 'cow';
+    const kind = ANIMAL_KIND[fd.animals.kind] || 'cow';
+    const herd = { kind, members: [], x: (bb.minX + bb.maxX) / 2, y: (bb.minY + bb.maxY) / 2, timer: 0 };
+    herds.push(herd);
     const margin = 3;
     const inside = (x, y) => pointInPolygon(x, y, fd.polygon) && insideMargin(fd.polygon, x, y, margin);
     for (let i = 0; i < fd.animals.count; i++) {
@@ -530,10 +539,12 @@ export function createAmbient(world, scenery) {
         y = R(bb.minY, bb.maxY);
         if (inside(x, y)) break;
       }
-      const a = { id: `${fd.id}_${i}`, kind, x, y, heading: rng() * 360, moving: false };
+      const a = { id: `${fd.id}_${i}`, kind, x, y, heading: rng() * 360, moving: false, running: false };
       animals.push(a);
-      animalState.push({ field: fd, bb, inside, timer: R(2, 15), tx: x, ty: y, speed: kind === 'cow' ? 0.6 : 0.8 });
+      herd.members.push(a);
+      animalState.push({ field: fd, bb, inside, timer: R(2, 15), tx: x, ty: y, speed: ANIMAL_SPEED[kind] });
     }
+    herd.timer = R(15, 60);
   }
   function insideMargin(poly, x, y, m) {
     for (let i = 0; i < poly.length; i++) {
@@ -550,6 +561,8 @@ export function createAmbient(world, scenery) {
       const d = Math.hypot(dx, dy);
       if (d < 0.3) {
         a.moving = false;
+        a.running = false;
+        s.speed = ANIMAL_SPEED[a.kind];
         s.timer = R(5, 25);
         return;
       }
@@ -562,12 +575,17 @@ export function createAmbient(world, scenery) {
         a.y = ny;
       } else {
         a.moving = false;
+        a.running = false;
+        s.speed = ANIMAL_SPEED[a.kind];
         s.timer = R(2, 8);
       }
       return;
     }
     s.timer -= dt;
     if (s.timer <= 0) {
+      // Horses now and then trot a longer way.
+      const trot = a.kind === 'horse' && rng() < 0.3;
+      const reach = trot ? 35 : 12;
       // Sheep drift toward the flock middle, cows wander.
       let cx = a.x, cy = a.y;
       if (a.kind === 'sheep') {
@@ -576,18 +594,173 @@ export function createAmbient(world, scenery) {
         cy = a.y + (c[1] - a.y) * 0.15;
       }
       for (let k = 0; k < 8; k++) {
-        const tx = cx + R(-12, 12);
-        const ty = cy + R(-12, 12);
+        const tx = cx + R(-reach, reach);
+        const ty = cy + R(-reach, reach);
         if (s.inside(tx, ty) && s.inside((a.x + tx) / 2, (a.y + ty) / 2)) {
           s.tx = tx;
           s.ty = ty;
           a.moving = true;
+          a.running = trot;
+          s.speed = trot ? 2.8 : ANIMAL_SPEED[a.kind];
           break;
         }
       }
       if (!a.moving) s.timer = R(2, 6);
     } else if (rng() < dt * 0.1) {
       a.heading = (a.heading + R(-30, 30) + 360) % 360; // grazing shuffle
+    }
+  }
+
+  // ---------- Deer ----------
+  // A few small groups just outside forest edges. Own random stream so the
+  // rest of the ambient world keeps its sequence.
+  const drng = makeRng((world.seed ^ 0xd3e7) >>> 0);
+  const DR = (a, b) => a + drng() * (b - a);
+  const waterIndex = new SegIndex(32);
+  for (const c of world.creeks || []) waterIndex.addPolyline(c.points, c.width / 2 + 3, c);
+  const lakeList = (world.lakes || []).map((l) => ({ poly: l.polygon, bb: bbox(l.polygon) }));
+  const fieldList = (world.fields || []).map((f) => ({ poly: f.polygon, bb: bbox(f.polygon) }));
+  const forestList = (world.forests || []).map((f) => ({ poly: f.polygon, bb: bbox(f.polygon) }));
+  const inPoly = (list, x, y, m = 0) => list.some((p) => x > p.bb.minX - m && x < p.bb.maxX + m && y > p.bb.minY - m
+    && y < p.bb.maxY + m && pointInPolygon(x, y, p.poly));
+  // Deer can stand here (running deer may cross roads and fields, never water or houses).
+  function deerOk(x, y, running) {
+    if (x < 20 || y < 20 || x > world.size.w - 20 || y > world.size.h - 20) return false;
+    for (const s of waterIndex.near(x, y)) if (distToSegment(x, y, s.ax, s.ay, s.bx, s.by) < s.data.width / 2 + 2) return false;
+    if (inPoly(lakeList, x, y)) return false;
+    for (const b of world.buildings) if (Math.abs(b.x - x) < 30 && Math.abs(b.y - y) < 30 && pointInRect(x, y, { x: b.x, y: b.y, w: b.w + 3, h: b.h + 3, angle: b.angle || 0 })) return false;
+    if (running) return true;
+    return roadEdgeDist(x, y) > 6 && !inPoly(fieldList, x, y) && !inTown(x, y);
+  }
+  const deerGroups = [];
+  for (const f of forestList) {
+    if (drng() > 0.75) continue;
+    const poly = f.poly;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const i = Math.floor(drng() * poly.length);
+      const p = poly[i];
+      const q = poly[(i + 1) % poly.length];
+      const t = drng();
+      const ex = p[0] + (q[0] - p[0]) * t;
+      const ey = p[1] + (q[1] - p[1]) * t;
+      const len = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1;
+      let nx = (q[1] - p[1]) / len;
+      let ny = -(q[0] - p[0]) / len;
+      if (pointInPolygon(ex + nx * 5, ey + ny * 5, poly)) {
+        nx = -nx;
+        ny = -ny;
+      }
+      const off = DR(8, 25);
+      const hx = ex + nx * off;
+      const hy = ey + ny * off;
+      if (!deerOk(hx, hy, false) || inPoly(forestList, hx, hy)) continue;
+      const g = { hx, hy, ox: hx, oy: hy, members: [], fleeT: 0, fleeH: 0 };
+      const n = 2 + Math.floor(drng() * 2);
+      for (let k = 0; k < n; k++) {
+        const x = hx + DR(-5, 5);
+        const y = hy + DR(-5, 5);
+        const a = { id: `deer_${deerGroups.length}_${k}`, kind: 'deer', x, y, heading: drng() * 360, moving: false, running: false };
+        animals.push(a);
+        g.members.push({ a, timer: DR(2, 10), tx: x, ty: y, speed: 1.1 });
+      }
+      deerGroups.push(g);
+      break;
+    }
+  }
+  function stepDeerGroup(g, dt, player) {
+    const dPlayer = (a) => (player ? Math.hypot(player.x - a.x, player.y - a.y) : Infinity);
+    // Bolt together when the car comes close.
+    if (g.fleeT <= 0 && g.members.some((m) => dPlayer(m.a) < 40)) {
+      const lead = g.members[0].a;
+      g.fleeT = DR(3.5, 6);
+      g.fleeH = headingOf(lead.x - player.x, lead.y - player.y) + DR(-30, 30);
+      for (const m of g.members) {
+        m.a.running = true;
+        m.a.moving = true;
+        m.a.heading = (g.fleeH + DR(-15, 15) + 360) % 360;
+      }
+    }
+    if (g.fleeT > 0) {
+      g.fleeT -= dt;
+      for (const m of g.members) {
+        const a = m.a;
+        const away = player && dPlayer(a) < 70 ? headingOf(a.x - player.x, a.y - player.y) : g.fleeH;
+        a.heading = turnToward(a.heading, away, 120 * dt);
+        const v = 10 * dt;
+        let moved = false;
+        for (const turn of [0, 35, -35, 70, -70, 120, -120]) {
+          const h = a.heading + turn;
+          const nx = a.x + fwdX(h) * v;
+          const ny = a.y + fwdY(h) * v;
+          if (!deerOk(nx, ny, true)) continue;
+          a.x = nx;
+          a.y = ny;
+          if (turn) a.heading = turnToward(a.heading, (h + 360) % 360, 400 * dt);
+          moved = true;
+          break;
+        }
+        if (!moved) a.heading = (a.heading + 180) % 360;
+      }
+      if (g.fleeT <= 0) {
+        if (g.members.some((m) => dPlayer(m.a) < 60)) g.fleeT = 1.5; // keep going
+        else {
+          const c = g.members[0].a;
+          // New home where they stopped, unless they ran far from the woods.
+          const far = Math.hypot(c.x - g.ox, c.y - g.oy) > 250;
+          g.hx = far ? g.ox : c.x;
+          g.hy = far ? g.oy : c.y;
+          for (const m of g.members) {
+            m.a.running = false;
+            m.a.moving = false;
+            m.timer = DR(1, 4);
+          }
+        }
+      }
+      return;
+    }
+    for (const m of g.members) {
+      const a = m.a;
+      if (a.moving) {
+        const dx = m.tx - a.x;
+        const dy = m.ty - a.y;
+        const d = Math.hypot(dx, dy);
+        if (d < 0.4) {
+          a.moving = false;
+          m.timer = DR(4, 18);
+          continue;
+        }
+        a.heading = turnToward(a.heading, headingOf(dx, dy), 120 * dt);
+        const step = Math.min(d, m.speed * dt);
+        const nx = a.x + fwdX(a.heading) * step;
+        const ny = a.y + fwdY(a.heading) * step;
+        if (deerOk(nx, ny, true)) {
+          a.x = nx;
+          a.y = ny;
+        } else {
+          a.moving = false;
+          m.timer = DR(2, 6);
+        }
+        continue;
+      }
+      m.timer -= dt;
+      if (m.timer <= 0) {
+        // Wander near the group's home (walk back if they ran off).
+        const far = Math.hypot(a.x - g.hx, a.y - g.hy) > 30;
+        for (let k = 0; k < 8; k++) {
+          const tx = (far ? g.hx : a.x) + DR(-10, 10);
+          const ty = (far ? g.hy : a.y) + DR(-10, 10);
+          if (deerOk(tx, ty, far)) {
+            m.tx = tx;
+            m.ty = ty;
+            m.speed = far ? 1.6 : 1.0;
+            a.moving = true;
+            break;
+          }
+        }
+        if (!a.moving) m.timer = DR(2, 6);
+      } else if (drng() < dt * 0.15) {
+        a.heading = (a.heading + DR(-40, 40) + 360) % 360;
+      }
     }
   }
 
@@ -789,9 +962,25 @@ export function createAmbient(world, scenery) {
       }
 
       // Animals and people: only near the player.
-      for (let i = 0; i < animals.length; i++) {
+      for (let i = 0; i < animalState.length; i++) {
         const a = animals[i];
         if ((a.x - px) ** 2 + (a.y - py) ** 2 < nearSq) stepAnimal(a, animalState[i], dt);
+      }
+      for (const g of deerGroups) {
+        const a = g.members[0].a;
+        if (g.fleeT > 0 || (a.x - px) ** 2 + (a.y - py) ** 2 < nearSq) stepDeerGroup(g, dt, player);
+      }
+      // Now and then a cow moos or a horse whinnies, when the player is near.
+      for (const h of herds) {
+        if (h.kind === 'sheep') continue;
+        const d = Math.hypot(h.x - px, h.y - py);
+        if (d > 250) continue;
+        h.timer -= dt;
+        if (h.timer <= 0) {
+          h.timer = h.kind === 'horse' ? R(50, 130) : R(45, 120);
+          const a = h.members[Math.floor(rng() * h.members.length) % h.members.length];
+          events.push({ type: h.kind === 'horse' ? 'whinny' : 'moo', x: a.x, y: a.y });
+        }
       }
       for (const [id, p] of people) {
         if ((p.x - px) ** 2 + (p.y - py) ** 2 < nearSq) stepPerson(p, peopleState.get(id), dt, player);

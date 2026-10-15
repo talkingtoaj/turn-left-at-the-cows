@@ -2,15 +2,18 @@ import { WORLD } from '../../src/world/world.js';
 import { state } from '../../src/state.js';
 import { runtime } from '../runtime.js';
 import { headingText, clockText, timerText } from '../../src/hud/format.js';
-import { greet, ask, listTopics, getNpc } from '../../src/game/dialogue.js';
+import { greet, ask, listTopics } from '../../src/game/dialogue.js';
 import { currentMission, currentGoal, nextMission, MISSIONS } from '../../src/game/missions.js';
 import { finishMission } from '../../src/game/update.js';
 import { renderSketchCanvas, renderPrintedMapCanvas, trueMapDef } from '../map/sketchRender.js';
+import { openMissionCard } from '../../src/ui/missionCard.js';
+import { openHelp } from '../../src/ui/help.js';
 
 // DOM/CSS port of the Phaser HUDScene. Shows the dash (compass, odometer,
 // clock, speed, trip timer), road signs, mailboxes, the talk prompt, the
-// topic menu dialogue, the mission complete screen, and owns the E / M / R /
-// Enter / 1-9 keys.
+// topic menu dialogue, the goal line, the mission complete screen, and owns
+// the E / M / R / Enter / H / 1-9 keys. The mission card and the help panel
+// are shared DOM screens (src/ui) that take every key while open.
 // Core rule: never show the player's position, a minimap or coordinates.
 
 // Ignore M this long after the map closes, so the same keypress that
@@ -52,6 +55,8 @@ const CSS = `
   font: bold 28px "Courier New", Courier, monospace; line-height: 32px; }
 .hud-unit { position: absolute; left: 86px; top: 32px; font-size: 13px; color: #8a8d92; }
 .hud-gear { position: absolute; right: 12px; top: 5px; font-size: 11px; color: #c96a5a; font-weight: bold; }
+.hud-goal-line { position: absolute; top: 10px; right: 12px; padding: 4px 8px; background: rgba(20,21,23,0.7);
+  color: #efe6cf; font-size: 13px; white-space: nowrap; display: none; }
 .hud-hint { position: absolute; left: 0; right: 0; bottom: 2px; text-align: center; font-size: 12px; color: #8a8d92; }
 
 .hud-sign { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); min-width: 160px;
@@ -224,9 +229,10 @@ export function createHUD(root, { openMap } = {}) {
   const timerTxt = el('div', 'hud-gauge', bezel(790, 150, 'TRIP TIME'));
   timerTxt.style.fontSize = '18px';
   el('div', 'hud-hint', inner,
-    'Arrows/WASD drive · Space handbrake · E talk · M map · C camera · N north/heading-up · K mute');
+    'Arrows/WASD drive · Space handbrake · E talk · M map · C camera · N north/heading-up · K mute · H help');
 
   // ---------------------------------------------------------------- overlays
+  const goalLine = el('div', 'hud-goal-line hud-mono', hud);
   const signBox = el('div', 'hud-sign', hud);
   const promptBox = el('div', 'hud-prompt hud-mono', hud);
   const dlgBox = el('div', 'hud-dlg', hud);
@@ -251,6 +257,8 @@ export function createHUD(root, { openMap } = {}) {
   let currentSignId; // undefined forces the first render
   let winShown = false;
   let promptText = null;
+  let card = null; // mission card while it shows
+  let help = null; // how-to-play panel while it shows
   const last = {}; // last text written per element, to skip DOM writes
   let lastScaleW = -1;
 
@@ -363,13 +371,38 @@ export function createHUD(root, { openMap } = {}) {
     if (dialogue && dialogue.mode === 'pages') advance();
   });
 
-  // A new mission's brief, from whoever gave it.
-  function showBrief() {
+  // A new mission's card (title, giver, brief, goal name). The brief is
+  // already in the notebook (startMission). The game is paused until it
+  // closes, so the car stays put and the trip timer waits.
+  function showCard() {
     state.briefPending = false;
-    const m = currentMission(state);
-    if (!m) return;
-    const giver = m.giverNpcId && getNpc(m.giverNpcId);
-    openPages(null, giver ? `${giver.name}: ${m.title}` : m.title, m.brief, 'close');
+    if (!currentMission(state)) return;
+    state.inputLocked = true;
+    runtime.paused = true;
+    card = openMissionCard(state.missionIndex, {
+      onClose: () => {
+        card = null;
+        runtime.paused = false;
+        state.inputLocked = false;
+      },
+    });
+  }
+
+  // H: how-to-play as a pause overlay. Not over the map, a dialogue, the
+  // mission card or the end screens.
+  function onHelpKey() {
+    if (help || card || mapOpen || dialogue || zoomBox || state.won) return;
+    if (performance.now() - mapClosedAt < MAP_REOPEN_GUARD_MS) return;
+    state.inputLocked = true;
+    runtime.paused = true;
+    help = openHelp({
+      version: '3d',
+      onClose: () => {
+        help = null;
+        runtime.paused = false;
+        state.inputLocked = false;
+      },
+    });
   }
 
   function closeDialogue() {
@@ -452,7 +485,7 @@ export function createHUD(root, { openMap } = {}) {
   // M works while driving, during a dialogue (it comes back as it was) and
   // on the complete screen (to finish the map).
   function onMapKey() {
-    if (!openMap || zoomBox || state.allMissionsDone) return;
+    if (!openMap || zoomBox || card || help || state.allMissionsDone) return;
     if (performance.now() - mapClosedAt < MAP_REOPEN_GUARD_MS) return;
     mapOpen = true;
     hud.style.display = 'none';
@@ -468,7 +501,7 @@ export function createHUD(root, { openMap } = {}) {
       if (!runtime.paused) markMapClosed();
       return;
     }
-    if (runtime.paused) return;
+    if (runtime.paused || card || help) return;
     if (zoomBox) {
       if (!e.repeat && (e.key === 'Escape' || e.key === 'Enter' || e.key.toLowerCase() === 'e')) closeZoom();
       return;
@@ -478,6 +511,7 @@ export function createHUD(root, { openMap } = {}) {
     const k = e.key.toLowerCase();
     if (k === 'e') onTalkKey();
     else if (k === 'm') onMapKey();
+    else if (k === 'h') onHelpKey();
     else if (k === 'r' && state.won) window.location.reload();
     else if (e.key === 'Enter') onContinueKey();
   }
@@ -538,9 +572,18 @@ export function createHUD(root, { openMap } = {}) {
     signBox.style.display = 'block';
   }
 
+  function updateGoalLine() {
+    const goal = state.won ? null : currentGoal(state);
+    const text = goal ? `Goal: ${goal.name}` : null;
+    if (text === last.goalLine) return;
+    last.goalLine = text;
+    goalLine.textContent = text || '';
+    goalLine.style.display = text ? 'block' : 'none';
+  }
+
   function updatePrompt() {
     const local =
-      !dialogue && !state.won && state.nearLocalId ? WORLD.locals.find((l) => l.id === state.nearLocalId) : null;
+      !dialogue && !card && !help && !state.won && state.nearLocalId ? WORLD.locals.find((l) => l.id === state.nearLocalId) : null;
     const text = local ? `E: talk to ${local.name} (${local.role})` : null;
     if (text === promptText) return;
     promptText = text;
@@ -678,9 +721,10 @@ export function createHUD(root, { openMap } = {}) {
     updateSign();
     updateMailbox();
     updatePrompt();
-    if (dialogue || winShown) state.inputLocked = true;
+    updateGoalLine();
+    if (dialogue || winShown || card || help) state.inputLocked = true;
     if (state.won && !winShown) showWin();
-    if (state.briefPending && !dialogue && !state.won) showBrief();
+    if (state.briefPending && !dialogue && !state.won && !card && !help) showCard();
   }
 
   return { update };

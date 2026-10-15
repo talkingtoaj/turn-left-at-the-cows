@@ -3,6 +3,7 @@
 
 import {
   makeRng, hashString, localToWorld, worldToLocal, measurePolyline, pointAlong, centroid, DEG, nearestOnPolyline,
+  bbox, pointInPolygon, distToPolygonEdge,
 } from './geom.js';
 import {
   GAS, CHURCH, WATER_TOWER, MILL, RADIO_MAST, SILO, anchorPoints,
@@ -17,6 +18,28 @@ const SUN = { x: -0.75, y: -0.25 };
 const SHADOW_ALPHA = 0.22;
 
 // ---------- small drawing helpers ----------
+
+// Phaser's WebGL Graphics turns every shape into triangles again each frame,
+// and a fillCircle becomes 100 points. For the static layers, swap in
+// polygons with just enough sides that the facets stay under half a pixel at
+// the drive zoom (`pxPerM`), which looks the same and draws much faster.
+export function cheapCircles(g, pxPerM) {
+  const sides = (r) => Math.max(6, Math.min(32, Math.ceil(Math.PI * Math.sqrt(r * pxPerM))));
+  g.fillCircle = function fillCircle(x, y, r) {
+    const n = sides(r);
+    const pts = [];
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      pts.push({ x: x + Math.cos(a) * r, y: y + Math.sin(a) * r });
+    }
+    return this.fillPoints(pts, true);
+  };
+  const fillEllipse = g.fillEllipse;
+  g.fillEllipse = function cheapEllipse(x, y, w, h, smoothness) {
+    return fillEllipse.call(this, x, y, w, h, smoothness || sides(Math.max(w, h) / 2));
+  };
+  return g;
+}
 
 function shade(color, f) {
   const r = Math.min(255, Math.round(((color >> 16) & 255) * f));
@@ -195,7 +218,9 @@ const PAD_COLORS = { concrete: 0xb3b0a8, gravel: 0xa29d92, yard: 0xa48f6a, field
 // Layer names, bottom to top: dirtEdge, dirtTop, dirtDetail, pavedEdge,
 // pavedBand, pavedTop, pavedDash, waterBank, water. Without it, all goes in g.
 export const GROUND_LAYERS = ['dirtEdge', 'dirtTop', 'dirtDetail', 'pavedEdge', 'pavedBand', 'pavedTop', 'pavedDash', 'waterBank', 'water'];
-export function drawGround(g, world, scenery, layer = null, gTop = g) {
+// `fieldG(f)` (optional) returns the Graphics for one farm field, so the
+// scene can hide fields that are out of view.
+export function drawGround(g, world, scenery, layer = null, gTop = g, fieldG = null) {
   const rng = makeRng(world.seed + 7);
   const L = (name) => (layer ? (x, y) => layer(name, x, y) : null);
 
@@ -221,7 +246,7 @@ export function drawGround(g, world, scenery, layer = null, gTop = g) {
   }
 
   // Farm fields: pasture grass and crop rows (fences are drawn with objects).
-  for (const f of world.fields || []) drawFieldGround(g, f, rng);
+  for (const f of world.fields || []) drawFieldGround(fieldG ? fieldG(f) : g, f, rng);
 
   // Roads: dirt first, paved on top so junctions look right.
   const dirt = world.roads.filter((r) => r.type !== 'paved');
@@ -1258,44 +1283,118 @@ function drawCampground(gS, gO, l, rng) {
   gO.fillCircle(l.x + 10, l.y - 2, 0.3);
 }
 
-// ---------- fields, fences, mailboxes, hills ----------
+// ---------- fields, fences, props, power lines, mailboxes ----------
 
-// Pasture: smoother, lighter grass with grazed patches. Crop: golden rows
-// along the long side, with a few round bales.
-function drawFieldGround(g, f, rng) {
-  const pts = f.polygon.map(([x, y]) => ({ x, y }));
-  const [mx, my] = centroid(f.polygon);
-  let minX = Infinity;
-  let maxX = -Infinity;
-  let minY = Infinity;
-  let maxY = -Infinity;
-  for (const [x, y] of f.polygon) {
-    minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y);
-  }
-  if (f.kind === 'crop') {
-    g.fillStyle(0xbfa75e, 1);
-    g.fillPoints(pts, true);
-    const alongX = maxX - minX >= maxY - minY;
-    g.lineStyle(1, 0xa58e4a, 1);
-    if (alongX) for (let y = minY + 1.5; y < maxY - 1; y += 3) g.lineBetween(minX + 1.5, y, maxX - 1.5, y);
-    else for (let x = minX + 1.5; x < maxX - 1; x += 3) g.lineBetween(x, minY + 1.5, x, maxY - 1.5);
-    for (let i = 0; i < 14; i++) {
-      const x = minX + 8 + rng() * (maxX - minX - 16);
-      const y = minY + 8 + rng() * (maxY - minY - 16);
-      g.fillStyle(0x000000, SHADOW_ALPHA);
-      g.fillCircle(x - 0.9, y - 0.3, 0.9);
-      g.fillStyle(0xd8c27a, 1);
-      g.fillCircle(x, y, 0.9);
-      g.fillStyle(0xb79f58, 1);
-      g.fillCircle(x, y, 0.35);
+// Crop looks, shared with the 3D version: base colour, then row strokes
+// [colour, width, sideways offset], row spacing, headland edge colour,
+// patch colours and crop height (for the shadow along the shady edges).
+export const CROPS = {
+  wheat: { base: 0xc9ad5c, rows: [[0xa88e45, 1.0, 0], [0xdcc47a, 0.4, 0.85]], sp: 2.6, edge: 0xb39a4e, patches: [0xd6bd6c, 0xb8a050], h: 0.9 },
+  corn: { base: 0x5e5236, rows: [[0x2f5d27, 1.9, 0], [0x4a843c, 0.6, 0.4]], sp: 2.6, edge: 0x3a5a2a, patches: [], h: 2.2 },
+  hay: { base: 0xcfc184, rows: [[0xbcae6c, 0.5, 0]], sp: 1.8, edge: 0xb7a765, patches: [0xdacd96, 0xc0b072], h: 0 },
+  plowed: { base: 0x7a5a3a, rows: [[0x5e4329, 0.8, 0], [0x94734d, 0.35, 0.75]], sp: 1.6, edge: 0x6a4e32, patches: [0x6e5134, 0x84643f], h: 0 },
+};
+
+// Row direction for a field: its rowAngle, else along the long axis.
+function rowHeading(f) {
+  if (typeof f.rowAngle === 'number') return f.rowAngle;
+  const p = f.polygon;
+  let best = 0;
+  let ang = 0;
+  for (let i = 0; i < p.length; i++) {
+    const [ax, ay] = p[i];
+    const [bx, by] = p[(i + 1) % p.length];
+    const l = Math.hypot(bx - ax, by - ay);
+    if (l > best) {
+      best = l;
+      ang = (Math.atan2(bx - ax, -(by - ay)) * 180) / Math.PI;
     }
+  }
+  return ang;
+}
+
+// Parallel rows across a polygon at heading `deg`, `sp` apart, clipped to it
+// and pulled `inset` metres back from the edges. Returns [[x0, y0, x1, y1]].
+function clippedRows(poly, deg, sp, inset, shift = 0) {
+  const ux = Math.sin(deg * DEG);
+  const uy = -Math.cos(deg * DEG);
+  const nx = -uy; // across the rows
+  const ny = ux;
+  let s0 = Infinity;
+  let s1 = -Infinity;
+  for (const [x, y] of poly) {
+    const s = x * nx + y * ny;
+    s0 = Math.min(s0, s);
+    s1 = Math.max(s1, s);
+  }
+  const out = [];
+  for (let s = s0 + inset + sp / 2 + shift; s < s1 - inset; s += sp) {
+    const ts = [];
+    for (let i = 0; i < poly.length; i++) {
+      const [ax, ay] = poly[i];
+      const [bx, by] = poly[(i + 1) % poly.length];
+      const da = ax * nx + ay * ny - s;
+      const db = bx * nx + by * ny - s;
+      if ((da < 0) === (db < 0)) continue;
+      const k = da / (da - db);
+      const x = ax + (bx - ax) * k;
+      const y = ay + (by - ay) * k;
+      ts.push(x * ux + y * uy);
+    }
+    ts.sort((a, b) => a - b);
+    for (let i = 0; i + 1 < ts.length; i += 2) {
+      const t0 = ts[i] + inset;
+      const t1 = ts[i + 1] - inset;
+      if (t1 - t0 < 1) continue;
+      out.push([nx * s + ux * t0, ny * s + uy * t0, nx * s + ux * t1, ny * s + uy * t1]);
+    }
+  }
+  return out;
+}
+
+// Random points inside a polygon (rejection sampling in its box).
+function pointsInside(poly, n, rng, pad = 2) {
+  const bb = bbox(poly);
+  const out = [];
+  for (let tries = 0; out.length < n && tries < n * 4; tries++) {
+    const x = bb.minX + pad + rng() * (bb.maxX - bb.minX - 2 * pad);
+    const y = bb.minY + pad + rng() * (bb.maxY - bb.minY - 2 * pad);
+    if (pointInPolygon(x, y, poly) && distToPolygonEdge(x, y, poly) > pad) out.push([x, y]);
+  }
+  return out;
+}
+
+// Pasture: smoother, lighter grass with grazed patches and a water trough.
+// Crops: rows along rowAngle clipped to the field, a darker headland, and
+// for tall crops (corn, wheat) a shadow along the shady edges.
+export function drawFieldGround(g, f, rng) {
+  const pts = f.polygon.map(([x, y]) => ({ x, y }));
+  if (f.kind === 'crop') {
+    const c = CROPS[f.crop] || CROPS.hay;
+    if (c.h) {
+      const moved = pts.map((p) => ({ x: p.x + SUN.x * c.h, y: p.y + SUN.y * c.h }));
+      g.fillStyle(0x000000, SHADOW_ALPHA);
+      g.fillPoints(hull(pts.concat(moved)), true);
+    }
+    g.fillStyle(c.base, 1);
+    g.fillPoints(pts, true);
+    for (const [x, y] of pointsInside(f.polygon, c.patches.length ? 14 : 0, rng, 8)) {
+      g.fillStyle(c.patches[Math.floor(rng() * c.patches.length)], 0.7);
+      g.fillEllipse(x, y, 5 + rng() * 9, 3 + rng() * 6);
+    }
+    const deg = rowHeading(f);
+    for (const [color, width, shift] of c.rows) {
+      g.lineStyle(width, color, 1);
+      for (const [x0, y0, x1, y1] of clippedRows(f.polygon, deg, c.sp, 1.2, shift)) g.lineBetween(x0, y0, x1, y1);
+    }
+    g.lineStyle(1.4, c.edge, 1);
+    g.strokePoints(pts, true);
     return;
   }
+  const [mx, my] = centroid(f.polygon);
   g.fillStyle(0x6c9c4f, 1);
   g.fillPoints(pts, true);
-  for (let i = 0; i < 70; i++) {
-    const x = minX + rng() * (maxX - minX);
-    const y = minY + rng() * (maxY - minY);
+  for (const [x, y] of pointsInside(f.polygon, 70, rng, 3)) {
     g.fillStyle(rng() < 0.6 ? 0x76a657 : 0x5f8f45, 1);
     g.fillEllipse(x, y, 3 + rng() * 6, 2 + rng() * 4);
   }
@@ -1308,28 +1407,161 @@ function drawFieldGround(g, f, rng) {
   g.fillRect(mx - 1.2, my - 0.25, 2.4, 0.5);
 }
 
-// Fence posts and two rails along each run, drawn into the objects layer of
-// whichever chunk each piece falls in.
+// Fences along each run, drawn into the shadow and objects layers of
+// whichever chunk each piece falls in. Styles: 'wire' (thin pale wire,
+// a post every 4.5 m), 'rail' (wooden horse fence: two rails, a post every
+// 3 m, longer shadow). Fields with fence: null have none.
 export function drawFences(world, at) {
   for (const f of fenceRuns(world)) {
+    const style = f.style !== undefined ? f.style : (f.field && f.field.fence !== undefined ? f.field.fence : 'wire');
+    if (!style) continue;
+    const rail = style === 'rail';
+    const post = rail ? 0.4 : 0.32;
+    const postColor = rail ? 0x4f3a26 : 0x5a4630;
     for (const run of f.runs) {
       for (let i = 0; i < run.length - 1; i++) {
         const p = run[i];
         const q = run[i + 1];
         const [gS, gO] = at(p.x, p.y);
-        gS.lineStyle(0.12, 0x000000, SHADOW_ALPHA * 0.8);
-        gS.lineBetween(p.x - 0.7, p.y - 0.23, q.x - 0.7, q.y - 0.23);
-        gO.lineStyle(0.2, 0xc2a77e, 1);
-        gO.lineBetween(p.x, p.y, q.x, q.y);
-        if (i % 3 === 0) {
-          gO.fillStyle(0x5a4630, 1);
-          gO.fillRect(p.x - 0.16, p.y - 0.16, 0.32, 0.32);
+        if (rail) {
+          const l = Math.hypot(q.x - p.x, q.y - p.y) || 1;
+          const ox = (-(q.y - p.y) / l) * 0.09;
+          const oy = ((q.x - p.x) / l) * 0.09;
+          gS.lineStyle(0.16, 0x000000, SHADOW_ALPHA * 0.8);
+          gS.lineBetween(p.x - 0.5, p.y - 0.17, q.x - 0.5, q.y - 0.17);
+          gS.lineBetween(p.x - 0.95, p.y - 0.32, q.x - 0.95, q.y - 0.32);
+          gO.lineStyle(0.15, 0x7a5638, 1);
+          gO.lineBetween(p.x - ox, p.y - oy, q.x - ox, q.y - oy);
+          gO.lineStyle(0.15, 0xa07a52, 1);
+          gO.lineBetween(p.x + ox, p.y + oy, q.x + ox, q.y + oy);
+        } else {
+          gS.lineStyle(0.12, 0x000000, SHADOW_ALPHA * 0.8);
+          gS.lineBetween(p.x - 0.7, p.y - 0.23, q.x - 0.7, q.y - 0.23);
+          gO.lineStyle(0.2, 0xc2a77e, 1);
+          gO.lineBetween(p.x, p.y, q.x, q.y);
+        }
+        if (rail || i % 3 === 0) {
+          gO.fillStyle(postColor, 1);
+          gO.fillRect(p.x - post / 2, p.y - post / 2, post, post);
         }
       }
       const e = run[run.length - 1];
       const [, gO] = at(e.x, e.y);
-      gO.fillStyle(0x5a4630, 1);
-      gO.fillRect(e.x - 0.16, e.y - 0.16, 0.32, 0.32);
+      gO.fillStyle(postColor, 1);
+      gO.fillRect(e.x - post / 2, e.y - post / 2, post, post);
+    }
+  }
+}
+
+// Props from the countryside fill: round bales lying on their side,
+// haystacks and rocks. Same sizes as their collider circles.
+export function drawProp(gS, gO, p) {
+  const r = p.r || 0.8;
+  const a = p.angle || 0;
+  const h = hashString(String(p.id));
+  if (p.kind === 'bale') {
+    // A cylinder about 1.3 m long lying along `angle`, seen from above:
+    // dark sides, a sunlit crown, slightly rounded ends.
+    const len = 1.3;
+    boxShadow(gS, p.x, p.y, a, 0, 0, r * 2, len, r * 1.8);
+    gO.fillStyle(0xa8904c, 1);
+    poly(gO, p.x, p.y, a, [[-r, -len / 2 + 0.1], [-r * 0.6, -len / 2], [r * 0.6, -len / 2], [r, -len / 2 + 0.1], [r, len / 2 - 0.1], [r * 0.6, len / 2], [-r * 0.6, len / 2], [-r, len / 2 - 0.1]]);
+    gO.fillStyle(0xcfb46a, 1);
+    quad(gO, p.x, p.y, a, r * 0.12, 0, r * 1.5, len - 0.04);
+    gO.fillStyle(0xe6d395, 1);
+    quad(gO, p.x, p.y, a, r * 0.32, 0, r * 0.55, len - 0.08);
+    return;
+  }
+  if (p.kind === 'haystack') {
+    // A rounded loose mound: darker skirt, lighter sunlit top, a few wisps.
+    const rng = makeRng(h);
+    circleShadow(gS, p.x, p.y, r * 0.95, r * 1.3);
+    gO.fillStyle(0xa98f48, 1);
+    gO.fillCircle(p.x, p.y, r);
+    gO.fillStyle(0xc4a95a, 1);
+    gO.fillCircle(p.x + r * 0.08, p.y + r * 0.03, r * 0.84);
+    gO.fillStyle(0xd6bc6c, 1);
+    gO.fillCircle(p.x + r * 0.2, p.y + r * 0.07, r * 0.6);
+    gO.fillStyle(0xe4cd85, 1);
+    gO.fillCircle(p.x + r * 0.3, p.y + r * 0.1, r * 0.32);
+    gO.lineStyle(0.06, 0xa88e46, 0.6);
+    for (let i = 0; i < 10; i++) {
+      const t = rng() * Math.PI * 2;
+      const d = r * (0.2 + rng() * 0.75);
+      const x = p.x + Math.cos(t) * d;
+      const y = p.y + Math.sin(t) * d;
+      const k = t + (rng() - 0.5) * 1.2;
+      gO.lineBetween(x, y, x + Math.cos(k) * 0.3, y + Math.sin(k) * 0.3);
+    }
+    return;
+  }
+  // Rock: a lumpy grey stone, sunny side lighter.
+  const rng = makeRng(h);
+  const n = 7;
+  const outline = [];
+  for (let i = 0; i < n; i++) {
+    const t = (i / n) * Math.PI * 2 + a * DEG;
+    const k = 0.8 + rng() * 0.3;
+    outline.push({ x: Math.cos(t) * r * k, y: Math.sin(t) * r * k * 0.85 });
+  }
+  const at = (dx, dy, s) => outline.map((q) => ({ x: p.x + dx + q.x * s, y: p.y + dy + q.y * s }));
+  const sh = r * 0.7;
+  gS.fillStyle(0x000000, SHADOW_ALPHA);
+  gS.fillPoints(hull(at(0, 0, 1).concat(at(SUN.x * sh, SUN.y * sh, 0.9))), true);
+  gO.fillStyle(0x76736c, 1);
+  gO.fillPoints(at(0, 0, 1), true);
+  gO.fillStyle(0x99968e, 1);
+  gO.fillPoints(at(r * 0.12, r * 0.04, 0.72), true);
+  gO.fillStyle(0xb3b0a8, 1);
+  gO.fillPoints(at(r * 0.28, r * 0.08, 0.35), true);
+}
+
+// Power lines: a pole with a crossarm every ~45 m and three thin wires
+// between consecutive poles. `at(x, y)` returns [shadow, wires] Graphics for
+// a chunk. The wires layer sits above ground objects but below the car.
+const POLE_H = 9;
+const ARM = 1.0; // half the crossarm
+export function drawPowerLines(world, at) {
+  for (const pl of world.powerLines || []) {
+    const P = pl.poles;
+    if (!P || !P.length) continue;
+    // Crossarm direction at each pole: square to the line.
+    const arms = P.map((p, i) => {
+      const a = P[Math.max(0, i - 1)];
+      const b = P[Math.min(P.length - 1, i + 1)];
+      const l = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      return { x: -(b.y - a.y) / l, y: (b.x - a.x) / l };
+    });
+    const sx = SUN.x * POLE_H;
+    const sy = SUN.y * POLE_H;
+    const ends = (p, n) => [{ x: p.x - n.x * ARM, y: p.y - n.y * ARM }, { x: p.x, y: p.y }, { x: p.x + n.x * ARM, y: p.y + n.y * ARM }];
+    for (let i = 0; i < P.length; i++) {
+      const p = P[i];
+      const n = arms[i];
+      const [gS, gW] = at(p.x, p.y);
+      // Pole and crossarm shadows.
+      gS.lineStyle(0.28, 0x000000, SHADOW_ALPHA);
+      gS.lineBetween(p.x, p.y, p.x + sx, p.y + sy);
+      gS.lineStyle(0.18, 0x000000, SHADOW_ALPHA);
+      gS.lineBetween(p.x + sx - n.x * ARM, p.y + sy - n.y * ARM, p.x + sx + n.x * ARM, p.y + sy + n.y * ARM);
+      // Wires to the next pole, with their faint shadows on the ground.
+      if (i < P.length - 1) {
+        const q = P[i + 1];
+        const a0 = ends(p, n);
+        const a1 = ends(q, arms[i + 1]);
+        const [gS2, gW2] = at((p.x + q.x) / 2, (p.y + q.y) / 2);
+        gS2.lineStyle(0.1, 0x000000, SHADOW_ALPHA * 0.45);
+        for (let k = 0; k < 3; k++) gS2.lineBetween(a0[k].x + sx * 0.9, a0[k].y + sy * 0.9, a1[k].x + sx * 0.9, a1[k].y + sy * 0.9);
+        gW2.lineStyle(0.11, 0x2b2a28, 0.7);
+        for (let k = 0; k < 3; k++) gW2.lineBetween(a0[k].x, a0[k].y, a1[k].x, a1[k].y);
+      }
+      // Pole top, crossarm and insulators.
+      gW.fillStyle(0x4a3826, 1);
+      gW.fillCircle(p.x, p.y, 0.24);
+      gW.lineStyle(0.2, 0x5a4630, 1);
+      gW.lineBetween(p.x - n.x * (ARM + 0.15), p.y - n.y * (ARM + 0.15), p.x + n.x * (ARM + 0.15), p.y + n.y * (ARM + 0.15));
+      gW.fillStyle(0xd6d8d2, 1);
+      for (const e of ends(p, n)) gW.fillRect(e.x - 0.09, e.y - 0.09, 0.18, 0.18);
     }
   }
 }

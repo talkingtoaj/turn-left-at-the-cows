@@ -4,7 +4,7 @@ import {
   pointInPolygon, distToPolygonEdge, pointInRect, circleHitsRect, bbox, DEG, SegIndex, distToSegment,
 } from './geom.js';
 import {
-  buildingSolids, landmarkSolids, fenceSolids, TREE_HIT_R, LOCAL_HIT_R,
+  buildingSolids, landmarkSolids, fenceSolids, TREE_HIT_R, LOCAL_HIT_R, POLE_R,
 } from './layout.js';
 
 const CELL = 32;
@@ -28,6 +28,9 @@ export class Collider {
     for (const l of world.landmarks) this.addSolids(landmarkSolids(l, world));
     this.addSolids(fenceSolids(world));
     for (const t of scenery.trees) this.addCircle({ x: t.x, y: t.y, r: TREE_HIT_R });
+    // Countryside fill: bales, haystacks, rocks and power poles.
+    for (const p of world.props || []) this.addCircle({ x: p.x, y: p.y, r: p.r });
+    for (const l of world.powerLines || []) for (const p of l.poles) this.addCircle({ x: p.x, y: p.y, r: POLE_R });
     if (opts.staticLocals !== false) {
       for (const l of world.locals) this.addCircle({ x: l.x, y: l.y, r: LOCAL_HIT_R });
     }

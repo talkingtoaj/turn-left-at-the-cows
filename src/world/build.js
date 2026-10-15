@@ -5,6 +5,7 @@
 import { smoothPolyline, polylineLength } from './spline.js';
 import { nearestOnPolyline, headingOf, polylineCrossings, DEG } from '../drive/geom.js';
 import { TOPICS } from './topics.js';
+import { generateFill, fieldDefaults } from './fill.js';
 
 const STEP = 9; // metres per polyline piece after smoothing
 
@@ -206,6 +207,13 @@ export function buildWorld(source) {
   // currentGoal(state) from src/game/missions.js instead.
   const farm = w.places.find((p) => p.id === 'hartley_farm');
   w.goal = { x: farm.x, y: farm.y, r: farm.r, name: farm.name };
+
+  // Countryside fill: procedural fields, props and power lines (src/world/fill.js).
+  w.fields = (src.fields || []).map(fieldDefaults);
+  const fill = generateFill(w);
+  w.fields = w.fields.concat(fill.fields);
+  w.props = fill.props;
+  w.powerLines = fill.powerLines;
 
   w.topics = TOPICS;
   return w;

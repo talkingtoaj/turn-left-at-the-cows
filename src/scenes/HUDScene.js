@@ -2,17 +2,21 @@ import Phaser from 'phaser';
 import { WORLD } from '../world/world.js';
 import { state } from '../state.js';
 import { headingText, clockText, timerText, odoDigits } from '../hud/format.js';
-import { greet, ask, listTopics, getNpc } from '../game/dialogue.js';
+import { greet, ask, listTopics } from '../game/dialogue.js';
 import { MISSIONS, currentMission, currentGoal, nextMission } from '../game/missions.js';
 import { finishMission } from '../game/update.js';
 import { askedAbout } from '../hud/notebook.js';
 import { drawSketchInto, SKETCH_PAPER_RECT } from '../map/sketchView.js';
 import { drawTrueMap, missionArea } from '../map/trueMap.js';
+import { openMissionCard } from '../ui/missionCard.js';
+import { openHelp } from '../ui/help.js';
 
 // Transparent overlay on top of Drive. Shows the dash (compass, odometer,
 // clock, speed, trip timer), road signs, mailbox names, the talk prompt and
-// the topic menu dialogue, the mission-complete screen, and owns the
-// E / M / R / Enter / 1-9 keys.
+// the topic menu dialogue, the goal line, the mission-complete screen, and
+// owns the E / M / R / Enter / H / 1-9 keys. The mission card and the help
+// panel are shared DOM screens (src/ui) that sit above the canvas and take
+// every key while open.
 // Core rule: never show the player's position, a minimap or coordinates.
 
 const W = 960;
@@ -45,7 +49,7 @@ const PAGE_H = 150;
 const MENU_ROWS = 9; // visible topic rows (keys 1-9)
 const ROW_H = 25;
 
-const HINT = 'Arrows/WASD drive · E talk · M map · N north/heading-up · K mute';
+const HINT = 'Arrows/WASD drive · E talk · M map · N north/heading-up · K mute · H help';
 
 export default class HUDScene extends Phaser.Scene {
   constructor() {
@@ -66,8 +70,11 @@ export default class HUDScene extends Phaser.Scene {
     this.winShown = false;
     this.winBox = null;
     this.bigView = null;
+    this.card = null; // mission card (DOM) while it shows
+    this.help = null; // how-to-play panel (DOM) while it shows
 
     this.buildDash();
+    this.buildGoalLine();
     this.buildSignPanel();
     this.buildMailboxPanel();
     this.buildPrompt();
@@ -82,6 +89,9 @@ export default class HUDScene extends Phaser.Scene {
     this.keyEnter.on('down', () => this.onEnterKey());
     this.keyE.on('down', () => this.onTalkKey());
     this.keyM.on('down', () => this.onMapKey());
+    kb.on('keydown-H', (ev) => {
+      if (!ev || !ev.repeat) this.onHelpKey();
+    });
     this.keyR.on('down', () => {
       if (state.won && !this.mapOpen) window.location.reload();
     });
@@ -112,6 +122,8 @@ export default class HUDScene extends Phaser.Scene {
     if (mapScene) mapScene.events.on('shutdown', this.onMapClosed);
 
     this.events.once('shutdown', () => {
+      this.card?.close();
+      this.help?.close();
       kb.off('keydown', this.onAnyKey);
       this.game.events.off('map-closed', this.onMapClosed);
       if (mapScene) mapScene.events.off('shutdown', this.onMapClosed);
@@ -267,6 +279,32 @@ export default class HUDScene extends Phaser.Scene {
     this.timerTxt.setText(timerText(state.elapsedMs));
   }
 
+
+  // ---------------------------------------------------------------- goal line
+
+  // Small "Goal: <place>" in the top corner. Never a distance or direction.
+  buildGoalLine() {
+    this.goalTxt = this.add
+      .text(W - 12, 10, '', {
+        fontFamily: MONO,
+        fontSize: '13px',
+        color: '#efe6cf',
+        backgroundColor: 'rgba(20,21,23,0.7)',
+        padding: { x: 8, y: 4 },
+      })
+      .setOrigin(1, 0);
+    this.goalName = null;
+  }
+
+  updateGoalLine() {
+    const goal = state.won ? null : currentGoal(state);
+    const name = goal ? goal.name : null;
+    if (name !== this.goalName) {
+      this.goalName = name;
+      if (name) this.goalTxt.setText(`Goal: ${name}`);
+    }
+    this.goalTxt.setVisible(!!name);
+  }
 
   // ---------------------------------------------------------------- signs
 
@@ -430,7 +468,7 @@ export default class HUDScene extends Phaser.Scene {
   }
 
   onTalkKey() {
-    if (this.mapOpen || state.won) return;
+    if (this.mapOpen || state.won || this.card || this.help) return;
     if (this.dialogue) {
       this.advance();
       return;
@@ -441,7 +479,7 @@ export default class HUDScene extends Phaser.Scene {
   }
 
   onEnterKey() {
-    if (this.mapOpen) return;
+    if (this.mapOpen || this.card || this.help) return;
     if (state.won) {
       this.onContinueKey();
       return;
@@ -458,7 +496,7 @@ export default class HUDScene extends Phaser.Scene {
       this.closeBigView();
       return;
     }
-    if (!d || this.mapOpen || state.won) return;
+    if (!d || this.mapOpen || state.won || this.card || this.help) return;
     const k = ev.key;
     if (k === 'Escape') {
       if (d.mode === 'pages' && d.after === 'menu') this.showMenu();
@@ -488,16 +526,6 @@ export default class HUDScene extends Phaser.Scene {
     this.dlgBox.setVisible(true);
     if (pages.length) this.showPage();
     else this.showMenu();
-  }
-
-  // Plain pages with no menu after (mission brief).
-  openDialogue(title, pages) {
-    if (!pages.length) return;
-    this.dialogue = { npcId: null, title, mode: 'pages', pages, page: 0, after: 'close' };
-    state.inputLocked = true;
-    this.dlgName.setText(title);
-    this.dlgBox.setVisible(true);
-    this.showPage();
   }
 
   advance() {
@@ -634,13 +662,41 @@ export default class HUDScene extends Phaser.Scene {
     this.showPage();
   }
 
-  // A new mission's brief, from whoever gave it.
-  showBrief() {
+  // A new mission's card (title, giver, brief, goal name). The brief is
+  // already in the notebook (startMission). Drive is paused until it closes,
+  // so the car stays put and the trip timer waits.
+  showCard() {
     state.briefPending = false;
-    const m = currentMission(state);
-    if (!m) return;
-    const giver = m.giverNpcId && getNpc(m.giverNpcId);
-    this.openDialogue(giver ? `${giver.name}: ${m.title}` : m.title, m.brief);
+    if (!currentMission(state)) return;
+    state.inputLocked = true;
+    this.promptTxt.setVisible(false);
+    this.scene.pause('Drive');
+    this.card = openMissionCard(state.missionIndex, {
+      onClose: () => {
+        this.card = null;
+        state.inputLocked = false;
+        this.scene.resume('Drive');
+      },
+    });
+  }
+
+  // ---------------------------------------------------------------- help
+
+  // H: how-to-play as a pause overlay. Not over the map, a dialogue, the
+  // mission card or the end screens.
+  onHelpKey() {
+    if (this.help || this.card || this.mapOpen || this.dialogue || this.bigView || state.won) return;
+    if (this.time.now - this.mapClosedAt < MAP_REOPEN_GUARD_MS) return;
+    state.inputLocked = true;
+    this.scene.pause('Drive');
+    this.help = openHelp({
+      version: '2d',
+      onClose: () => {
+        this.help = null;
+        state.inputLocked = false;
+        this.scene.resume('Drive');
+      },
+    });
   }
 
   closeDialogue() {
@@ -652,7 +708,7 @@ export default class HUDScene extends Phaser.Scene {
 
   updatePrompt() {
     const local =
-      !this.dialogue && !this.mapOpen && !state.won && state.nearLocalId
+      !this.dialogue && !this.mapOpen && !state.won && !this.card && !this.help && state.nearLocalId
         ? WORLD.locals.find((l) => l.id === state.nearLocalId)
         : null;
     if (local) this.promptTxt.setText(`E: talk to ${local.name} (${local.role})`);
@@ -662,7 +718,7 @@ export default class HUDScene extends Phaser.Scene {
   // ---------------------------------------------------------------- map
 
   onMapKey() {
-    if (this.mapOpen || this.bigView) return;
+    if (this.mapOpen || this.bigView || this.card || this.help) return;
     // On the mission-complete screen M lets you finish your final map.
     if (state.won && (!this.winShown || state.allMissionsDone)) return;
     if (this.time.now - this.mapClosedAt < MAP_REOPEN_GUARD_MS) return;
@@ -891,7 +947,8 @@ export default class HUDScene extends Phaser.Scene {
     this.updateSign();
     this.updateMailbox();
     this.updatePrompt();
+    this.updateGoalLine();
     if (state.won && !this.winShown) this.showWin();
-    if (state.briefPending && !this.dialogue && !state.won) this.showBrief();
+    if (state.briefPending && !this.dialogue && !state.won && !this.card && !this.help) this.showCard();
   }
 }

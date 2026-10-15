@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { WORLD } from '../world/world.js';
 import { state } from '../state.js';
-import { makeRng } from '../drive/geom.js';
+import { makeRng, bbox } from '../drive/geom.js';
 import { generateScenery } from '../drive/layout.js';
 import { Collider } from '../drive/collider.js';
 import { stepCar, drawCar, drawCarShadow } from '../drive/car.js';
@@ -9,7 +9,7 @@ import { CAR_CIRCLES, CAR_R } from '../drive/collider.js';
 import { LOCAL_HIT_R } from '../drive/layout.js';
 import {
   GRASS, GROUND_LAYERS, drawGround, drawTufts, drawTree, drawBush, drawBuilding, drawLandmark, drawSign,
-  drawFences, drawMailbox,
+  drawFences, drawMailbox, drawProp, drawPowerLines, cheapCircles,
 } from '../drive/render.js';
 import { AmbientView, addHills } from '../drive/ambientDraw.js';
 import { updateGame } from '../game/update.js';
@@ -43,7 +43,7 @@ class ChunkLayers {
     const key = `${layer}:${col}:${row}`;
     let c = this.chunks.get(key);
     if (!c) {
-      const g = this.scene.add.graphics().setDepth(this.layers[layer]).setVisible(false);
+      const g = cheapCircles(this.scene.add.graphics().setDepth(this.layers[layer]).setVisible(false), ZOOM);
       c = { col, row, g };
       this.chunks.set(key, c);
     }
@@ -122,7 +122,8 @@ export default class DriveScene extends Phaser.Scene {
   // Draw all static scenery once.
   buildWorld() {
     // Road and water layers sit between the flat ground (1) and lakes/bridges (1.5).
-    const layers = { tufts: 0, shadow: 2, objects: 3, overhead: 11 };
+    // Power line wires (3.8) sit over ground objects and animals but under the car.
+    const layers = { tufts: 0, shadow: 2, objects: 3, wires: 3.8, overhead: 11 };
     GROUND_LAYERS.forEach((name, i) => { layers[name] = 1.01 + i * 0.01; });
     const chunks = new ChunkLayers(this, layers);
     this.chunks = chunks;
@@ -139,9 +140,16 @@ export default class DriveScene extends Phaser.Scene {
 
     // Forest floor and yards in one Graphics; roads and water per chunk;
     // lakes and bridges on top.
-    const ground = this.add.graphics().setDepth(1);
-    const groundTop = this.add.graphics().setDepth(1.5);
-    drawGround(ground, WORLD, this.scenery, (name, x, y) => chunks.get(name, x, y), groundTop);
+    const ground = cheapCircles(this.add.graphics().setDepth(1), ZOOM);
+    const groundTop = cheapCircles(this.add.graphics().setDepth(1.5), ZOOM);
+    // Each farm field gets its own Graphics, shown only when its box is in view.
+    this.fieldGs = [];
+    const fieldG = (f) => {
+      const g = cheapCircles(this.add.graphics().setDepth(1.002).setVisible(false), ZOOM);
+      this.fieldGs.push({ g, ...bbox(f.polygon) });
+      return g;
+    };
+    drawGround(ground, WORLD, this.scenery, (name, x, y) => chunks.get(name, x, y), groundTop, fieldG);
 
     // Everything else goes in the chunk of its centre point.
     const at = (x, y) => [chunks.get('shadow', x, y), chunks.get('objects', x, y)];
@@ -154,6 +162,8 @@ export default class DriveScene extends Phaser.Scene {
     for (const s of WORLD.signs) drawSign(...at(s.x, s.y), s);
     for (const m of WORLD.mailboxes || []) drawMailbox(...at(m.x, m.y), m);
     drawFences(WORLD, at);
+    for (const p of WORLD.props || []) drawProp(...at(p.x, p.y), p);
+    drawPowerLines(WORLD, (x, y) => [chunks.get('shadow', x, y), chunks.get('wires', x, y)]);
 
     // Hills: soft light and shade plus contours, over the grass and forest
     // floor but under the roads.
@@ -266,6 +276,10 @@ export default class DriveScene extends Phaser.Scene {
     this.updateCameraRotation(dt);
     const view = this.viewBox();
     this.chunks.updateVisible({ x: view.x0, y: view.y0, right: view.x1, bottom: view.y1 });
+    for (const f of this.fieldGs) {
+      const on = f.maxX > view.x0 - 10 && f.minX < view.x1 + 10 && f.maxY > view.y0 - 10 && f.minY < view.y1 + 10;
+      if (f.g.visible !== on) f.g.setVisible(on);
+    }
     this.ambView.draw(this.amb, view);
   }
 }

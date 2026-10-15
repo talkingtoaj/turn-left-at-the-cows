@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { pointInPolygon, distToPolygonEdge, bbox, SegIndex, distToSegment } from '../../src/drive/geom.js';
 import { Terrain, makeNoise, smoothstep, quarryPit } from './terrain.js';
-import { buildFields, buildMailboxes } from './fields3d.js';
+import { buildFields, buildMailboxes, buildProps, buildPowerLines } from './fields3d.js';
 import { Batcher } from './batch.js';
 import { buildGround, DECK_TOP } from './ground.js';
 import { buildStructures } from './structures.js';
@@ -202,6 +202,9 @@ export function buildWorld3D(scene, world, scenery, collider) {
   const batch = new Batcher();
   buildGround(world, scenery, terrain, batch);
   buildFields(world, terrain, batch);
+  buildProps(world, terrain, batch);
+  const wires = buildPowerLines(world, terrain, batch);
+  if (wires) scene.add(wires);
   buildMailboxes(world, terrain, batch);
   const chimneys = new Map();
   const dynamic = buildStructures(world, terrain, batch, materials, { chimneys });

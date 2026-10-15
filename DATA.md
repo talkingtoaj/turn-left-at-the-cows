@@ -141,3 +141,10 @@ Debug handles: Phaser `__game.scene.getScene('Drive').state`; three.js `window._
 - three.js terrain uses spatial indexes (`SegIndex` in src/drive/geom.js) for flattening and water; the ground mesh is about 1.3 M vertices.
 - Collider uses `SegIndex` for road surface and water checks. Fords count as intact bridges.
 - Core rule still applies: nothing ever shows the player's position on any map.
+
+## Countryside fill (generated, `src/world/fill.js`)
+Made inside `buildWorld` from `WORLD.seed`, so it is the same every run and in both engines. See CONTRACT_P3.md section 1 for the safe-zone rules. Fill never makes buildings, mailboxes, signs or names.
+- `world.fields` gains procedural entries: `{ id: 'pf_N', procedural: true, kind: 'pasture'|'crop', crop: 'wheat'|'corn'|'hay'|'plowed', polygon, rowAngle, fence: 'wire'|'rail'|null, windbreak, animals: { kind: 'cows'|'sheep'|'horses', count }|null }`. Authored fields get the same keys filled in (`procedural: false`).
+- `world.props`: `{ id, kind: 'bale'|'haystack'|'rock', x, y, r, angle }`, all solid circles.
+- `world.powerLines`: `{ id, roadId, poles: [{ x, y }] }`. Poles stay on one side, no span crosses a road. Poles are solid (r 0.3).
+- Ambient animals: `cow`, `sheep`, `horse`, `deer` (deer roam near forests and bolt from the car, `running: true`).

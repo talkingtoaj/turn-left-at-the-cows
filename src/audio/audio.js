@@ -268,6 +268,76 @@ export function createAudio(world) {
     o.onended = () => out.disconnect();
   }
 
+  // Cow moo: a low buzzy tone through a vowel-like filter, sliding down.
+  function moo(t0, pan, vol) {
+    const out = panner(nodes.bus);
+    setPanNow(out, pan);
+    const lp = filter('lowpass', 900, 0.7, out);
+    const bp = filter('bandpass', 420, 2.5, lp);
+    const g = gain(0, bp);
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    const f = 115 + Math.random() * 30;
+    const len = 1.1 + Math.random() * 0.6;
+    o.frequency.setValueAtTime(f * 0.9, t0);
+    o.frequency.linearRampToValueAtTime(f * 1.08, t0 + 0.25);
+    o.frequency.exponentialRampToValueAtTime(f * 0.78, t0 + len);
+    bp.frequency.setValueAtTime(320, t0);
+    bp.frequency.linearRampToValueAtTime(620, t0 + 0.3);
+    bp.frequency.linearRampToValueAtTime(380, t0 + len);
+    o.connect(g);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(vol, t0 + 0.18);
+    g.gain.setValueAtTime(vol, t0 + len - 0.35);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + len);
+    o.start(t0);
+    o.stop(t0 + len + 0.05);
+    o.onended = () => out.disconnect();
+  }
+  let snortBuf = null;
+  // Horse whinny: a high wavering call that falls away, ending in a snort.
+  function whinny(t0, pan, vol) {
+    const out = panner(nodes.bus);
+    setPanNow(out, pan);
+    const bp = filter('bandpass', 1400, 1.2, out);
+    const g = gain(0, bp);
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    const vib = ctx.createOscillator();
+    vib.frequency.value = 11 + Math.random() * 5;
+    const vibG = gain(0);
+    vib.connect(vibG);
+    vibG.connect(o.frequency);
+    const f = 820 + Math.random() * 160;
+    const len = 1.0 + Math.random() * 0.4;
+    o.frequency.setValueAtTime(f * 0.8, t0);
+    o.frequency.linearRampToValueAtTime(f, t0 + 0.12);
+    o.frequency.exponentialRampToValueAtTime(f * 0.45, t0 + len);
+    vibG.gain.setValueAtTime(f * 0.03, t0);
+    vibG.gain.linearRampToValueAtTime(f * 0.09, t0 + len);
+    o.connect(g);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(vol, t0 + 0.06);
+    g.gain.setValueAtTime(vol * 0.8, t0 + len * 0.6);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + len);
+    o.start(t0);
+    vib.start(t0);
+    o.stop(t0 + len + 0.05);
+    vib.stop(t0 + len + 0.05);
+    // Snort: a short burst of filtered noise.
+    const n = ctx.createBufferSource();
+    n.buffer = snortBuf || (snortBuf = noiseBuffer(0.3, false));
+    const ng = gain(0, filter('bandpass', 700, 0.8, out));
+    n.connect(ng);
+    const ts = t0 + len + 0.12;
+    ng.gain.setValueAtTime(0.0001, ts);
+    ng.gain.linearRampToValueAtTime(vol * 0.6, ts + 0.02);
+    ng.gain.exponentialRampToValueAtTime(0.0001, ts + 0.22);
+    n.start(ts);
+    n.stop(ts + 0.3);
+    n.onended = () => out.disconnect();
+  }
+
   // ---------- Per-frame ----------
   function updateEngine(dt, car) {
     const v = car.speed || 0;
@@ -438,6 +508,13 @@ export function createAudio(world) {
         const t0 = ctx.currentTime + 0.05;
         const n = e.count || 1 + Math.floor(Math.random() * 3);
         for (let k = 0; k < n; k++) bark(t0 + k * (0.28 + Math.random() * 0.15), r.pan, vol);
+      } else if (e.type === 'moo' || e.type === 'whinny') {
+        // Rare and quiet: only within a couple of hundred metres.
+        if (r.d > 260) continue;
+        const vol = (e.type === 'moo' ? 0.06 : 0.035) * (1 - r.d / 260);
+        const t0 = ctx.currentTime + 0.05 + r.d / 343;
+        if (e.type === 'moo') moo(t0, r.pan, vol);
+        else whinny(t0, r.pan, vol);
       } else if (e.type === 'birds_scatter') {
         if (r.d > 80) continue;
         for (let k = 0; k < 3; k++) chirp(r.pan, 0.06 * (1 - r.d / 80));
