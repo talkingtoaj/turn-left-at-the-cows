@@ -1,0 +1,242 @@
+// Terrain: a smooth, seeded height field, flattened near roads, water and
+// buildings. Height is visual only; the gameplay stays 2D.
+//
+// The height grid is the single source of truth: the ground mesh is built from
+// it with a known triangulation, and heightAt() interpolates the same
+// triangles, so anything placed with heightAt() sits exactly on the ground.
+
+import * as THREE from 'three';
+import {
+  makeRng, distToSegment, pointInPolygon, distToPolygonEdge, SegIndex, bbox,
+} from '../../src/drive/geom.js';
+import { buildingSolids } from '../../src/drive/layout.js';
+
+export const CELL = 4; // metres between height samples
+export const CHUNK = 250; // metres per ground mesh chunk
+export const WATER_LEVEL = -0.6;
+const BED = -1.7; // creek and lake bed
+
+// ---------- seeded value noise ----------
+
+export function makeNoise(seed) {
+  const rng = makeRng(seed);
+  const N = 256;
+  const vals = new Float32Array(N);
+  const perm = new Uint8Array(N * 2);
+  for (let i = 0; i < N; i++) {
+    vals[i] = rng() * 2 - 1;
+    perm[i] = i;
+  }
+  for (let i = N - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    const t = perm[i];
+    perm[i] = perm[j];
+    perm[j] = t;
+  }
+  for (let i = 0; i < N; i++) perm[N + i] = perm[i];
+  const v = (ix, iy) => vals[perm[(ix & 255) + perm[iy & 255]]];
+  const fade = (t) => t * t * t * (t * (t * 6 - 15) + 10);
+  return function noise(x, y) {
+    const ix = Math.floor(x);
+    const iy = Math.floor(y);
+    const fx = fade(x - ix);
+    const fy = fade(y - iy);
+    const a = v(ix, iy);
+    const b = v(ix + 1, iy);
+    const c = v(ix, iy + 1);
+    const d = v(ix + 1, iy + 1);
+    return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
+  };
+}
+
+export function smoothstep(e0, e1, x) {
+  const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
+  return t * t * (3 - 2 * t);
+}
+
+// ---------- terrain ----------
+
+export class Terrain {
+  constructor(world) {
+    this.world = world;
+    this.cols = Math.round(world.size.w / CELL) + 1;
+    this.rows = Math.round(world.size.h / CELL) + 1;
+    this.h = new Float32Array(this.cols * this.rows);
+    this.build();
+  }
+
+  build() {
+    const world = this.world;
+    const noise = makeNoise(world.seed);
+    const noise2 = makeNoise(world.seed + 31);
+
+    // Raw rolling hills, mostly above road level.
+    const mast = world.landmarks.find((l) => l.kind === 'radio_mast');
+    const hills = world.hills || [];
+    const raw = (x, y) => {
+      let n = noise(x / 520, y / 520) * 0.6 + noise(x / 230 + 17, y / 230 + 5) * 0.3 + noise2(x / 90, y / 90) * 0.1;
+      n = Math.max(0, n * 0.5 + 0.5);
+      let h = 30 * Math.pow(n, 1.6);
+      // The radio mast stands on a hill.
+      if (mast) {
+        const d2 = (x - mast.x) ** 2 + (y - mast.y) ** 2;
+        h += 22 * Math.exp(-d2 / (2 * 130 * 130));
+      }
+      // Authored hills (world.hills), placed inside road bends.
+      for (const hl of hills) {
+        const dx = x - hl.x;
+        const dy = y - hl.y;
+        if (dx * dx + dy * dy > hl.r * hl.r * 6.25) continue;
+        h += hl.h * Math.exp(-(dx * dx + dy * dy) / (2 * (hl.r * 0.6) ** 2));
+      }
+      return h;
+    };
+
+    const BLEND = 70;
+    // Segments that pull the ground down to road level, each with its half
+    // width, plus flat discs (as zero-length segments). Indexed by grid cell
+    // so each height sample only checks nearby features.
+    const flat = new SegIndex(64);
+    for (const r of world.roads) flat.addPolyline(r.points, r.width / 2 + 4 + BLEND, r.width / 2 + 4);
+    for (const c of world.creeks) flat.addPolyline(c.points, c.width / 2 + 8 + BLEND, c.width / 2 + 8);
+    const disc = (x, y, r) => flat.add(x, y, x, y, r + BLEND, r);
+    for (const b of world.buildings) {
+      const s = buildingSolids(b);
+      for (const r of s.rects) disc(r.x, r.y, Math.hypot(r.w, r.h) / 2 + 10);
+      for (const c of s.circles) disc(c.x, c.y, c.r + 10);
+    }
+    for (const l of world.landmarks) if (l.kind !== 'radio_mast' && l.kind !== 'lookout_tower') disc(l.x, l.y, l.r ? l.r + 10 : 30);
+    for (const t of world.towns) disc(t.x, t.y, 90);
+    for (const p of world.places || [world.goal]) disc(p.x, p.y, 70);
+    const lakes = world.lakes.map((l) => ({ ...l, bb: bbox(l.polygon) }));
+    const water = new SegIndex(32);
+    for (const c of world.creeks) water.addPolyline(c.points, c.width / 2 + 5, c);
+
+    // Distance (beyond the flat zone) to the nearest flattening feature.
+    const flatDist = (x, y) => {
+      let best = flat.minDist(x, y, (s) => s.data);
+      for (const l of lakes) {
+        if (x < l.bb.minX - BLEND - 8 || x > l.bb.maxX + BLEND + 8 || y < l.bb.minY - BLEND - 8 || y > l.bb.maxY + BLEND + 8) continue;
+        const d = pointInPolygon(x, y, l.polygon) ? -1 : distToPolygonEdge(x, y, l.polygon) - 8;
+        if (d < best) best = d;
+      }
+      return best;
+    };
+
+    const mastH = mast ? raw(mast.x, mast.y) * smoothstep(0, BLEND, flatDist(mast.x, mast.y)) : 0;
+
+    for (let j = 0; j < this.rows; j++) {
+      const y = j * CELL;
+      for (let i = 0; i < this.cols; i++) {
+        const x = i * CELL;
+        let h = raw(x, y) * smoothstep(0, BLEND, flatDist(x, y));
+        if (mast) {
+          const dm = Math.hypot(x - mast.x, y - mast.y);
+          if (dm < 55) h = THREE.MathUtils.lerp(mastH, h, smoothstep(32, 55, dm));
+        }
+        // Water: creek channel and lake basin.
+        for (const s of water.near(x, y)) {
+          const d = distToSegment(x, y, s.ax, s.ay, s.bx, s.by);
+          const half = s.data.width / 2;
+          if (d < half + 5) h = Math.min(h, THREE.MathUtils.lerp(BED, 0, smoothstep(half - 1, half + 4, d)));
+        }
+        for (const l of lakes) {
+          if (x < l.bb.minX || x > l.bb.maxX || y < l.bb.minY || y > l.bb.maxY) continue;
+          const inside = pointInPolygon(x, y, l.polygon);
+          if (inside) h = Math.min(h, THREE.MathUtils.lerp(-0.2, BED, smoothstep(0, 6, distToPolygonEdge(x, y, l.polygon))));
+        }
+        this.h[j * this.cols + i] = h;
+      }
+    }
+  }
+
+  // Height at any world point, matching the mesh triangles exactly.
+  heightAt(x, y) {
+    const gx = Math.max(0, Math.min(this.cols - 1.001, x / CELL));
+    const gy = Math.max(0, Math.min(this.rows - 1.001, y / CELL));
+    const i = Math.floor(gx);
+    const j = Math.floor(gy);
+    const fx = gx - i;
+    const fy = gy - j;
+    const c = this.cols;
+    const h00 = this.h[j * c + i];
+    const h10 = this.h[j * c + i + 1];
+    const h01 = this.h[(j + 1) * c + i];
+    const h11 = this.h[(j + 1) * c + i + 1];
+    // Cells split along the 00-11 diagonal (see buildMeshes).
+    if (fx >= fy) return h00 + (h10 - h00) * fx + (h11 - h10) * fy;
+    return h00 + (h11 - h01) * fx + (h01 - h00) * fy;
+  }
+
+  // Ground meshes, one per chunk so far ones get culled.
+  buildMeshes(material, colorFn) {
+    const group = new THREE.Group();
+    const per = Math.round(CHUNK / CELL);
+    const nc = Math.ceil((this.cols - 1) / per);
+    const nr = Math.ceil((this.rows - 1) / per);
+    const col = new THREE.Color();
+    for (let cj = 0; cj < nr; cj++) {
+      for (let ci = 0; ci < nc; ci++) {
+        const i0 = ci * per;
+        const j0 = cj * per;
+        const i1 = Math.min(this.cols - 1, i0 + per);
+        const j1 = Math.min(this.rows - 1, j0 + per);
+        const w = i1 - i0 + 1;
+        const hgt = j1 - j0 + 1;
+        const pos = new Float32Array(w * hgt * 3);
+        const colors = new Float32Array(w * hgt * 3);
+        const uvs = new Float32Array(w * hgt * 2);
+        for (let j = 0; j < hgt; j++) {
+          for (let i = 0; i < w; i++) {
+            const gi = i0 + i;
+            const gj = j0 + j;
+            const k = j * w + i;
+            const x = gi * CELL;
+            const y = gj * CELL;
+            pos[k * 3] = x;
+            pos[k * 3 + 1] = this.h[gj * this.cols + gi];
+            pos[k * 3 + 2] = y;
+            uvs[k * 2] = x / 14;
+            uvs[k * 2 + 1] = y / 14;
+            colorFn(x, y, this.h[gj * this.cols + gi], col);
+            colors[k * 3] = col.r;
+            colors[k * 3 + 1] = col.g;
+            colors[k * 3 + 2] = col.b;
+          }
+        }
+        const idx = [];
+        for (let j = 0; j < hgt - 1; j++) {
+          for (let i = 0; i < w - 1; i++) {
+            const a = j * w + i; // (i, j)
+            const b = a + 1; // (i+1, j)
+            const c = a + w; // (i, j+1)
+            const d = c + 1; // (i+1, j+1)
+            // Counter-clockwise seen from above (+y), split on a-d diagonal.
+            idx.push(a, d, b, a, c, d);
+          }
+        }
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        g.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+        g.setIndex(idx);
+        g.computeVertexNormals();
+        g.computeBoundingSphere();
+        const m = new THREE.Mesh(g, material);
+        m.receiveShadow = true;
+        m.matrixAutoUpdate = false;
+        group.add(m);
+      }
+    }
+    return group;
+  }
+}
+
+export function distToPolylineFast(x, y, pts) {
+  let best = Infinity;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const d = distToSegment(x, y, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]);
+    if (d < best) best = d;
+  }
+  return best;
+}

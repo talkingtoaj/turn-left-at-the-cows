@@ -1,0 +1,722 @@
+// Map overlay for the three.js version: a DOM layer with one Canvas2D canvas.
+// It is a port of src/scenes/MapScene.js (Phaser) and looks and works the same:
+//  - "My sketch": the player draws their own map from what locals said.
+//  - "Old county map": the printed 1987 map built from WORLD, with its lies.
+// Everything is laid out on a 960x640 logical surface that is scaled to fit
+// the window. Sketch data lives in state.sketch in the same format (and the
+// same 960x640 paper coordinates) as the Phaser version.
+// Core rule: nothing here ever shows the player's position.
+
+import { state } from '../../src/state.js';
+import { buildOldMap } from '../../src/map/oldMap.js';
+import { printedMapsFor } from '../../src/game/printedMaps.js';
+import {
+  drawStamp, wobbly, makeRng, seedFrom, smoothPoints, distToSegment,
+  STAMP_KINDS, STAMP_NAMES,
+} from '../../src/map/draw.js';
+import { CanvasGraphics, drawText, makeFakeScene, rgba } from './canvasGraphics.js';
+
+const W = 960;
+const H = 640;
+const PAPER = { x: 100, y: 52, w: 840, h: 576 };
+const STAMP_SCALE = 1.3;
+const SKETCH_PAPER = 0xf3eee0;
+const OLD_PAPER = 0xe6d6ab;
+const HAND = '"Segoe Print", "Bradley Hand", "Comic Sans MS", cursive';
+const SERIF = 'Georgia, serif';
+const LABEL_SIZE = 18;
+const MAX_LABEL = 40;
+const MAX_HISTORY = 200;
+
+const INKS = [
+  { id: 'grey', color: 0x555555, name: 'Pencil' },
+  { id: 'blue', color: 0x2f62b3, name: 'Blue (water)' },
+  { id: 'red', color: 0xc0392b, name: 'Red (notes)' },
+];
+
+// Tabs: "My sketch" plus one per printed map the current mission gives.
+// Rebuilt on every open (the mission may have changed).
+let TABS = [];
+function buildTabs() {
+  TABS = [
+    { id: 'sketch', text: 'My sketch', x: PAPER.x + 20, w: 140, fill: SKETCH_PAPER, font: HAND },
+    ...printedMapsFor(state).map((def, i) => ({
+      id: 'map:' + def.id,
+      def,
+      text: def.tabLabel || def.title,
+      x: PAPER.x + 168 + i * 214,
+      w: 206,
+      fill: def.style === 'hand' ? 0xf6f0dc : OLD_PAPER,
+      font: def.style === 'hand' ? HAND : SERIF,
+    })),
+  ];
+}
+
+const CLOSE = { x: W - 26, y: 26, r: 16 };
+
+// Survive between openings (and between overlay instances).
+let lastTab = 'sketch';
+const history = [];
+let historyEpoch = 0; // state.sketchEpoch the undo stack belongs to
+
+const STYLE = `
+.map-overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+  background: rgba(29, 23, 18, 0.82); z-index: 50; user-select: none; -webkit-user-select: none; }
+.map-overlay.map-open { display: flex; }
+.map-canvas { display: block; touch-action: none; outline: none; }
+`;
+
+function injectStyle() {
+  if (document.getElementById('map-overlay-style')) return;
+  const s = document.createElement('style');
+  s.id = 'map-overlay-style';
+  s.textContent = STYLE;
+  document.head.appendChild(s);
+}
+
+// Splits text into lines no wider than maxW (for the toolbar status line).
+function wrapText(ctx, text, maxW) {
+  const words = text.split(' ');
+  const lines = [];
+  let line = '';
+  for (const w of words) {
+    const test = line ? line + ' ' + w : w;
+    if (line && ctx.measureText(test).width > maxW) {
+      lines.push(line);
+      line = w;
+    } else line = test;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function inPaper(x, y) {
+  return x >= PAPER.x && x <= PAPER.x + PAPER.w && y >= PAPER.y && y <= PAPER.y + PAPER.h;
+}
+
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+function iconPencil(g, x, y) {
+  g.fillStyle(0xe0b13a, 1);
+  g.fillPoints([{ x: x - 9, y: y + 5 }, { x: x + 5, y: y - 9 }, { x: x + 9, y: y - 5 }, { x: x - 5, y: y + 9 }], true);
+  g.fillStyle(0x555555, 1);
+  g.fillTriangle(x - 9, y + 5, x - 5, y + 9, x - 11, y + 11);
+}
+
+function iconEraser(g, x, y) {
+  const pts = [{ x: x - 10, y: y + 3 }, { x: x + 1, y: y - 8 }, { x: x + 10, y: y + 1 }, { x: x - 1, y: y + 12 }];
+  g.fillStyle(0xe58a9a, 1);
+  g.fillPoints(pts, true);
+  g.lineStyle(1.5, 0x3a3128, 1);
+  g.strokePoints(pts, true);
+}
+
+export function createMapOverlay(root, { onClose } = {}) {
+  injectStyle();
+  const el = document.createElement('div');
+  el.className = 'map-overlay';
+  const canvas = document.createElement('canvas');
+  canvas.className = 'map-canvas';
+  el.appendChild(canvas);
+  root.appendChild(el);
+  const ctx = canvas.getContext('2d');
+  const g = new CanvasGraphics(ctx);
+
+  let open = false;
+  let openedAt = 0;
+  let k = 1; // logical px -> backing px
+  const mapCache = new Map(); // tab id -> pre-rendered printed map (backing resolution)
+  let rafId = 0;
+
+  // UI state, reset on every open (like the Phaser scene's create()).
+  let tab = lastTab;
+  let tool = 'pencil';
+  let stampKind = null;
+  let ink = INKS[0];
+  let current = null; // stroke being drawn
+  let typing = null; // { x, y, text, caret, color }
+  let caretTimer = null;
+  let clearArmed = false;
+  let clearTimer = null;
+  let hover = null; // { x, y } logical pointer position
+  let hoverTip = null;
+  let pointerDown = false;
+
+  // ------------------------------------------------------------ toolbar layout
+
+  const buttons = [];
+  let statusY = 0;
+  (function layoutToolbar() {
+    const colX = [31, 69];
+    const size = 34;
+    let y = PAPER.y + 12;
+    const headers = [];
+    const header = (text) => { headers.push({ text, y }); y += 28; };
+    const grid = (items) => {
+      items.forEach((item, i) => {
+        buttons.push({ ...item, x: colX[i % 2], y: y + Math.floor(i / 2) * (size + 4), w: size, h: size });
+      });
+      y += Math.ceil(items.length / 2) * (size + 4) + 6;
+    };
+    header('Tools');
+    grid([
+      { id: 'pencil', tip: 'Pencil', icon: iconPencil, onClick: () => setTool('pencil') },
+      { id: 'eraser', tip: 'Eraser', icon: iconEraser, onClick: () => setTool('eraser') },
+      { id: 'text', tip: 'Text label', text: 'Aa', onClick: () => setTool('text') },
+    ]);
+    header('Ink');
+    grid(INKS.map((c) => ({
+      id: 'ink_' + c.id,
+      tip: c.name,
+      icon: (gg, x, yy) => { gg.fillStyle(c.color, 1); gg.fillCircle(x, yy, 9); },
+      onClick: () => setInk(c),
+    })));
+    header('Stamps');
+    grid(STAMP_KINDS.map((kind) => ({
+      id: 'stamp_' + kind,
+      tip: STAMP_NAMES[kind],
+      icon: (gg, x, yy) => drawStamp(gg, kind, x, yy + 1, 0x3a3128, 0.7, seedFrom(kind)),
+      onClick: () => setTool('stamp', kind),
+    })));
+    y += 2;
+    buttons.push({ id: 'undo', tip: 'Undo (Ctrl+Z)', text: 'Undo', x: 50, y, w: 72, h: 26, onClick: () => undo() });
+    y += 32;
+    buttons.push({ id: 'clear', tip: 'Clear all', text: 'Clear', x: 50, y, w: 72, h: 26, onClick: () => clickClear() });
+    y += 30;
+    statusY = Math.min(y + 8, PAPER.y + PAPER.h - 30);
+    buttons.headers = headers;
+  })();
+
+  const hitButton = (x, y) => buttons.find((b) => Math.abs(x - b.x) <= b.w / 2 && Math.abs(y - b.y) <= b.h / 2);
+  const hitTab = (x, y) => TABS.find((t) => x >= t.x && x <= t.x + t.w && y >= PAPER.y - 32 && y <= PAPER.y);
+  const hitClose = (x, y) => Math.hypot(x - CLOSE.x, y - CLOSE.y) <= CLOSE.r;
+
+  // ------------------------------------------------------------ sizing
+
+  function fit() {
+    const scale = Math.min(window.innerWidth / W, window.innerHeight / H);
+    const dpr = window.devicePixelRatio || 1;
+    const cssW = Math.floor(W * scale);
+    const cssH = Math.floor(H * scale);
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    const bw = Math.round(cssW * dpr);
+    const bh = Math.round(cssH * dpr);
+    if (canvas.width !== bw || canvas.height !== bh) {
+      canvas.width = bw;
+      canvas.height = bh;
+      mapCache.clear();
+    }
+    k = bw / W;
+  }
+
+  function toLogical(e) {
+    const r = canvas.getBoundingClientRect();
+    return {
+      x: ((e.clientX - r.left) * W) / (r.width || 1),
+      y: ((e.clientY - r.top) * H) / (r.height || 1),
+    };
+  }
+
+  // ------------------------------------------------------------ drawing
+
+  function requestRender() {
+    if (rafId || !open) return;
+    rafId = requestAnimationFrame(() => {
+      rafId = 0;
+      render();
+    });
+  }
+
+  function buildMapCache(tabDef) {
+    const c = document.createElement('canvas');
+    c.width = canvas.width;
+    c.height = canvas.height;
+    const cc = c.getContext('2d');
+    cc.setTransform(k, 0, 0, k, 0, 0);
+    const fake = makeFakeScene(cc);
+    buildOldMap(fake.scene, fake.container, PAPER, tabDef.def);
+    fake.flushTexts();
+    mapCache.set(tabDef.id, c);
+    return c;
+  }
+
+  function drawSketchPaper() {
+    g.fillStyle(SKETCH_PAPER, 1);
+    g.fillRect(PAPER.x, PAPER.y, PAPER.w, PAPER.h);
+    g.lineStyle(1, 0x7fa3c8, 0.16);
+    for (let x = PAPER.x + 24; x < PAPER.x + PAPER.w; x += 24) g.lineBetween(x, PAPER.y, x, PAPER.y + PAPER.h);
+    for (let y = PAPER.y + 24; y < PAPER.y + PAPER.h; y += 24) g.lineBetween(PAPER.x, y, PAPER.x + PAPER.w, y);
+    g.lineStyle(2, 0x000000, 0.08);
+    g.strokeRect(PAPER.x, PAPER.y, PAPER.w, PAPER.h);
+
+    // Hand-written north mark in the top right corner.
+    const nx = PAPER.x + PAPER.w - 40;
+    const ny = PAPER.y + 50;
+    g.lineStyle(2, 0x555555, 0.9);
+    const rnd = makeRng(42);
+    wobbly(g, [[nx, ny + 18], [nx, ny - 14]], rnd);
+    wobbly(g, [[nx - 6, ny - 6], [nx, ny - 14], [nx + 6, ny - 6]], rnd);
+    drawText(ctx, nx - 22, ny + 4, 'N', { fontFamily: HAND, fontSize: '20px', color: '#555555' }, [0.5, 0.5]);
+    drawText(ctx, PAPER.x + PAPER.w / 2, PAPER.y + PAPER.h - 14,
+      'Draw what you were told. This sheet never shows where you are.',
+      { fontFamily: HAND, fontSize: '12px', color: '#9a9184' }, [0.5, 0.5]);
+  }
+
+  function drawStroke(stroke) {
+    const pts = stroke.points;
+    const color = stroke.color ?? 0x555555;
+    const w = stroke.width || 2.4;
+    if (pts.length < 2) return;
+    g.lineStyle(w, color, 0.88);
+    g.fillStyle(color, 0.88);
+    g.strokePoints(pts, false);
+    // Round caps so line ends and dots look like pencil.
+    g.fillCircle(pts[0][0], pts[0][1], w / 2);
+    g.fillCircle(pts[pts.length - 1][0], pts[pts.length - 1][1], w / 2);
+  }
+
+  const labelFont = () => `${LABEL_SIZE}px ${HAND}`;
+
+  function labelBounds(lbl) {
+    ctx.save();
+    ctx.font = labelFont();
+    const w = ctx.measureText(lbl.text).width;
+    ctx.restore();
+    const h = LABEL_SIZE * 1.35;
+    return { x: lbl.x, y: lbl.y - h / 2, right: lbl.x + w, bottom: lbl.y + h / 2 };
+  }
+
+  function drawSketch() {
+    drawSketchPaper();
+    const sk = state.sketch;
+    for (const stroke of sk.strokes) drawStroke(stroke);
+    for (const st of sk.stamps) {
+      drawStamp(g, st.kind, st.x, st.y, st.color ?? 0x555555, STAMP_SCALE, seedFrom(st.kind, st.x, st.y));
+    }
+    for (const lbl of sk.labels) {
+      drawText(ctx, lbl.x, lbl.y, lbl.text,
+        { fontFamily: HAND, fontSize: LABEL_SIZE + 'px', color: rgba(lbl.color ?? 0x555555) }, [0, 0.5]);
+    }
+    if (current) drawStroke(current);
+    if (typing) {
+      drawText(ctx, typing.x, typing.y, typing.text + (typing.caret ? '|' : ' '),
+        { fontFamily: HAND, fontSize: LABEL_SIZE + 'px', color: rgba(typing.color) }, [0, 0.5]);
+    }
+    // Eraser shows a small ring under the pointer.
+    if (tool === 'eraser' && hover && inPaper(hover.x, hover.y)) {
+      g.lineStyle(1.5, 0xc0392b, 0.7);
+      g.strokeCircle(hover.x, hover.y, 8);
+    }
+  }
+
+  function drawTabs() {
+    for (const d of TABS) {
+      const active = d.id === tab;
+      g.fillStyle(active ? d.fill : 0x8c7f6a, 1);
+      const top = PAPER.y - (active ? 32 : 28);
+      g.fillRoundedRect(d.x, top, d.w, PAPER.y - top + (active ? 2 : 0), { tl: 8, tr: 8, bl: 0, br: 0 });
+      drawText(ctx, d.x + d.w / 2, PAPER.y - 15, d.text,
+        { fontFamily: d.font, fontSize: '16px', color: '#3a3128' }, [0.5, 0.5], 0, active ? 1 : 0.75);
+    }
+  }
+
+  function drawCloseButton() {
+    const { x, y } = CLOSE;
+    g.fillStyle(0xf3eee0, 1);
+    g.fillCircle(x, y, 15);
+    g.lineStyle(3, 0x3a3128, 1);
+    g.lineBetween(x - 6, y - 6, x + 6, y + 6);
+    g.lineBetween(x + 6, y - 6, x - 6, y + 6);
+  }
+
+  function statusText() {
+    if (hoverTip) return hoverTip;
+    if (tool === 'pencil') return 'Drag to draw';
+    if (tool === 'eraser') return 'Click a mark to erase it';
+    if (tool === 'text') return 'Click, type, Enter';
+    return 'Click to place: ' + STAMP_NAMES[stampKind];
+  }
+
+  function drawToolbar() {
+    g.fillStyle(0x3b3027, 0.95);
+    g.fillRoundedRect(8, PAPER.y, 84, PAPER.h, 8);
+    for (const h of buttons.headers) {
+      drawText(ctx, 50, h.y, h.text, { fontFamily: SERIF, fontSize: '11px', color: '#d8ccb4' }, [0.5, 0.5]);
+    }
+    const activeId = tool === 'stamp' ? 'stamp_' + stampKind : tool;
+    for (const b of buttons) {
+      const on = b.id === activeId || b.id === 'ink_' + ink.id;
+      const x0 = b.x - b.w / 2;
+      const y0 = b.y - b.h / 2;
+      g.fillStyle(0xf3eee0, 1);
+      g.fillRect(x0, y0, b.w, b.h);
+      g.lineStyle(on ? 3 : 1, on ? 0xe0a030 : 0x8c7f6a, 1);
+      g.strokeRect(x0, y0, b.w, b.h);
+      if (b.icon) b.icon(g, b.x, b.y);
+      if (b.text) {
+        let text = b.text;
+        let color = '#3a3128';
+        if (b.id === 'clear' && clearArmed) { text = 'Sure?'; color = '#c0392b'; }
+        drawText(ctx, b.x, b.y, text, {
+          fontFamily: b.id === 'text' ? HAND : SERIF, fontSize: b.id === 'text' ? '16px' : '13px', color,
+        }, [0.5, 0.5]);
+      }
+    }
+    ctx.save();
+    ctx.font = `10px ${SERIF}`;
+    const lines = wrapText(ctx, statusText(), 76);
+    ctx.restore();
+    lines.forEach((line, i) => {
+      drawText(ctx, 50, statusY + i * 12, line, { fontFamily: SERIF, fontSize: '10px', color: '#d8ccb4' }, [0.5, 0]);
+    });
+  }
+
+  function render() {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.setTransform(k, 0, 0, k, 0, 0);
+
+    // Paper shadow.
+    g.fillStyle(0x000000, 0.35);
+    g.fillRect(PAPER.x + 6, PAPER.y + 8, PAPER.w, PAPER.h);
+
+    if (tab === 'sketch') {
+      drawSketch();
+    } else {
+      const tabDef = TABS.find((t) => t.id === tab);
+      const cache = mapCache.get(tab) || buildMapCache(tabDef);
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(cache, 0, 0);
+      ctx.restore();
+    }
+    drawTabs();
+    drawCloseButton();
+    if (tab === 'sketch') drawToolbar();
+  }
+
+  // ------------------------------------------------------------ actions
+
+  function showTab(id) {
+    if (typing) commitTyping();
+    tab = id;
+    lastTab = id;
+    hoverTip = null;
+    requestRender();
+  }
+
+  function setTool(t, kind = null) {
+    if (typing) commitTyping();
+    tool = t;
+    stampKind = kind;
+    requestRender();
+  }
+
+  function setInk(c) {
+    ink = c;
+    // Picking an ink from the eraser switches back to the pencil.
+    if (tool === 'eraser') tool = 'pencil';
+    requestRender();
+  }
+
+  function clickClear() {
+    clearTimeout(clearTimer);
+    if (!clearArmed) {
+      clearArmed = true;
+      clearTimer = setTimeout(() => { clearArmed = false; requestRender(); }, 2500);
+      requestRender();
+      return;
+    }
+    clearArmed = false;
+    const sk = state.sketch;
+    if (sk.strokes.length + sk.stamps.length + sk.labels.length > 0) {
+      pushHistory({ type: 'clear', snapshot: { strokes: sk.strokes, stamps: sk.stamps, labels: sk.labels } });
+      sk.strokes = [];
+      sk.stamps = [];
+      sk.labels = [];
+    }
+    requestRender();
+  }
+
+  function pushHistory(action) {
+    history.push(action);
+    if (history.length > MAX_HISTORY) history.shift();
+  }
+
+  function undo() {
+    if (typing) return;
+    const a = history.pop();
+    if (!a) return;
+    const sk = state.sketch;
+    if (a.type === 'add') {
+      const i = sk[a.list].indexOf(a.item);
+      if (i >= 0) sk[a.list].splice(i, 1);
+    } else if (a.type === 'remove') {
+      sk[a.list].splice(Math.min(a.index, sk[a.list].length), 0, a.item);
+    } else if (a.type === 'clear') {
+      sk.strokes = a.snapshot.strokes;
+      sk.stamps = a.snapshot.stamps;
+      sk.labels = a.snapshot.labels;
+    }
+    requestRender();
+  }
+
+  // Removes the nearest stroke, stamp or label under the pointer.
+  function eraseAt(x, y) {
+    const sk = state.sketch;
+    let best = null;
+    const consider = (list, index, d) => {
+      if (!best || d < best.d) best = { list, index, d };
+    };
+    sk.labels.forEach((lbl, i) => {
+      const b = labelBounds(lbl);
+      if (x >= b.x - 4 && x <= b.right + 4 && y >= b.y - 4 && y <= b.bottom + 4) consider('labels', i, 0);
+    });
+    sk.stamps.forEach((st, i) => {
+      const d = Math.hypot(st.x - x, st.y - y);
+      if (d < 14 * STAMP_SCALE) consider('stamps', i, d);
+    });
+    sk.strokes.forEach((st, i) => {
+      const p = st.points;
+      for (let j = 0; j < p.length - 1; j++) {
+        const d = distToSegment(x, y, p[j][0], p[j][1], p[j + 1][0], p[j + 1][1]);
+        if (d < 7) consider('strokes', i, d);
+      }
+    });
+    if (!best) return;
+    const [item] = sk[best.list].splice(best.index, 1);
+    pushHistory({ type: 'remove', list: best.list, item, index: best.index });
+    requestRender();
+  }
+
+  // ------------------------------------------------------------ text labels
+
+  function startTyping(x, y) {
+    typing = { x, y, text: '', caret: true, color: ink.color };
+    clearInterval(caretTimer);
+    caretTimer = setInterval(() => {
+      if (!typing) return;
+      typing.caret = !typing.caret;
+      requestRender();
+    }, 450);
+    requestRender();
+  }
+
+  function endTyping() {
+    typing = null;
+    clearInterval(caretTimer);
+    caretTimer = null;
+    requestRender();
+  }
+
+  function commitTyping() {
+    const t = typing;
+    endTyping();
+    const text = t ? t.text.trim() : '';
+    if (!text) return;
+    const lbl = { text, x: t.x, y: t.y, color: t.color };
+    state.sketch.labels.push(lbl);
+    pushHistory({ type: 'add', list: 'labels', item: lbl });
+  }
+
+  function onTypingKey(e) {
+    const key = e.key;
+    if (key === 'Enter') {
+      e.preventDefault();
+      commitTyping();
+    } else if (key === 'Escape') {
+      e.preventDefault();
+      endTyping();
+    } else if (key === 'Backspace') {
+      e.preventDefault();
+      typing.text = typing.text.slice(0, -1);
+    } else if (key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      if (typing.text.length < MAX_LABEL) typing.text += key;
+    }
+    requestRender();
+  }
+
+  // ------------------------------------------------------------ input
+
+  // Capture phase on window: runs before anything else and keeps every key
+  // press away from the game while the map is open. keyup is let through so
+  // the game never ends up with a key stuck down.
+  function onKey(e) {
+    if (!open) return;
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    if (e.type !== 'keydown') return;
+    if (typing) {
+      onTypingKey(e);
+      return;
+    }
+    const key = e.key;
+    if ((e.ctrlKey || e.metaKey) && (key === 'z' || key === 'Z')) {
+      e.preventDefault();
+      undo();
+      return;
+    }
+    // Ignore the same key press (or its auto repeat) that opened the map.
+    if (e.repeat || performance.now() - openedAt < 200) return;
+    if (key === 'Escape' || key === 'm' || key === 'M') {
+      e.preventDefault();
+      close();
+    }
+  }
+
+  function onPointerDown(e) {
+    if (!open || e.button > 0) return;
+    e.preventDefault();
+    const { x, y } = toLogical(e);
+    hover = { x, y };
+
+    const t = hitTab(x, y);
+    if (t) { showTab(t.id); return; }
+    if (hitClose(x, y)) { close(); return; }
+    if (tab !== 'sketch') return;
+    const b = hitButton(x, y);
+    if (b) { b.onClick(); return; }
+
+    // Clicking anywhere while typing places the label first.
+    if (typing) { commitTyping(); return; }
+    const rx = Math.round(x);
+    const ry = Math.round(y);
+    if (!inPaper(rx, ry)) return;
+
+    pointerDown = true;
+    try { canvas.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+    if (tool === 'pencil') {
+      current = { points: [[rx, ry]], color: ink.color, width: 2.4 };
+    } else if (tool === 'eraser') {
+      eraseAt(rx, ry);
+    } else if (tool === 'text') {
+      startTyping(rx, ry);
+    } else if (tool === 'stamp') {
+      const stamp = { kind: stampKind, x: rx, y: ry, color: ink.color };
+      state.sketch.stamps.push(stamp);
+      pushHistory({ type: 'add', list: 'stamps', item: stamp });
+    }
+    requestRender();
+  }
+
+  function onPointerMove(e) {
+    if (!open) return;
+    const { x, y } = toLogical(e);
+    hover = { x, y };
+
+    // Toolbar hint and cursor.
+    const b = tab === 'sketch' ? hitButton(x, y) : null;
+    const tip = b ? b.tip : null;
+    if (tip !== hoverTip) hoverTip = tip;
+    let cursor = 'default';
+    if (b || hitTab(x, y) || hitClose(x, y)) cursor = 'pointer';
+    else if (tab === 'sketch' && inPaper(x, y)) cursor = tool === 'text' ? 'text' : tool === 'eraser' ? 'none' : 'crosshair';
+    canvas.style.cursor = cursor;
+
+    if (tab === 'sketch') {
+      const cx = clamp(Math.round(x), PAPER.x, PAPER.x + PAPER.w);
+      const cy = clamp(Math.round(y), PAPER.y, PAPER.y + PAPER.h);
+      if (current && pointerDown) {
+        const pts = current.points;
+        const [lx, ly] = pts[pts.length - 1];
+        if (Math.hypot(cx - lx, cy - ly) >= 2.5) pts.push([cx, cy]);
+      }
+      if (tool === 'eraser' && pointerDown && inPaper(x, y)) eraseAt(x, y);
+    }
+    requestRender();
+  }
+
+  function onPointerUp(e) {
+    pointerDown = false;
+    try { canvas.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+    if (!current) return;
+    const stroke = current;
+    current = null;
+    if (stroke.points.length === 1) {
+      // A single click leaves a dot.
+      const [x, y] = stroke.points[0];
+      stroke.points.push([x + 0.5, y + 0.5]);
+    } else {
+      stroke.points = smoothPoints(stroke.points, 2);
+    }
+    state.sketch.strokes.push(stroke);
+    pushHistory({ type: 'add', list: 'strokes', item: stroke });
+    requestRender();
+  }
+
+  function onPointerLeave() {
+    if (!pointerDown) hover = null;
+    hoverTip = null;
+    requestRender();
+  }
+
+  function onResize() {
+    fit();
+    requestRender();
+  }
+
+  canvas.addEventListener('pointerdown', onPointerDown);
+  canvas.addEventListener('pointermove', onPointerMove);
+  canvas.addEventListener('pointerup', onPointerUp);
+  canvas.addEventListener('pointercancel', onPointerUp);
+  canvas.addEventListener('pointerleave', onPointerLeave);
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+  // Clicks on the dim backdrop must not reach anything below.
+  el.addEventListener('pointerdown', (e) => e.stopPropagation());
+
+  // ------------------------------------------------------------ public API
+
+  function openMap() {
+    if (open) return;
+    open = true;
+    openedAt = performance.now();
+    buildTabs();
+    tab = TABS.some((t) => t.id === lastTab) ? lastTab : 'sketch';
+    // A fresh sketch page (new mission) gets a fresh undo stack.
+    if (state.sketchEpoch !== historyEpoch) {
+      history.length = 0;
+      historyEpoch = state.sketchEpoch;
+    }
+    tool = 'pencil';
+    stampKind = null;
+    ink = INKS[0];
+    current = null;
+    typing = null;
+    clearArmed = false;
+    hover = null;
+    hoverTip = null;
+    pointerDown = false;
+    el.classList.add('map-open');
+    fit();
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('keypress', onKey, true);
+    window.addEventListener('resize', onResize);
+    render();
+  }
+
+  function close() {
+    if (!open) return;
+    if (typing) commitTyping();
+    if (current) onPointerUp({ pointerId: -1 });
+    clearInterval(caretTimer);
+    caretTimer = null;
+    clearTimeout(clearTimer);
+    clearArmed = false;
+    open = false;
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = 0;
+    el.classList.remove('map-open');
+    window.removeEventListener('keydown', onKey, true);
+    window.removeEventListener('keypress', onKey, true);
+    window.removeEventListener('resize', onResize);
+    if (onClose) onClose();
+  }
+
+  return {
+    open: openMap,
+    close,
+    isOpen: () => open,
+  };
+}
