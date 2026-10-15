@@ -93,27 +93,35 @@ export function stepCar(car, input, dt, collider) {
   return { moved: Math.hypot(car.x - startX, car.y - startY), hitSpeed, surface };
 }
 
+function tint(color, f) {
+  const r = Math.min(255, Math.round(((color >> 16) & 255) * f));
+  const gg = Math.min(255, Math.round(((color >> 8) & 255) * f));
+  const b = Math.min(255, Math.round((color & 255) * f));
+  return (r << 16) | (gg << 8) | b;
+}
+
 // Car drawn at the origin pointing north (-y). Rotate the Graphics by heading.
-export function drawCar(g) {
+// `color` is the body paint (the player's car is the default red).
+export function drawCar(g, color = 0xd0553b) {
   const L = 4.5;
   const W = 1.9;
   // Tyres.
   g.fillStyle(0x1e1e1e, 1);
   for (const [x, y] of [[-1, -1.45], [1, -1.45], [-1, 1.4], [1, 1.4]]) g.fillRect(x - 0.22, y - 0.42, 0.44, 0.84);
   // Body.
-  g.fillStyle(0x9c3a2a, 1);
+  g.fillStyle(tint(color, 0.75), 1);
   g.fillRoundedRect(-W / 2 - 0.05, -L / 2 - 0.05, W + 0.1, L + 0.1, 0.55);
-  g.fillStyle(0xd0553b, 1);
+  g.fillStyle(color, 1);
   g.fillRoundedRect(-W / 2, -L / 2, W, L, 0.5);
   // Bonnet line.
-  g.fillStyle(0xe06a4f, 1);
+  g.fillStyle(tint(color, 1.08), 1);
   g.fillRect(-0.55, -2.0, 1.1, 0.9);
   // Windscreen and rear window.
   g.fillStyle(0x24323d, 1);
   g.fillPoints([{ x: -0.8, y: -0.75 }, { x: 0.8, y: -0.75 }, { x: 0.68, y: -0.15 }, { x: -0.68, y: -0.15 }], true);
   g.fillPoints([{ x: -0.68, y: 1.25 }, { x: 0.68, y: 1.25 }, { x: 0.78, y: 1.7 }, { x: -0.78, y: 1.7 }], true);
   // Roof.
-  g.fillStyle(0xc44a33, 1);
+  g.fillStyle(tint(color, 0.93), 1);
   g.fillRect(-0.7, -0.15, 1.4, 1.4);
   // Headlights and tail lights.
   g.fillStyle(0xfff3c4, 1);

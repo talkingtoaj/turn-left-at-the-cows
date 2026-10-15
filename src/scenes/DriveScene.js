@@ -5,16 +5,25 @@ import { makeRng } from '../drive/geom.js';
 import { generateScenery } from '../drive/layout.js';
 import { Collider } from '../drive/collider.js';
 import { stepCar, drawCar, drawCarShadow } from '../drive/car.js';
+import { CAR_CIRCLES, CAR_R } from '../drive/collider.js';
+import { LOCAL_HIT_R } from '../drive/layout.js';
 import {
-  GRASS, GROUND_LAYERS, drawGround, drawTufts, drawTree, drawBush, drawBuilding, drawLandmark, drawSign, drawLocal,
+  GRASS, GROUND_LAYERS, drawGround, drawTufts, drawTree, drawBush, drawBuilding, drawLandmark, drawSign,
+  drawFences, drawMailbox,
 } from '../drive/render.js';
+import { AmbientView, addHills } from '../drive/ambientDraw.js';
 import { updateGame } from '../game/update.js';
+import { createAmbient } from '../ambient/ambient.js';
+import { createAudio } from '../audio/audio.js';
 
 const ZOOM = 4.8; // about 200 m of world across the 960 px view
 const CHUNK = 250; // metres per chunk of scenery
 const CHUNK_MARGIN = 90; // draw chunks this far past the view (long shadows overhang)
 const TALK_RANGE = 25;
 const READ_RANGE = 25;
+const MAILBOX_RANGE = 12;
+const OBSTACLE_RANGE = 30; // people and traffic this close to the car are solid
+const TURN_SMOOTH = 7; // heading-up camera: higher follows the car's turns faster
 
 // Static scenery split into square chunks per layer. Only chunks near the
 // camera are visible, so the renderer only walks a few thousand shapes.
@@ -65,8 +74,14 @@ export default class DriveScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(GRASS);
 
     this.scenery = generateScenery(WORLD);
-    this.collider = new Collider(WORLD, this.scenery);
+    // People move (ambient), so they are dynamic obstacles, not fixed circles.
+    this.collider = new Collider(WORLD, this.scenery, { staticLocals: false });
     this.buildWorld();
+
+    // Ambient life and sound (shared modules, see CONTRACT_P2.md).
+    this.amb = createAmbient(WORLD, this.scenery);
+    this.audio = createAudio(WORLD);
+    this.buildAmbientLayers();
 
     // Car: shadow and body are separate so the shadow keeps a fixed sun offset.
     this.carShadow = this.add.graphics().setDepth(9);
@@ -81,10 +96,24 @@ export default class DriveScene extends Phaser.Scene {
     cam.startFollow(this.carG, false, 0.15, 0.15);
     cam.centerOn(state.car.x, state.car.y);
 
+    // Heading-up view: the camera turns so the car points up the screen.
+    this.camAngle = state.view.northUp ? 0 : -Phaser.Math.DegToRad(state.car.heading);
+    cam.setRotation(this.camAngle);
+
     // No key capture, so DOM inputs (e.g. map labels) still get WASD/arrows.
     this.keys = this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SPACE', false);
     // Keys released while paused (map open) would otherwise stay "down".
     this.events.on(Phaser.Scenes.Events.RESUME, () => this.input.keyboard.resetKeys());
+    this.input.keyboard.on('keydown-N', () => { state.view.northUp = !state.view.northUp; });
+    this.input.keyboard.on('keydown-K', () => this.audio.toggleMute());
+
+    // Audio runs from a game-level hook so it keeps going (and fades) while
+    // this scene is paused for the map.
+    this.onGameStep = (_t, delta) => {
+      this.audio.update(Math.min(delta, 100) / 1000, state, this.amb, { paused: this.scene.isPaused() });
+    };
+    this.game.events.on(Phaser.Core.Events.POST_STEP, this.onGameStep);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.game.events.off(Phaser.Core.Events.POST_STEP, this.onGameStep));
 
     this.state = state; // handy for debugging: __game.scene.getScene('Drive').state
     this.scene.launch('HUD');
@@ -120,10 +149,66 @@ export default class DriveScene extends Phaser.Scene {
     const decoRng = makeRng(WORLD.seed + 202);
     for (const b of this.scenery.bushes) drawBush(chunks.get('objects', b.x, b.y), b);
     for (const t of this.scenery.trees) drawTree(...at(t.x, t.y), t);
-    for (const b of WORLD.buildings) drawBuilding(...at(b.x, b.y), over(b.x, b.y), b);
-    for (const l of WORLD.landmarks) drawLandmark(...at(l.x, l.y), over(l.x, l.y), l, decoRng);
+    for (const b of WORLD.buildings) drawBuilding(...at(b.x, b.y), over(b.x, b.y), b, WORLD);
+    for (const l of WORLD.landmarks) drawLandmark(...at(l.x, l.y), over(l.x, l.y), l, decoRng, WORLD);
     for (const s of WORLD.signs) drawSign(...at(s.x, s.y), s);
-    WORLD.locals.forEach((l, i) => drawLocal(...at(l.x, l.y), l, i));
+    for (const m of WORLD.mailboxes || []) drawMailbox(...at(m.x, m.y), m);
+    drawFences(WORLD, at);
+
+    // Hills: soft light and shade plus contours, over the grass and forest
+    // floor but under the roads.
+    addHills(this, WORLD, 1.005);
+  }
+
+  // Pooled images for things that move (see src/drive/ambientDraw.js).
+  buildAmbientLayers() {
+    this.ambView = new AmbientView(this, WORLD);
+  }
+
+  // Box of world space the camera can see, allowing for its rotation.
+  viewBox() {
+    const cam = this.cameras.main;
+    const cx = cam.scrollX + cam.width / 2;
+    const cy = cam.scrollY + cam.height / 2;
+    const hw = cam.width / 2 / cam.zoom;
+    const hh = cam.height / 2 / cam.zoom;
+    const c = Math.abs(Math.cos(cam.rotation));
+    const s = Math.abs(Math.sin(cam.rotation));
+    const ex = hw * c + hh * s;
+    const ey = hw * s + hh * c;
+    return { x0: cx - ex, y0: cy - ey, x1: cx + ex, y1: cy + ey };
+  }
+
+  // People and traffic close to the car become solid for this frame.
+  updateObstacles() {
+    const car = state.car;
+    const dyn = this.collider.dynamic;
+    dyn.length = 0;
+    const r2 = OBSTACLE_RANGE * OBSTACLE_RANGE;
+    for (const l of WORLD.locals) {
+      const p = this.amb.personPos(l.id) || l;
+      const dx = p.x - car.x;
+      const dy = p.y - car.y;
+      if (dx * dx + dy * dy < r2) dyn.push({ x: p.x, y: p.y, r: LOCAL_HIT_R });
+    }
+    for (const c of this.amb.cars) {
+      const dx = c.x - car.x;
+      const dy = c.y - car.y;
+      if (dx * dx + dy * dy > r2) continue;
+      const h = Phaser.Math.DegToRad(c.heading || 0);
+      for (const off of CAR_CIRCLES) dyn.push({ x: c.x + Math.sin(h) * off, y: c.y - Math.cos(h) * off, r: CAR_R * 0.95 });
+    }
+  }
+
+  // Smoothly turns the camera: 0 for north-up, minus the car heading for heading-up.
+  updateCameraRotation(dt) {
+    const cam = this.cameras.main;
+    const target = state.view.northUp ? 0 : -Phaser.Math.DegToRad(state.car.heading);
+    let diff = target - this.camAngle;
+    diff = Math.atan2(Math.sin(diff), Math.cos(diff)); // shortest way round
+    this.camAngle += diff * (1 - Math.exp(-TURN_SMOOTH * dt));
+    if (Math.abs(diff) < 1e-4) this.camAngle = target;
+    cam.setRotation(this.camAngle);
   }
 
   syncCarGraphics() {
@@ -151,6 +236,7 @@ export default class DriveScene extends Phaser.Scene {
         brake: k.SPACE.isDown,
       };
 
+    this.updateObstacles();
     const result = stepCar(car, input, dt, this.collider);
     state.odometer += result.moved;
     if (result.hitSpeed > 6) this.cameras.main.shake(120, 0.0015 * Math.min(3, result.hitSpeed / 8));
@@ -160,13 +246,27 @@ export default class DriveScene extends Phaser.Scene {
     state.clockMinutes = (state.clockMinutes + dtMs / 6000) % 1440;
     if (!state.won) state.elapsedMs += dtMs;
 
-    state.nearLocalId = nearestId(WORLD.locals, car, TALK_RANGE);
+    // Ambient life moves (traffic, birds, people, animals, puffs, clouds).
+    this.amb.update(dt, state);
+
+    // Talk range uses where people are now, not their home spot.
+    const people = WORLD.locals.map((l) => {
+      const p = this.amb.personPos(l.id);
+      return p ? { id: l.id, x: p.x, y: p.y } : l;
+    });
+    state.nearLocalId = nearestId(people, car, TALK_RANGE);
     state.nearSignId = nearestId(WORLD.signs, car, READ_RANGE);
+    // Added at runtime (not in state.js): mailbox near enough to read its name.
+    this.nearMailboxId = nearestId(WORLD.mailboxes || [], car, MAILBOX_RANGE);
+    state.nearMailboxId = this.nearMailboxId;
 
     // Waypoint snapshots and arrival at the current mission's goal (sets state.won).
     updateGame(state, dt);
 
-    this.chunks.updateVisible(this.cameras.main.worldView);
+    this.updateCameraRotation(dt);
+    const view = this.viewBox();
+    this.chunks.updateVisible({ x: view.x0, y: view.y0, right: view.x1, bottom: view.y1 });
+    this.ambView.draw(this.amb, view);
   }
 }
 

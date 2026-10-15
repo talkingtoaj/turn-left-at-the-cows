@@ -9,7 +9,7 @@ import * as THREE from 'three';
 import {
   makeRng, distToSegment, pointInPolygon, distToPolygonEdge, SegIndex, bbox,
 } from '../../src/drive/geom.js';
-import { buildingSolids } from '../../src/drive/layout.js';
+import { buildingSolids, quarryOpening, QUARRY } from '../../src/drive/layout.js';
 
 export const CELL = 4; // metres between height samples
 export const CHUNK = 250; // metres per ground mesh chunk
@@ -52,6 +52,72 @@ export function makeNoise(seed) {
 export function smoothstep(e0, e1, x) {
   const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
   return t * t * (3 - 2 * t);
+}
+
+// ---------- quarry pit ----------
+
+export const QUARRY_BENCH = 3.2; // metres per bench
+const RAMP_HALF = 3.6;
+
+// Same wobbly outline the Phaser renderer draws (render.js drawQuarry).
+export const quarryWob = (t) => 1 + 0.05 * Math.sin(3 * t + 1) + 0.035 * Math.sin(5 * t + 2.3) + 0.02 * Math.sin(9 * t);
+
+// Pit info for one quarry landmark: opening angle toward the road and the
+// haul ramp polyline (curving down from the rim opening to the 4th bench).
+export function quarryInfo(world, l) {
+  const R = l.r || 90;
+  const open = quarryOpening(world, l) * (Math.PI / 180);
+  const ramp = [];
+  for (let i = 0; i <= 20; i++) {
+    const t = i / 20;
+    const ang = open + t * 1.4;
+    const rr = R * (0.96 - t * 0.7);
+    ramp.push({ x: l.x + Math.cos(ang) * rr, y: l.y + Math.sin(ang) * rr, h: -QUARRY_BENCH * 4 * smoothstep(0.05, 1, t) });
+  }
+  return { x: l.x, y: l.y, r: R, open, ramp, floor: -QUARRY_BENCH * QUARRY.terraces.length };
+}
+
+// Height inside the pit, or null outside. { h, wall (0 bench, 1 face), level, ramp }
+export function quarryPit(q, x, y) {
+  const dx = x - q.x;
+  const dy = y - q.y;
+  const t = Math.atan2(dy, dx);
+  const d = Math.hypot(dx, dy) / (q.r * quarryWob(t));
+  if (d >= QUARRY.terraces[0] + 0.02) return null;
+  let lvl = 0;
+  let wall = 0;
+  for (const k of QUARRY.terraces) {
+    const s = smoothstep(k + 0.015, k - 0.02, d);
+    lvl += s;
+    if (s > 0.05 && s < 0.95) wall = 1;
+  }
+  let h = -QUARRY_BENCH * lvl;
+  if (d < 0.13) h -= 1.2 * smoothstep(0.13, 0.09, d); // pool basin
+  // Haul ramp: a smooth road cut down through the benches.
+  let best = Infinity;
+  let rh = 0;
+  for (let i = 0; i < q.ramp.length - 1; i++) {
+    const a = q.ramp[i];
+    const b = q.ramp[i + 1];
+    const ex = b.x - a.x;
+    const ey = b.y - a.y;
+    const u = Math.max(0, Math.min(1, ((x - a.x) * ex + (y - a.y) * ey) / (ex * ex + ey * ey)));
+    const dd = Math.hypot(x - a.x - ex * u, y - a.y - ey * u);
+    if (dd < best) {
+      best = dd;
+      rh = a.h + (b.h - a.h) * u;
+    }
+  }
+  let ramp = false;
+  if (best < RAMP_HALF + 3) {
+    const k = smoothstep(RAMP_HALF + 3, RAMP_HALF, best);
+    h = h + (rh - h) * k;
+    if (k > 0.5) {
+      ramp = true;
+      wall = 0;
+    }
+  }
+  return { h, wall, level: Math.round(lvl), ramp };
 }
 
 // ---------- terrain ----------
@@ -109,6 +175,8 @@ export class Terrain {
     for (const t of world.towns) disc(t.x, t.y, 90);
     for (const p of world.places || [world.goal]) disc(p.x, p.y, 70);
     const lakes = world.lakes.map((l) => ({ ...l, bb: bbox(l.polygon) }));
+    const quarries = world.landmarks.filter((l) => l.kind === 'quarry').map((l) => quarryInfo(world, l));
+    this.quarries = quarries;
     const water = new SegIndex(32);
     for (const c of world.creeks) water.addPolyline(c.points, c.width / 2 + 5, c);
 
@@ -144,6 +212,10 @@ export class Terrain {
           if (x < l.bb.minX || x > l.bb.maxX || y < l.bb.minY || y > l.bb.maxY) continue;
           const inside = pointInPolygon(x, y, l.polygon);
           if (inside) h = Math.min(h, THREE.MathUtils.lerp(-0.2, BED, smoothstep(0, 6, distToPolygonEdge(x, y, l.polygon))));
+        }
+        for (const q of quarries) {
+          const pit = quarryPit(q, x, y);
+          if (pit) h = Math.min(h, pit.h);
         }
         this.h[j * this.cols + i] = h;
       }

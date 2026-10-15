@@ -3,7 +3,9 @@
 import {
   pointInPolygon, distToPolygonEdge, pointInRect, circleHitsRect, bbox, DEG, SegIndex, distToSegment,
 } from './geom.js';
-import { buildingSolids, landmarkSolids, TREE_HIT_R, LOCAL_HIT_R } from './layout.js';
+import {
+  buildingSolids, landmarkSolids, fenceSolids, TREE_HIT_R, LOCAL_HIT_R,
+} from './layout.js';
 
 const CELL = 32;
 
@@ -12,15 +14,23 @@ export const CAR_CIRCLES = [-1.25, 0, 1.25];
 export const CAR_R = 1.0;
 
 export class Collider {
-  constructor(world, scenery) {
+  // opts.staticLocals (default true): people are fixed circles at their home
+  // spot. Pass false when the caller moves people and fills `dynamic` instead.
+  constructor(world, scenery, opts = {}) {
     this.world = world;
     this.grid = new Map();
+    // Moving obstacles (people, traffic), refilled by the caller each frame:
+    // [{ x, y, r }]. Checked after the static grid.
+    this.dynamic = [];
 
     // Solid things go into a spatial grid so each query only checks nearby ones.
     for (const b of world.buildings) this.addSolids(buildingSolids(b));
-    for (const l of world.landmarks) this.addSolids(landmarkSolids(l));
+    for (const l of world.landmarks) this.addSolids(landmarkSolids(l, world));
+    this.addSolids(fenceSolids(world));
     for (const t of scenery.trees) this.addCircle({ x: t.x, y: t.y, r: TREE_HIT_R });
-    for (const l of world.locals) this.addCircle({ x: l.x, y: l.y, r: LOCAL_HIT_R });
+    if (opts.staticLocals !== false) {
+      for (const l of world.locals) this.addCircle({ x: l.x, y: l.y, r: LOCAL_HIT_R });
+    }
 
     this.intactBridges = world.bridges
       .filter((b) => b.intact)
@@ -78,6 +88,13 @@ export class Collider {
           } else if (circleHitsRect(x, y, r, s)) return true;
         }
       }
+    }
+
+    for (const c of this.dynamic) {
+      const dx = c.x - x;
+      const dy = c.y - y;
+      const rr = c.r + r;
+      if (dx * dx + dy * dy < rr * rr) return true;
     }
 
     // Creek water blocks unless this point is on an intact bridge deck.

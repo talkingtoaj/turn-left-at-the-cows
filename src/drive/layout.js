@@ -4,7 +4,7 @@
 
 import {
   makeRng, localToWorld, pointInPolygon, distToPolygonEdge,
-  polygonArea, bbox, circleHitsRect, SegIndex, measurePolyline, pointAlong,
+  polygonArea, bbox, circleHitsRect, SegIndex, measurePolyline, pointAlong, nearestOnPolyline,
 } from './geom.js';
 
 // Gas station, in the building's local frame (w = 22, h = 14).
@@ -50,6 +50,54 @@ export const RADIO_MAST = {
 
 export const SILO = { dx: 4.5, ly: -3, r: 3.2 }; // dx is past the barn's east end
 
+// Calder grain silos: three tall bins in a row, an elevator leg and a scale house.
+export const GRAIN = {
+  bins: [{ lx: -10, ly: 2, r: 4.6 }, { lx: 0, ly: 2, r: 4.6 }, { lx: 10, ly: 2, r: 4.6 }],
+  leg: { lx: 0, ly: -6.5, w: 3.4, h: 3.4 },
+  office: { lx: 17, ly: 9, w: 6, h: 4.5 },
+  binH: 24,
+  legH: 36,
+};
+
+// Fire lookout: four splayed legs and a cab on top.
+export const LOOKOUT = {
+  legs: [[-4.2, -4.2], [4.2, -4.2], [4.2, 4.2], [-4.2, 4.2]],
+  legR: 0.45,
+  cab: 4.6,
+  H: 24,
+};
+
+// Covered bridge (sits on its bridge; local y runs along the road).
+// The middle fell into the river; the two bank ends still stand.
+export const COVERED = {
+  wallT: 0.45, // wall thickness
+  barrierBack: 4, // barrier sits this far back from the broken edge
+};
+
+// Quarry pit, in units of the landmark radius r. The haul ramp opens toward the road.
+export const QUARRY = {
+  terraces: [0.92, 0.74, 0.56, 0.38, 0.22],
+  rimR: 0.97, // boulder ring
+  boulderR: 1.1,
+  boulderStep: 7, // metres between rim boulders
+  gapHalf: 18, // degrees each side of the ramp opening left without boulders
+};
+
+// Campground: everything north of the centre (the road runs past the south side).
+export const CAMP = {
+  pads: [
+    { lx: -24, ly: -10, tent: 0x3f7f5a }, { lx: -12, ly: -20, tent: 0xd08a2a },
+    { lx: 2, ly: -24, tent: null }, { lx: 16, ly: -20, tent: 0x3a6fa8 },
+    { lx: 27, ly: -9, tent: 0xb84a3a }, { lx: -3, ly: -4, tent: null },
+  ],
+  tent: { w: 2.6, h: 3.2 },
+  tables: [[-24, -2], [-12, -12], [2, -15], [16, -12], [27, -1], [8, 3]],
+  table: { w: 1.9, h: 0.9 },
+  fire: { lx: 4, ly: -6, r: 1.1 },
+  hut: { lx: -28, ly: -26, w: 4.5, h: 3.5 },
+  loop: { lx: 2, ly: -10, rx: 32, ry: 17 },
+};
+
 export const TREE_HIT_R = 1.0;
 export const LOCAL_HIT_R = 0.5;
 
@@ -84,9 +132,91 @@ export function buildingSolids(b) {
   return { rects, circles };
 }
 
-export function landmarkSolids(l) {
+// Nearest point on any road to (x, y): { x, y, d }.
+function nearestRoadPoint(world, x, y) {
+  let best = null;
+  for (const r of world.roads) {
+    const p = nearestOnPolyline(x, y, r.points);
+    if (!best || p.d < best.d) best = p;
+  }
+  return best;
+}
+
+// Angle (deg, clockwise from +x) from the quarry centre toward its road.
+export function quarryOpening(world, l) {
+  const p = nearestRoadPoint(world, l.x, l.y);
+  if (!p || p.d > (l.r || 90) * 3) return 180;
+  return (Math.atan2(p.y - l.y, p.x - l.x) * 180) / Math.PI;
+}
+
+// Boulders along the quarry rim, leaving a gap at the ramp and around any
+// building that stands on the rim (the quarry office).
+export function quarryBoulders(l, opening, world = null) {
+  const R = (l.r || 90) * QUARRY.rimR;
+  const near = world ? world.buildings.filter((b) => Math.hypot(b.x - l.x, b.y - l.y) < R + 40) : [];
+  const n = Math.floor((2 * Math.PI * R) / QUARRY.boulderStep);
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const deg = (i / n) * 360;
+    let diff = Math.abs(((deg - opening) % 360 + 540) % 360 - 180);
+    if (diff < QUARRY.gapHalf) continue;
+    const wob = ((i * 37) % 7) / 7 - 0.5;
+    const a = (deg * Math.PI) / 180;
+    const x = l.x + Math.cos(a) * (R + wob * 2);
+    const y = l.y + Math.sin(a) * (R + wob * 2);
+    if (near.some((b) => circleHitsRect(x, y, 5, { x: b.x, y: b.y, w: b.w, h: b.h, angle: b.angle || 0 }))) continue;
+    out.push({ x, y, r: QUARRY.boulderR * (0.8 + ((i * 13) % 5) / 10) });
+  }
+  return out;
+}
+
+// Covered bridge pieces in world rects: walls on each standing end and a barrier.
+export function coveredParts(l, bridge) {
+  const W = bridge ? bridge.width : 8;
+  const L = bridge ? bridge.length : 40;
+  const water = bridge ? bridge.waterWidth || 22 : 22;
+  const a = bridge ? bridge.angle : l.angle || 0;
+  const cx = bridge ? bridge.x : l.x;
+  const cy = bridge ? bridge.y : l.y;
+  const stub = (L - water) / 2 + 1.5; // standing length on each bank
+  const ends = [];
+  for (const dir of [-1, 1]) {
+    const outer = dir * (L / 2);
+    const inner = dir * (L / 2 - stub);
+    const mid = (outer + inner) / 2;
+    ends.push({
+      dir, outer, inner, mid, len: stub,
+      walls: [-1, 1].map((side) => partRect(cx, cy, a, { lx: side * (W / 2 - COVERED.wallT / 2), ly: mid, w: COVERED.wallT, h: stub })),
+      barrier: partRect(cx, cy, a, { lx: 0, ly: inner + dir * COVERED.barrierBack, w: W - COVERED.wallT * 2, h: 0.5 }),
+    });
+  }
+  return { cx, cy, a, W, L, water, stub, ends };
+}
+
+export function landmarkSolids(l, world = null) {
   const rects = [];
   const circles = [];
+  if (l.kind === 'grain_silos') {
+    for (const b of GRAIN.bins) {
+      const c = localToWorld(l.x, l.y, l.angle || 0, b.lx, b.ly);
+      circles.push({ x: c.x, y: c.y, r: b.r });
+    }
+    rects.push(partRect(l.x, l.y, l.angle || 0, GRAIN.leg), partRect(l.x, l.y, l.angle || 0, GRAIN.office));
+  } else if (l.kind === 'lookout_tower') {
+    for (const [lx, ly] of LOOKOUT.legs) circles.push({ x: l.x + lx, y: l.y + ly, r: LOOKOUT.legR });
+  } else if (l.kind === 'covered_bridge') {
+    const bridge = world && world.bridges.find((b) => b.id === l.bridgeId);
+    for (const e of coveredParts(l, bridge).ends) rects.push(...e.walls, e.barrier);
+  } else if (l.kind === 'quarry') {
+    const open = world ? quarryOpening(world, l) : 180;
+    circles.push(...quarryBoulders(l, open, world));
+  } else if (l.kind === 'campground') {
+    for (const p of CAMP.pads) if (p.tent) rects.push(partRect(l.x, l.y, 0, { lx: p.lx, ly: p.ly, ...CAMP.tent }));
+    for (const [lx, ly] of CAMP.tables) rects.push(partRect(l.x, l.y, 0, { lx, ly, ...CAMP.table }));
+    const f = localToWorld(l.x, l.y, 0, CAMP.fire.lx, CAMP.fire.ly);
+    circles.push({ x: f.x, y: f.y, r: CAMP.fire.r });
+    rects.push(partRect(l.x, l.y, 0, CAMP.hut));
+  }
   if (l.kind === 'church') {
     rects.push(partRect(l.x, l.y, 0, CHURCH.nave), partRect(l.x, l.y, 0, CHURCH.tower));
   } else if (l.kind === 'water_tower') {
@@ -101,6 +231,61 @@ export function landmarkSolids(l) {
   return { rects, circles };
 }
 
+// Field fences: runs of posts along each field's polygon, broken where a road
+// or a mailbox comes close. Shared by the renderer and the collider.
+// Returns [{ fieldId, runs: [[{x, y}, ...], ...] }]; cached per world.
+export const FENCE = { step: 1.5, postR: 0.4, roadPad: 4 };
+const fenceCache = new WeakMap();
+export function fenceRuns(world) {
+  if (fenceCache.has(world)) return fenceCache.get(world);
+  const roads = new SegIndex(32);
+  for (const r of world.roads) roads.addPolyline(r.points, r.width / 2 + FENCE.roadPad, r.width / 2 + FENCE.roadPad);
+  const mbs = world.mailboxes || [];
+  const blocked = (x, y) => roads.minDist(x, y, (s) => s.data) < 0
+    || mbs.some((m) => Math.hypot(m.x - x, m.y - y) < 4);
+  const out = [];
+  for (const f of world.fields || []) {
+    // Every post around the loop, with a flag for gaps.
+    const pts = [];
+    const poly = f.polygon;
+    for (let i = 0; i < poly.length; i++) {
+      const [ax, ay] = poly[i];
+      const [bx, by] = poly[(i + 1) % poly.length];
+      const n = Math.max(1, Math.round(Math.hypot(bx - ax, by - ay) / FENCE.step));
+      for (let k = 0; k < n; k++) {
+        const x = ax + ((bx - ax) * k) / n;
+        const y = ay + ((by - ay) * k) / n;
+        pts.push({ x, y, gap: blocked(x, y) });
+      }
+    }
+    const runs = [];
+    const firstGap = pts.findIndex((p) => p.gap);
+    if (firstGap < 0) {
+      runs.push(pts.concat([pts[0]]));
+    } else {
+      // Start just after a gap so no run wraps round the end of the list.
+      let run = [];
+      for (let k = 1; k <= pts.length; k++) {
+        const p = pts[(firstGap + k) % pts.length];
+        if (p.gap) {
+          if (run.length > 1) runs.push(run);
+          run = [];
+        } else run.push(p);
+      }
+      if (run.length > 1) runs.push(run);
+    }
+    out.push({ fieldId: f.id, field: f, runs });
+  }
+  fenceCache.set(world, out);
+  return out;
+}
+
+export function fenceSolids(world) {
+  const circles = [];
+  for (const f of fenceRuns(world)) for (const run of f.runs) for (const p of run) circles.push({ x: p.x, y: p.y, r: FENCE.postR });
+  return { rects: [], circles };
+}
+
 // Yards and fields drawn on the ground. Not solid, but trees keep off them.
 // kind: 'concrete' | 'yard' | 'field' | 'gravel'
 function makePads(world) {
@@ -111,6 +296,40 @@ function makePads(world) {
       pads.push({ kind: 'gravel', x: b.x - 4, y: b.y, w: b.w + 14, h: b.h + 8, angle: b.angle || 0 });
     }
   }
+  // Quarry: a gravel apron from the end of its road to the pit rim.
+  for (const l of world.landmarks) {
+    if (l.kind !== 'quarry') continue;
+    const open = (quarryOpening(world, l) * Math.PI) / 180;
+    const R = (l.r || 90) * QUARRY.terraces[0];
+    const end = nearestRoadPoint(world, l.x, l.y);
+    const rim = { x: l.x + Math.cos(open) * (R - 6), y: l.y + Math.sin(open) * (R - 6) };
+    const from = end && end.d < (l.r || 90) * 3 ? end : { x: l.x + Math.cos(open) * (R + 30), y: l.y + Math.sin(open) * (R + 30) };
+    const dx = rim.x - from.x;
+    const dy = rim.y - from.y;
+    pads.push({
+      kind: 'gravel', x: (rim.x + from.x) / 2, y: (rim.y + from.y) / 2, w: 34, h: Math.hypot(dx, dy) + 8,
+      angle: (Math.atan2(-dx, dy) * 180) / Math.PI,
+    });
+  }
+
+  // Fire lookout: a dirt track from the nearest road to the tower foot.
+  for (const l of world.landmarks) {
+    if (l.kind !== 'lookout_tower') continue;
+    const end = nearestRoadPoint(world, l.x, l.y);
+    if (!end || end.d < 12) continue;
+    const dx = l.x - end.x;
+    const dy = l.y - end.y;
+    const len = Math.hypot(dx, dy);
+    const ux = dx / len;
+    const uy = dy / len;
+    const stop = len - 8; // ends at a small turning patch by the legs
+    pads.push({
+      kind: 'track', x: end.x + (ux * stop) / 2, y: end.y + (uy * stop) / 2, w: 3.6, h: stop,
+      angle: (Math.atan2(-dx, dy) * 180) / Math.PI,
+    });
+    pads.push({ kind: 'track', x: l.x - ux * 2, y: l.y - uy * 2, w: 16, h: 16, angle: (Math.atan2(-dx, dy) * 180) / Math.PI });
+  }
+
   // One yard per farm (buildings sharing a `farm` id).
   const farms = new Map();
   for (const b of world.buildings) {

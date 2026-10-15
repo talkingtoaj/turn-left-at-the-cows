@@ -1,5 +1,5 @@
 // Camera rig: 'chase' (low behind the car, like a driver) and 'top' (close
-// top-down, north up). Switching blends smoothly between the two.
+// top-down, north up or heading up). Switching blends smoothly between them.
 
 import * as THREE from 'three';
 import { DEG } from '../../src/drive/geom.js';
@@ -20,6 +20,7 @@ export class CameraRig {
     this.pos = new THREE.Vector3();
     this.target = new THREE.Vector3();
     this.blend = 0; // 0 = chase, 1 = top
+    this.headingUp = 0; // 0 = north up, 1 = car heading up (top view only)
     this.shakeT = 0;
     this.shakeAmp = 0;
     this.focus = new THREE.Vector3(); // where shadows should be sharpest
@@ -37,7 +38,8 @@ export class CameraRig {
   }
 
   // carPos: THREE.Vector3 of the car (y = ride height). heading in degrees.
-  update(carPos, heading, dt, mode, groundAt) {
+  // northUp: top view keeps north up (true) or turns so the car points up (false).
+  update(carPos, heading, dt, mode, groundAt, northUp = true) {
     const cam = this.camera;
     const h = heading * DEG;
     if (this.yaw === null) this.yaw = h;
@@ -83,7 +85,12 @@ export class CameraRig {
       cam.position.x += (Math.random() - 0.5) * this.shakeAmp * 2;
       cam.position.y += (Math.random() - 0.5) * this.shakeAmp * 2;
     }
-    cam.up.copy(this._up.set(0, 1 - e, -e).normalize());
+    // Top view "up" on screen: north, or the car's heading. Blend by angle so
+    // toggling turns the view smoothly instead of flipping.
+    const hu = northUp ? 0 : 1;
+    this.headingUp += Math.sign(hu - this.headingUp) * Math.min(Math.abs(hu - this.headingUp), dt / 0.4);
+    const upYaw = angleLerp(0, this.yaw, this.headingUp);
+    cam.up.copy(this._up.set(Math.sin(upYaw) * e, 1 - e, -Math.cos(upYaw) * e).normalize());
     cam.lookAt(this.target);
     const fov = THREE.MathUtils.lerp(CHASE.fov, TOP.fov, e);
     if (cam.fov !== fov) {

@@ -7,6 +7,8 @@ import {
   GAS, CHURCH, WATER_TOWER, MILL, RADIO_MAST, SILO, anchorPoints,
 } from '../../src/drive/layout.js';
 import { box, cyl, cone, pyramid, gable, strut, disc, flatPolygon } from './shapes.js';
+import { buildKind } from './kinds.js';
+import { buildNewLandmark } from './landmarks3d.js';
 
 const WALLS = [0xe8e2d0, 0xf1ede4, 0xe6d9a8, 0xc9d3d6, 0xd9b9a0, 0xcfd8c4];
 const ROOFS = [0x8e4b3a, 0x5a5f66, 0x6b4a3a, 0x4f6a5a, 0x7a3b3b, 0x6e6a60];
@@ -67,11 +69,17 @@ function addOpenings(P, w, d, floors, doorSide, doorColor = 0x5b3a2a) {
   }
 }
 
-export function buildStructures(world, terrain, batch, materials) {
-  for (const b of world.buildings) buildBuilding(world, terrain, batch, b);
+// extras.chimneys (optional Map): building id -> { x, y, top } where a model's
+// chimney differs from the shared house formula the ambient smoke uses.
+export function buildStructures(world, terrain, batch, materials, extras = {}) {
+  for (const b of world.buildings) {
+    const info = buildBuilding(world, terrain, batch, b);
+    if (info && info.chimney && extras.chimneys) extras.chimneys.set(b.id, info.chimney);
+  }
   const dynamic = [];
   const rng = makeRng(world.seed + 202);
   for (const l of world.landmarks) {
+    if (buildNewLandmark(world, terrain, batch, l, rng)) continue;
     const d = buildLandmark(terrain, batch, l, rng, materials);
     if (d) dynamic.push(d);
   }
@@ -156,6 +164,9 @@ function buildBuilding(world, terrain, batch, b) {
     P(dome, sp.lx, sp.ly, 14, 0x9ea3a6);
     return;
   }
+
+  const kind = buildKind(batch, b, base, roadSide(world, b));
+  if (kind) return kind;
 
   // Houses and the farmhouse.
   const farm = b.kind === 'farmhouse';

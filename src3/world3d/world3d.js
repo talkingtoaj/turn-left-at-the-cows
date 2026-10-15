@@ -3,7 +3,8 @@
 
 import * as THREE from 'three';
 import { pointInPolygon, distToPolygonEdge, bbox, SegIndex, distToSegment } from '../../src/drive/geom.js';
-import { Terrain, makeNoise, smoothstep } from './terrain.js';
+import { Terrain, makeNoise, smoothstep, quarryPit } from './terrain.js';
+import { buildFields, buildMailboxes } from './fields3d.js';
 import { Batcher } from './batch.js';
 import { buildGround, DECK_TOP } from './ground.js';
 import { buildStructures } from './structures.js';
@@ -148,6 +149,9 @@ export function buildWorld3D(scene, world, scenery, collider) {
   const MUD = C(0x6c6444);
   const BED = C(0x4f4a36);
   const SAND = C(0xb3a374);
+  const ROCK = C(0xa8a49b);
+  const ROCK_FACE = C(0x77736c);
+  const RAMP = C(0xc8bea8);
   const forests = world.forests.map((f) => ({ ...f, bb: bbox(f.polygon) }));
   const lakes = world.lakes.map((l) => ({ ...l, bb: bbox(l.polygon) }));
   const banks = new SegIndex(32);
@@ -179,6 +183,16 @@ export function buildWorld3D(scene, world, scenery, collider) {
         if (d < 8) out.lerp(SAND, 1 - smoothstep(3, 8, d));
       }
     }
+    for (const q of terrain.quarries) {
+      if (Math.abs(x - q.x) > q.r * 1.2 || Math.abs(y - q.y) > q.r * 1.2) continue;
+      const pit = quarryPit(q, x, y);
+      if (pit) {
+        out.copy(pit.ramp ? RAMP : pit.wall ? ROCK_FACE : ROCK).multiplyScalar(0.94 + n * 0.1 + (pit.level % 2) * 0.04);
+        return;
+      }
+      const d = Math.hypot(x - q.x, y - q.y);
+      if (d < q.r * 1.2) out.lerp(ROCK, (1 - smoothstep(q.r * 0.95, q.r * 1.2, d)) * 0.6);
+    }
     if (h < -0.4) out.lerp(BED, smoothstep(-0.4, -1.2, h));
   };
   const terrainMat = new THREE.MeshLambertMaterial({ vertexColors: true, map: grassTexture() });
@@ -187,7 +201,10 @@ export function buildWorld3D(scene, world, scenery, collider) {
 
   const batch = new Batcher();
   buildGround(world, scenery, terrain, batch);
-  const dynamic = buildStructures(world, terrain, batch, materials);
+  buildFields(world, terrain, batch);
+  buildMailboxes(world, terrain, batch);
+  const chimneys = new Map();
+  const dynamic = buildStructures(world, terrain, batch, materials, { chimneys });
   buildSigns(world, terrain, batch);
   scene.add(batch.build(materials));
   for (const d of dynamic) scene.add(d.object);
@@ -202,13 +219,15 @@ export function buildWorld3D(scene, world, scenery, collider) {
 
   return {
     terrain,
+    chimneys, // building id -> { x, y, top } for models whose chimney is not the house formula
+    locals,
     sun,
     sky,
     surfaceAt,
     // Per frame: animated bits and the sun's shadow box following `focus`.
-    update(time, dt, car, focus, shadowRadius, camera) {
+    update(time, dt, car, focus, shadowRadius, camera, amb) {
       for (const d of dynamic) d.update(time);
-      locals.update(car, dt);
+      locals.update(car, dt, amb);
       sky.position.copy(camera.position);
       // Shadow box around the focus, snapped to texels to stop shimmering.
       sc.left = -shadowRadius;

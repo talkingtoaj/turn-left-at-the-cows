@@ -10,21 +10,20 @@
 import { state } from '../../src/state.js';
 import { buildOldMap } from '../../src/map/oldMap.js';
 import { printedMapsFor } from '../../src/game/printedMaps.js';
+import { topicLabel } from '../../src/game/dialogue.js';
+import { MISSIONS } from '../../src/game/missions.js';
 import {
-  drawStamp, wobbly, makeRng, seedFrom, smoothPoints, distToSegment,
+  drawStamp, seedFrom, smoothPoints, distToSegment,
   STAMP_KINDS, STAMP_NAMES,
 } from '../../src/map/draw.js';
 import { CanvasGraphics, drawText, makeFakeScene, rgba } from './canvasGraphics.js';
+import {
+  MAP_W as W, MAP_H as H, PAPER, STAMP_SCALE, SKETCH_PAPER, HAND, LABEL_SIZE, THIN_W, THICK_W,
+  drawSketchPaper as paintSketchPaper, drawSketchItems, drawStroke as paintStroke,
+} from './sketchRender.js';
 
-const W = 960;
-const H = 640;
-const PAPER = { x: 100, y: 52, w: 840, h: 576 };
-const STAMP_SCALE = 1.3;
-const SKETCH_PAPER = 0xf3eee0;
 const OLD_PAPER = 0xe6d6ab;
-const HAND = '"Segoe Print", "Bradley Hand", "Comic Sans MS", cursive';
 const SERIF = 'Georgia, serif';
-const LABEL_SIZE = 18;
 const MAX_LABEL = 40;
 const MAX_HISTORY = 200;
 
@@ -53,17 +52,40 @@ function buildTabs() {
 }
 
 const CLOSE = { x: W - 26, y: 26, r: 16 };
+// Notebook toggle: a small tab at the right end of the tab row (sketch tab only).
+const NOTE_BTN = { x: PAPER.x + PAPER.w - 156, w: 124 };
+// Notebook panel: over the right part of the paper, so the rest stays drawable.
+const NOTE_PANEL = { x: PAPER.x + PAPER.w - 300, y: PAPER.y + 8, w: 292, h: PAPER.h - 16 };
 
 // Survive between openings (and between overlay instances).
 let lastTab = 'sketch';
 const history = [];
 let historyEpoch = 0; // state.sketchEpoch the undo stack belongs to
+let notebookOpen = false;
+let penDashed = false;
+let penThick = false;
 
 const STYLE = `
 .map-overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
   background: rgba(29, 23, 18, 0.82); z-index: 50; user-select: none; -webkit-user-select: none; }
 .map-overlay.map-open { display: flex; }
+.map-wrap { position: relative; }
 .map-canvas { display: block; touch-action: none; outline: none; }
+.map-layer { position: absolute; left: 0; top: 0; width: ${W}px; height: ${H}px; transform-origin: 0 0; pointer-events: none; }
+.map-notes { position: absolute; display: none; flex-direction: column; pointer-events: auto;
+  background: #fbf6e4; border: 1px solid #b9ab8a; border-radius: 4px; box-shadow: 3px 4px 0 rgba(0,0,0,0.18);
+  font-family: ${HAND}; color: #3a3128; }
+.map-notes.map-notes-open { display: flex; }
+.map-notes-head { padding: 7px 12px 5px; font-size: 17px; border-bottom: 2px solid #d9a0a0; flex: none; }
+.map-notes-head small { font-size: 11px; color: #8a7f6c; margin-left: 6px; }
+.map-notes-body { overflow-y: auto; padding: 4px 12px 10px; flex: 1; font-size: 13px; line-height: 1.4;
+  background-image: repeating-linear-gradient(transparent 0 21px, rgba(127,163,200,0.25) 21px 22px); }
+.map-notes-body::-webkit-scrollbar { width: 8px; }
+.map-notes-body::-webkit-scrollbar-thumb { background: #c9bb98; border-radius: 4px; }
+.map-notes-who { margin: 10px 0 2px; font-size: 15px; font-weight: bold; color: #7a3b2e; }
+.map-notes-entry { margin: 0 0 6px; }
+.map-notes-topic { font-family: Georgia, serif; font-size: 10px; color: #8a7f6c; text-transform: uppercase; letter-spacing: 0.04em; }
+.map-notes-empty { color: #8a7f6c; font-style: italic; margin-top: 12px; }
 `;
 
 function injectStyle() {
@@ -111,13 +133,44 @@ function iconEraser(g, x, y) {
   g.strokePoints(pts, true);
 }
 
+function iconDashed(g, x, y) {
+  g.lineStyle(2.4, 0x555555, 1);
+  for (let i = 0; i < 3; i++) g.lineBetween(x - 11 + i * 8, y + 5 - i * 5, x - 7 + i * 8, y + 2.5 - i * 5);
+}
+
+function iconThick(g, x, y) {
+  g.lineStyle(5, 0x555555, 1);
+  g.lineBetween(x - 10, y + 6, x + 10, y - 6);
+}
+
 export function createMapOverlay(root, { onClose } = {}) {
   injectStyle();
   const el = document.createElement('div');
   el.className = 'map-overlay';
+  const wrap = document.createElement('div');
+  wrap.className = 'map-wrap';
+  el.appendChild(wrap);
   const canvas = document.createElement('canvas');
   canvas.className = 'map-canvas';
-  el.appendChild(canvas);
+  wrap.appendChild(canvas);
+  // DOM layer on the same 960x640 logical surface (scaled with the canvas).
+  const layer = document.createElement('div');
+  layer.className = 'map-layer';
+  wrap.appendChild(layer);
+  const notes = document.createElement('div');
+  notes.className = 'map-notes';
+  Object.assign(notes.style, {
+    left: NOTE_PANEL.x + 'px', top: NOTE_PANEL.y + 'px', width: NOTE_PANEL.w + 'px', height: NOTE_PANEL.h + 'px',
+  });
+  const notesHead = document.createElement('div');
+  notesHead.className = 'map-notes-head';
+  const notesBody = document.createElement('div');
+  notesBody.className = 'map-notes-body';
+  notes.append(notesHead, notesBody);
+  layer.appendChild(notes);
+  // Scrolling and clicking in the notebook must not draw on the sketch.
+  notes.addEventListener('pointerdown', (e) => e.stopPropagation());
+  notes.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
   root.appendChild(el);
   const ctx = canvas.getContext('2d');
   const g = new CanvasGraphics(ctx);
@@ -151,7 +204,7 @@ export function createMapOverlay(root, { onClose } = {}) {
     const size = 34;
     let y = PAPER.y + 12;
     const headers = [];
-    const header = (text) => { headers.push({ text, y }); y += 28; };
+    const header = (text) => { headers.push({ text, y }); y += 24; };
     const grid = (items) => {
       items.forEach((item, i) => {
         buttons.push({ ...item, x: colX[i % 2], y: y + Math.floor(i / 2) * (size + 4), w: size, h: size });
@@ -171,6 +224,11 @@ export function createMapOverlay(root, { onClose } = {}) {
       icon: (gg, x, yy) => { gg.fillStyle(c.color, 1); gg.fillCircle(x, yy, 9); },
       onClick: () => setInk(c),
     })));
+    header('Line');
+    grid([
+      { id: 'dash', tip: 'Dashed line (dirt road)', icon: iconDashed, toggle: () => penDashed, onClick: () => togglePen('dash') },
+      { id: 'thick', tip: 'Thick line (main road)', icon: iconThick, toggle: () => penThick, onClick: () => togglePen('thick') },
+    ]);
     header('Stamps');
     grid(STAMP_KINDS.map((kind) => ({
       id: 'stamp_' + kind,
@@ -179,17 +237,18 @@ export function createMapOverlay(root, { onClose } = {}) {
       onClick: () => setTool('stamp', kind),
     })));
     y += 2;
-    buttons.push({ id: 'undo', tip: 'Undo (Ctrl+Z)', text: 'Undo', x: 50, y, w: 72, h: 26, onClick: () => undo() });
-    y += 32;
-    buttons.push({ id: 'clear', tip: 'Clear all', text: 'Clear', x: 50, y, w: 72, h: 26, onClick: () => clickClear() });
-    y += 30;
-    statusY = Math.min(y + 8, PAPER.y + PAPER.h - 30);
+    buttons.push({ id: 'undo', tip: 'Undo (Ctrl+Z)', text: 'Undo', x: colX[0], y, w: 36, h: 26, onClick: () => undo() });
+    buttons.push({ id: 'clear', tip: 'Clear all', text: 'Clear', x: colX[1], y, w: 36, h: 26, onClick: () => clickClear() });
+    y += 22;
+    statusY = Math.min(y, PAPER.y + PAPER.h - 30);
     buttons.headers = headers;
   })();
 
   const hitButton = (x, y) => buttons.find((b) => Math.abs(x - b.x) <= b.w / 2 && Math.abs(y - b.y) <= b.h / 2);
   const hitTab = (x, y) => TABS.find((t) => x >= t.x && x <= t.x + t.w && y >= PAPER.y - 32 && y <= PAPER.y);
   const hitClose = (x, y) => Math.hypot(x - CLOSE.x, y - CLOSE.y) <= CLOSE.r;
+  const hitNoteBtn = (x, y) =>
+    tab === 'sketch' && x >= NOTE_BTN.x && x <= NOTE_BTN.x + NOTE_BTN.w && y >= PAPER.y - 28 && y <= PAPER.y;
 
   // ------------------------------------------------------------ sizing
 
@@ -200,6 +259,9 @@ export function createMapOverlay(root, { onClose } = {}) {
     const cssH = Math.floor(H * scale);
     canvas.style.width = cssW + 'px';
     canvas.style.height = cssH + 'px';
+    wrap.style.width = cssW + 'px';
+    wrap.style.height = cssH + 'px';
+    layer.style.transform = `scale(${cssW / W})`;
     const bw = Math.round(cssW * dpr);
     const bh = Math.round(cssH * dpr);
     if (canvas.width !== bw || canvas.height !== bh) {
@@ -241,39 +303,8 @@ export function createMapOverlay(root, { onClose } = {}) {
     return c;
   }
 
-  function drawSketchPaper() {
-    g.fillStyle(SKETCH_PAPER, 1);
-    g.fillRect(PAPER.x, PAPER.y, PAPER.w, PAPER.h);
-    g.lineStyle(1, 0x7fa3c8, 0.16);
-    for (let x = PAPER.x + 24; x < PAPER.x + PAPER.w; x += 24) g.lineBetween(x, PAPER.y, x, PAPER.y + PAPER.h);
-    for (let y = PAPER.y + 24; y < PAPER.y + PAPER.h; y += 24) g.lineBetween(PAPER.x, y, PAPER.x + PAPER.w, y);
-    g.lineStyle(2, 0x000000, 0.08);
-    g.strokeRect(PAPER.x, PAPER.y, PAPER.w, PAPER.h);
-
-    // Hand-written north mark in the top right corner.
-    const nx = PAPER.x + PAPER.w - 40;
-    const ny = PAPER.y + 50;
-    g.lineStyle(2, 0x555555, 0.9);
-    const rnd = makeRng(42);
-    wobbly(g, [[nx, ny + 18], [nx, ny - 14]], rnd);
-    wobbly(g, [[nx - 6, ny - 6], [nx, ny - 14], [nx + 6, ny - 6]], rnd);
-    drawText(ctx, nx - 22, ny + 4, 'N', { fontFamily: HAND, fontSize: '20px', color: '#555555' }, [0.5, 0.5]);
-    drawText(ctx, PAPER.x + PAPER.w / 2, PAPER.y + PAPER.h - 14,
-      'Draw what you were told. This sheet never shows where you are.',
-      { fontFamily: HAND, fontSize: '12px', color: '#9a9184' }, [0.5, 0.5]);
-  }
-
   function drawStroke(stroke) {
-    const pts = stroke.points;
-    const color = stroke.color ?? 0x555555;
-    const w = stroke.width || 2.4;
-    if (pts.length < 2) return;
-    g.lineStyle(w, color, 0.88);
-    g.fillStyle(color, 0.88);
-    g.strokePoints(pts, false);
-    // Round caps so line ends and dots look like pencil.
-    g.fillCircle(pts[0][0], pts[0][1], w / 2);
-    g.fillCircle(pts[pts.length - 1][0], pts[pts.length - 1][1], w / 2);
+    paintStroke(g, ctx, stroke);
   }
 
   const labelFont = () => `${LABEL_SIZE}px ${HAND}`;
@@ -288,16 +319,8 @@ export function createMapOverlay(root, { onClose } = {}) {
   }
 
   function drawSketch() {
-    drawSketchPaper();
-    const sk = state.sketch;
-    for (const stroke of sk.strokes) drawStroke(stroke);
-    for (const st of sk.stamps) {
-      drawStamp(g, st.kind, st.x, st.y, st.color ?? 0x555555, STAMP_SCALE, seedFrom(st.kind, st.x, st.y));
-    }
-    for (const lbl of sk.labels) {
-      drawText(ctx, lbl.x, lbl.y, lbl.text,
-        { fontFamily: HAND, fontSize: LABEL_SIZE + 'px', color: rgba(lbl.color ?? 0x555555) }, [0, 0.5]);
-    }
+    paintSketchPaper(g, ctx);
+    drawSketchItems(g, ctx, state.sketch);
     if (current) drawStroke(current);
     if (typing) {
       drawText(ctx, typing.x, typing.y, typing.text + (typing.caret ? '|' : ' '),
@@ -321,6 +344,16 @@ export function createMapOverlay(root, { onClose } = {}) {
     }
   }
 
+  function drawNoteButton() {
+    if (tab !== 'sketch') return;
+    const on = notebookOpen;
+    g.fillStyle(on ? 0xfbf6e4 : 0x8c7f6a, 1);
+    const top = PAPER.y - 28;
+    g.fillRoundedRect(NOTE_BTN.x, top, NOTE_BTN.w, 28 + (on ? 2 : 0), { tl: 8, tr: 8, bl: 0, br: 0 });
+    drawText(ctx, NOTE_BTN.x + NOTE_BTN.w / 2, PAPER.y - 13, on ? 'Notebook  \u2715' : 'Notebook',
+      { fontFamily: HAND, fontSize: '15px', color: '#3a3128' }, [0.5, 0.5], 0, on ? 1 : 0.8);
+  }
+
   function drawCloseButton() {
     const { x, y } = CLOSE;
     g.fillStyle(0xf3eee0, 1);
@@ -332,7 +365,10 @@ export function createMapOverlay(root, { onClose } = {}) {
 
   function statusText() {
     if (hoverTip) return hoverTip;
-    if (tool === 'pencil') return 'Drag to draw';
+    if (tool === 'pencil') {
+      const kind = [penThick && 'thick', penDashed && 'dashed'].filter(Boolean).join(' ');
+      return kind ? `Drag to draw (${kind})` : 'Drag to draw';
+    }
     if (tool === 'eraser') return 'Click a mark to erase it';
     if (tool === 'text') return 'Click, type, Enter';
     return 'Click to place: ' + STAMP_NAMES[stampKind];
@@ -346,7 +382,7 @@ export function createMapOverlay(root, { onClose } = {}) {
     }
     const activeId = tool === 'stamp' ? 'stamp_' + stampKind : tool;
     for (const b of buttons) {
-      const on = b.id === activeId || b.id === 'ink_' + ink.id;
+      const on = b.id === activeId || b.id === 'ink_' + ink.id || (b.toggle && b.toggle());
       const x0 = b.x - b.w / 2;
       const y0 = b.y - b.h / 2;
       g.fillStyle(0xf3eee0, 1);
@@ -359,7 +395,7 @@ export function createMapOverlay(root, { onClose } = {}) {
         let color = '#3a3128';
         if (b.id === 'clear' && clearArmed) { text = 'Sure?'; color = '#c0392b'; }
         drawText(ctx, b.x, b.y, text, {
-          fontFamily: b.id === 'text' ? HAND : SERIF, fontSize: b.id === 'text' ? '16px' : '13px', color,
+          fontFamily: b.id === 'text' ? HAND : SERIF, fontSize: b.id === 'text' ? '16px' : '11px', color,
         }, [0.5, 0.5]);
       }
     }
@@ -392,6 +428,7 @@ export function createMapOverlay(root, { onClose } = {}) {
       ctx.restore();
     }
     drawTabs();
+    drawNoteButton();
     drawCloseButton();
     if (tab === 'sketch') drawToolbar();
   }
@@ -403,6 +440,7 @@ export function createMapOverlay(root, { onClose } = {}) {
     tab = id;
     lastTab = id;
     hoverTip = null;
+    renderNotes(true);
     requestRender();
   }
 
@@ -410,6 +448,89 @@ export function createMapOverlay(root, { onClose } = {}) {
     if (typing) commitTyping();
     tool = t;
     stampKind = kind;
+    requestRender();
+  }
+
+  function togglePen(which) {
+    if (which === 'dash') penDashed = !penDashed;
+    else penThick = !penThick;
+    // Line styles belong to the pencil.
+    if (tool !== 'pencil') setTool('pencil');
+    requestRender();
+  }
+
+  function newStroke(x, y) {
+    const s = { points: [[x, y]], color: ink.color, width: penThick ? THICK_W : THIN_W };
+    if (penDashed) s.dash = true;
+    return s;
+  }
+
+  // ------------------------------------------------------------ notebook
+
+  function noteGroups() {
+    // Group by person, people ordered by when we last heard from them, so
+    // the newest notes end up at the bottom.
+    const groups = new Map();
+    state.notebook.forEach((n, i) => {
+      let who = n.name;
+      if (!who) {
+        const m = MISSIONS.find((q) => q.id === n.missionId);
+        who = m ? `Brief: ${m.title}` : 'Notes';
+      }
+      if (!groups.has(who)) groups.set(who, { who, entries: [], last: i });
+      const gr = groups.get(who);
+      gr.entries.push(n);
+      gr.last = i;
+    });
+    return [...groups.values()].sort((a, b) => a.last - b.last);
+  }
+
+  let notesCount = -1;
+  function renderNotes(force = false) {
+    const show = notebookOpen && tab === 'sketch';
+    notes.classList.toggle('map-notes-open', show);
+    if (!show) return;
+    if (!force && notesCount === state.notebook.length) return;
+    notesCount = state.notebook.length;
+    notesHead.innerHTML = '';
+    notesHead.append('Notebook');
+    const small = document.createElement('small');
+    small.textContent = 'what people told you';
+    notesHead.appendChild(small);
+    notesBody.innerHTML = '';
+    const groups = noteGroups();
+    if (!groups.length) {
+      const e = document.createElement('div');
+      e.className = 'map-notes-empty';
+      e.textContent = 'Nothing yet. Talk to people (E).';
+      notesBody.appendChild(e);
+    }
+    for (const gr of groups) {
+      const h = document.createElement('div');
+      h.className = 'map-notes-who';
+      h.textContent = gr.who;
+      notesBody.appendChild(h);
+      let lastTopic = null;
+      for (const n of gr.entries) {
+        const e = document.createElement('div');
+        e.className = 'map-notes-entry';
+        if (n.topicId !== lastTopic && !n.brief) {
+          const t = document.createElement('div');
+          t.className = 'map-notes-topic';
+          t.textContent = 'about ' + topicLabel(n.topicId);
+          e.appendChild(t);
+        }
+        lastTopic = n.brief ? null : n.topicId;
+        e.appendChild(document.createTextNode(n.text));
+        notesBody.appendChild(e);
+      }
+    }
+    notesBody.scrollTop = notesBody.scrollHeight;
+  }
+
+  function toggleNotebook() {
+    notebookOpen = !notebookOpen;
+    renderNotes(true);
     requestRender();
   }
 
@@ -575,6 +696,7 @@ export function createMapOverlay(root, { onClose } = {}) {
     const t = hitTab(x, y);
     if (t) { showTab(t.id); return; }
     if (hitClose(x, y)) { close(); return; }
+    if (hitNoteBtn(x, y)) { toggleNotebook(); return; }
     if (tab !== 'sketch') return;
     const b = hitButton(x, y);
     if (b) { b.onClick(); return; }
@@ -588,7 +710,7 @@ export function createMapOverlay(root, { onClose } = {}) {
     pointerDown = true;
     try { canvas.setPointerCapture(e.pointerId); } catch { /* ignore */ }
     if (tool === 'pencil') {
-      current = { points: [[rx, ry]], color: ink.color, width: 2.4 };
+      current = newStroke(rx, ry);
     } else if (tool === 'eraser') {
       eraseAt(rx, ry);
     } else if (tool === 'text') {
@@ -608,10 +730,10 @@ export function createMapOverlay(root, { onClose } = {}) {
 
     // Toolbar hint and cursor.
     const b = tab === 'sketch' ? hitButton(x, y) : null;
-    const tip = b ? b.tip : null;
+    const tip = b ? b.tip : hitNoteBtn(x, y) ? 'Notebook: what people told you' : null;
     if (tip !== hoverTip) hoverTip = tip;
     let cursor = 'default';
-    if (b || hitTab(x, y) || hitClose(x, y)) cursor = 'pointer';
+    if (b || hitTab(x, y) || hitClose(x, y) || hitNoteBtn(x, y)) cursor = 'pointer';
     else if (tab === 'sketch' && inPaper(x, y)) cursor = tool === 'text' ? 'text' : tool === 'eraser' ? 'none' : 'crosshair';
     canvas.style.cursor = cursor;
 
@@ -690,6 +812,7 @@ export function createMapOverlay(root, { onClose } = {}) {
     pointerDown = false;
     el.classList.add('map-open');
     fit();
+    renderNotes(true);
     window.addEventListener('keydown', onKey, true);
     window.addEventListener('keypress', onKey, true);
     window.addEventListener('resize', onResize);

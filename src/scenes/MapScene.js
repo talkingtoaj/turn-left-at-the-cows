@@ -10,8 +10,9 @@ import { buildOldMap } from '../map/oldMap.js';
 import { printedMapsFor } from '../game/printedMaps.js';
 import {
   drawStamp, wobbly, makeRng, seedFrom, smoothPoints, distToSegment,
-  STAMP_KINDS, STAMP_NAMES,
+  STAMP_KINDS, STAMP_NAMES, drawSketchStroke, STROKE_WIDTH, STROKE_WIDTH_THICK,
 } from '../map/draw.js';
+import { notebookGroups } from '../hud/notebook.js';
 
 const W = 960;
 const H = 640;
@@ -29,6 +30,8 @@ const INKS = [
 
 // Survives between openings (scene objects do not).
 let lastTab = 'sketch';
+let notebookOpen = false; // notebook panel shown on the sketch tab
+const penStyle = { dash: false, thick: false }; // pencil line style toggles
 const history = []; // undo stack of sketch actions
 let historyEpoch = 0; // state.sketchEpoch the undo stack belongs to
 const MAX_HISTORY = 200;
@@ -78,6 +81,7 @@ export default class MapScene extends Phaser.Scene {
     this.buildTabs();
     this.buildCloseButton();
     this.buildToolbar();
+    this.buildNotebook();
 
     this.setupInput();
     this.redrawSketch();
@@ -89,6 +93,7 @@ export default class MapScene extends Phaser.Scene {
       this.input.off('pointermove', this.onPointerMove, this);
       this.input.off('pointerup', this.onPointerUp, this);
       this.input.off('pointerupoutside', this.onPointerUp, this);
+      this.input.off('wheel', this.onWheel, this);
     });
   }
 
@@ -202,7 +207,7 @@ export default class MapScene extends Phaser.Scene {
       this.toolbar.add(this.add.text(50, y, text, {
         fontFamily: 'Georgia, serif', fontSize: '11px', color: '#d8ccb4',
       }).setOrigin(0.5));
-      y += 28;
+      y += 22;
     };
     // Lays out buttons in a grid of two columns.
     const grid = (items) => {
@@ -229,6 +234,12 @@ export default class MapScene extends Phaser.Scene {
       onClick: () => this.setInk(ink),
     })));
 
+    header('Line');
+    grid([
+      { id: 'line_dash', tip: 'Dashed line (dirt road)', icon: (g, x, yy) => this.iconDashed(g, x, yy), onClick: () => this.toggleStyle('dash') },
+      { id: 'line_thick', tip: 'Thick line (main road)', icon: (g, x, yy) => this.iconThick(g, x, yy), onClick: () => this.toggleStyle('thick') },
+    ]);
+
     header('Stamps');
     grid(STAMP_KINDS.map((kind) => ({
       id: 'stamp_' + kind,
@@ -238,10 +249,9 @@ export default class MapScene extends Phaser.Scene {
     })));
 
     y += 2;
-    this.makeButton(50, y, 72, 26, { id: 'undo', tip: 'Undo (Ctrl+Z)', text: 'Undo', onClick: () => this.undo() });
-    y += 32;
-    this.clearBtn = this.makeButton(50, y, 72, 26, { id: 'clear', tip: 'Clear all', text: 'Clear', onClick: () => this.clickClear() });
-    y += 30;
+    this.makeButton(colX[0], y, 36, 26, { id: 'undo', tip: 'Undo (Ctrl+Z)', text: 'Undo', small: true, onClick: () => this.undo() });
+    this.clearBtn = this.makeButton(colX[1], y, 36, 26, { id: 'clear', tip: 'Clear all', text: 'Clear', small: true, onClick: () => this.clickClear() });
+    y += 24;
 
     // Shows the tool name, or the hint for whatever the pointer is over.
     this.statusText = this.add.text(50, Math.min(y + 8, PAPER.y + PAPER.h - 30), '', {
@@ -250,6 +260,132 @@ export default class MapScene extends Phaser.Scene {
     this.toolbar.add(this.statusText);
 
     this.refreshToolbar();
+  }
+
+  // ---------------------------------------------------------------- notebook
+
+  // A notebook page clipped over the right part of the sketch: everything
+  // locals have said, grouped by person, newest last. Scroll with the wheel.
+  buildNotebook() {
+    const nb = { x: PAPER.x + PAPER.w - 300, y: PAPER.y + 6, w: 292, h: PAPER.h - 12 };
+    this.nbRect = nb;
+    this.nbView = { x: nb.x + 14, y: nb.y + 42, w: nb.w - 30, h: nb.h - 52 };
+    this.nbScroll = 0;
+
+    // Flap above the paper that opens and closes the notebook.
+    const fx = PAPER.x + PAPER.w - 160;
+    const fw = 130;
+    this.nbFlapG = this.add.graphics();
+    this.nbFlapHit = this.add.rectangle(fx, PAPER.y - 30, fw, 30, 0x000000, 0).setOrigin(0)
+      .setInteractive({ useHandCursor: true });
+    this.nbFlapHit.isMapUI = true;
+    this.nbFlapHit.on('pointerdown', () => {
+      notebookOpen = !notebookOpen;
+      this.refreshNotebook();
+    });
+    this.nbFlapTxt = this.add.text(fx + fw / 2, PAPER.y - 14, '', {
+      fontFamily: 'Georgia, serif', fontSize: '14px', color: '#3a3128',
+    }).setOrigin(0.5);
+    this.nbFlap = { x: fx, w: fw };
+
+    this.nbLayer = this.add.container(0, 0);
+    const g = this.add.graphics();
+    g.fillStyle(0x000000, 0.18).fillRect(nb.x - 5, nb.y + 3, nb.w + 5, nb.h);
+    g.fillStyle(0xfbf6e4, 0.97).fillRect(nb.x, nb.y, nb.w, nb.h);
+    // Ruled lines and a red margin, like a pocket notebook.
+    g.lineStyle(1, 0x7fa3c8, 0.25);
+    for (let y = nb.y + 40; y < nb.y + nb.h - 4; y += 18) g.lineBetween(nb.x + 4, y, nb.x + nb.w - 4, y);
+    g.lineStyle(1, 0xc0392b, 0.35).lineBetween(nb.x + 10, nb.y, nb.x + 10, nb.y + nb.h);
+    g.lineStyle(1, 0x8c7f6a, 0.6).strokeRect(nb.x, nb.y, nb.w, nb.h);
+    const hit = this.add.rectangle(nb.x - 5, nb.y, nb.w + 5, nb.h, 0x000000, 0).setOrigin(0).setInteractive();
+    hit.isMapUI = true; // clicks on the notebook do not draw
+    this.nbHit = hit;
+    const title = this.add.text(nb.x + 18, nb.y + 10, 'Notebook', {
+      fontFamily: HAND, fontSize: '18px', color: '#3a3128',
+    });
+    this.nbScrollG = this.add.graphics();
+    this.nbContent = this.add.container(0, 0);
+    const maskG = this.make.graphics({ add: false });
+    maskG.fillStyle(0xffffff, 1).fillRect(this.nbView.x - 4, this.nbView.y, this.nbView.w + 8, this.nbView.h);
+    this.nbContent.setMask(maskG.createGeometryMask());
+    this.nbLayer.add([g, hit, title, this.nbContent, this.nbScrollG]);
+    this.fillNotebook();
+  }
+
+  fillNotebook() {
+    const v = this.nbView;
+    this.nbContent.removeAll(true);
+    let y = 0;
+    const add = (text, style, indent = 0, gapAfter = 2) => {
+      const t = this.add.text(v.x + indent, v.y + y, text, {
+        fontFamily: 'Georgia, serif', fontSize: '13px', color: '#2e241b', lineSpacing: 2,
+        wordWrap: { width: v.w - indent, useAdvancedWrap: true }, ...style,
+      });
+      this.nbContent.add(t);
+      y += t.height + gapAfter;
+    };
+    const groups = notebookGroups(state.notebook);
+    if (!groups.length) add('Nothing yet. Talk to people (E) and what they say is written down here.', { color: '#8a7f6e', fontStyle: 'italic' });
+    for (const gr of groups) {
+      add(gr.title, { fontStyle: 'bold', fontSize: '14px', color: '#7a3b12' }, 0, 3);
+      let lastTopic = null;
+      for (const e of gr.entries) {
+        if (e.topicId !== lastTopic) {
+          add(e.brief ? 'the job' : `about ${e.topic}`, { fontStyle: 'italic', fontSize: '11px', color: '#7a6d5a' }, 4, 1);
+          lastTopic = e.topicId;
+        }
+        add(e.text, {}, 8, 5);
+      }
+      y += 8;
+    }
+    this.nbContentH = y;
+    // Newest entries are at the bottom: start scrolled there.
+    this.nbScroll = Math.max(0, y - v.h);
+    this.applyNotebookScroll();
+  }
+
+  applyNotebookScroll() {
+    const v = this.nbView;
+    const max = Math.max(0, this.nbContentH - v.h);
+    this.nbScroll = Phaser.Math.Clamp(this.nbScroll, 0, max);
+    this.nbContent.y = -this.nbScroll;
+    const g = this.nbScrollG.clear();
+    if (max > 0) {
+      const barH = Math.max(24, (v.h * v.h) / this.nbContentH);
+      const barY = v.y + (v.h - barH) * (this.nbScroll / max);
+      g.fillStyle(0x8c7f6a, 0.5).fillRoundedRect(v.x + v.w + 6, barY, 4, barH, 2);
+    }
+  }
+
+  overNotebook(pointer) {
+    const nb = this.nbRect;
+    return !!this.nbLayer && this.nbLayer.visible
+      && pointer.x >= nb.x - 5 && pointer.x <= nb.x + nb.w && pointer.y >= nb.y && pointer.y <= nb.y + nb.h;
+  }
+
+  onWheel(pointer, over, dx, dy) {
+    if (!this.overNotebook(pointer)) return;
+    this.nbScroll += dy * 0.6;
+    this.applyNotebookScroll();
+  }
+
+  refreshNotebook() {
+    if (!this.nbLayer) return;
+    const onSketch = this.tab === 'sketch';
+    const show = onSketch && notebookOpen;
+    this.nbLayer.setVisible(show);
+    this.nbHit.input.enabled = show;
+    this.nbFlapG.setVisible(onSketch);
+    this.nbFlapTxt.setVisible(onSketch);
+    this.nbFlapHit.input.enabled = onSketch;
+    const f = this.nbFlap;
+    const g = this.nbFlapG.clear();
+    const top = PAPER.y - (show ? 30 : 26);
+    g.fillStyle(show ? 0xfbf6e4 : 0x8c7f6a, 1);
+    g.fillRoundedRect(f.x, top, f.w, PAPER.y - top + (show ? 2 : 0), { tl: 8, tr: 8, bl: 0, br: 0 });
+    const n = state.notebook.length;
+    this.nbFlapTxt.setText(show ? 'Notebook  x' : `Notebook (${n})`);
+    this.nbFlapTxt.setAlpha(show ? 1 : 0.85);
   }
 
   makeButton(x, y, w, h, def) {
@@ -262,7 +398,7 @@ export default class MapScene extends Phaser.Scene {
     if (def.icon) def.icon(g, x, y);
     if (def.text) {
       txt = this.add.text(x, y, def.text, {
-        fontFamily: def.id === 'text' ? HAND : 'Georgia, serif', fontSize: def.id === 'text' ? '16px' : '13px', color: '#3a3128',
+        fontFamily: def.id === 'text' ? HAND : 'Georgia, serif', fontSize: def.id === 'text' ? '16px' : def.small ? '11px' : '13px', color: '#3a3128',
       }).setOrigin(0.5);
       this.toolbar.add(txt);
     }
@@ -288,10 +424,28 @@ export default class MapScene extends Phaser.Scene {
     g.strokePoints([{ x: x - 10, y: y + 3 }, { x: x + 1, y: y - 8 }, { x: x + 10, y: y + 1 }, { x: x - 1, y: y + 12 }], true);
   }
 
+  iconDashed(g, x, y) {
+    g.lineStyle(2.4, 0x555555, 1);
+    for (let i = 0; i < 3; i++) g.lineBetween(x - 11 + i * 8, y + 5 - i * 5, x - 6 + i * 8, y + 2 - i * 5);
+  }
+
+  iconThick(g, x, y) {
+    g.lineStyle(5, 0x555555, 1);
+    g.lineBetween(x - 10, y + 5, x + 10, y - 6);
+  }
+
+  toggleStyle(which) {
+    penStyle[which] = !penStyle[which];
+    // Picking a line style from another tool switches back to the pencil.
+    if (this.tool !== 'pencil') this.setTool('pencil');
+    else this.refreshToolbar();
+  }
+
   refreshToolbar() {
     const activeId = this.tool === 'stamp' ? 'stamp_' + this.stampKind : this.tool;
     for (const b of this.buttons) {
-      const on = b.id === activeId || b.id === 'ink_' + this.ink.id;
+      const on = b.id === activeId || b.id === 'ink_' + this.ink.id
+        || (b.id === 'line_dash' && penStyle.dash) || (b.id === 'line_thick' && penStyle.thick);
       b.bg.setStrokeStyle(on ? 3 : 1, on ? 0xe0a030 : 0x8c7f6a, 1);
     }
     if (this.clearBtn.txt) {
@@ -304,7 +458,10 @@ export default class MapScene extends Phaser.Scene {
   updateStatus() {
     if (!this.statusText) return;
     let s;
-    if (this.tool === 'pencil') s = 'Drag to draw';
+    if (this.tool === 'pencil') {
+      const kinds = [penStyle.dash && 'dashed', penStyle.thick && 'thick'].filter(Boolean);
+      s = 'Drag to draw' + (kinds.length ? ` (${kinds.join(', ')})` : '');
+    }
     else if (this.tool === 'eraser') s = 'Click a mark to erase it';
     else if (this.tool === 'text') s = 'Click, type, Enter';
     else s = 'Click to place: ' + STAMP_NAMES[this.stampKind];
@@ -324,6 +481,7 @@ export default class MapScene extends Phaser.Scene {
     // Hidden toolbar buttons must not catch clicks.
     for (const b of this.buttons) if (b.bg.input) b.bg.input.enabled = id === 'sketch';
     this.drawTabs();
+    this.refreshNotebook();
   }
 
   setTool(tool, stampKind = null) {
@@ -373,6 +531,7 @@ export default class MapScene extends Phaser.Scene {
     this.input.on('pointermove', this.onPointerMove, this);
     this.input.on('pointerup', this.onPointerUp, this);
     this.input.on('pointerupoutside', this.onPointerUp, this);
+    this.input.on('wheel', this.onWheel, this);
   }
 
   onKeyDown(event) {
@@ -425,7 +584,8 @@ export default class MapScene extends Phaser.Scene {
     if (!this.inPaper(x, y)) return;
 
     if (this.tool === 'pencil') {
-      this.current = { points: [[x, y]], color: this.ink.color, width: 2.4 };
+      this.current = { points: [[x, y]], color: this.ink.color, width: penStyle.thick ? STROKE_WIDTH_THICK : STROKE_WIDTH };
+      if (penStyle.dash) this.current.dash = true;
       this.drawLive();
     } else if (this.tool === 'eraser') {
       this.eraseAt(x, y);
@@ -455,7 +615,7 @@ export default class MapScene extends Phaser.Scene {
 
     // Eraser shows a small ring, and erases while dragging.
     this.cursorG.clear();
-    if (this.tool === 'eraser' && this.inPaper(pointer.x, pointer.y)) {
+    if (this.tool === 'eraser' && this.inPaper(pointer.x, pointer.y) && !this.overNotebook(pointer)) {
       this.cursorG.lineStyle(1.5, 0xc0392b, 0.7);
       this.cursorG.strokeCircle(pointer.x, pointer.y, 8);
       if (pointer.isDown) this.eraseAt(pointer.x, pointer.y);
@@ -588,15 +748,7 @@ export default class MapScene extends Phaser.Scene {
   // ---------------------------------------------------------------- drawing
 
   drawStroke(g, stroke) {
-    const pts = stroke.points;
-    g.lineStyle(stroke.width || 2.4, stroke.color ?? 0x555555, 0.88);
-    g.fillStyle(stroke.color ?? 0x555555, 0.88);
-    if (pts.length < 2) return;
-    g.strokePoints(pts.map(([x, y]) => ({ x, y })), false);
-    // Round caps so line ends and dots look like pencil.
-    const r = (stroke.width || 2.4) / 2;
-    g.fillCircle(pts[0][0], pts[0][1], r);
-    g.fillCircle(pts[pts.length - 1][0], pts[pts.length - 1][1], r);
+    drawSketchStroke(g, stroke);
   }
 
   drawLive() {

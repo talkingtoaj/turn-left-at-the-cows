@@ -14,6 +14,12 @@ import { createMapOverlay } from './map/map.js';
 import { buildWorld3D } from './world3d/world3d.js';
 import { buildCar } from './world3d/car3d.js';
 import { CameraRig } from './world3d/camera.js';
+import { createAmbient } from '../src/ambient/ambient.js';
+import { createAudio } from '../src/audio/audio.js';
+import { createAmbient3D } from './world3d/ambient3d.js';
+import { addCloudShadowsTo, cloudUniforms } from './world3d/clouds.js';
+import { campfireOf } from './world3d/landmarks3d.js';
+import { SUN_DIR } from './world3d/world3d.js';
 
 const TALK_RANGE = 25;
 const READ_RANGE = 25;
@@ -48,6 +54,21 @@ const car3d = buildCar();
 scene.add(car3d.object);
 const rig = new CameraRig(camera);
 
+// Ambient life (shared logic) and sound.
+const amb = createAmbient(WORLD, scenery);
+const audio = createAudio(WORLD);
+// Smoke from chimneys our models put somewhere other than the shared house formula.
+const chimneyFix = [];
+for (const ch of amb.chimneys || []) {
+  const mine = world3d.chimneys.get(ch.id);
+  if (mine) chimneyFix.push({ from: ch, dx: mine.x - ch.x, dy: mine.y - ch.y, top: mine.top });
+}
+const amb3d = createAmbient3D(scene, {
+  terrain: world3d.terrain, surfaceAt: world3d.surfaceAt, scenery, sunDir: SUN_DIR,
+  campfire: campfireOf(WORLD, world3d.terrain), chimneyFix,
+});
+addCloudShadowsTo(scene);
+
 // ---------- UI wiring (see CONTRACT3.md) ----------
 
 const ui = document.getElementById('ui');
@@ -63,12 +84,20 @@ const isTyping = (e) => {
 };
 const DRIVE_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space']);
 window.addEventListener('keydown', (e) => {
-  if (isTyping(e) || runtime.paused) return;
+  if (isTyping(e)) return;
+  const plain = !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey;
+  if (e.code === 'KeyK' && plain) {
+    audio.toggleMute();
+    return;
+  }
+  if (runtime.paused) return;
   if (DRIVE_KEYS.has(e.code)) {
     keys.add(e.code);
     e.preventDefault();
-  } else if (e.code === 'KeyC' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) {
+  } else if (e.code === 'KeyC' && plain) {
     runtime.cameraMode = runtime.cameraMode === 'top' ? 'chase' : 'top';
+  } else if (e.code === 'KeyN' && plain) {
+    state.view.northUp = !state.view.northUp;
   }
 });
 window.addEventListener('keyup', (e) => keys.delete(e.code));
@@ -85,11 +114,12 @@ function readInput() {
   };
 }
 
-function nearestId(list, car, range) {
+function nearestId(list, car, range, posOf = null) {
   let best = null;
   let bestD = range;
   for (const item of list) {
-    const d = Math.hypot(item.x - car.x, item.y - car.y);
+    const p = (posOf && posOf(item.id)) || item;
+    const d = Math.hypot(p.x - car.x, p.y - car.y);
     if (d <= bestD) {
       bestD = d;
       best = item.id;
@@ -125,7 +155,10 @@ function frame(now) {
     state.clockMinutes = (state.clockMinutes + dtMs / 6000) % 1440;
     if (!state.won) state.elapsedMs += dtMs;
 
-    state.nearLocalId = nearestId(WORLD.locals, car, TALK_RANGE);
+    // Ambient life moves after the car (dust, birds scatter, traffic stops).
+    amb.update(dt, state);
+    // Locals wander a few metres; talk range follows where they are now.
+    state.nearLocalId = nearestId(WORLD.locals, car, TALK_RANGE, (id) => amb.personPos(id));
     state.nearSignId = nearestId(WORLD.signs, car, READ_RANGE);
 
     // Waypoint snapshots and arrival at the current mission's goal (sets state.won).
@@ -134,7 +167,9 @@ function frame(now) {
 
   car3d.update(car, runtime.paused ? 0 : dt, world3d.surfaceAt, steer);
   carPos.copy(car3d.object.position);
-  const e = rig.update(carPos, car.heading, dt, runtime.cameraMode, world3d.terrain.heightAt.bind(world3d.terrain));
+  const e = rig.update(carPos, car.heading, dt, runtime.cameraMode, world3d.terrain.heightAt.bind(world3d.terrain), state.view.northUp);
+  // Sound every frame, even paused (it ducks while the map is open).
+  audio.update(dt, state, amb, { paused: runtime.paused });
 
   // Fog and draw distance: driver's view is hazy; top view sees its patch clearly.
   scene.fog.near = THREE.MathUtils.lerp(150, 260, e);
@@ -144,7 +179,8 @@ function frame(now) {
     camera.far = far;
     camera.updateProjectionMatrix();
   }
-  world3d.update(now / 1000, dt, car, rig.focus, rig.shadowRadius, camera);
+  world3d.update(now / 1000, dt, car, rig.focus, rig.shadowRadius, camera, amb);
+  amb3d.update(amb, runtime.paused ? 0 : dt, camera, rig.focus, scene.fog, e, renderer);
 
   renderer.render(scene, camera);
   hud.update(dt);
@@ -162,6 +198,9 @@ function frame(now) {
 // Debug handles.
 window.__state = state;
 window.__runtime = runtime;
-window.__three = { renderer, scene, camera, fps };
+window.__three = { renderer, scene, camera, fps, THREE, world3d };
+window.__amb = amb;
+window.__audio = audio;
+window.__cloudUniforms = cloudUniforms;
 
 requestAnimationFrame(frame);

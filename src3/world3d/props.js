@@ -81,8 +81,9 @@ export function buildLocals(world, terrain) {
       p.add(m);
       return m;
     };
-    add(box(0.2, 0.85, 0.22), look.legs, -0.13, 0, 0);
-    add(box(0.2, 0.85, 0.22), look.legs, 0.13, 0, 0);
+    // Legs hang from the hip so they can swing when walking.
+    add(box(0.2, 0.85, 0.22).translate(0, -0.85, 0), look.legs, -0.13, 0.85, 0);
+    add(box(0.2, 0.85, 0.22).translate(0, -0.85, 0), look.legs, 0.13, 0.85, 0);
     add(box(0.56, 0.68, 0.3), look.shirt, 0, 0.85, 0);
     add(box(0.14, 0.62, 0.16), look.shirt, -0.36, 0.9, 0);
     add(box(0.14, 0.62, 0.16), look.shirt, 0.36, 0.9, 0);
@@ -98,21 +99,36 @@ export function buildLocals(world, terrain) {
     }
     p.position.set(l.x, terrain.heightAt(l.x, l.y), l.y);
     group.add(p);
-    people.push({ obj: p, x: l.x, y: l.y, yaw: 0 });
+    people.push({ id: l.id, obj: p, x: l.x, y: l.y, yaw: 0, legs: p.children.slice(0, 2), walk: 0 });
   });
   return {
     object: group,
-    // Turn towards the car when it is close.
-    update(car, dt) {
+    // Follow the ambient wander (amb.personPos), walk with swinging legs, and
+    // turn towards the car when it is close and they are standing.
+    update(car, dt, amb) {
       for (const p of people) {
+        const pos = amb && amb.personPos ? amb.personPos(p.id) : null;
+        if (pos) {
+          p.x = pos.x;
+          p.y = pos.y;
+        }
         const dx = car.x - p.x;
         const dy = car.y - p.y;
-        if (dx * dx + dy * dy > 60 * 60) continue;
-        const target = Math.atan2(-dx, -dy); // model faces -z
+        if (dx * dx + dy * dy > 250 * 250) continue;
+        p.obj.position.set(p.x, terrain.heightAt(p.x, p.y), p.y);
+        const moving = pos && pos.moving;
+        let target;
+        if (moving) target = -(pos.heading * Math.PI) / 180;
+        else if (dx * dx + dy * dy < 60 * 60) target = Math.atan2(-dx, -dy); // model faces -z
+        else target = pos ? -(pos.heading * Math.PI) / 180 : p.yaw;
         let d = target - p.yaw;
         d = Math.atan2(Math.sin(d), Math.cos(d));
-        p.yaw += d * Math.min(1, dt * 3);
+        p.yaw += d * Math.min(1, dt * (moving ? 6 : 3));
         p.obj.rotation.y = p.yaw;
+        p.walk = moving ? p.walk + dt * 7 : p.walk * Math.max(0, 1 - dt * 8);
+        const swing = moving ? Math.sin(p.walk) * 0.5 : 0;
+        p.legs[0].rotation.x = swing;
+        p.legs[1].rotation.x = -swing;
       }
     },
   };

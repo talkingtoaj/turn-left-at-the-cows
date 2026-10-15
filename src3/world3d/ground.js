@@ -174,9 +174,17 @@ export function buildGround(world, scenery, terrain, batch) {
   }
 
   // Yards, forecourts and fields.
-  const PAD = { concrete: 0xb3b0a8, gravel: 0xa29d92, yard: 0xa48f6a, field: 0x9a8150 };
+  const PAD = { concrete: 0xb3b0a8, gravel: 0xa29d92, yard: 0xa48f6a, field: 0x9a8150, track: 0xa08a64 };
   for (const p of scenery.pads) {
     const base = H(p.x, p.y);
+    if (p.kind !== 'field') {
+      // Draped on the ground along its long axis (tracks run up hills).
+      const a = localToWorld(p.x, p.y, p.angle || 0, 0, -p.h / 2);
+      const b = localToWorld(p.x, p.y, p.angle || 0, 0, p.h / 2);
+      const g = ribbon([[a.x, a.y], [b.x, b.y]], p.w, 0.04, H, null, 3);
+      if (g) batch.add(g, ID, PAD[p.kind] ?? PAD.gravel, NO_SHADOW);
+      continue;
+    }
     batch.place(flat(p.w, p.h), p.x, p.y, base, p.angle, 0, 0, 0.04, PAD[p.kind], NO_SHADOW);
     if (p.kind === 'field') {
       // Crop rows, then a post-and-rail fence round it.
@@ -200,7 +208,9 @@ export function buildGround(world, scenery, terrain, batch) {
     }
   }
 
+  const coveredDrawn = new Set(world.landmarks.filter((l) => l.kind === 'covered_bridge').map((l) => l.bridgeId));
   for (const b of world.bridges) {
+    if (coveredDrawn.has(b.id)) continue; // drawn with the landmarks (landmarks3d.js)
     if (b.kind === 'ford') buildFord(world, b, batch, rng);
     else buildBridge(world, b, creek, batch, rng);
   }

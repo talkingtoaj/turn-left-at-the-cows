@@ -209,3 +209,78 @@ export function distToSegment(px, py, x1, y1, x2, y2) {
   t = Math.max(0, Math.min(1, t));
   return Math.hypot(px - (x1 + dx * t), py - (y1 + dy * t));
 }
+
+// Pencil widths for sketch strokes: normal and thick (main roads).
+export const STROKE_WIDTH = 2.4;
+export const STROKE_WIDTH_THICK = 4.8;
+
+// Hand-drawn dashed line: dashes and gaps vary a little in length, and each
+// dash follows the curve with a slight tremble, like quick pencil dabs.
+// pts is [[x, y], ...]. Uses only lineStyle-set strokes plus fillCircle caps.
+export function handDashed(g, pts, rnd, dash = 9, gap = 6, capR = 0) {
+  if (pts.length < 2) return;
+  let i = 0;
+  let [cx, cy] = pts[0];
+  let on = true;
+  let left = dash * (0.8 + rnd() * 0.45);
+  let cur = [{ x: cx, y: cy }];
+  const flush = () => {
+    if (cur.length >= 2) {
+      g.strokePoints(cur, false);
+      if (capR > 0) {
+        g.fillCircle(cur[0].x, cur[0].y, capR);
+        g.fillCircle(cur[cur.length - 1].x, cur[cur.length - 1].y, capR);
+      }
+    }
+  };
+  while (i < pts.length - 1) {
+    const [nx, ny] = pts[i + 1];
+    const seg = Math.hypot(nx - cx, ny - cy);
+    if (seg <= left) {
+      left -= seg;
+      cx = nx;
+      cy = ny;
+      i++;
+      if (on) cur.push({ x: cx + (rnd() - 0.5) * 0.5, y: cy + (rnd() - 0.5) * 0.5 });
+      continue;
+    }
+    const t = left / seg;
+    cx += (nx - cx) * t;
+    cy += (ny - cy) * t;
+    if (on) {
+      cur.push({ x: cx, y: cy });
+      flush();
+      cur = [];
+      on = false;
+      left = gap * (0.75 + rnd() * 0.5);
+    } else {
+      on = true;
+      cur = [{ x: cx, y: cy }];
+      left = dash * (0.8 + rnd() * 0.45);
+    }
+  }
+  if (on) flush();
+}
+
+// Draws one sketch stroke ({ points, color, width, dash? }). `mul` scales the
+// line width (thumbnails draw at a small scale and need bolder lines).
+export function drawSketchStroke(g, stroke, mul = 1) {
+  const pts = stroke.points;
+  const w = (stroke.width || STROKE_WIDTH) * mul;
+  const color = stroke.color ?? 0x555555;
+  g.lineStyle(w, color, 0.88);
+  g.fillStyle(color, 0.88);
+  if (!pts || pts.length < 2) return;
+  const r = w / 2;
+  if (stroke.dash) {
+    const rnd = makeRng(seedFrom(pts[0][0], pts[0][1]));
+    const ratio = Math.max(1, (stroke.width || STROKE_WIDTH) / STROKE_WIDTH);
+    const k = (1 + (ratio - 1) * 0.5) * mul;
+    handDashed(g, pts, rnd, 9 * k, 6 * k, r);
+    return;
+  }
+  g.strokePoints(pts.map(([x, y]) => ({ x, y })), false);
+  // Round caps so line ends and dots look like pencil.
+  g.fillCircle(pts[0][0], pts[0][1], r);
+  g.fillCircle(pts[pts.length - 1][0], pts[pts.length - 1][1], r);
+}

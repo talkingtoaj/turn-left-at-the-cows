@@ -2,13 +2,15 @@ import { WORLD } from '../../src/world/world.js';
 import { state } from '../../src/state.js';
 import { runtime } from '../runtime.js';
 import { headingText, clockText, timerText } from '../../src/hud/format.js';
-import { quickTalk, getNpc } from '../../src/game/dialogue.js';
-import { currentMission, currentGoal, nextMission } from '../../src/game/missions.js';
+import { greet, ask, listTopics, getNpc } from '../../src/game/dialogue.js';
+import { currentMission, currentGoal, nextMission, MISSIONS } from '../../src/game/missions.js';
 import { finishMission } from '../../src/game/update.js';
+import { renderSketchCanvas, renderPrintedMapCanvas, trueMapDef } from '../map/sketchRender.js';
 
 // DOM/CSS port of the Phaser HUDScene. Shows the dash (compass, odometer,
-// clock, speed, trip timer), road signs, the talk prompt and dialogue, the
-// win panel, and owns the E / M / R keys.
+// clock, speed, trip timer), road signs, mailboxes, the talk prompt, the
+// topic menu dialogue, the mission complete screen, and owns the E / M / R /
+// Enter / 1-9 keys.
 // Core rule: never show the player's position, a minimap or coordinates.
 
 // Ignore M this long after the map closes, so the same keypress that
@@ -67,17 +69,57 @@ const CSS = `
 .hud-dlg-name { color: #e6b450; font-weight: bold; font-size: 16px; margin-bottom: 10px; }
 .hud-dlg-text { color: #ece7d8; font-size: 17px; line-height: 1.45; }
 .hud-dlg-more { position: absolute; right: 16px; bottom: 10px; font-size: 12px; color: #8a8d92; }
+.hud-dlg { pointer-events: auto; }
+.hud-dlg.hud-paging { cursor: pointer; }
+.hud-menu { list-style: none; margin: 8px 0 0; padding: 0; max-height: min(260px, 40vh); overflow-y: auto; }
+.hud-menu::-webkit-scrollbar { width: 8px; }
+.hud-menu::-webkit-scrollbar-thumb { background: #55585e; border-radius: 4px; }
+.hud-menu li { display: flex; align-items: center; gap: 10px; padding: 4px 8px; border-radius: 5px; cursor: pointer;
+  color: #ece7d8; font-size: 16px; line-height: 1.35; border: 1px solid transparent; }
+.hud-menu li.hud-sel { background: rgba(230,180,80,0.14); border-color: rgba(230,180,80,0.55); }
+.hud-menu .hud-key { flex: none; width: 22px; height: 22px; border-radius: 4px; background: #3a3c40; color: #e6b450;
+  font: bold 13px "Courier New", Courier, monospace; text-align: center; line-height: 22px; }
+.hud-menu .hud-key.hud-nokey { background: transparent; }
+.hud-menu .hud-goal { color: #e6b450; }
+.hud-menu .hud-bye { color: #a9acb2; font-style: italic; }
+.hud-menu .hud-new { width: 6px; height: 6px; border-radius: 50%; background: #7fc29b; flex: none; margin-left: -4px; }
+
+.hud-mailbox { position: absolute; top: 18px; left: 18px; display: none; text-align: center; }
+.hud-mailbox-box { padding: 7px 14px 6px; background: #ece4cf; color: #2c2620; border: 2px solid #5b4630; border-radius: 10px 10px 3px 3px;
+  font: bold 17px Georgia, serif; letter-spacing: 0.12em; box-shadow: 3px 3px 0 rgba(0,0,0,0.3); }
+.hud-mailbox-box small { display: block; font: 10px Arial, sans-serif; letter-spacing: 0.05em; color: #7a6a55; margin-bottom: 1px; }
+.hud-mailbox-post { width: 8px; height: 22px; margin: 0 auto; background: #5b4630; }
 
 .hud-win-shade { position: absolute; left: 0; right: 0; top: 0; bottom: var(--hud-dash-h); background: rgba(0,0,0,0.45); display: none; }
-.hud-win { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(440px, calc(100% - 32px));
-  padding: 26px 0 22px; background: rgba(35,37,42,0.97); border: 2px solid #e6b450; border-radius: 12px;
+.hud-win { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(1040px, calc(100% - 32px));
+  max-height: calc(100% - 24px); overflow-y: auto; pointer-events: auto;
+  padding: 20px 22px 18px; background: rgba(35,37,42,0.97); border: 2px solid #e6b450; border-radius: 12px;
   box-shadow: 5px 5px 0 rgba(0,0,0,0.3); text-align: center; }
-.hud-win h2 { margin: 0 16px 24px; color: #e6b450; font-size: 24px; }
-.hud-win-row { display: flex; justify-content: space-between; padding: 0 70px; font-size: 17px; line-height: 30px; }
+.hud-win.hud-win-small { width: min(460px, calc(100% - 32px)); padding: 26px 22px 22px; }
+.hud-win h2 { margin: 0 16px 4px; color: #e6b450; font-size: 24px; }
+.hud-win-sub { color: #a9acb2; font-size: 14px; margin-bottom: 14px; }
+.hud-win-stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 28px; margin-bottom: 16px; font-size: 16px; }
+.hud-win-stats span span:first-child { color: #8a8d92; margin-right: 8px; }
+.hud-win-stats span span:last-child { color: #d9d4c5; font-weight: bold; }
+.hud-win-maps { display: flex; flex-wrap: wrap; gap: 18px; justify-content: center; align-items: flex-start; }
+.hud-win-col h3 { margin: 0 0 8px; font-size: 13px; color: #8a8d92; font-weight: normal; letter-spacing: 0.08em; text-transform: uppercase; }
+.hud-thumbs { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; max-width: 560px; }
+.hud-thumb { width: 172px; cursor: zoom-in; text-align: left; }
+.hud-thumb canvas, .hud-truth canvas { display: block; width: 100%; height: auto; border-radius: 3px;
+  box-shadow: 2px 3px 0 rgba(0,0,0,0.35); outline: 1px solid rgba(255,255,255,0.08); }
+.hud-thumb:hover canvas, .hud-truth:hover canvas { outline: 2px solid #e6b450; }
+.hud-thumb-label { margin-top: 6px; font-size: 12px; line-height: 1.3; color: #d9d4c5; }
+.hud-thumb-label small { display: block; color: #8a8d92; font-size: 11px; }
+.hud-truth { width: 380px; max-width: 100%; cursor: zoom-in; }
+.hud-win-foot { margin-top: 16px; font-size: 14px; color: #d9d4c5; }
+.hud-win-row { display: flex; justify-content: space-between; padding: 0 50px; font-size: 17px; line-height: 30px; }
 .hud-win-row span:first-child { color: #8a8d92; }
 .hud-win-row span:last-child { color: #d9d4c5; font-weight: bold; }
-.hud-win-foot { margin-top: 18px; font-size: 14px; color: #d9d4c5; }
-@media (max-width: 480px) { .hud-win-row { padding: 0 24px; } }
+.hud-zoom { position: absolute; inset: 0; background: rgba(0,0,0,0.78); display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 10px; pointer-events: auto; cursor: zoom-out; }
+.hud-zoom canvas { display: block; box-shadow: 5px 5px 0 rgba(0,0,0,0.4); }
+.hud-zoom div { color: #ece7d8; font-size: 15px; }
+@media (max-width: 480px) { .hud-win-row { padding: 0 16px; } .hud-thumb { width: 140px; } }
 `;
 
 let styleInjected = false;
@@ -181,7 +223,8 @@ export function createHUD(root, { openMap } = {}) {
   clockTxt.style.fontSize = '26px';
   const timerTxt = el('div', 'hud-gauge', bezel(790, 150, 'TRIP TIME'));
   timerTxt.style.fontSize = '18px';
-  el('div', 'hud-hint', inner, 'Arrows/WASD drive · Space handbrake · E talk · M map · C camera');
+  el('div', 'hud-hint', inner,
+    'Arrows/WASD drive · Space handbrake · E talk · M map · C camera · N north/heading-up · K mute');
 
   // ---------------------------------------------------------------- overlays
   const signBox = el('div', 'hud-sign', hud);
@@ -190,9 +233,19 @@ export function createHUD(root, { openMap } = {}) {
   const dlgName = el('div', 'hud-dlg-name', dlgBox);
   const dlgText = el('div', 'hud-dlg-text', dlgBox);
   const dlgMore = el('div', 'hud-dlg-more hud-mono', dlgBox);
+  const dlgMenu = el('ul', 'hud-menu', dlgBox);
   const winShade = el('div', 'hud-win-shade', hud);
+  const mailbox = el('div', 'hud-mailbox', hud);
+  const mailboxBox = el('div', 'hud-mailbox-box', mailbox);
+  el('div', 'hud-mailbox-post', mailbox);
+  let zoomBox = null; // enlarged map on the complete screen
 
-  let dialogue = null; // { title, pages, page } while a dialogue is open
+  // While a dialogue is open:
+  // { npcId, title, mode: 'pages'|'menu', pages, page, after: 'menu'|'close', items, sel, newIds }
+  let dialogue = null;
+  // Topics already offered in a menu; the others are marked as new.
+  const seenTopics = new Set(state.knownTopics);
+  let currentMailboxId; // undefined forces the first render
   let mapOpen = false;
   let mapClosedAt = -Infinity;
   let currentSignId; // undefined forces the first render
@@ -209,20 +262,106 @@ export function createHUD(root, { openMap } = {}) {
 
   // ---------------------------------------------------------------- talking
   function showPage() {
-    const { pages, page } = dialogue;
+    const { pages, page, after } = dialogue;
     const end = page === pages.length - 1;
+    dlgBox.classList.add('hud-paging');
+    dlgMenu.style.display = 'none';
     dlgText.textContent = pages[page];
-    dlgMore.textContent = `${page + 1}/${pages.length}   E: ${end ? 'close' : 'next'}`;
+    const next = end ? (after === 'menu' ? 'back' : 'close') : 'next';
+    dlgMore.textContent = `${page + 1}/${pages.length}   E: ${next}   M: map`;
   }
 
-  function openDialogue(title, pages) {
-    if (!pages.length) return;
-    dialogue = { title, pages, page: 0 };
-    state.inputLocked = true;
-    dlgName.textContent = title;
-    dlgBox.style.display = 'block';
+  // Shows lines one page at a time. after: 'menu' returns to the topic menu.
+  function openPages(npcId, title, pages, after) {
+    if (!pages.length) {
+      if (after === 'menu' && npcId) {
+        dialogue = { npcId, title, mode: 'menu', pages: [], page: 0, after, sel: 0 };
+        openBox();
+        showMenu();
+      } else closeDialogue();
+      return;
+    }
+    dialogue = { npcId, title, mode: 'pages', pages, page: 0, after, sel: dialogue ? dialogue.sel : 0 };
+    openBox();
     showPage();
   }
+
+  function openBox() {
+    state.inputLocked = true;
+    dlgName.textContent = dialogue.title;
+    dlgBox.style.display = 'block';
+  }
+
+  function menuItems() {
+    const items = listTopics(dialogue.npcId, state).map((t) => ({ ...t }));
+    items.push({ id: null, label: 'Goodbye', bye: true });
+    return items;
+  }
+
+  function showMenu() {
+    const d = dialogue;
+    d.mode = 'menu';
+    d.items = menuItems();
+    d.newIds = new Set(d.items.filter((t) => t.id && !seenTopics.has(t.id)).map((t) => t.id));
+    for (const t of d.items) if (t.id) seenTopics.add(t.id);
+    d.sel = Math.min(d.sel || 0, d.items.length - 1);
+    dlgBox.classList.remove('hud-paging');
+    dlgText.textContent = 'Ask about...';
+    dlgMenu.innerHTML = '';
+    d.items.forEach((t, i) => {
+      const li = el('li', null, dlgMenu);
+      const key = i < 9 ? String(i + 1) : t.bye ? 'Esc' : '';
+      const k = el('span', 'hud-key' + (key ? '' : ' hud-nokey'), li, key);
+      if (key === 'Esc') k.style.width = '34px';
+      const label = el('span', t.bye ? 'hud-bye' : t.isGoal ? 'hud-goal' : null, li, t.label);
+      if (d.newIds.has(t.id)) {
+        el('span', 'hud-new', li).title = 'new';
+        label.title = 'New topic';
+      }
+      li.addEventListener('click', (e) => { e.stopPropagation(); pick(i); });
+      li.addEventListener('mousemove', () => { if (d.sel !== i) { d.sel = i; markSel(false); } });
+    });
+    dlgMenu.style.display = 'block';
+    dlgMore.textContent = '1-9 or Up/Down + E: ask   M: map';
+    markSel(true);
+  }
+
+  function markSel(scroll) {
+    const lis = dlgMenu.children;
+    for (let i = 0; i < lis.length; i++) lis[i].classList.toggle('hud-sel', i === dialogue.sel);
+    const li = lis[dialogue.sel];
+    if (scroll && li && li.scrollIntoView) li.scrollIntoView({ block: 'nearest' });
+  }
+
+  function pick(i) {
+    const d = dialogue;
+    if (!d || d.mode !== 'menu') return;
+    const t = d.items[i];
+    if (!t) return;
+    d.sel = i;
+    if (t.bye) {
+      closeDialogue();
+      return;
+    }
+    openPages(d.npcId, d.title, ask(d.npcId, t.id, state), 'menu');
+  }
+
+  function advance() {
+    const d = dialogue;
+    if (!d) return;
+    if (d.mode === 'menu') {
+      pick(d.sel);
+      return;
+    }
+    d.page++;
+    if (d.page < d.pages.length) showPage();
+    else if (d.after === 'menu') showMenu();
+    else closeDialogue();
+  }
+
+  dlgBox.addEventListener('click', () => {
+    if (dialogue && dialogue.mode === 'pages') advance();
+  });
 
   // A new mission's brief, from whoever gave it.
   function showBrief() {
@@ -230,35 +369,66 @@ export function createHUD(root, { openMap } = {}) {
     const m = currentMission(state);
     if (!m) return;
     const giver = m.giverNpcId && getNpc(m.giverNpcId);
-    openDialogue(giver ? `${giver.name}: ${m.title}` : m.title, m.brief);
+    openPages(null, giver ? `${giver.name}: ${m.title}` : m.title, m.brief, 'close');
   }
 
   function closeDialogue() {
     dialogue = null;
     dlgBox.style.display = 'none';
+    dlgMenu.innerHTML = '';
     state.inputLocked = false;
   }
 
   function onTalkKey() {
     if (state.won) return;
     if (dialogue) {
-      dialogue.page++;
-      if (dialogue.page >= dialogue.pages.length) closeDialogue();
-      else showPage();
+      advance();
       return;
     }
     const local = state.nearLocalId && WORLD.locals.find((l) => l.id === state.nearLocalId);
     if (!local) return;
-    // Greeting, then what they know about the current mission's goal.
-    // (A full topic menu comes later; see src/game/dialogue.js.)
-    openDialogue(`${local.name}, ${local.role}`, quickTalk(local.id, state));
+    // Greeting, then the topic menu.
+    dialogue = null;
+    openPages(local.id, `${local.name}, ${local.role}`, greet(local.id, state), 'menu');
   }
 
-  // Enter on the win screen: final snapshot, then the next mission.
+  // Keys while a dialogue is open. Returns true if the key was used.
+  function onDialogueKey(e) {
+    const d = dialogue;
+    const k = e.key;
+    if (k === 'Escape') {
+      closeDialogue();
+      return true;
+    }
+    if (d.mode !== 'menu') return false;
+    if (/^[1-9]$/.test(k)) {
+      const i = Number(k) - 1;
+      if (i < d.items.length) pick(i);
+      return true;
+    }
+    const up = k === 'ArrowUp' || k === 'w' || k === 'W';
+    const down = k === 'ArrowDown' || k === 's' || k === 'S';
+    if (up || down) {
+      const n = d.items.length;
+      d.sel = (d.sel + (up ? n - 1 : 1)) % n;
+      markSel(true);
+      e.preventDefault();
+      return true;
+    }
+    return false;
+  }
+
+  // Enter on the complete screen: final snapshot, then the next mission (or
+  // the all done screen after the last one).
   function onContinueKey() {
-    if (!state.won || !winShown || !nextMission(state)) return;
-    finishMission(state);
+    if (!state.won || !winShown || state.allMissionsDone) return;
+    closeZoom();
+    const next = finishMission(state);
     winShade.textContent = '';
+    if (!next) {
+      showAllDone();
+      return;
+    }
     winShade.style.display = 'none';
     winShown = false;
     currentSignId = undefined;
@@ -271,10 +441,18 @@ export function createHUD(root, { openMap } = {}) {
     mapClosedAt = performance.now();
     hud.style.display = '';
     currentSignId = undefined; // redraw the sign now we are back
+    currentMailboxId = undefined;
+    // The map screen unlocks input on close; a dialogue or the complete
+    // screen underneath still needs it locked.
+    if (dialogue || winShown) state.inputLocked = true;
+    // The player may have finished their map from the complete screen.
+    if (winShown && !state.allMissionsDone) buildWin();
   }
 
+  // M works while driving, during a dialogue (it comes back as it was) and
+  // on the complete screen (to finish the map).
   function onMapKey() {
-    if (dialogue || state.won || !openMap) return;
+    if (!openMap || zoomBox || state.allMissionsDone) return;
     if (performance.now() - mapClosedAt < MAP_REOPEN_GUARD_MS) return;
     mapOpen = true;
     hud.style.display = 'none';
@@ -291,6 +469,11 @@ export function createHUD(root, { openMap } = {}) {
       return;
     }
     if (runtime.paused) return;
+    if (zoomBox) {
+      if (!e.repeat && (e.key === 'Escape' || e.key === 'Enter' || e.key.toLowerCase() === 'e')) closeZoom();
+      return;
+    }
+    if (dialogue && onDialogueKey(e)) return;
     if (e.repeat) return;
     const k = e.key.toLowerCase();
     if (k === 'e') onTalkKey();
@@ -365,13 +548,58 @@ export function createHUD(root, { openMap } = {}) {
     promptBox.style.display = text ? 'block' : 'none';
   }
 
-  function showWin() {
-    winShown = true;
-    if (dialogue) closeDialogue();
-    state.inputLocked = true;
+  function updateMailbox() {
+    const id = state.won ? null : state.nearMailboxId || null;
+    if (id === currentMailboxId) return;
+    currentMailboxId = id;
+    const mb = id && (WORLD.mailboxes || []).find((m) => m.id === id);
+    if (!mb) {
+      mailbox.style.display = 'none';
+      return;
+    }
+    mailboxBox.textContent = '';
+    el('small', null, mailboxBox, 'MAILBOX');
+    mailboxBox.append(String(mb.name).toUpperCase());
+    mailbox.style.display = 'block';
+  }
+
+  // ---------------------------------------------------------------- complete screen
+  const truthCache = new Map(); // mission id -> canvas
+
+  function zoomCanvas(make, caption) {
+    closeZoom();
+    const maxW = Math.min(window.innerWidth * 0.92, ((window.innerHeight - 80) * 840) / 576);
+    zoomBox = el('div', 'hud-zoom', hud);
+    const c = make(Math.max(200, Math.floor(maxW)));
+    c.style.width = Math.floor(maxW) + 'px';
+    zoomBox.appendChild(c);
+    el('div', null, zoomBox, `${caption}   (click or Esc to close)`);
+    zoomBox.addEventListener('click', closeZoom);
+  }
+
+  function closeZoom() {
+    if (!zoomBox) return;
+    zoomBox.remove();
+    zoomBox = null;
+  }
+
+  function thumb(parent, sketch, label, sub) {
+    const box = el('div', 'hud-thumb', parent);
+    box.appendChild(renderSketchCanvas(sketch, 172));
+    const l = el('div', 'hud-thumb-label', box, label);
+    if (sub) el('small', null, l, sub);
+    box.addEventListener('click', () => zoomCanvas((w) => renderSketchCanvas(sketch, w), label));
+    return box;
+  }
+
+  function buildWin() {
+    winShade.textContent = '';
+    const m = currentMission(state);
     const panel = el('div', 'hud-win', winShade);
     const goal = currentGoal(state);
     el('h2', null, panel, `You made it to ${goal ? goal.name : 'the end'}`);
+    if (m) el('div', 'hud-win-sub', panel, m.title);
+    const stats = el('div', 'hud-win-stats hud-mono', panel);
     const rows = [
       ['Trip time', timerText(state.elapsedMs)],
       ['Distance', `${(state.odometer / 1000).toFixed(2)} km`],
@@ -379,13 +607,66 @@ export function createHUD(root, { openMap } = {}) {
       ['Locals asked', String(state.talkedTo.size)],
     ];
     for (const [k, v] of rows) {
+      const r = el('span', null, stats);
+      el('span', null, r, k);
+      el('span', null, r, v);
+    }
+    if (m) {
+      const maps = el('div', 'hud-win-maps', panel);
+      const left = el('div', 'hud-win-col', maps);
+      el('h3', null, left, 'Your maps');
+      const thumbs = el('div', 'hud-thumbs', left);
+      for (const snap of state.snapshots.filter((q) => q.missionId === m.id)) {
+        thumb(thumbs, snap.sketch, snap.label, `${clockText(snap.clockMinutes)} · ${(snap.odometer / 1000).toFixed(1)} km`);
+      }
+      // The final map is saved when you continue; show it as it is now.
+      thumb(thumbs, state.sketch, m.finalLabel, 'now (M to finish it)');
+
+      const right = el('div', 'hud-win-col', maps);
+      el('h3', null, right, 'The real map');
+      const def = trueMapDef(m);
+      let c = truthCache.get(m.id);
+      if (!c) {
+        c = renderPrintedMapCanvas(def, 380);
+        truthCache.set(m.id, c);
+      }
+      const t = el('div', 'hud-truth', right);
+      t.appendChild(c);
+      t.addEventListener('click', () => zoomCanvas((w) => renderPrintedMapCanvas(def, w), 'The real map'));
+    }
+    el('div', 'hud-win-foot hud-mono', panel,
+      nextMission(state)
+        ? 'Enter: continue to next mission · M: finish your map · R: start over'
+        : 'Enter: finish · M: finish your map · R: start over');
+    winShade.style.display = 'block';
+  }
+
+  function showWin() {
+    winShown = true;
+    if (dialogue) closeDialogue();
+    state.inputLocked = true;
+    buildWin();
+  }
+
+  function showAllDone() {
+    winShade.textContent = '';
+    const panel = el('div', 'hud-win hud-win-small', winShade);
+    el('h2', null, panel, 'All deliveries done');
+    el('div', 'hud-win-sub', panel, 'Every job is finished. Thanks for driving.');
+    const rows = [
+      ['Missions', String(MISSIONS.length)],
+      ['Maps drawn', String(state.snapshots.length)],
+      ['Notes taken', String(state.notebook.length)],
+      ['Clock', clockText(state.clockMinutes)],
+    ];
+    for (const [k, v] of rows) {
       const r = el('div', 'hud-win-row hud-mono', panel);
       el('span', null, r, k);
       el('span', null, r, v);
     }
-    el('div', 'hud-win-foot hud-mono', panel,
-      nextMission(state) ? 'Enter: continue to next mission · R: start over' : 'Press R to drive again');
+    el('div', 'hud-win-foot hud-mono', panel, 'R: start over');
     winShade.style.display = 'block';
+    state.inputLocked = true;
   }
 
   function update() {
@@ -395,7 +676,9 @@ export function createHUD(root, { openMap } = {}) {
     }
     updateDash();
     updateSign();
+    updateMailbox();
     updatePrompt();
+    if (dialogue || winShown) state.inputLocked = true;
     if (state.won && !winShown) showWin();
     if (state.briefPending && !dialogue && !state.won) showBrief();
   }

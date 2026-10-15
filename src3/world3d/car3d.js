@@ -32,15 +32,20 @@ function cabinGeo(wb, lb, wt, lt, h, shiftTop) {
 
 const BODY = 0xd0553b;
 
-export function buildCar() {
+// Car body pieces. `paint` gets the body colour (grey levels so an instance
+// colour can tint them), `trim` keeps its own colours. Traffic cars reuse these.
+export function carParts(body = null) {
   const L = 4.5;
   const W = 1.9;
-  const parts = [
-    colored(box(W, 0.55, L - 0.2).translate(0, 0.35, 0), BODY), // lower body
-    colored(box(W - 0.1, 0.15, L).translate(0, 0.3, 0), 0x9c3a2a), // sill / bumper line
-    colored(box(W - 0.2, 0.12, 1.3).translate(0, 0.9, -1.45), 0xe06a4f), // bonnet top
+  const tone = (hex, grey) => (body === null ? grey : hex);
+  const paint = [
+    colored(box(W, 0.55, L - 0.2).translate(0, 0.35, 0), tone(BODY, 0xdddddd)), // lower body
+    colored(box(W - 0.1, 0.15, L).translate(0, 0.3, 0), tone(0x9c3a2a, 0x9a9a9a)), // sill / bumper line
+    colored(box(W - 0.2, 0.12, 1.3).translate(0, 0.9, -1.45), tone(0xe06a4f, 0xf2f2f2)), // bonnet top
+    colored(box(W - 0.5, 0.08, 1.45).translate(0, 1.5, 0.5), tone(0xc44a33, 0xcccccc)), // roof
+  ];
+  const trim = [
     colored(cabinGeo(W - 0.15, 2.3, W - 0.45, 1.5, 0.62, 0.15).translate(0, 0.9, 0.35), 0x24323d), // glass
-    colored(box(W - 0.5, 0.08, 1.45).translate(0, 1.5, 0.5), 0xc44a33), // roof
     colored(box(W + 0.02, 0.18, 0.25).translate(0, 0.32, -L / 2 + 0.05), 0x777777), // front bumper
     colored(box(W + 0.02, 0.18, 0.25).translate(0, 0.32, L / 2 - 0.05), 0x777777), // rear bumper
     colored(box(0.45, 0.16, 0.06).translate(-0.62, 0.62, -L / 2 + 0.08), 0xfff3c4), // headlights
@@ -48,6 +53,12 @@ export function buildCar() {
     colored(box(0.4, 0.14, 0.06).translate(-0.65, 0.62, L / 2 - 0.08), 0x9a1010), // tail lights
     colored(box(0.4, 0.14, 0.06).translate(0.65, 0.62, L / 2 - 0.08), 0x9a1010),
   ];
+  return { paint, trim };
+}
+
+export function buildCar() {
+  const { paint, trim } = carParts(BODY);
+  const parts = [...paint, ...trim];
   const bodyGeo = mergeGeometries(parts);
   const body = new THREE.Mesh(bodyGeo, new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));
   body.castShadow = true;
