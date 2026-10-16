@@ -1,6 +1,6 @@
 # Orienteering Driving Game: Spec
 
-Working title: TBD
+Title: Ask a Local (other options: "Without a Map", "I Have No Map")
 
 Status key: **LOCKED** = decided. **TRIAL** = trying, not decided. **OPEN** = still to decide.
 

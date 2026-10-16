@@ -3,7 +3,7 @@
 
 import { injectUiStyle, el, trapKeys } from './style.js';
 
-export const TITLE = 'Backroads';
+export const TITLE = 'Ask a Local';
 export const PITCH = "No GPS. No 'you are here' dot. Just you, the locals, and the map you draw.";
 
 // [bold start, rest]
