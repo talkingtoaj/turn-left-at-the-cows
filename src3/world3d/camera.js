@@ -30,6 +30,8 @@ export class CameraRig {
     this._ct = new THREE.Vector3();
     this._tp = new THREE.Vector3();
     this._up = new THREE.Vector3();
+    this._desired = new THREE.Vector3();
+    this._look = new THREE.Vector3();
   }
 
   shake(hitSpeed) {
@@ -62,8 +64,8 @@ export class CameraRig {
     this.blend += Math.sign(want - this.blend) * Math.min(Math.abs(want - this.blend), dt / 0.6);
     const e = this.blend * this.blend * (3 - 2 * this.blend);
 
-    const desired = new THREE.Vector3().lerpVectors(cp, tp, e);
-    const look = new THREE.Vector3().lerpVectors(ct, carPos, e);
+    const desired = this._desired.lerpVectors(cp, tp, e);
+    const look = this._look.lerpVectors(ct, carPos, e);
     // Snap on the first frame or after a teleport, otherwise follow smoothly.
     if (this.first || this.pos.distanceToSquared(desired) > 80 * 80) {
       this.yaw = h;

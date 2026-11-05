@@ -60,7 +60,8 @@ export function buildCar() {
   const { paint, trim } = carParts(BODY);
   const parts = [...paint, ...trim];
   const bodyGeo = mergeGeometries(parts);
-  const body = new THREE.Mesh(bodyGeo, new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));
+  const mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+  const body = new THREE.Mesh(bodyGeo, mat);
   body.castShadow = true;
   body.receiveShadow = true;
 
@@ -70,17 +71,16 @@ export function buildCar() {
   group.add(tilt);
   tilt.add(body);
 
-  const wheelGeo = new THREE.CylinderGeometry(0.34, 0.34, 0.26, 10).rotateZ(Math.PI / 2);
-  const hubGeo = new THREE.CylinderGeometry(0.17, 0.17, 0.28, 6).rotateZ(Math.PI / 2);
-  const tyre = new THREE.MeshLambertMaterial({ color: 0x1e1e1e, flatShading: true });
-  const hub = new THREE.MeshLambertMaterial({ color: 0xb0b0b0, flatShading: true });
+  // Tyre and hub in one mesh per wheel (one draw call each).
+  const wheelGeo = mergeGeometries([
+    colored(new THREE.CylinderGeometry(0.34, 0.34, 0.26, 10).rotateZ(Math.PI / 2), 0x1e1e1e),
+    colored(new THREE.CylinderGeometry(0.17, 0.17, 0.28, 6).rotateZ(Math.PI / 2), 0xb0b0b0),
+  ]);
   const wheels = [];
   for (const [x, z] of [[-0.88, -1.42], [0.88, -1.42], [-0.88, 1.38], [0.88, 1.38]]) {
-    const w = new THREE.Group();
+    const w = new THREE.Mesh(wheelGeo, mat);
     w.position.set(x, 0.34, z);
-    const t = new THREE.Mesh(wheelGeo, tyre);
-    t.castShadow = true;
-    w.add(t, new THREE.Mesh(hubGeo, hub));
+    w.castShadow = true;
     tilt.add(w);
     wheels.push({ obj: w, front: z < 0 });
   }

@@ -137,6 +137,8 @@ function nearestId(list, car, range, posOf = null) {
 // ---------- main loop ----------
 
 const carPos = new THREE.Vector3();
+const groundAt = world3d.terrain.heightAt.bind(world3d.terrain);
+const personPos = (id) => amb.personPos(id);
 let last = performance.now();
 let steer = 0;
 const fps = { frames: 0, acc: 0, value: 0 };
@@ -167,7 +169,7 @@ function frame(now) {
     // Ambient life moves after the car (dust, birds scatter, traffic stops).
     amb.update(dt, state);
     // Locals wander a few metres; talk range follows where they are now.
-    state.nearLocalId = nearestId(WORLD.locals, car, TALK_RANGE, (id) => amb.personPos(id));
+    state.nearLocalId = nearestId(WORLD.locals, car, TALK_RANGE, personPos);
     state.nearSignId = nearestId(WORLD.signs, car, READ_RANGE);
 
     // Waypoint snapshots and arrival at the current mission's goal (sets state.won).
@@ -176,7 +178,7 @@ function frame(now) {
 
   car3d.update(car, runtime.paused ? 0 : dt, world3d.surfaceAt, steer);
   carPos.copy(car3d.object.position);
-  const e = rig.update(carPos, car.heading, dt, runtime.cameraMode, world3d.terrain.heightAt.bind(world3d.terrain), state.view.northUp);
+  const e = rig.update(carPos, car.heading, dt, runtime.cameraMode, groundAt, state.view.northUp);
   // Sound every frame, even paused (it ducks while the map is open).
   audio.update(dt, state, amb, { paused: runtime.paused });
 
@@ -191,6 +193,8 @@ function frame(now) {
   world3d.update(now / 1000, dt, car, rig.focus, rig.shadowRadius, camera, amb);
   amb3d.update(amb, runtime.paused ? 0 : dt, camera, rig.focus, scene.fog, e, renderer);
 
+  // The world is frozen behind the map overlay: keep the last shadow map.
+  renderer.shadowMap.autoUpdate = !runtime.paused;
   renderer.render(scene, camera);
   hud.update(dt);
   stats.end(statsExtra);
