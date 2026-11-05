@@ -1,10 +1,17 @@
-// All game sound, synthesised with Web Audio (no files). Gentle and quiet.
+// All game sound, played from recorded files in public/sounds (see
+// SOURCES.md there). Gentle and quiet.
 // API (CONTRACT_P2.md):
 //   const audio = createAudio(WORLD);
 //   audio.update(dt, state, amb, { paused });   // every frame, even when paused
 //   audio.toggleMute(); audio.muted
 // The AudioContext is created on the first keydown / pointerdown (browsers
 // need a user gesture) and resumed on later gestures if it was suspended.
+// The sound files start loading at that moment too; each sound joins in as
+// soon as its file has arrived, and is silent until then.
+// Voices: the dialogue UI calls speak(npcId, text) from ./voice.js.
+
+import { ALL_SOUNDS, ENGINE_LAYERS, engineMix, loadSounds, loopBounds } from './sounds.js';
+import { takeSpeech, voiceFor } from './voice.js';
 
 const DEG = Math.PI / 180;
 const MASTER = 0.5;
@@ -20,11 +27,25 @@ const GEARS = [
 ];
 const IDLE_RPM = 850;
 
+const BIRDS = ['nature/bird1', 'nature/bird2', 'nature/bird3', 'nature/bird4'];
+const COWS = ['animals/cow1', 'animals/cow2', 'animals/cow3'];
+const DOGS = ['animals/dog1', 'animals/dog2'];
+const HORSES = ['animals/horse1', 'animals/horse2'];
+
+// Background chatter: locals within this range talk to each other when you
+// roll slowly past them in a town.
+const CHAT_R = 40;
+const CHAT_MAX_SPEED = 7;
+const CHAT_VOICES = 2;
+
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
 export function createAudio(world) {
   let ctx = null;
   let muted = false;
   let nodes = null;
   let paused = false;
+  let bufs = new Map();
 
   // Engine model state.
   let gear = 0;
@@ -36,6 +57,11 @@ export function createAudio(world) {
   let waterT = 0;
   let murmurT = 0;
   let crunchT = 0;
+  let chatT = 0;
+
+  // Voice state.
+  let talk = null; // { npcId, src, g, until }
+  const chatter = new Map(); // npcId -> { src, g, pan, on, t }
 
   const water = (world.creeks || []).filter((c) => !world.ambient || !world.ambient.waterSounds || world.ambient.waterSounds.includes(c.id));
 
@@ -52,28 +78,6 @@ export function createAudio(world) {
     window.addEventListener('pointerdown', gesture, true);
   }
 
-  function noiseBuffer(seconds, brown) {
-    const n = Math.floor(ctx.sampleRate * seconds);
-    const buf = ctx.createBuffer(1, n, ctx.sampleRate);
-    const d = buf.getChannelData(0);
-    let last = 0;
-    for (let i = 0; i < n; i++) {
-      const w = Math.random() * 2 - 1;
-      if (brown) {
-        last = (last + 0.02 * w) / 1.02;
-        d[i] = last * 3.5;
-      } else d[i] = w;
-    }
-    return buf;
-  }
-  function loopNoise(buf) {
-    const s = ctx.createBufferSource();
-    s.buffer = buf;
-    s.loop = true;
-    s.loopStart = 0;
-    s.start(0, Math.random() * buf.duration);
-    return s;
-  }
   function gain(v, to) {
     const g = ctx.createGain();
     g.gain.value = v;
@@ -95,7 +99,42 @@ export function createAudio(world) {
     return p;
   }
   const setPan = (p, v) => p.pan && p.pan.setTargetAtTime(Math.max(-1, Math.min(1, v)), ctx.currentTime, 0.15);
+  const setPanNow = (p, v) => {
+    if (p.pan) p.pan.value = Math.max(-1, Math.min(1, v));
+  };
   const ramp = (param, v, tc = 0.08) => param.setTargetAtTime(v, ctx.currentTime, tc);
+
+  // A looping source for a sound id, started at a random point. Null until loaded.
+  function loopSource(id, to, rate = 1) {
+    const buf = bufs.get(id);
+    if (!buf) return null;
+    const s = ctx.createBufferSource();
+    s.buffer = buf;
+    s.loop = true;
+    const b = loopBounds(buf);
+    s.loopStart = b.start;
+    s.loopEnd = b.end;
+    s.playbackRate.value = rate;
+    s.connect(to);
+    s.start(0, b.start + Math.random() * (b.end - b.start));
+    return s;
+  }
+
+  // Play a one-shot at time t0 through a fresh panner. Returns the source.
+  function oneShot(id, t0, pan, vol, rate = 1, lowpass = 0) {
+    const buf = bufs.get(id);
+    if (!buf) return null;
+    const out = panner(nodes.bus);
+    setPanNow(out, pan);
+    const g = gain(vol, lowpass ? filter('lowpass', lowpass, 0.5, out) : out);
+    const s = ctx.createBufferSource();
+    s.buffer = buf;
+    s.playbackRate.value = rate;
+    s.connect(g);
+    s.start(Math.max(ctx.currentTime, t0));
+    s.onended = () => out.disconnect();
+    return s;
+  }
 
   function init() {
     const AC = typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext);
@@ -111,70 +150,60 @@ export function createAudio(world) {
     comp.connect(master);
     const bus = gain(1, comp);
 
-    const white = noiseBuffer(2.3, false);
-    const brown = noiseBuffer(3.1, true);
-
-    // Engine: saw + square at firing frequency, sine sub, through a lowpass.
+    // Engine: three RPM loops crossfaded, through a lowpass that opens with load.
     const engGain = gain(0, bus);
-    const engLp = filter('lowpass', 400, 1.2, engGain);
-    const oSaw = ctx.createOscillator();
-    oSaw.type = 'sawtooth';
-    const oSq = ctx.createOscillator();
-    oSq.type = 'square';
-    const oSub = ctx.createOscillator();
-    oSub.type = 'sine';
-    const gSaw = gain(0.5, engLp);
-    const gSq = gain(0.18, engLp);
-    const gSub = gain(0.8, engLp);
-    oSaw.connect(gSaw);
-    oSq.connect(gSq);
-    oSub.connect(gSub);
-    // Slight roughness: an LFO wobbles the engine gain.
-    const lfo = ctx.createOscillator();
-    lfo.frequency.value = 7;
-    const lfoG = gain(0.012, engGain.gain);
-    lfo.connect(lfoG);
-    for (const o of [oSaw, oSq, oSub, lfo]) o.start();
+    const engLp = filter('lowpass', 2500, 0.7, engGain);
+    const engLayers = ENGINE_LAYERS.map(() => ({ g: gain(0, engLp), src: null }));
+    const revG = gain(0, bus);
 
-    // Reverse whine.
-    const whine = ctx.createOscillator();
-    whine.type = 'triangle';
-    const whineG = gain(0, bus);
-    whine.connect(whineG);
-    whine.start();
-
-    // Tyre / surface noise: gravel crunch, grass swish, paved hiss.
+    // Tyre / surface loops.
     const gravelG = gain(0, bus);
-    const gravelF = filter('bandpass', 1700, 0.8, gravelG);
-    loopNoise(white).connect(gravelF);
     const grassG = gain(0, bus);
-    const grassF = filter('lowpass', 650, 0.7, grassG);
-    loopNoise(white).connect(grassF);
-    const hissG = gain(0, bus);
-    const hissF = filter('highpass', 2500, 0.5, hissG);
-    loopNoise(white).connect(hissF);
+    const pavedG = gain(0, bus);
 
-    // Water: brown + white noise through filters, panned.
+    // Water: creek and river loops, panned toward the nearest water.
     const waterPan = panner(bus);
-    const waterG = gain(0, waterPan);
-    const waterLp = filter('lowpass', 1100, 0.6, waterG);
-    loopNoise(brown).connect(waterLp);
-    const waterBp = filter('bandpass', 2200, 1.5, gain(0.25, waterG));
-    loopNoise(white).connect(waterBp);
+    const creekG = gain(0, waterPan);
+    const riverG = gain(0, waterPan);
 
-    // Town murmur: band-limited noise with a slow random wobble, panned.
+    // Town murmur, panned toward the town centre.
     const townPan = panner(bus);
     const townG = gain(0, townPan);
-    const townF1 = filter('bandpass', 420, 1.2, townG);
-    const townF2 = filter('bandpass', 1100, 2.5, gain(0.5, townG));
-    const tn = loopNoise(white);
-    tn.connect(townF1);
-    tn.connect(townF2);
+
+    // Birdsong bed near trees with birds in them.
+    const birdPan = panner(bus);
+    const birdG = gain(0, birdPan);
+
+    // Voices: dialogue (centre) and chatter (each panned on its own).
+    const voiceBus = gain(1, bus);
 
     nodes = {
-      master, bus, engGain, engLp, oSaw, oSq, oSub, whine, whineG, gravelG, gravelF, grassG, hissG,
-      waterPan, waterG, townPan, townG, townF1,
+      master, bus, engGain, engLp, engLayers, revG, revSrc: null, gravelG, grassG, pavedG, surfSrc: {},
+      waterPan, creekG, riverG, townPan, townG, birdPan, birdG, voiceBus, started: new Set(),
     };
+
+    loadSounds(ctx, ALL_SOUNDS.map((s) => s.id), (id, buf) => {
+      bufs.set(id, buf);
+      startLoop(id);
+    });
+  }
+
+  // Start the always-on loop that belongs to this id (if it is one).
+  function startLoop(id) {
+    const n = nodes;
+    if (n.started.has(id)) return;
+    const li = ENGINE_LAYERS.findIndex((l) => l.id === id);
+    let src = null;
+    if (li >= 0) src = n.engLayers[li].src = loopSource(id, n.engLayers[li].g);
+    else if (id === 'engine/reverse') src = n.revSrc = loopSource(id, n.revG);
+    else if (id === 'tyres/gravel') src = n.surfSrc.gravel = loopSource(id, n.gravelG);
+    else if (id === 'tyres/grass') src = n.surfSrc.grass = loopSource(id, n.grassG);
+    else if (id === 'tyres/paved') src = n.surfSrc.paved = loopSource(id, n.pavedG);
+    else if (id === 'nature/creek') src = loopSource(id, n.creekG);
+    else if (id === 'nature/river') src = loopSource(id, n.riverG);
+    else if (id === 'town/murmur') src = loopSource(id, n.townG);
+    else if (id === 'nature/birdsong') src = loopSource(id, n.birdG);
+    if (src) n.started.add(id);
   }
 
   // Pan (-1..1) and distance of a world point relative to the car.
@@ -185,157 +214,6 @@ export function createAudio(world) {
     const bearing = Math.atan2(dx, -dy) / DEG;
     const r = (bearing - car.heading) * DEG;
     return { d, pan: d < 1 ? 0 : Math.sin(r) * 0.85 };
-  }
-
-  // ---------- One-shot sounds ----------
-  function chirp(pan, vol) {
-    const t0 = ctx.currentTime + Math.random() * 0.05;
-    const out = panner(nodes.bus);
-    setPanNow(out, pan);
-    const g = gain(0, out);
-    const notes = 1 + Math.floor(Math.random() * 4);
-    const base = 2600 + Math.random() * 1800;
-    const len = 0.05 + Math.random() * 0.07;
-    const gap = 0.03 + Math.random() * 0.05;
-    const car = ctx.createOscillator();
-    car.type = 'sine';
-    const mod = ctx.createOscillator();
-    mod.frequency.value = 30 + Math.random() * 60;
-    const modG = gain(200 + Math.random() * 400);
-    mod.connect(modG);
-    modG.connect(car.frequency);
-    car.connect(g);
-    const up = Math.random() < 0.6;
-    for (let k = 0; k < notes; k++) {
-      const t = t0 + k * (len + gap);
-      const f0 = base * (1 + (Math.random() - 0.5) * 0.15);
-      car.frequency.setValueAtTime(up ? f0 * 0.8 : f0 * 1.25, t);
-      car.frequency.exponentialRampToValueAtTime(up ? f0 * 1.3 : f0 * 0.75, t + len);
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.linearRampToValueAtTime(vol, t + 0.008);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + len);
-    }
-    const end = t0 + notes * (len + gap) + 0.05;
-    car.start(t0);
-    mod.start(t0);
-    car.stop(end);
-    mod.stop(end);
-    car.onended = () => out.disconnect();
-  }
-  function setPanNow(p, v) {
-    if (p.pan) p.pan.value = Math.max(-1, Math.min(1, v));
-  }
-
-  // Church bell: inharmonic partials with long decays.
-  const BELL_PARTIALS = [
-    [0.5, 0.5, 7], [1, 0.7, 5], [1.183, 0.45, 4], [1.506, 0.3, 3.2], [2, 0.35, 2.6],
-    [2.514, 0.18, 2], [2.662, 0.15, 1.8], [3.011, 0.1, 1.5], [4.166, 0.06, 1.1],
-  ];
-  function bellStrike(t0, pan, vol, d) {
-    const out = panner(nodes.bus);
-    setPanNow(out, pan);
-    const lp = filter('lowpass', Math.max(1200, 9000 - d * 3.5), 0.5, out);
-    const f0 = 392;
-    for (const [ratio, amp, decay] of BELL_PARTIALS) {
-      const o = ctx.createOscillator();
-      o.frequency.value = f0 * ratio * (1 + (Math.random() - 0.5) * 0.004);
-      const g = gain(0, lp);
-      o.connect(g);
-      g.gain.setValueAtTime(0.0001, t0);
-      g.gain.linearRampToValueAtTime(vol * amp, t0 + 0.006);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + decay);
-      o.start(t0);
-      o.stop(t0 + decay + 0.05);
-    }
-    setTimeout(() => out.disconnect(), (t0 - ctx.currentTime + 7.5) * 1000);
-  }
-  function bark(t0, pan, vol) {
-    const out = panner(nodes.bus);
-    setPanNow(out, pan);
-    const bp = filter('bandpass', 900, 1.8, out);
-    const g = gain(0, bp);
-    const o = ctx.createOscillator();
-    o.type = 'sawtooth';
-    const f = 330 + Math.random() * 80;
-    o.frequency.setValueAtTime(f, t0);
-    o.frequency.exponentialRampToValueAtTime(f * 0.62, t0 + 0.13);
-    o.connect(g);
-    g.gain.setValueAtTime(0.0001, t0);
-    g.gain.linearRampToValueAtTime(vol, t0 + 0.012);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.16);
-    o.start(t0);
-    o.stop(t0 + 0.2);
-    o.onended = () => out.disconnect();
-  }
-
-  // Cow moo: a low buzzy tone through a vowel-like filter, sliding down.
-  function moo(t0, pan, vol) {
-    const out = panner(nodes.bus);
-    setPanNow(out, pan);
-    const lp = filter('lowpass', 900, 0.7, out);
-    const bp = filter('bandpass', 420, 2.5, lp);
-    const g = gain(0, bp);
-    const o = ctx.createOscillator();
-    o.type = 'sawtooth';
-    const f = 115 + Math.random() * 30;
-    const len = 1.1 + Math.random() * 0.6;
-    o.frequency.setValueAtTime(f * 0.9, t0);
-    o.frequency.linearRampToValueAtTime(f * 1.08, t0 + 0.25);
-    o.frequency.exponentialRampToValueAtTime(f * 0.78, t0 + len);
-    bp.frequency.setValueAtTime(320, t0);
-    bp.frequency.linearRampToValueAtTime(620, t0 + 0.3);
-    bp.frequency.linearRampToValueAtTime(380, t0 + len);
-    o.connect(g);
-    g.gain.setValueAtTime(0.0001, t0);
-    g.gain.linearRampToValueAtTime(vol, t0 + 0.18);
-    g.gain.setValueAtTime(vol, t0 + len - 0.35);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + len);
-    o.start(t0);
-    o.stop(t0 + len + 0.05);
-    o.onended = () => out.disconnect();
-  }
-  let snortBuf = null;
-  // Horse whinny: a high wavering call that falls away, ending in a snort.
-  function whinny(t0, pan, vol) {
-    const out = panner(nodes.bus);
-    setPanNow(out, pan);
-    const bp = filter('bandpass', 1400, 1.2, out);
-    const g = gain(0, bp);
-    const o = ctx.createOscillator();
-    o.type = 'sawtooth';
-    const vib = ctx.createOscillator();
-    vib.frequency.value = 11 + Math.random() * 5;
-    const vibG = gain(0);
-    vib.connect(vibG);
-    vibG.connect(o.frequency);
-    const f = 820 + Math.random() * 160;
-    const len = 1.0 + Math.random() * 0.4;
-    o.frequency.setValueAtTime(f * 0.8, t0);
-    o.frequency.linearRampToValueAtTime(f, t0 + 0.12);
-    o.frequency.exponentialRampToValueAtTime(f * 0.45, t0 + len);
-    vibG.gain.setValueAtTime(f * 0.03, t0);
-    vibG.gain.linearRampToValueAtTime(f * 0.09, t0 + len);
-    o.connect(g);
-    g.gain.setValueAtTime(0.0001, t0);
-    g.gain.linearRampToValueAtTime(vol, t0 + 0.06);
-    g.gain.setValueAtTime(vol * 0.8, t0 + len * 0.6);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + len);
-    o.start(t0);
-    vib.start(t0);
-    o.stop(t0 + len + 0.05);
-    vib.stop(t0 + len + 0.05);
-    // Snort: a short burst of filtered noise.
-    const n = ctx.createBufferSource();
-    n.buffer = snortBuf || (snortBuf = noiseBuffer(0.3, false));
-    const ng = gain(0, filter('bandpass', 700, 0.8, out));
-    n.connect(ng);
-    const ts = t0 + len + 0.12;
-    ng.gain.setValueAtTime(0.0001, ts);
-    ng.gain.linearRampToValueAtTime(vol * 0.6, ts + 0.02);
-    ng.gain.exponentialRampToValueAtTime(0.0001, ts + 0.22);
-    n.start(ts);
-    n.stop(ts + 0.3);
-    n.onended = () => out.disconnect();
   }
 
   // ---------- Per-frame ----------
@@ -371,42 +249,51 @@ export function createAudio(world) {
     }
     rpm += (target - rpm) * Math.min(1, dt * (shiftT > 0 ? 6 : 10));
 
-    const f = (rpm / 60) * 2; // 4-cylinder firing frequency
     const n = nodes;
-    ramp(n.oSaw.frequency, f, 0.04);
-    ramp(n.oSq.frequency, f * 0.5, 0.04);
-    ramp(n.oSub.frequency, f * 0.5, 0.04);
-    ramp(n.engLp.frequency, 220 + rpm * 0.12 + load * 400, 0.06);
-    const dip = shiftT > 0 ? 0.55 : 1;
-    ramp(n.engGain.gain, (0.045 + 0.035 * (rpm / 5500) + 0.03 * load) * dip, 0.05);
+    const mix = engineMix(rpm);
+    for (let i = 0; i < mix.length; i++) {
+      const L = n.engLayers[i];
+      ramp(L.g.gain, mix[i].gain, 0.05);
+      if (L.src) ramp(L.src.playbackRate, mix[i].rate, 0.04);
+    }
+    ramp(n.engLp.frequency, 1400 + rpm * 0.6 + load * 3000, 0.06);
+    const dip = shiftT > 0 ? 0.6 : 1;
+    ramp(n.engGain.gain, (0.32 + 0.22 * (rpm / 5500) + 0.18 * load) * dip, 0.05);
 
-    ramp(n.whine.frequency, 500 + s * 140, 0.05);
-    ramp(n.whineG.gain, reversing ? 0.012 + Math.min(0.012, s * 0.004) : 0, 0.08);
+    // Reversing: the recorded reverse gear on top, pitched by speed.
+    ramp(n.revG.gain, reversing ? 0.35 + Math.min(0.25, s * 0.08) : 0, 0.08);
+    if (n.revSrc) ramp(n.revSrc.playbackRate, 0.9 + Math.min(0.5, s * 0.1), 0.05);
     return s;
   }
 
   function updateSurface(dt, s, surface) {
     const k = Math.min(1, s / 12);
     const n = nodes;
+    const rate = 0.75 + 0.45 * k;
+    for (const key of ['gravel', 'grass', 'paved']) {
+      const src = n.surfSrc[key];
+      if (src) ramp(src.playbackRate, rate, 0.1);
+    }
     crunchT -= dt;
     if (surface === 'dirt') {
       if (crunchT <= 0) {
-        // Grainy gravel: jitter the level and the band a little.
-        crunchT = 0.04 + Math.random() * 0.05;
-        ramp(n.gravelG.gain, 0.06 * k * (0.55 + Math.random() * 0.8), 0.015);
-        ramp(n.gravelF.frequency, 1300 + Math.random() * 900, 0.02);
+        // Grainy gravel: wobble the level a little.
+        crunchT = 0.08 + Math.random() * 0.1;
+        ramp(n.gravelG.gain, 0.55 * k * (0.75 + Math.random() * 0.4), 0.03);
       }
     } else ramp(n.gravelG.gain, 0, 0.1);
-    ramp(n.grassG.gain, surface === 'grass' ? 0.05 * k : 0, 0.1);
-    ramp(n.hissG.gain, surface === 'paved' ? 0.006 * k : 0, 0.1);
+    ramp(n.grassG.gain, surface === 'grass' ? 0.5 * k : 0, 0.1);
+    ramp(n.pavedG.gain, surface === 'paved' ? 0.22 * k : 0, 0.1);
   }
 
   function updateBirds(dt, car, amb) {
     if (!amb || !amb.birds) return;
     let nearBirds = 0;
     const trees = new Set();
-    let pick = null;
+    let pickB = null;
     let pickD = Infinity;
+    let sx = 0;
+    let sy = 0;
     for (const b of amb.birds) {
       const dx = b.x - car.x;
       const dy = b.y - car.y;
@@ -414,19 +301,25 @@ export function createAudio(world) {
       const d = Math.hypot(dx, dy);
       if (d > 70) continue;
       nearBirds++;
+      sx += b.x;
+      sy += b.y;
       if (!b.flying && b.perchTree !== undefined) trees.add(b.perchTree);
-      if (Math.random() < 0.3 || !pick) {
-        pick = b;
+      if (Math.random() < 0.3 || !pickB) {
+        pickB = b;
         pickD = d;
       }
     }
+    // The birdsong bed swells with perched birds close by.
+    const bed = Math.min(1, 0.25 * trees.size + 0.04 * nearBirds);
+    ramp(nodes.birdG.gain, 0.45 * bed, 0.6);
     if (!nearBirds) return;
-    const rate = Math.min(5, 0.35 * trees.size + 0.06 * nearBirds);
+    setPan(nodes.birdPan, rel(car, sx / nearBirds, sy / nearBirds).pan * 0.6);
+    const rate = Math.min(3, 0.2 * trees.size + 0.04 * nearBirds);
     chirpT -= dt * rate;
     if (chirpT <= 0) {
-      chirpT = 0.4 + Math.random() * 1.6;
-      const r = rel(car, pick.x, pick.y);
-      chirp(r.pan, 0.05 * Math.max(0.15, 1 - pickD / 70));
+      chirpT = 0.6 + Math.random() * 2;
+      const r = rel(car, pickB.x, pickB.y);
+      oneShot(pick(BIRDS), ctx.currentTime + Math.random() * 0.05, r.pan, 0.1 * Math.max(0.15, 1 - pickD / 70), 0.85 + Math.random() * 0.35);
     }
   }
 
@@ -435,12 +328,14 @@ export function createAudio(world) {
     if (waterT > 0) return;
     waterT = 0.2;
     let best = 0;
+    let creek = 0;
+    let river = 0;
     let bx = car.x;
     let by = car.y;
     for (const c of water) {
-      const river = c.kind === 'river';
-      const reach = river ? 230 : 140;
-      const w = river ? 1 : 0.6;
+      const isRiver = c.kind === 'river';
+      const reach = isRiver ? 230 : 140;
+      const w = isRiver ? 1 : 0.6;
       const pts = c.points;
       for (let i = 0; i < pts.length - 1; i++) {
         const ax = pts[i][0], ay = pts[i][1];
@@ -455,6 +350,8 @@ export function createAudio(world) {
         const d = Math.max(0, Math.hypot(qx - car.x, qy - car.y) - c.width / 2);
         if (d >= reach) continue;
         const v = w * (1 - d / reach) ** 2;
+        if (isRiver) river = Math.max(river, v);
+        else creek = Math.max(creek, v);
         if (v > best) {
           best = v;
           bx = qx;
@@ -463,18 +360,16 @@ export function createAudio(world) {
       }
     }
     const r = rel(car, bx, by);
-    ramp(nodes.waterG.gain, 0.09 * best, 0.4);
+    ramp(nodes.creekG.gain, 0.9 * creek, 0.4);
+    ramp(nodes.riverG.gain, 0.9 * river, 0.4);
     setPan(nodes.waterPan, r.pan * Math.min(1, r.d / 15));
   }
 
-  function updateTown(dt, car) {
-    murmurT -= dt;
-    if (murmurT > 0) return;
-    murmurT = 0.25 + Math.random() * 0.3;
+  function townLevel(x, y) {
     let best = 0;
     let bt = null;
     for (const t of world.towns || []) {
-      const d = Math.hypot(t.x - car.x, t.y - car.y);
+      const d = Math.hypot(t.x - x, t.y - y);
       if (d >= t.ambienceR) continue;
       const v = (1 - d / t.ambienceR) * (t.kind === 'hamlet' ? 0.6 : 1);
       if (v > best) {
@@ -482,12 +377,120 @@ export function createAudio(world) {
         bt = t;
       }
     }
-    const wobble = 0.6 + Math.random() * 0.6;
-    ramp(nodes.townG.gain, 0.05 * best * wobble, 0.3);
-    ramp(nodes.townF1.frequency, 350 + Math.random() * 200, 0.3);
+    return { best, bt };
+  }
+
+  function updateTown(dt, car) {
+    murmurT -= dt;
+    if (murmurT > 0) return;
+    murmurT = 0.3;
+    const { best, bt } = townLevel(car.x, car.y);
+    ramp(nodes.townG.gain, 0.5 * best, 0.5);
     if (bt) {
       const r = rel(car, bt.x, bt.y);
       setPan(nodes.townPan, r.pan * Math.min(1, r.d / 60) * 0.7);
+    }
+  }
+
+  // ---------- Voices ----------
+  function voiceSource(npcId, to) {
+    const v = voiceFor(npcId);
+    return loopSource(v.id, to, v.rate);
+  }
+
+  function stopVoice(o, tc = 0.12) {
+    if (!o) return;
+    const t = ctx.currentTime;
+    o.g.gain.cancelScheduledValues(t);
+    o.g.gain.setTargetAtTime(0, t, tc);
+    const src = o.src;
+    const out = o.pan || o.g;
+    setTimeout(() => {
+      try {
+        src.stop();
+      } catch (e) {
+        // already stopped
+      }
+      out.disconnect();
+    }, tc * 8000);
+  }
+
+  // Dialogue: the local mumbles for about as long as the page would take to say.
+  function updateTalk() {
+    const req = takeSpeech();
+    if (req) {
+      if (!req.npcId) {
+        stopVoice(talk, 0.15);
+        talk = null;
+      } else {
+        const len = Math.max(1.2, Math.min(7, req.text.length * 0.055));
+        if (!talk || talk.npcId !== req.npcId) {
+          stopVoice(talk, 0.08);
+          talk = null;
+          const g = gain(0, nodes.voiceBus);
+          const src = voiceSource(req.npcId, g);
+          if (src) talk = { npcId: req.npcId, src, g };
+          else g.disconnect();
+        }
+        if (talk) {
+          const t = ctx.currentTime;
+          const p = talk.g.gain;
+          p.cancelScheduledValues(t);
+          p.setTargetAtTime(0.85, t, 0.04);
+          p.setTargetAtTime(0, t + len, 0.18);
+        }
+      }
+    }
+  }
+
+  // Chatter: when you roll slowly through town, nearby locals mumble,
+  // each panned and quieter with distance, in short bursts.
+  function updateChatter(dt, car, amb, speed) {
+    chatT -= dt;
+    if (chatT > 0) return;
+    chatT = 0.25;
+    const want = new Map();
+    if (amb && amb.people && speed < CHAT_MAX_SPEED) {
+      const near = [];
+      for (const [id, p] of amb.people) {
+        if (talk && talk.npcId === id) continue;
+        if (Math.abs(p.x - car.x) > CHAT_R || Math.abs(p.y - car.y) > CHAT_R) continue;
+        const d = Math.hypot(p.x - car.x, p.y - car.y);
+        if (d > CHAT_R || townLevel(p.x, p.y).best <= 0) continue;
+        near.push({ id, p, d });
+      }
+      near.sort((a, b) => a.d - b.d);
+      const slow = 1 - speed / CHAT_MAX_SPEED;
+      for (const o of near.slice(0, CHAT_VOICES)) want.set(o.id, { ...o, vol: 0.32 * (1 - o.d / CHAT_R) * (0.4 + 0.6 * slow) });
+    }
+    for (const [id, c] of chatter) {
+      if (!want.has(id)) {
+        stopVoice(c, 0.4);
+        chatter.delete(id);
+      }
+    }
+    for (const [id, w] of want) {
+      let c = chatter.get(id);
+      if (!c) {
+        const pan = panner(nodes.voiceBus);
+        const g = gain(0, pan);
+        const src = voiceSource(id, g);
+        if (!src) {
+          pan.disconnect();
+          continue;
+        }
+        c = { src, g, pan, on: false, t: Math.random() * 1.5 };
+        chatter.set(id, c);
+      }
+      // Talk a few seconds, pause a little, talk again.
+      c.t -= 0.25;
+      if (c.t <= 0) {
+        c.on = !c.on;
+        c.t = c.on ? 2 + Math.random() * 3.5 : 1 + Math.random() * 3;
+      }
+      const r = rel(car, w.p.x, w.p.y);
+      setPan(c.pan, r.pan);
+      ramp(c.g.gain, c.on ? w.vol : 0, 0.25);
     }
   }
 
@@ -497,27 +500,36 @@ export function createAudio(world) {
       const r = rel(car, e.x, e.y);
       if (e.type === 'bell') {
         // Audible across a big part of the map; points you to town.
-        const vol = 0.5 / (1 + r.d / 400);
-        if (vol < 0.01) continue;
+        const vol = 0.8 / (1 + r.d / 400);
+        if (vol < 0.015) continue;
         const delay = r.d / 343; // sound travels
         const t0 = ctx.currentTime + 0.05 + delay;
-        for (let k = 0; k < (e.count || 1); k++) bellStrike(t0 + k * 2.3, r.pan, vol, r.d);
+        const lp = Math.max(1200, 12000 - r.d * 4);
+        for (let k = 0; k < (e.count || 1); k++) oneShot('bell/bell', t0 + k * 2.3, r.pan, vol, 0.98 + Math.random() * 0.03, lp);
       } else if (e.type === 'dog_bark') {
         if (r.d > 350) continue;
-        const vol = 0.07 * (1 - r.d / 350);
-        const t0 = ctx.currentTime + 0.05;
+        const vol = 0.28 * (1 - r.d / 350);
+        const t0 = ctx.currentTime + 0.05 + r.d / 343;
         const n = e.count || 1 + Math.floor(Math.random() * 3);
-        for (let k = 0; k < n; k++) bark(t0 + k * (0.28 + Math.random() * 0.15), r.pan, vol);
+        const lp = Math.max(1500, 9000 - r.d * 20);
+        if (n >= 3 && Math.random() < 0.5) oneShot('animals/dog3', t0, r.pan, vol, 0.92 + Math.random() * 0.16, lp);
+        else {
+          const dog = pick(DOGS);
+          const rate = 0.9 + Math.random() * 0.2;
+          for (let k = 0; k < n; k++) oneShot(dog, t0 + k * (0.32 + Math.random() * 0.18), r.pan, vol, rate, lp);
+        }
       } else if (e.type === 'moo' || e.type === 'whinny') {
         // Rare and quiet: only within a couple of hundred metres.
         if (r.d > 260) continue;
-        const vol = (e.type === 'moo' ? 0.06 : 0.035) * (1 - r.d / 260);
+        const vol = (e.type === 'moo' ? 0.3 : 0.2) * (1 - r.d / 260);
         const t0 = ctx.currentTime + 0.05 + r.d / 343;
-        if (e.type === 'moo') moo(t0, r.pan, vol);
-        else whinny(t0, r.pan, vol);
+        const lp = Math.max(1500, 9000 - r.d * 25);
+        oneShot(pick(e.type === 'moo' ? COWS : HORSES), t0, r.pan, vol, 0.92 + Math.random() * 0.16, lp);
       } else if (e.type === 'birds_scatter') {
         if (r.d > 80) continue;
-        for (let k = 0; k < 3; k++) chirp(r.pan, 0.06 * (1 - r.d / 80));
+        for (let k = 0; k < 3; k++) {
+          oneShot(pick(BIRDS), ctx.currentTime + k * 0.12 + Math.random() * 0.08, r.pan, 0.12 * (1 - r.d / 80), 0.9 + Math.random() * 0.3);
+        }
       }
     }
   }
@@ -536,6 +548,8 @@ export function createAudio(world) {
       updateSurface(dt, s, surface);
       updateWater(dt, car);
       updateTown(dt, car);
+      updateTalk();
+      updateChatter(dt, car, amb, s);
       if (!paused && !muted) {
         updateBirds(dt, car, amb);
         handleEvents(car, amb);
@@ -550,6 +564,13 @@ export function createAudio(world) {
     },
     get context() {
       return ctx;
+    },
+    // For checks: which sound files have loaded, and how many loops run.
+    get loaded() {
+      return bufs.size;
+    },
+    get playing() {
+      return nodes ? [...nodes.started] : [];
     },
   };
 }

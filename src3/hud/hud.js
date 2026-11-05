@@ -8,6 +8,7 @@ import { finishMission } from '../../src/game/update.js';
 import { renderSketchCanvas, renderPrintedMapCanvas, trueMapDef } from '../map/sketchRender.js';
 import { openMissionCard } from '../../src/ui/missionCard.js';
 import { openHelp } from '../../src/ui/help.js';
+import { speak } from '../../src/audio/voice.js';
 
 // DOM/CSS port of the Phaser HUDScene. Shows the dash (compass, odometer,
 // clock, speed, trip timer), road signs, mailboxes, the talk prompt, the
@@ -275,6 +276,7 @@ export function createHUD(root, { openMap } = {}) {
     dlgBox.classList.add('hud-paging');
     dlgMenu.style.display = 'none';
     dlgText.textContent = pages[page];
+    speak(dialogue.npcId, pages[page]);
     const next = end ? (after === 'menu' ? 'back' : 'close') : 'next';
     dlgMore.textContent = `${page + 1}/${pages.length}   E: ${next}   M: map`;
   }
@@ -407,6 +409,7 @@ export function createHUD(root, { openMap } = {}) {
 
   function closeDialogue() {
     dialogue = null;
+    speak(null);
     dlgBox.style.display = 'none';
     dlgMenu.innerHTML = '';
     state.inputLocked = false;

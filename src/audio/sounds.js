@@ -1,0 +1,136 @@
+// Every sound file the game uses, grouped for the review page (sounds.html).
+// Files live in public/sounds/<id>.mp3 (sources in public/sounds/SOURCES.md).
+// kind: 'loop' plays forever; 'oneshot' plays once.
+
+const BASE = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.BASE_URL) || '/';
+
+export const soundUrl = (id) => `${BASE}sounds/${id}.mp3`;
+
+// Engine loops and the RPM each one sounds right at (playback rate 1).
+export const ENGINE_LAYERS = [
+  { id: 'engine/idle', rpm: 850 },
+  { id: 'engine/mid', rpm: 2200 },
+  { id: 'engine/high', rpm: 4300 },
+];
+
+// Crossfade between the engine layers for an RPM: [{ gain, rate }] per layer.
+// Neighbouring layers blend with an equal-power curve; each layer's pitch is
+// nudged toward the RPM (clamped so no layer sounds silly).
+export function engineMix(rpm) {
+  const L = ENGINE_LAYERS;
+  const out = L.map((l) => ({ gain: 0, rate: Math.max(0.75, Math.min(1.45, (rpm / l.rpm) ** 0.7)) }));
+  if (rpm <= L[0].rpm) out[0].gain = 1;
+  else if (rpm >= L[L.length - 1].rpm) out[L.length - 1].gain = 1;
+  else {
+    for (let i = 0; i < L.length - 1; i++) {
+      if (rpm < L[i + 1].rpm) {
+        const t = (rpm - L[i].rpm) / (L[i + 1].rpm - L[i].rpm);
+        out[i].gain = Math.cos((t * Math.PI) / 2);
+        out[i + 1].gain = Math.sin((t * Math.PI) / 2);
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+export const SOUND_GROUPS = [
+  {
+    group: 'Engine',
+    items: [
+      { id: 'engine/idle', kind: 'loop', label: 'Idle / low RPM' },
+      { id: 'engine/mid', kind: 'loop', label: 'Mid RPM' },
+      { id: 'engine/high', kind: 'loop', label: 'High RPM' },
+      { id: 'engine/reverse', kind: 'loop', label: 'Reversing' },
+    ],
+  },
+  {
+    group: 'Tyres',
+    items: [
+      { id: 'tyres/paved', kind: 'loop', label: 'Paved road' },
+      { id: 'tyres/gravel', kind: 'loop', label: 'Gravel / dirt road' },
+      { id: 'tyres/grass', kind: 'loop', label: 'Grass / field' },
+    ],
+  },
+  {
+    group: 'Nature',
+    items: [
+      { id: 'nature/creek', kind: 'loop', label: 'Creek' },
+      { id: 'nature/river', kind: 'loop', label: 'River' },
+      { id: 'nature/birdsong', kind: 'loop', label: 'Birdsong bed (near trees with birds)' },
+      { id: 'nature/bird1', kind: 'oneshot', label: 'Bird chirp 1' },
+      { id: 'nature/bird2', kind: 'oneshot', label: 'Bird chirp 2' },
+      { id: 'nature/bird3', kind: 'oneshot', label: 'Bird chirp 3 (sparrow)' },
+      { id: 'nature/bird4', kind: 'oneshot', label: 'Bird chirp 4 (tweets)' },
+    ],
+  },
+  {
+    group: 'Town',
+    items: [
+      { id: 'town/murmur', kind: 'loop', label: 'Town murmur' },
+      { id: 'bell/bell', kind: 'oneshot', label: 'Church bell (one strike)' },
+    ],
+  },
+  {
+    group: 'Animals',
+    items: [
+      { id: 'animals/cow1', kind: 'oneshot', label: 'Cow 1' },
+      { id: 'animals/cow2', kind: 'oneshot', label: 'Cow 2' },
+      { id: 'animals/cow3', kind: 'oneshot', label: 'Cow 3' },
+      { id: 'animals/dog1', kind: 'oneshot', label: 'Dog bark 1' },
+      { id: 'animals/dog2', kind: 'oneshot', label: 'Dog bark 2' },
+      { id: 'animals/dog3', kind: 'oneshot', label: 'Dog barks 3 (several)' },
+      { id: 'animals/horse1', kind: 'oneshot', label: 'Horse whinny 1' },
+      { id: 'animals/horse2', kind: 'oneshot', label: 'Horse neigh 2' },
+    ],
+  },
+  {
+    group: 'Voices',
+    items: [
+      { id: 'voices/m1', kind: 'loop', label: 'Man 1 (cheerful)' },
+      { id: 'voices/m2', kind: 'loop', label: 'Man 2 (calm, deep)' },
+      { id: 'voices/m3', kind: 'loop', label: 'Man 3 (lively)' },
+      { id: 'voices/f1', kind: 'loop', label: 'Woman 1 (cheerful)' },
+      { id: 'voices/f2', kind: 'loop', label: 'Woman 2 (warm, soft)' },
+      { id: 'voices/f3', kind: 'loop', label: 'Woman 3 (quick, chatty)' },
+    ],
+  },
+  {
+    group: 'Damage (not used in game yet)',
+    items: [
+      { id: 'damage/flat_tyre', kind: 'loop', label: 'Flat tyre flapping' },
+      { id: 'damage/crash', kind: 'oneshot', label: 'Crash thud' },
+    ],
+  },
+];
+
+export const ALL_SOUNDS = SOUND_GROUPS.flatMap((g) => g.items);
+
+// Loop points that skip any silent padding the mp3 decoder adds at either end.
+export function loopBounds(buf) {
+  const d = buf.getChannelData(0);
+  const lim = Math.min(d.length >> 2, 4096);
+  let s = 0;
+  while (s < lim && Math.abs(d[s]) < 1e-4) s++;
+  let e = d.length;
+  while (e > d.length - lim && Math.abs(d[e - 1]) < 1e-4) e--;
+  return { start: s / buf.sampleRate, end: e / buf.sampleRate };
+}
+
+// Fetch and decode a set of sound ids into ctx. Resolves to Map id -> AudioBuffer
+// (ids that fail to load are left out). onEach(id, buf) fires as each arrives.
+export function loadSounds(ctx, ids, onEach) {
+  const out = new Map();
+  return Promise.all(
+    ids.map((id) =>
+      fetch(soundUrl(id))
+        .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(r.status))))
+        .then((ab) => new Promise((res, rej) => ctx.decodeAudioData(ab, res, rej)))
+        .then((buf) => {
+          out.set(id, buf);
+          if (onEach) onEach(id, buf);
+        })
+        .catch((e) => console.warn('sound failed to load', id, e && e.message)),
+    ),
+  ).then(() => out);
+}
