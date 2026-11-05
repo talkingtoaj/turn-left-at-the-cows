@@ -20,6 +20,7 @@ import { createAmbient3D } from './world3d/ambient3d.js';
 import { addCloudShadowsTo, cloudUniforms } from './world3d/clouds.js';
 import { campfireOf } from './world3d/landmarks3d.js';
 import { SUN_DIR } from './world3d/world3d.js';
+import { createStats } from './stats.js';
 
 const TALK_RANGE = 25;
 const READ_RANGE = 25;
@@ -35,6 +36,9 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 app.appendChild(renderer.domElement);
+
+const params = new URLSearchParams(window.location.search);
+const stats = createStats(renderer, params.has('stats'));
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.8, 450);
@@ -137,6 +141,7 @@ const fps = { frames: 0, acc: 0, value: 0 };
 
 function frame(now) {
   requestAnimationFrame(frame);
+  stats.begin(now);
   const dtMs = Math.min(Math.max(0, now - last), MAX_DT_MS);
   last = now;
   const dt = dtMs / 1000;
@@ -184,6 +189,7 @@ function frame(now) {
 
   renderer.render(scene, camera);
   hud.update(dt);
+  stats.end();
 
   fps.frames++;
   fps.acc += now - (fps.prev || now);
@@ -198,7 +204,7 @@ function frame(now) {
 // Debug handles.
 window.__state = state;
 window.__runtime = runtime;
-window.__three = { renderer, scene, camera, fps, THREE, world3d };
+window.__three = { renderer, scene, camera, fps, THREE, world3d, stats };
 window.__amb = amb;
 window.__audio = audio;
 window.__cloudUniforms = cloudUniforms;
