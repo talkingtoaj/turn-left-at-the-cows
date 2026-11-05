@@ -13,6 +13,7 @@ OUT = os.path.join(HERE, '..', '..', 'public', 'sounds')
 SR = 44100
 
 FS, EL, EL2 = sys.argv[1], sys.argv[2], sys.argv[3]
+EL3 = os.path.join(os.path.dirname(EL2), 'raw_el3')
 ONLY = set(sys.argv[4:])
 
 # Engine edge removal: lowpass plus a gentle high shelf cut.
@@ -40,7 +41,8 @@ RECIPES = [
     ('engine/reverse', f'{FS}/369055.ogg', 4, 6, 'loop', 'highpass=f=40', -18),
     ('tyres/gravel', f'{FS}/251661.ogg', 1, 10, 'loop', 'highpass=f=60', -20),
     ('tyres/paved', f'{EL}/tyre_paved.mp3', 0, None, 'loop', '', -20),
-    ('tyres/grass', f'{EL}/tyre_grass.mp3', 0, None, 'loop', '', -20),
+    # Round 3: the user picked this softer field loop over the first one.
+    ('tyres/grass', f'{EL3}/tyre_grass.mp3', 0, None, 'loop', 'highpass=f=40,lowpass=f=6000', -20),
     ('nature/creek', f'{FS}/231536.ogg', 2, 12, 'loop', '', -20),
     ('nature/river', f'{FS}/420557.ogg', 5, 12, 'loop', '', -20),
     ('nature/birdsong', f'{FS}/490845.ogg', 2, 15, 'loop', 'highpass=f=300', -22),
