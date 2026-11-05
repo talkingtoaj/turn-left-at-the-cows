@@ -20,6 +20,8 @@ import { createAmbient3D } from './world3d/ambient3d.js';
 import { addCloudShadowsTo, cloudUniforms } from './world3d/clouds.js';
 import { campfireOf } from './world3d/landmarks3d.js';
 import { SUN_DIR } from './world3d/world3d.js';
+import { createStats } from './stats.js';
+import { createResScale } from './resscale.js';
 
 const TALK_RANGE = 25;
 const READ_RANGE = 25;
@@ -29,12 +31,16 @@ const MAX_DT_MS = 50;
 
 const app = document.getElementById('app');
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 app.appendChild(renderer.domElement);
+
+const params = new URLSearchParams(window.location.search);
+const stats = createStats(renderer, params.has('stats'));
+const res = createResScale(renderer, params);
+const statsExtra = () => `res ${res.ratio.toFixed(2)} (dpr ${window.devicePixelRatio})`;
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.8, 450);
@@ -131,14 +137,19 @@ function nearestId(list, car, range, posOf = null) {
 // ---------- main loop ----------
 
 const carPos = new THREE.Vector3();
+const groundAt = world3d.terrain.heightAt.bind(world3d.terrain);
+const personPos = (id) => amb.personPos(id);
 let last = performance.now();
 let steer = 0;
 const fps = { frames: 0, acc: 0, value: 0 };
 
 function frame(now) {
   requestAnimationFrame(frame);
-  const dtMs = Math.min(Math.max(0, now - last), MAX_DT_MS);
+  stats.begin(now);
+  const rawMs = Math.max(0, now - last);
+  const dtMs = Math.min(rawMs, MAX_DT_MS);
   last = now;
+  res.update(rawMs);
   const dt = dtMs / 1000;
   const car = state.car;
 
@@ -158,7 +169,7 @@ function frame(now) {
     // Ambient life moves after the car (dust, birds scatter, traffic stops).
     amb.update(dt, state);
     // Locals wander a few metres; talk range follows where they are now.
-    state.nearLocalId = nearestId(WORLD.locals, car, TALK_RANGE, (id) => amb.personPos(id));
+    state.nearLocalId = nearestId(WORLD.locals, car, TALK_RANGE, personPos);
     state.nearSignId = nearestId(WORLD.signs, car, READ_RANGE);
 
     // Waypoint snapshots and arrival at the current mission's goal (sets state.won).
@@ -167,7 +178,7 @@ function frame(now) {
 
   car3d.update(car, runtime.paused ? 0 : dt, world3d.surfaceAt, steer);
   carPos.copy(car3d.object.position);
-  const e = rig.update(carPos, car.heading, dt, runtime.cameraMode, world3d.terrain.heightAt.bind(world3d.terrain), state.view.northUp);
+  const e = rig.update(carPos, car.heading, dt, runtime.cameraMode, groundAt, state.view.northUp);
   // Sound every frame, even paused (it ducks while the map is open).
   audio.update(dt, state, amb, { paused: runtime.paused });
 
@@ -182,8 +193,11 @@ function frame(now) {
   world3d.update(now / 1000, dt, car, rig.focus, rig.shadowRadius, camera, amb);
   amb3d.update(amb, runtime.paused ? 0 : dt, camera, rig.focus, scene.fog, e, renderer);
 
+  // The world is frozen behind the map overlay: keep the last shadow map.
+  renderer.shadowMap.autoUpdate = !runtime.paused;
   renderer.render(scene, camera);
   hud.update(dt);
+  stats.end(statsExtra);
 
   fps.frames++;
   fps.acc += now - (fps.prev || now);
@@ -198,7 +212,7 @@ function frame(now) {
 // Debug handles.
 window.__state = state;
 window.__runtime = runtime;
-window.__three = { renderer, scene, camera, fps, THREE, world3d };
+window.__three = { renderer, scene, camera, fps, THREE, world3d, stats, res };
 window.__amb = amb;
 window.__audio = audio;
 window.__cloudUniforms = cloudUniforms;

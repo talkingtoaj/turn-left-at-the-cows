@@ -19,6 +19,7 @@ const MAX_CARS = 80;
 const MAX_ANIMALS = 160;
 const MAX_DUST = 500;
 const MAX_SMOKE = 900;
+const TROT = [1, 0, 2, 0]; // horse pose per trot step
 
 function colored(geo, hex) {
   const g = geo.index ? geo.toNonIndexed() : geo;
@@ -203,6 +204,8 @@ void main() {
   gl_FragColor = vec4( mix( color * vShade, fogColor, vFog ), a );
 }`;
 
+const PUFF_ATTRS = ['position', 'size', 'alpha', 'shade'];
+
 function puffs(max, color, fogAmount, tex, grow = 0) {
   const geo = new THREE.BufferGeometry();
   const pos = new Float32Array(max * 3);
@@ -251,7 +254,7 @@ function puffs(max, color, fogAmount, tex, grow = 0) {
     },
     end() {
       geo.setDrawRange(0, n);
-      for (const k of ['position', 'size', 'alpha', 'shade']) geo.attributes[k].needsUpdate = true;
+      for (const k of PUFF_ATTRS) geo.attributes[k].needsUpdate = true;
     },
   };
 }
@@ -366,7 +369,7 @@ export function createAmbient3D(scene, opts) {
         birdBody.setMatrixAt(n, m);
         const flap = b.flying ? Math.sin((b.flap || 0) * Math.PI * 2) * 0.9 + 0.1 : -1.25;
         mw.makeRotationZ(flap);
-        birdL.setMatrixAt(n, mw.clone().premultiply(m));
+        birdL.setMatrixAt(n, mw.premultiply(m));
         mw.makeRotationZ(-flap);
         birdR.setMatrixAt(n, mw.premultiply(m));
         n++;
@@ -428,7 +431,7 @@ export function createAmbient3D(scene, opts) {
             pitch = Math.sin(ph * Math.PI * 2) * 0.12;
           } else {
             const step = Math.floor((time * (a.running ? 7 : 3.5) + i * 0.61) % 4);
-            pose = [1, 0, 2, 0][step];
+            pose = TROT[step];
             bob = step % 2 ? 0 : 0.05;
             pitch = 0;
           }
