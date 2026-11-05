@@ -17,6 +17,14 @@ ONLY = set(sys.argv[4:])
 
 # Engine edge removal: lowpass plus a gentle high shelf cut.
 SOFT = 'lowpass=f=2500,highshelf=f=1500:g=-6'
+# Loops are RMS-normalised after filtering, so these shift the balance
+# between bands rather than just the level.
+LESS_BASS = ('highpass=f=85,highpass=f=85,equalizer=f=130:t=q:w=0.8:g=-4,'
+             'equalizer=f=280:t=q:w=1:g=6,equalizer=f=600:t=q:w=1:g=6')
+# Growl: drive into a soft clipper for harmonics, then lift the low mids.
+GROWL = ('volume=14,asoftclip=type=tanh,volume=0.08,'
+         'equalizer=f=550:t=q:w=1:g=7,equalizer=f=1000:t=q:w=1:g=4,'
+         'lowpass=f=3000,highshelf=f=1800:g=-5')
 # Bake a fixed pitch shift into a 44.1 kHz source (also shortens it).
 shift = lambda k: f'asetrate={round(44100 * k)},aresample=44100'
 
@@ -24,9 +32,11 @@ shift = lambda k: f'asetrate={round(44100 * k)},aresample=44100'
 RECIPES = [
     # Round 2 engine set: one matched gentle sedan. Mid and high get a baked
     # pitch shift so all three sit on one pitch curve (see ENGINE_LAYERS).
-    ('engine/idle', f'{EL2}/engine_idle.mp3', 0, None, 'loop', SOFT, -18),
+    # Round 3: idle gets less bass; high gets a little growl (low-mid lift,
+    # light saturation, a slightly more open top).
+    ('engine/idle', f'{EL2}/engine_idle.mp3', 0, None, 'loop', SOFT + ',' + LESS_BASS, -18),
     ('engine/mid', f'{EL2}/engine_mid.mp3', 0, None, 'loop', shift(1.23) + ',' + SOFT, -18),
-    ('engine/high', f'{EL2}/engine_high.mp3', 0, None, 'loop', shift(1.48) + ',' + SOFT, -18),
+    ('engine/high', f'{EL2}/engine_high.mp3', 0, None, 'loop', shift(1.48) + ',' + GROWL, -18),
     ('engine/reverse', f'{FS}/369055.ogg', 4, 6, 'loop', 'highpass=f=40', -18),
     ('tyres/gravel', f'{FS}/251661.ogg', 1, 10, 'loop', 'highpass=f=60', -20),
     ('tyres/paved', f'{EL}/tyre_paved.mp3', 0, None, 'loop', '', -20),
