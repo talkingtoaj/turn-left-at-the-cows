@@ -2,6 +2,7 @@
 
 import * as THREE from 'three';
 import { distToSegment } from '../../src/drive/geom.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { box, cyl } from './shapes.js';
 
 // Bearing (deg, 0 = north) from a sign to the closest point on any road.
@@ -65,38 +66,62 @@ const PEOPLE = [
   { shirt: 0x5d8a3a, hat: 0x3b3b3b, legs: 0x3a3f4a },
 ];
 
-const lam = (c) => new THREE.MeshLambertMaterial({ color: c, flatShading: true });
+// One shared material; part colours live in vertex colours.
+const personMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+const _m = new THREE.Matrix4();
+const _c = new THREE.Color();
 
-// Each local is its own small group so it can turn to face the car.
+// Bake parts into one geometry: each part is [geometry, colour, x, y, z, rotX].
+function mergeParts(parts) {
+  const geos = parts.map(([geo, color, x, y, z, rx = 0]) => {
+    const g = geo.index ? geo.toNonIndexed() : geo.clone();
+    g.deleteAttribute('uv');
+    g.applyMatrix4(_m.makeRotationX(rx).setPosition(x, y, z));
+    _c.set(color);
+    const n = g.attributes.position.count;
+    const col = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) col.set([_c.r, _c.g, _c.b], i * 3);
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    return g;
+  });
+  return mergeGeometries(geos);
+}
+
+// Each local is its own small group (body plus two swinging legs, three draw
+// calls) so it can turn to face the car.
 export function buildLocals(world, terrain) {
   const group = new THREE.Group();
   const people = [];
+  const legGeos = new Map();
   world.locals.forEach((l, i) => {
     const look = PEOPLE[i % PEOPLE.length];
     const p = new THREE.Group();
-    const add = (geo, color, x, y, z) => {
-      const m = new THREE.Mesh(geo, lam(color));
+    const add = (geo, x, y, z) => {
+      const m = new THREE.Mesh(geo, personMat);
       m.position.set(x, y, z);
       m.castShadow = true;
       p.add(m);
       return m;
     };
     // Legs hang from the hip so they can swing when walking.
-    add(box(0.2, 0.85, 0.22).translate(0, -0.85, 0), look.legs, -0.13, 0.85, 0);
-    add(box(0.2, 0.85, 0.22).translate(0, -0.85, 0), look.legs, 0.13, 0.85, 0);
-    add(box(0.56, 0.68, 0.3), look.shirt, 0, 0.85, 0);
-    add(box(0.14, 0.62, 0.16), look.shirt, -0.36, 0.9, 0);
-    add(box(0.14, 0.62, 0.16), look.shirt, 0.36, 0.9, 0);
-    add(new THREE.IcosahedronGeometry(0.17, 0), 0xe2b58f, 0, 1.7, 0);
-    add(cyl(0.2, 0.12, 8), look.hat, 0, 1.8, 0);
-    add(cyl(0.13, 0.14, 8), look.hat, 0, 1.9, 0);
+    if (!legGeos.has(look.legs)) legGeos.set(look.legs, mergeParts([[box(0.2, 0.85, 0.22).translate(0, -0.85, 0), look.legs, 0, 0, 0]]));
+    add(legGeos.get(look.legs), -0.13, 0.85, 0);
+    add(legGeos.get(look.legs), 0.13, 0.85, 0);
+    const body = [
+      [box(0.56, 0.68, 0.3), look.shirt, 0, 0.85, 0],
+      [box(0.14, 0.62, 0.16), look.shirt, -0.36, 0.9, 0],
+      [box(0.14, 0.62, 0.16), look.shirt, 0.36, 0.9, 0],
+      [new THREE.IcosahedronGeometry(0.17, 0), 0xe2b58f, 0, 1.7, 0],
+      [cyl(0.2, 0.12, 8), look.hat, 0, 1.8, 0],
+      [cyl(0.13, 0.14, 8), look.hat, 0, 1.9, 0],
+    ];
     if (/fish/i.test(l.role || '')) {
-      const rod = add(cyl(0.025, 3.2, 4), 0x3a2a1a, 0.4, 1.0, -0.2);
-      rod.rotation.x = -0.9;
-      add(cyl(0.22, 0.4, 8, 0.26), 0x8a8f96, 0.7, 0, 0.5);
+      body.push([cyl(0.025, 3.2, 4), 0x3a2a1a, 0.4, 1.0, -0.2, -0.9]);
+      body.push([cyl(0.22, 0.4, 8, 0.26), 0x8a8f96, 0.7, 0, 0.5]);
     } else {
-      add(box(0.4, 0.06, 0.5), 0x2a2a2a, 0, 1.79, -0.12); // cap peak
+      body.push([box(0.4, 0.06, 0.5), 0x2a2a2a, 0, 1.79, -0.12]); // cap peak
     }
+    add(mergeParts(body), 0, 0, 0);
     p.position.set(l.x, terrain.heightAt(l.x, l.y), l.y);
     group.add(p);
     people.push({ id: l.id, obj: p, x: l.x, y: l.y, yaw: 0, legs: p.children.slice(0, 2), walk: 0 });
@@ -114,7 +139,10 @@ export function buildLocals(world, terrain) {
         }
         const dx = car.x - p.x;
         const dy = car.y - p.y;
-        if (dx * dx + dy * dy > 250 * 250) continue;
+        const far = dx * dx + dy * dy > 250 * 250;
+        // Past 350 m a person is a pixel or two in the haze.
+        p.obj.visible = dx * dx + dy * dy < 350 * 350;
+        if (far) continue;
         p.obj.position.set(p.x, terrain.heightAt(p.x, p.y), p.y);
         const moving = pos && pos.moving;
         let target;
