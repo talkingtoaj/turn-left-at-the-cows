@@ -47,7 +47,7 @@ export function createStats(renderer, enabled) {
       }
       prev = now;
     },
-    // extra: optional text lines to show (render scale etc).
+    // extra: optional function returning more text (render scale etc).
     end(extra) {
       const i = renderer.info.render;
       last = { calls: i.calls, tris: i.triangles };
@@ -61,7 +61,7 @@ export function createStats(renderer, enabled) {
         `cpu ${(cpuAcc / frames).toFixed(1)} ms`,
         `calls ${last.calls}  tris ${(last.tris / 1000).toFixed(0)}k`,
         `shadow ${shadow.calls} calls  ${(shadow.tris / 1000).toFixed(0)}k tris  ${shadowRuns}/${frames} frames`,
-        extra || '',
+        extra ? extra() : '',
       ].join('\n');
       frames = 0;
       acc = 0;

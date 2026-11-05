@@ -21,6 +21,7 @@ import { addCloudShadowsTo, cloudUniforms } from './world3d/clouds.js';
 import { campfireOf } from './world3d/landmarks3d.js';
 import { SUN_DIR } from './world3d/world3d.js';
 import { createStats } from './stats.js';
+import { createResScale } from './resscale.js';
 
 const TALK_RANGE = 25;
 const READ_RANGE = 25;
@@ -30,7 +31,6 @@ const MAX_DT_MS = 50;
 
 const app = document.getElementById('app');
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.shadowMap.enabled = true;
@@ -39,6 +39,8 @@ app.appendChild(renderer.domElement);
 
 const params = new URLSearchParams(window.location.search);
 const stats = createStats(renderer, params.has('stats'));
+const res = createResScale(renderer, params);
+const statsExtra = () => `res ${res.ratio.toFixed(2)} (dpr ${window.devicePixelRatio})`;
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.8, 450);
@@ -142,8 +144,10 @@ const fps = { frames: 0, acc: 0, value: 0 };
 function frame(now) {
   requestAnimationFrame(frame);
   stats.begin(now);
-  const dtMs = Math.min(Math.max(0, now - last), MAX_DT_MS);
+  const rawMs = Math.max(0, now - last);
+  const dtMs = Math.min(rawMs, MAX_DT_MS);
   last = now;
+  res.update(rawMs);
   const dt = dtMs / 1000;
   const car = state.car;
 
@@ -189,7 +193,7 @@ function frame(now) {
 
   renderer.render(scene, camera);
   hud.update(dt);
-  stats.end();
+  stats.end(statsExtra);
 
   fps.frames++;
   fps.acc += now - (fps.prev || now);
@@ -204,7 +208,7 @@ function frame(now) {
 // Debug handles.
 window.__state = state;
 window.__runtime = runtime;
-window.__three = { renderer, scene, camera, fps, THREE, world3d, stats };
+window.__three = { renderer, scene, camera, fps, THREE, world3d, stats, res };
 window.__amb = amb;
 window.__audio = audio;
 window.__cloudUniforms = cloudUniforms;
