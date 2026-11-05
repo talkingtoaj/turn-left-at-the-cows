@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ask a Local sounds</title>
+  <link rel="icon" href="data:," />
+  <style>
+    :root {
+      --bg: #f4efe4; --card: #fffaf0; --ink: #2b2620; --muted: #7a6f60; --line: #ddd2bf;
+      --accent: #2f6b4f; --redo: #b5462f; --keep: #2f6b4f;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.4 system-ui, sans-serif; }
+    main { max-width: 860px; margin: 0 auto; padding: 20px 16px 80px; }
+    h1 { margin: 0 0 4px; font-size: 24px; }
+    h2 { margin: 28px 0 8px; font-size: 18px; border-bottom: 2px solid var(--line); padding-bottom: 4px; }
+    .intro { color: var(--muted); margin: 0 0 12px; }
+    .bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; position: sticky; top: 0; background: var(--bg); padding: 8px 0; z-index: 2; }
+    button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+    button:hover { border-color: var(--muted); }
+    button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+    button.keep.sel { background: var(--keep); color: #fff; border-color: var(--keep); }
+    button.redo.sel { background: var(--redo); color: #fff; border-color: var(--redo); }
+    .item { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 8px 0; }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .name { flex: 1 1 200px; min-width: 0; }
+    .name b { display: block; }
+    .name code { color: var(--muted); font-size: 12px; }
+    .note { width: 100%; margin-top: 8px; font: inherit; padding: 6px; border: 1px solid var(--line); border-radius: 6px; background: #fff; display: none; }
+    .item.redo .note { display: block; }
+    .item.redo { border-color: var(--redo); }
+    .item.keep { border-color: var(--keep); }
+    .ctl { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 8px; color: var(--muted); font-size: 14px; }
+    .ctl input[type=range] { flex: 1 1 220px; }
+    .mix { font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); }
+    table { border-collapse: collapse; width: 100%; font-size: 14px; }
+    td, th { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+    #status { color: var(--muted); font-size: 13px; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Ask a Local: sound review</h1>
+    <p class="intro">Play each sound, then mark it <b>keep</b> or <b>redo</b>. Add a note on redo items. Choices are saved in this browser. "Copy results" copies the redo list as JSON. Sources and licences: <a href="sounds/SOURCES.md" target="_blank">SOURCES.md</a>.</p>
+    <div class="bar">
+      <button id="copy">Copy results</button>
+      <button id="stopall">Stop all</button>
+      <span id="status">Loading sounds...</span>
+    </div>
+    <div id="list"></div>
+  </main>
+  <script type="module" src="/src/audio/review.js"></script>
+</body>
+</html>

@@ -572,5 +572,11 @@ export function createAudio(world) {
     get playing() {
       return nodes ? [...nodes.started] : [];
     },
+    get talking() {
+      return talk ? talk.npcId : null;
+    },
+    get chatter() {
+      return [...chatter.keys()];
+    },
   };
 }
