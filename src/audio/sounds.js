@@ -7,18 +7,23 @@ const BASE = (typeof import.meta !== 'undefined' && import.meta.env && import.me
 export const soundUrl = (id) => `${BASE}sounds/${id}.mp3`;
 
 // Engine loops and the RPM each one sounds right at (playback rate 1).
+// The files are pitched (tools/sounds/process.py) so all three sit on one
+// curve, pitch ~ sqrt(rpm), which keeps the crossfade smooth.
 export const ENGINE_LAYERS = [
-  { id: 'engine/idle', rpm: 850 },
-  { id: 'engine/mid', rpm: 2200 },
-  { id: 'engine/high', rpm: 4300 },
+  { id: 'engine/idle', rpm: 900 },
+  { id: 'engine/mid', rpm: 2000 },
+  { id: 'engine/high', rpm: 3600 },
 ];
+// Pitch follows sqrt(rpm / layer rpm), capped so the high loop never turns shrill.
+const RATE_MIN = 0.8;
+const RATE_MAX = 1.3;
 
 // Crossfade between the engine layers for an RPM: [{ gain, rate }] per layer.
 // Neighbouring layers blend with an equal-power curve; each layer's pitch is
 // nudged toward the RPM (clamped so no layer sounds silly).
 export function engineMix(rpm) {
   const L = ENGINE_LAYERS;
-  const out = L.map((l) => ({ gain: 0, rate: Math.max(0.75, Math.min(1.45, (rpm / l.rpm) ** 0.7)) }));
+  const out = L.map((l) => ({ gain: 0, rate: Math.max(RATE_MIN, Math.min(RATE_MAX, Math.sqrt(rpm / l.rpm))) }));
   if (rpm <= L[0].rpm) out[0].gain = 1;
   else if (rpm >= L[L.length - 1].rpm) out[L.length - 1].gain = 1;
   else {
@@ -67,7 +72,7 @@ export const SOUND_GROUPS = [
   {
     group: 'Town',
     items: [
-      { id: 'town/murmur', kind: 'loop', label: 'Town murmur' },
+      { id: 'town/murmur', kind: 'loop', label: 'Quiet main street' },
       { id: 'bell/bell', kind: 'oneshot', label: 'Church bell (one strike)' },
     ],
   },

@@ -12,7 +12,7 @@ out = sys.argv[1]
 os.makedirs(out, exist_ok=True)
 tok = key('FREESOUND_API_KEY')
 for sid in sys.argv[2:]:
-    url = f'https://freesound.org/apiv2/sounds/{sid}/?fields=id,name,username,license,url,duration,previews&token={tok}'
+    url = f'https://freesound.org/apiv2/sounds/{sid}/?fields=id,name,username,license,url,duration,previews,description&token={tok}'
     m = json.load(urllib.request.urlopen(url))
     if 'publicdomain/zero' not in m['license']:
         print('SKIP not CC0', sid, m['license'])
@@ -23,4 +23,4 @@ for sid in sys.argv[2:]:
     meta = {k: m[k] for k in ['id', 'name', 'username', 'license', 'url', 'duration']}
     with open(os.path.join(out, f'{sid}.json'), 'w') as f:
         json.dump(meta, f)
-    print(sid, m['duration'], m['username'], m['name'])
+    print(sid, m['duration'], m['username'], m['name'], '::', m.get('description', '')[:300].replace('\n', ' '))

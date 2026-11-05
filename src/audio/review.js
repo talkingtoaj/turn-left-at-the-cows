@@ -21,6 +21,11 @@ function load() {
   }
 }
 const marks = load();
+// Sounds remade after a review round. Marks from an older round are dropped
+// so these show up unrated again.
+const ROUND = { 'engine/idle': 2, 'engine/mid': 2, 'engine/high': 2, 'town/murmur': 2, 'voices/f2': 2 };
+const roundOf = (id) => ROUND[id] || 1;
+for (const id of Object.keys(marks)) if ((marks[id].round || 1) < roundOf(id)) delete marks[id];
 function save() {
   try {
     localStorage.setItem(STORE, JSON.stringify(marks));
@@ -98,14 +103,14 @@ function markControls(item, box) {
   }
   function set(status) {
     const cur = marks[item.id] || {};
-    marks[item.id] = { ...cur, status: cur.status === status ? undefined : status };
+    marks[item.id] = { ...cur, status: cur.status === status ? undefined : status, round: roundOf(item.id) };
     save();
     show();
   }
   keep.addEventListener('click', () => set('keep'));
   redo.addEventListener('click', () => set('redo'));
   note.addEventListener('input', () => {
-    marks[item.id] = { ...(marks[item.id] || {}), note: note.value };
+    marks[item.id] = { ...(marks[item.id] || {}), note: note.value, round: roundOf(item.id) };
     save();
   });
   show();
@@ -121,7 +126,7 @@ function itemRow(item, extra) {
   });
   const mc = markControls(item, box);
   box.append(el('div', { class: 'row' }, [
-    el('div', { class: 'name' }, [el('b', { text: item.label }), el('code', { text: item.id + '.mp3' })]),
+    el('div', { class: 'name' }, [el('b', { text: item.label + (roundOf(item.id) > 1 ? ` (new, round ${roundOf(item.id)})` : '') }), el('code', { text: item.id + '.mp3' })]),
     playBtn, ...mc.buttons,
   ]));
   if (extra && extra.node) box.append(extra.node);
@@ -177,7 +182,7 @@ function engineBlock() {
   const box = el('div', { class: 'item' }, [
     el('div', { class: 'row' }, [el('div', { class: 'name' }, [
       el('b', { text: 'Engine blend (as in the game)' }),
-      el('code', { text: 'Idle 850, shifts happen around 5000 rpm. Mark the layers below.' }),
+      el('code', { text: 'Idle 850, shifts happen around 5000 rpm. Layers sit at 900 / 2000 / 3600 rpm. Mark the layers below.' }),
     ])]),
     node,
   ]);

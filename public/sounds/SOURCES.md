@@ -17,7 +17,6 @@ All files were trimmed, made mono 44.1 kHz, normalised and encoded as 64 kbps mp
 | nature/bird2.mp3 | 507255 | Bird Noise - 11.wav | SpaceJoe | https://freesound.org/people/SpaceJoe/sounds/507255/ |
 | nature/bird3.mp3 | 695297 | White-crowned Sparrow Chirp | Zott820 | https://freesound.org/people/Zott820/sounds/695297/ |
 | nature/bird4.mp3 | 851731 | Little Bird Tweeting | IENBA | https://freesound.org/people/IENBA/sounds/851731/ |
-| town/murmur.mp3 | 634880 | Generic Exterior Walla (3 to 21 s) | brunoboselli | https://freesound.org/people/brunoboselli/sounds/634880/ |
 | animals/cow1.mp3 | 700378 | Moo 1 - Moo Moo the Cow | manofham | https://freesound.org/people/manofham/sounds/700378/ |
 | animals/cow2.mp3 | 700379 | Moo 2 - Moo Moo the Cow | manofham | https://freesound.org/people/manofham/sounds/700379/ |
 | animals/cow3.mp3 | 700380 | Moo 3 - Moo Moo the Cow | manofham | https://freesound.org/people/manofham/sounds/700380/ |
@@ -32,18 +31,21 @@ All files were trimmed, made mono 44.1 kHz, normalised and encoded as 64 kbps mp
 
 | File | Length asked | Prompt |
 |---|---|---|
-| engine/idle.mp3 | 6 s, loop | Small four-cylinder car engine idling steadily, low smooth rumble, recorded outside near the exhaust, no revving, seamless loop |
-| engine/mid.mp3 | 6 s, loop | Steady small four-cylinder car engine at constant medium RPM, recorded from outside near the exhaust, smooth hum, no revving, no gear changes, seamless loop |
-| engine/high.mp3 | 6 s, loop | Small four-cylinder car engine held at constant high RPM, steady strong buzz, recorded outside near the exhaust, no revving up or down, no gear changes, seamless loop |
+| engine/idle.mp3 | 6 s, loop (round 2) | Idling smooth quiet four-cylinder family sedan petrol engine heard from just behind the car, muffled and warm, low-pitched hum, no rasp, no exhaust crackle, no revving, no gear change, no road noise, seamless loop |
+| engine/mid.mp3 | 6 s, loop (round 2), pitched up x1.23 | Steady medium cruising RPM, smooth quiet four-cylinder family sedan petrol engine heard from just behind the car, muffled and warm, low-pitched hum, no rasp, no exhaust crackle, no revving, no gear change, no road noise, seamless loop |
+| engine/high.mp3 | 6 s, loop (round 2), pitched up x1.48 | Steady higher RPM but still calm and gentle, smooth quiet four-cylinder family sedan petrol engine heard from just behind the car, muffled and warm, low-pitched hum, no rasp, no exhaust crackle, no revving, no gear change, no road noise, seamless loop |
 | tyres/paved.mp3 | 8 s, loop | Car tyres rolling steadily on smooth asphalt road, soft continuous road hiss and rumble, no engine, no wind gusts, seamless loop |
 | tyres/grass.mp3 | 8 s, loop | Car tyres rolling slowly over long grass and soft earth in a field, continuous swishing and brushing of grass against the car, no engine, seamless loop |
 | voices/m1.mp3 | 8 s, loop | Sims-style gibberish talking, one cheerful adult man chatting in a made-up language, no real words, friendly conversational mumbling, close dry recording, no music, no background |
 | voices/m2.mp3 | 8 s, loop | Sims-style gibberish talking, one calm deep-voiced adult man explaining something slowly in a made-up language, no real words, conversational mumbling, close dry recording, no music, no background |
 | voices/m3.mp3 | 8 s, loop | Sims-style gibberish talking, one lively talkative adult man with a bright slightly nasal voice in a made-up language, no real words, conversational mumbling, close dry recording, no music, no background |
 | voices/f1.mp3 | 8 s, loop | Sims-style gibberish talking, one cheerful adult woman chatting happily in a made-up language, no real words, conversational mumbling, close dry recording, no music, no background |
-| voices/f2.mp3 | 8 s, loop | Sims-style gibberish talking, one warm soft-spoken adult woman giving friendly directions in a made-up language, no real words, conversational mumbling, close dry recording, no music, no background |
+| voices/f2.mp3 | 8 s, loop (round 2) | Sims-style gibberish talking, one warm friendly adult woman with a clearly feminine mid-high voice giving directions in a made-up language, no real words, conversational mumbling, close dry recording, no music, no background |
+| town/murmur.mp3 | 22 s, loop (round 2) | Quiet main street of a small sleepy rural town on a calm day, mostly quiet with lots of space between sounds: a few distant voices now and then, a shop door opening and closing, a couple of footsteps on a pavement, some birds, very soft distant breeze. No crowd, no walla, no traffic, no music, seamless loop |
 | voices/f3.mp3 | 8 s, loop | Sims-style gibberish talking, one quick chatty adult woman with an animated expressive voice in a made-up language, no real words, conversational mumbling, close dry recording, no music, no background |
 | damage/flat_tyre.mp3 | 4 s, loop | Flat car tyre flapping and thumping rhythmically while the car rolls slowly, rubber slapping on the road, no engine, loop |
 | damage/crash.mp3 | 2 s | Small car bumps hard into a wooden post, single dull metal thud and crunch, short, no glass breaking |
 
-ElevenLabs spend this round: 13 calls, 860 credits (10 credits per second of audio). The full call log is `tools/sounds/el_log.jsonl`.
+Engine files also get a lowpass at 2.5 kHz and a -6 dB high shelf from 1.5 kHz, to take the edge off.
+
+ElevenLabs spend: round 1 had 13 calls and 880 credits. Round 2 (engine set, town, f2) had 5 calls and 480 credits. Total: 18 calls, 1360 credits (10 credits per second of audio). The full call log is `tools/sounds/el_log.jsonl`.

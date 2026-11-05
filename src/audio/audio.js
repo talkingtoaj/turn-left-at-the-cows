@@ -152,7 +152,7 @@ export function createAudio(world) {
 
     // Engine: three RPM loops crossfaded, through a lowpass that opens with load.
     const engGain = gain(0, bus);
-    const engLp = filter('lowpass', 2500, 0.7, engGain);
+    const engLp = filter('lowpass', 1200, 0.7, engGain);
     const engLayers = ENGINE_LAYERS.map(() => ({ g: gain(0, engLp), src: null }));
     const revG = gain(0, bus);
 
@@ -256,7 +256,8 @@ export function createAudio(world) {
       ramp(L.g.gain, mix[i].gain, 0.05);
       if (L.src) ramp(L.src.playbackRate, mix[i].rate, 0.04);
     }
-    ramp(n.engLp.frequency, 1400 + rpm * 0.6 + load * 3000, 0.06);
+    // Kept low and warm: opens a little with RPM and load, never past 2.6 kHz.
+    ramp(n.engLp.frequency, Math.min(2600, 900 + rpm * 0.25 + load * 700), 0.06);
     const dip = shiftT > 0 ? 0.6 : 1;
     ramp(n.engGain.gain, (0.32 + 0.22 * (rpm / 5500) + 0.18 * load) * dip, 0.05);
 
@@ -385,7 +386,7 @@ export function createAudio(world) {
     if (murmurT > 0) return;
     murmurT = 0.3;
     const { best, bt } = townLevel(car.x, car.y);
-    ramp(nodes.townG.gain, 0.5 * best, 0.5);
+    ramp(nodes.townG.gain, 0.32 * best, 0.5);
     if (bt) {
       const r = rel(car, bt.x, bt.y);
       setPan(nodes.townPan, r.pan * Math.min(1, r.d / 60) * 0.7);

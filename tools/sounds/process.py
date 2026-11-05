@@ -1,5 +1,5 @@
 """Turn raw downloads into game-ready mono mp3s in public/sounds/.
-Usage: process.py RAW_FS_DIR RAW_EL_DIR
+Usage: process.py RAW_FS_DIR RAW_EL_DIR RAW_EL2_DIR [name ...]   (names limit which files are rebuilt)
 One-shots: trim, short fades, peak-normalise to -1 dBFS.
 Loops: trim, crossfade the tail into the head so the loop is seamless, RMS-normalise, limit peaks."""
 import array
@@ -12,13 +12,21 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, '..', '..', 'public', 'sounds')
 SR = 44100
 
-FS, EL = sys.argv[1], sys.argv[2]
+FS, EL, EL2 = sys.argv[1], sys.argv[2], sys.argv[3]
+ONLY = set(sys.argv[4:])
+
+# Engine edge removal: lowpass plus a gentle high shelf cut.
+SOFT = 'lowpass=f=2500,highshelf=f=1500:g=-6'
+# Bake a fixed pitch shift into a 44.1 kHz source (also shortens it).
+shift = lambda k: f'asetrate={round(44100 * k)},aresample=44100'
 
 # name, source, start, duration (None = to end), kind, extra ffmpeg filter, target (dBFS: RMS for loops, peak for one-shots)
 RECIPES = [
-    ('engine/idle', f'{EL}/engine_idle.mp3', 0, None, 'loop', '', -18),
-    ('engine/mid', f'{EL}/engine_mid.mp3', 0, None, 'loop', '', -18),
-    ('engine/high', f'{EL}/engine_high.mp3', 0, None, 'loop', 'lowpass=f=7000', -18),
+    # Round 2 engine set: one matched gentle sedan. Mid and high get a baked
+    # pitch shift so all three sit on one pitch curve (see ENGINE_LAYERS).
+    ('engine/idle', f'{EL2}/engine_idle.mp3', 0, None, 'loop', SOFT, -18),
+    ('engine/mid', f'{EL2}/engine_mid.mp3', 0, None, 'loop', shift(1.23) + ',' + SOFT, -18),
+    ('engine/high', f'{EL2}/engine_high.mp3', 0, None, 'loop', shift(1.48) + ',' + SOFT, -18),
     ('engine/reverse', f'{FS}/369055.ogg', 4, 6, 'loop', 'highpass=f=40', -18),
     ('tyres/gravel', f'{FS}/251661.ogg', 1, 10, 'loop', 'highpass=f=60', -20),
     ('tyres/paved', f'{EL}/tyre_paved.mp3', 0, None, 'loop', '', -20),
@@ -30,7 +38,7 @@ RECIPES = [
     ('nature/bird2', f'{FS}/507255.ogg', 0.1, 2.7, 'oneshot', 'highpass=f=400', -1),
     ('nature/bird3', f'{FS}/695297.ogg', 0, None, 'oneshot', 'highpass=f=400', -1),
     ('nature/bird4', f'{FS}/851731.ogg', 0, 3.6, 'oneshot', 'highpass=f=400', -1),
-    ('town/murmur', f'{FS}/634880.ogg', 3, 18, 'loop', 'highpass=f=80', -20),
+    ('town/murmur', f'{EL2}/town.mp3', 0, None, 'loop', 'highpass=f=80', -22),
     ('animals/cow1', f'{FS}/700378.ogg', 0, None, 'oneshot', '', -1),
     ('animals/cow2', f'{FS}/700379.ogg', 0, None, 'oneshot', '', -1),
     ('animals/cow3', f'{FS}/700380.ogg', 0, None, 'oneshot', '', -1),
@@ -44,7 +52,7 @@ RECIPES = [
     ('voices/m2', f'{EL}/voice_m2.mp3', 0, None, 'loop', 'highpass=f=70', -20),
     ('voices/m3', f'{EL}/voice_m3.mp3', 0, None, 'loop', 'highpass=f=70', -20),
     ('voices/f1', f'{EL}/voice_f1.mp3', 0, None, 'loop', 'highpass=f=90', -20),
-    ('voices/f2', f'{EL}/voice_f2.mp3', 0, None, 'loop', 'highpass=f=90', -20),
+    ('voices/f2', f'{EL2}/voice_f2.mp3', 0, None, 'loop', 'highpass=f=90', -20),
     ('voices/f3', f'{EL}/voice_f3.mp3', 0, None, 'loop', 'highpass=f=90', -20),
     ('damage/flat_tyre', f'{EL}/flat_tyre.mp3', 0, None, 'loop', '', -18),
     ('damage/crash', f'{EL}/crash_thud.mp3', 0, None, 'oneshot', '', -1),
@@ -112,6 +120,8 @@ def soft_limit(a, ceiling):
 
 def main():
     for name, src, start, dur, kind, extra, target in RECIPES:
+        if ONLY and name not in ONLY:
+            continue
         a = decode(src, start, dur, extra)
         if kind == 'loop':
             a = make_loop(a)
