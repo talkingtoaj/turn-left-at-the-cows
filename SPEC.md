@@ -10,15 +10,15 @@ Status key: **LOCKED** = decided. **TRIAL** = trying, not decided. **OPEN** = st
 
 A driving game where you never see a "you are here" marker. You find your way using clues, local directions, and a map that is wrong, outdated, or drawn by you. The fun is the moment you work out where you are.
 
-## 2. Tech (TRIAL)
+## 2. Tech (LOCKED)
 
 - **Code only, no editor.** Everything is built by vibe coding. (LOCKED)
 - **Runs in the browser.** Easy to test and share by link. (LOCKED)
-- **Engine: trying both, then picking one.** (TRIAL)
-  - **Option A: three.js** (3D, low chase or close top-down camera)
-  - **Option B: Phaser** (2D top-down)
-- Plan: build the same small test slice in both, compare, keep one.
-- Status: both built. Both are kept going for now and share data and logic (`src/world`, `src/game`, `src/ambient`, `src/audio`). Only drawing and UI are per engine.
+- **Engine: three.js is the main game.** (LOCKED, Nov 2026)
+  - The Phaser 2D version is frozen. It is kept, but gets no new features.
+  - Shared logic stays engine-free (`src/world`, `src/game`, `src/ambient`, `src/audio`), so Phaser still gets shared fixes for free.
+- **No Rapier or real physics.** Car stays arcade. Bumps are visual (car tilts and bobs with the ground, camera shakes a little). Try Rapier on a branch only if this feels flat. (LOCKED)
+- **Speed target:** 60 FPS on a normal laptop with built-in graphics, in Chrome. Phones are not a target. (LOCKED)
 
 ## 3. Camera (LOCKED: close view)
 
@@ -155,12 +155,76 @@ Best ambient things also give clues.
 
 Not in MVP: good car physics, nice art, big worlds, multiplayer, radio, sun shadows.
 
+(Since MVP: sun shadows exist in 3D. Section 9 adds nicer art, damage and hazards.)
+
 ## 8. Open questions
 
-- three.js or Phaser? (decide after test slice)
 - Is there a story or just separate trips/deliveries?
 - Do locals ever lie on purpose, or only get things wrong?
 - Can the player find printed maps, and how old are they?
 - Fuel or time limits to make getting lost matter?
 - Co-op later (one player holds the map, one drives)?
 - Gallery and voting for shared maps: what server, and how to stop cheating (tracing the real map)?
+
+## 9. Next round: sound, look, damage, hazards (decided Nov 2026)
+
+### 9a. Order of work (LOCKED)
+1. **Speed fix** first, so there is room to add more.
+2. **Sound** runs alongside step 1 (it does not touch 3D code).
+3. **Ground fix and world look.**
+4. **Damage and hazards.**
+Each stream gets its own git branch, one commit per step.
+
+### 9b. Speed fix (LOCKED)
+Known causes in 3D (from a code check):
+- Pixel ratio up to 2, plus antialias, plus soft shadows. Too many pixels on sharp screens.
+- Trees and bushes in 500 m tiles, bigger than the view, drawn whole in both the main and shadow pass. Use smaller tiles or cull per tree.
+- Shadow map redrawn every frame.
+- Each local is about 10 separate meshes with their own material (about 100 draw calls for 10 people). Merge them.
+- Dense terrain (4 m cells) drawn out to 450 to 630 m.
+
+### 9c. Sound (LOCKED)
+- **All made-up sounds become real files,** engine included. The engine uses recorded loops at about 3 RPM levels that blend with speed and gear.
+- **Sources:** Freesound (CC0 only) for real-world sounds: cows, dogs, horses, birds, water, bells, gravel, town noise. ElevenLabs for hard-to-find loops: engine RPM loops, gibberish voices, damage sounds.
+- **License rule:** CC0 or sounds we own outright. Nothing that needs credit.
+- **Voices:** Sims-style mumbling. 3 adult voices per gender, 5 to 10 second loops. Each local gets a small fixed pitch shift so no two sound the same. Plays during dialogue, and more quietly as background chatter when you drive slowly past people in town. No old or kid voices for now.
+- **Review:** a local dev page (`sounds.html`) plays every sound with keep and redo buttons.
+- **AI spend cap:** $5 total for this round. Make a few samples first, ask before going over.
+- Keys live in `~/.env`: `ELEVENLABS_API_KEY`, `FREESOUND_API_KEY`.
+
+### 9d. Ground fix (LOCKED)
+- Bug: field surfaces and crop rows are strips that sample ground height every 4 to 6 m, while the ground bends every 4 m. On slopes they float or sink.
+- **Field soil and grass get painted onto the ground itself.** Nothing to float.
+- **Crop rows still stand up out of the ground,** but follow every ground bend and sink a little at the bottom.
+- **Standing things** (buildings, troughs, fences) sit at their lowest ground point with a base that sinks into the slope.
+- **World checker:** a test that samples every placed thing against ground height and lists anything floating or buried more than about 10 cm.
+
+### 9e. World look (LOCKED, test first)
+Middle path between low-poly and realistic, no 3D artist needed:
+1. Better light: a real sky image for lighting (Poly Haven, CC0), proper tone mapping, soft shading where things meet the ground.
+2. Real CC0 textures (ambientCG, Poly Haven) on simple shapes: dirt, gravel, grass, tarmac, bark, brick, wood, roof tin.
+3. AI textures only for gaps (faded signs, painted barn walls, rusty water tower).
+4. Real-looking models (Poly Haven) only if the test says it is needed.
+- Test on the mission 1 farm area first, with before and after screenshots, then decide before rolling out.
+- Models: free CC0 packs (Kenney, Quaternius) for most props and animals; code for things tied to world data (roads, buildings, landmarks); AI models only for a few hero landmarks.
+- Dirt roads get bumpy: flatten the ground under them less than under paved roads. More scattered roadside detail (grass, stones, tyre tracks).
+
+### 9f. Damage (LOCKED)
+- Parts that break, each changes how the car drives:
+  - **Tyres** (potholes, curbs, rocks): flat pulls to one side, lower top speed.
+  - **Engine** (head-on hits): less power, smoke, stalls now and then when bad.
+  - **Steering** (side hits, big potholes): car drifts off straight.
+  - **Compass** (any big jolt): needle wobbles or sticks.
+- Hit direction and speed come from the existing collider.
+- **Shown through** dash warning lights, the car's look (dents, smoke), feel and sound. No health bar or numbers.
+- **Forgiving:** careful drivers never break down. About 3 or 4 hard crashes or lots of fast pothole hits breaks the car. Small low-speed bumps do nothing. Tune by playing.
+- **Breakdown:** the mission fails and restarts. Each mission starts with a fresh car.
+- LATER: repairs (spare tyre, town garages, helpful locals). Tow truck to the nearest garage as an easy mode.
+
+### 9g. Hazards (LOCKED)
+- Livestock crossing near farms, slow tractors or farm trucks on dirt roads, deer on forest roads (rare), random fallen branches and small logs.
+- Each type has its own kind of place. A moving hazard shows up about once every 2 to 4 minutes of driving, picked from what fits where you are.
+- **Potholes** are fixed in the world, always visible if you watch the road, more common on dirt roads. Slower means less damage. LATER: hidden potholes in puddles or at night.
+- **Fallen trees that close a road** are placed only by mission design, never at random, so a mission can always be finished. This is a "the map lies" moment.
+- Hitting things causes damage (9f).
+
