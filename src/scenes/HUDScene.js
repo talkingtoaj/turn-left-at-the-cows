@@ -10,6 +10,7 @@ import { drawSketchInto, SKETCH_PAPER_RECT } from '../map/sketchView.js';
 import { drawTrueMap, missionArea } from '../map/trueMap.js';
 import { openMissionCard } from '../ui/missionCard.js';
 import { openHelp } from '../ui/help.js';
+import { speak } from '../audio/voice.js';
 
 // Transparent overlay on top of Drive. Shows the dash (compass, odometer,
 // clock, speed, trip timer), road signs, mailbox names, the talk prompt and
@@ -546,6 +547,7 @@ export default class HUDScene extends Phaser.Scene {
     this.setMenuVisible(false);
     this.dlgText.setVisible(true);
     this.dlgText.setText(d.pages[d.page]);
+    speak(d.npcId, d.pages[d.page]);
     const h = Math.max(PAGE_H, 42 + this.dlgText.height + 36);
     this.layoutDialogue(h);
     const last = d.page === d.pages.length - 1;
@@ -701,6 +703,7 @@ export default class HUDScene extends Phaser.Scene {
 
   closeDialogue() {
     this.dialogue = null;
+    speak(null);
     this.dlgBox.setVisible(false);
     this.setMenuVisible(false);
     state.inputLocked = false;
