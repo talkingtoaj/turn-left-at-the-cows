@@ -211,7 +211,8 @@ export function buildWorld3D(scene, world, scenery, collider) {
   buildSigns(world, terrain, batch);
   scene.add(batch.build(materials));
   for (const d of dynamic) scene.add(d.object);
-  scene.add(buildTrees(scenery, terrain));
+  const trees = buildTrees(scenery, terrain, SUN_DIR);
+  scene.add(trees.object);
   const locals = buildLocals(world, terrain);
   scene.add(locals.object);
   const t3 = performance.now();
@@ -232,6 +233,7 @@ export function buildWorld3D(scene, world, scenery, collider) {
       for (const d of dynamic) d.update(time);
       locals.update(car, dt, amb);
       sky.position.copy(camera.position);
+      trees.update(camera, focus, shadowRadius);
       // Shadow box around the focus, snapped to texels to stop shimmering.
       sc.left = -shadowRadius;
       sc.right = shadowRadius;
