@@ -172,7 +172,7 @@ export function buildScatter(world, scenery, terrain, sunDir, audit = null) {
     const sink = Math.max(0.03, Math.min(0.2 * hgt, min + 0.75 * hgt - max - 0.02));
     const base = min - sink;
     const m = new THREE.Matrix4().compose(v.set(r.x, base, r.y), q.setFromAxisAngle(up, r.rot), sc.set(r.r, hgt, r.r));
-    const f = (r.outcrop ? 0.98 : 0.82) + 0.3 * r.tint;
+    const f = (r.outcrop ? 0.9 : 0.74) + 0.26 * r.tint;
     const c = new THREE.Color(f * (1 + (r.tint - 0.5) * 0.06), f, f * (1 - (r.tint - 0.5) * 0.08));
     push(r.model, r.x, r.y, r.outcrop ? 99 : r.r, m, c, hgt);
     if (audit) audit.circle(r.id, r.solid ? 'scatter_rock' : 'scatter_stone', r.x, r.y, r.r * 0.6, base, base + 0.75 * hgt);
