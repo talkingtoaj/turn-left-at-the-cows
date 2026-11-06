@@ -27,7 +27,8 @@ const NO_MODS = { vmaxMul: 1, accelMul: 1, pull: 0 };
 //   a flat tyre or bent steering.
 // Returns { moved, hitSpeed, surface, hit }. hit is the hardest knock this
 // step or null: { speed, dir: 'front'|'rear'|'side', side: -1 left | 1 right,
-// kind, x, y } where speed is the part of the car's speed going into what it
+// kind, x, y, f, r } where f / r are the contact direction in car space
+// (forward and right parts of a unit vector, for dents), and speed is the part of the car's speed going into what it
 // hit (a glancing scrape is slow even when the car is fast).
 export function stepCar(car, input, dt, collider, mods = NO_MODS) {
   const surface = collider.surfaceAt(car.x, car.y);
@@ -120,7 +121,7 @@ function hitInfo(collider, car, nx, ny, nh, v) {
   const cosA = fx * c.dx + fy * c.dy;
   const right = Math.cos(nh * DEG) * c.dx + Math.sin(nh * DEG) * c.dy;
   const dir = cosA > 0.6 ? 'front' : cosA < -0.6 ? 'rear' : 'side';
-  return { speed, dir, side: right >= 0 ? 1 : -1, kind: c.kind, x: car.x, y: car.y };
+  return { speed, dir, side: right >= 0 ? 1 : -1, kind: c.kind, x: car.x, y: car.y, f: cosA, r: right };
 }
 
 function tint(color, f) {

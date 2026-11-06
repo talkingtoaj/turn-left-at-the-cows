@@ -68,6 +68,11 @@ export function freshDamage() {
     time: 0,
     lastSurface: null,
     hits: 0, // knocks that did damage (for the dev panel)
+    // Dents for the car's look: [{ f, r, amount }] where (f, r) is the hit
+    // direction in car space (forward, right) and amount the damage it did.
+    dents: [],
+    dentsV: 0, // bumped whenever dents change (so the model only rebuilds then)
+    flatWheel: -1, // WHEELS index of the worst tyre (-1: front tyre on flatSide)
   };
 }
 
@@ -145,6 +150,7 @@ function applyCrash(d, hit) {
     hurt(d, 'engine', a * 0.1);
     d.flatSide = hit.side;
     d.driftSide = hit.side;
+    d.flatWheel = (hit.side < 0 ? 0 : 1) + ((hit.f ?? 0) < -0.2 ? 2 : 0);
   } else {
     hurt(d, 'engine', a * 0.2);
     hurt(d, 'tyres', a * 0.2);
@@ -153,9 +159,35 @@ function applyCrash(d, hit) {
   // Rocks are low and hard: they find the tyres.
   if (hit.kind === 'rock') hurt(d, 'tyres', a * 0.6);
   if (a > T.hardCrash * 0.6) hurt(d, 'compass', a * 0.6);
+  addDent(d, hit, a);
   d.jolt += Math.min(60, a * 160) * (Math.random() < 0.5 ? -1 : 1);
   d.hits++;
   return a;
+}
+
+// Remember where the car was hit, for the dents on the 3D body. Hits close
+// to an old dent deepen it instead of making a new one.
+export function addDent(d, hit, a) {
+  if (a < 0.01 || !d.dents) return;
+  let f = hit.f;
+  let r = hit.r;
+  if (f === undefined) {
+    f = hit.dir === 'front' ? 1 : hit.dir === 'rear' ? -1 : 0;
+    r = hit.dir === 'side' ? hit.side : 0;
+  }
+  const len = Math.hypot(f, r) || 1;
+  f /= len;
+  r /= len;
+  for (const o of d.dents) {
+    if (o.f * f + o.r * r > 0.92) {
+      o.amount += a;
+      d.dentsV++;
+      return;
+    }
+  }
+  d.dents.push({ f, r, amount: a });
+  if (d.dents.length > 8) d.dents.sort((x, y) => y.amount - x.amount).length = 8;
+  d.dentsV++;
 }
 
 // Rolling over a pothole, branch or log at `speed` with wheel index `wheel`.
@@ -169,7 +201,10 @@ function applyBump(d, item, speed, wheel) {
   const side = WHEELS[wheel][0] < 0 ? -1 : 1;
   if (a > 0) {
     hurt(d, 'tyres', a);
-    if (d.tyres < 0.8) d.flatSide = side;
+    if (d.tyres < 0.8) {
+      d.flatSide = side;
+      d.flatWheel = wheel;
+    }
     if (item.big || item.kind === 'log') hurt(d, 'steering', a * 0.5);
     if (a > 0.03) hurt(d, 'compass', a * 0.4);
     d.hits++;

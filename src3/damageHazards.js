@@ -17,7 +17,7 @@ import { WORLD } from '../src/world/world.js';
 import { state } from '../src/state.js';
 import { CAR_CIRCLES, CAR_R } from '../src/drive/collider.js';
 import { potholesFor } from '../src/world/potholes.js';
-import { damageMods, updateDamage, smokeLevel } from '../src/game/damage.js';
+import { damageMods, updateDamage, smokeLevel, addDent } from '../src/game/damage.js';
 import { currentMission } from '../src/game/missions.js';
 import { createHazards, HAZARD_KINDS } from '../src/ambient/hazards.js';
 import { createHazards3D } from './world3d/hazards3d.js';
@@ -146,6 +146,11 @@ export function createDamageHazards({ scene, scenery, collider, amb, world3d, ri
     },
     setDamage(part, v) {
       if (state.damage) state.damage[part] = v;
+    },
+    // Dev: dent the car as if hit from car-space direction (f forward, r right),
+    // e.g. dent(1, 0) front, dent(0, -1) left side, dent(-1, 0.3) rear.
+    dent(f, r, amount = 0.2) {
+      if (state.damage) addDent(state.damage, { f, r }, amount);
     },
 
     render(dt, focus, carObj, camera, fog, renderer) {

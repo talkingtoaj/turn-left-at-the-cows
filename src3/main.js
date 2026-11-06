@@ -190,7 +190,7 @@ function frame(now) {
     updateGame(state, dt);
   }
 
-  car3d.update(car, runtime.paused ? 0 : dt, world3d.surfaceAt, steer);
+  car3d.update(car, runtime.paused ? 0 : dt, world3d.surfaceAt, steer, state.damage || null);
   carPos.copy(car3d.object.position);
   rig.rumble(world3d.terrain.bumps.roughness(car.x, car.y) * Math.min(1, Math.abs(car.speed) / 20) * (runtime.paused ? 0 : 1));
   const e = rig.update(carPos, car.heading, dt, runtime.cameraMode, groundAt, state.view.northUp);
