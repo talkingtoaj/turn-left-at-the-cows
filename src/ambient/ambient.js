@@ -120,6 +120,13 @@ export function createAmbient(world, scenery) {
     if (q) n.blocks.push(q.along);
   }
   for (const n of net) n.baseBlocks = n.blocks.slice();
+  // Fixed fallen trees part way across a road: traffic slows and edges
+  // through the gap the trunk leaves.
+  for (const n of net) n.squeeze = [];
+  for (const f of (scenery && scenery.fallen) || []) {
+    const n = netById.get(f.roadId);
+    if (n) n.squeeze.push({ at: f.at, lat: f.gapLat });
+  }
 
   // Point on a road at distance s (cached segment index in obj.seg).
   function roadPoint(n, s, obj) {
@@ -186,7 +193,15 @@ export function createAmbient(world, scenery) {
     const p = roadPoint(cs.n, cs.s, cs);
     const dx = p.dx * cs.dir;
     const dy = p.dy * cs.dir;
-    const off = cs.n.road.width / 4;
+    let off = cs.n.road.width / 4;
+    // Past a fallen tree: ease over to the gap it leaves (lat is right of
+    // the road's own direction, off right of travel).
+    for (const q of cs.n.squeeze) {
+      const d = Math.abs(cs.s - q.at);
+      if (d > 26) continue;
+      const k = d < 10 ? 1 : 1 - (d - 10) / 16;
+      off += (q.lat * cs.dir - off) * k * k * (3 - 2 * k);
+    }
     // Right of travel (y south): (-dy, dx).
     return { x: p.x - dy * off, y: p.y + dx * off, h: headingOf(dx, dy) };
   }
@@ -272,6 +287,10 @@ export function createAmbient(world, scenery) {
     for (const b of n.blocks) {
       const ahead = (b - cs.s) * cs.dir;
       if (ahead > 0 && ahead < 70) target = Math.min(target, 2.5 + (ahead - 25) * 0.25);
+    }
+    for (const q of n.squeeze) {
+      const ahead = (q.at - cs.s) * cs.dir;
+      if (ahead > -12 && ahead < 60) target = Math.min(target, 2.5 + Math.max(0, ahead - 15) * 0.25);
     }
 
     const acc = target > c.speed ? 2.2 : 5.5;
