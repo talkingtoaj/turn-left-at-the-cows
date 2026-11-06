@@ -277,7 +277,9 @@ export class Terrain {
 
   // Ground meshes, one per chunk so far ones get culled. material is a
   // Material or fn(ci, cj) -> Material (painted chunks get their own).
-  buildMeshes(material, colorFn) {
+  // mudFn(x, y, h, bump) (optional): how muddy the ground gets in the wet,
+  // 0..1, per vertex as `lookMud` (src3/look/shaders.js).
+  buildMeshes(material, colorFn, mudFn = null) {
     const group = new THREE.Group();
     const per = Math.round(CHUNK / CELL);
     const nc = Math.ceil((this.cols - 1) / per);
@@ -295,6 +297,7 @@ export class Terrain {
         const colors = new Float32Array(w * hgt * 3);
         const uvs = new Float32Array(w * hgt * 2);
         const rough = new Float32Array(w * hgt * 2);
+        const mudA = mudFn ? new Float32Array(w * hgt) : null;
         for (let j = 0; j < hgt; j++) {
           for (let i = 0; i < w; i++) {
             const gi = i0 + i;
@@ -309,6 +312,7 @@ export class Terrain {
             uvs[k * 2 + 1] = y / 14;
             rough[k * 2] = this.roughGrid[gj * this.cols + gi] / 255;
             rough[k * 2 + 1] = this.bumpGrid[gj * this.cols + gi];
+            if (mudA) mudA[k] = mudFn(x, y, this.h[gj * this.cols + gi], this.bumpGrid[gj * this.cols + gi]);
             colorFn(x, y, this.h[gj * this.cols + gi], col, this.roughGrid[gj * this.cols + gi] / 255, this.openGrid[gj * this.cols + gi] / 255);
             colors[k * 3] = col.r;
             colors[k * 3 + 1] = col.g;
@@ -333,6 +337,7 @@ export class Terrain {
         // Small roughness and big bump height, for the look shader's surface
         // detail and the shade in hollows (see src3/look/shaders.js).
         g.setAttribute('lookRough', new THREE.BufferAttribute(rough, 2));
+        if (mudA) g.setAttribute('lookMud', new THREE.BufferAttribute(mudA, 1));
         g.setIndex(idx);
         g.computeVertexNormals();
         g.computeBoundingSphere();

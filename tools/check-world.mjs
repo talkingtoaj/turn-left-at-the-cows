@@ -3,7 +3,9 @@
 // Lists anything floating or buried by more than about 10 cm.
 // Also the district scatter (src/world/scatter.js): rocks, shrubs and
 // tussocks must never sit on a road, bridge, yard, track or pad, in a field,
-// forest, creek or lake, or in a town (tools/scatter-checks.mjs).
+// forest, creek or lake, or in a town (tools/scatter-checks.mjs). And the
+// puddles (tools/puddle-checks.mjs): flat on the ground, in real hollows,
+// never on paved roads, bridges or water.
 //
 //   npm run check:world            summary plus the first problems
 //   npm run check:world -- --all   every problem
@@ -19,6 +21,7 @@ import { buildObjects } from '../src3/world3d/world3d.js';
 import { Audit, checkAudit, TOL } from '../src3/world3d/audit.js';
 import { GroundPaint } from '../src3/world3d/paint.js';
 import { scatterPlacementProblems } from './scatter-checks.mjs';
+import { puddleProblems } from './puddle-checks.mjs';
 
 const args = new Set(process.argv.slice(2));
 const t0 = Date.now();
@@ -27,7 +30,7 @@ const terrain = new Terrain(WORLD);
 const batch = new Batcher();
 batch.audit = new Audit();
 batch.paint = new GroundPaint(WORLD);
-buildObjects(WORLD, scenery, terrain, batch, { glowTex: null });
+const built = buildObjects(WORLD, scenery, terrain, batch, { glowTex: null });
 const { problems, counts } = checkAudit(batch.audit, (x, y) => terrain.heightAt(x, y));
 
 // Rough ground (src/world/roughness.js) must fade to nothing at roads,
@@ -60,12 +63,19 @@ const sp = scatterPlacementProblems(WORLD, scenery);
 problems.push(...sp.problems);
 Object.assign(counts, sp.counts);
 
+// Puddles: exactly on the ground, in real hollows, never on paved roads,
+// bridges or water (tools/puddle-checks.mjs).
+const pp = puddleProblems(WORLD, batch.audit, (x, y) => terrain.heightAt(x, y), built.puddles);
+problems.push(...pp.problems);
+Object.assign(counts, pp.counts);
+
 if (args.has('--json')) {
   console.log(JSON.stringify({ counts, problems }, null, 1));
 } else {
   console.log(`World check (tolerance ${TOL * 100} cm), built in ${Date.now() - t0} ms`);
   console.log(`checked: ${Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(', ')}`);
   console.log(`rough ground at road edges and bridges: biggest bump ${(roughWorst.h * 100).toFixed(1)} cm (limit ${ROUGH_TOL * 100} cm)`);
+  console.log(`puddles: ${pp.counts.puddlesOffRoad} in hollows, ${pp.counts.puddlesOnRoad} on dirt roads; full radius median ${pp.sizes.median} m, max ${pp.sizes.max} m; ${pp.sizes.tris} triangles; decals within ${(Math.abs(pp.worstBy.puddle) * 100).toFixed(2)} cm of the ground off-road, ${(Math.abs(pp.worstBy.puddle_road) * 100).toFixed(2)} cm on dirt roads (limits 2 and 3 cm)`);
   const byKind = new Map();
   for (const p of problems) {
     const k = `${p.kind} ${p.type}`;

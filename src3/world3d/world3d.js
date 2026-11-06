@@ -11,6 +11,8 @@ import { buildStructures } from './structures.js';
 import { buildSigns, buildLocals } from './props.js';
 import { buildTrees } from './trees.js';
 import { buildScatter } from './scatter3d.js';
+import { buildPuddles } from './puddles3d.js';
+import { mudFor } from '../../src/world/mud.js';
 import { districtsFor, KIND_LIST, RECIPES } from '../../src/world/districts.js';
 import { scatterEnabled } from '../../src/world/scatter.js';
 import { GroundPaint, paintedMaterials, stripeTint } from './paint.js';
@@ -134,7 +136,8 @@ export function buildObjects(world, scenery, terrain, batch, materials = {}) {
   const trees = buildTrees(scenery, terrain, SUN_DIR, batch.audit);
   const scatter = buildScatter(world, scenery, terrain, SUN_DIR, batch.audit);
   const locals = buildLocals(world, terrain, batch.audit);
-  return { wires, chimneys, dynamic, trees, scatter, locals };
+  const puddles = buildPuddles(world, terrain, batch.audit);
+  return { wires, chimneys, dynamic, trees, scatter, locals, puddles };
 }
 
 export function buildWorld3D(scene, world, scenery, collider) {
@@ -256,12 +259,16 @@ export function buildWorld3D(scene, world, scenery, collider) {
   };
   const batch = new Batcher();
   batch.paint = new GroundPaint(world);
-  const { wires, chimneys, dynamic, trees, scatter, locals } = buildObjects(world, scenery, terrain, batch, materials);
+  const { wires, chimneys, dynamic, trees, scatter, locals, puddles } = buildObjects(world, scenery, terrain, batch, materials);
   const t2 = performance.now();
   // Ground mesh, with fields and yards painted on (after the objects, which paint).
   const terrainMat = new THREE.MeshLambertMaterial({ vertexColors: true, map: grassTexture() });
   const hayTint = stripeTint(0xd2c38a, 0xb9a86c);
-  const ground = terrain.buildMeshes(paintedMaterials(terrainMat, batch.paint, hayTint), colorFn);
+  // Mud in the wet (src/world/mud.js), plus a little in every hollow, for
+  // the look's wet ground (src3/look/shaders.js).
+  const mud = mudFor(world);
+  const mudFn = (x, y, h, bump) => Math.min(1, mud.at(x, y) + 0.35 * smoothstep(-0.05, -0.45, bump));
+  const ground = terrain.buildMeshes(paintedMaterials(terrainMat, batch.paint, hayTint), colorFn, mudFn);
   scene.add(ground);
   if (wires) scene.add(wires);
   const objects = batch.build(materials);
@@ -270,6 +277,7 @@ export function buildWorld3D(scene, world, scenery, collider) {
   scene.add(trees.object);
   scene.add(scatter.object);
   scene.add(locals.object);
+  scene.add(puddles.object);
   const t3 = performance.now();
   console.info(`[3d] terrain ${Math.round(t1 - t0)} ms, objects ${Math.round(t2 - t1)} ms, ground mesh ${Math.round(t3 - t2)} ms, ${batch.paint.chunks.size} painted chunks`);
 
@@ -289,6 +297,7 @@ export function buildWorld3D(scene, world, scenery, collider) {
     objects,
     trees,
     scatter,
+    puddles,
     // Per frame: animated bits and the sun's shadow box following `focus`.
     update(time, dt, car, focus, shadowRadius, camera, amb) {
       for (const d of dynamic) d.update(time);
