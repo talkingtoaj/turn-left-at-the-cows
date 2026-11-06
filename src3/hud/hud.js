@@ -277,7 +277,7 @@ export function createHUD(root, { openMap } = {}) {
   const lights = buildLights(bezel(958, 104, 'WARNING'));
   const devDmg = new URLSearchParams(window.location.search).has('damage') ? el('div', 'hud-dev-dmg', hud) : null;
   el('div', 'hud-hint', inner,
-    'Arrows/WASD drive · Space handbrake · E talk · M map · C camera · N north/heading-up · K mute · H help');
+    'Arrows/WASD drive · Space handbrake · E talk · M map · C camera · B horn · N north/heading-up · K mute · H help');
 
   // ---------------------------------------------------------------- overlays
   const goalLine = el('div', 'hud-goal-line hud-mono', hud);
@@ -627,7 +627,9 @@ export function createHUD(root, { openMap } = {}) {
     if (devDmg && state.damage) {
       const d = state.damage;
       const txt = PARTS.map((k) => `${k.padEnd(9)}${d[k].toFixed(3)}`).join('\n')
-        + `\nhits     ${d.hits}${d.stall > 0 ? '\nSTALLED' : ''}${d.brokenDown ? `\nBROKEN (${d.cause})` : ''}`;
+        + `\nhits     ${d.hits}${d.stall > 0 ? '\nSTALLED' : ''}${d.brokenDown ? `\nBROKEN (${d.cause})` : ''}`
+        + (d.rough ? `\nsurface  ${d.rough.surface}\nsafe     ${Number.isFinite(d.rough.safe) ? `${Math.round(d.rough.safe * 3.6)} km/h` : 'any'}`
+          + `\nknock/s  ${d.rough.chance.toFixed(3)}` : '');
       setText('devDmg', devDmg, txt);
     }
   }

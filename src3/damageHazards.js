@@ -11,17 +11,21 @@
 //
 // Dev URL flags: ?hazard=cows|sheep|tractor|truck|deer|branch|log (spawns one
 // just ahead, again each time you press G), ?blocker=demo (a fallen tree on
-// the road near the start), ?spot=x,y,heading (start there).
+// the road near the start), ?blocker=cand1|cand2|cand3 (a mission 2
+// candidate from src3/blockerCandidates.js, car placed 100 m before it),
+// ?spot=x,y,heading (start there).
+// Keys: B horn.
 
 import { WORLD } from '../src/world/world.js';
 import { state } from '../src/state.js';
 import { CAR_CIRCLES, CAR_R } from '../src/drive/collider.js';
 import { potholesFor } from '../src/world/potholes.js';
-import { damageMods, updateDamage, smokeLevel } from '../src/game/damage.js';
+import { damageMods, updateDamage, smokeLevel, addDent } from '../src/game/damage.js';
 import { currentMission } from '../src/game/missions.js';
 import { createHazards, HAZARD_KINDS } from '../src/ambient/hazards.js';
 import { createHazards3D } from './world3d/hazards3d.js';
 import { DEG } from '../src/drive/geom.js';
+import { CANDIDATES } from './blockerCandidates.js';
 
 const SOLID_R = 45; // hazards and traffic within this range are solid
 const ANIMALS = new Set(['cow', 'sheep', 'deer']);
@@ -57,9 +61,20 @@ export function createDamageHazards({ scene, scenery, collider, amb, world3d, ri
     const m = currentMission(state);
     const defs = [...((m && m.blockers) || [])];
     if (devBlocker === 'demo') defs.push(DEMO_BLOCKER);
+    if (CANDIDATES[devBlocker]) defs.push(CANDIDATES[devBlocker].def);
     const list = hz.setBlockers(defs);
     amb.setRoadBlocks(list.map((b) => ({ roadId: b.roadId, at: b.at })));
   }
+
+  // Horn: B. One honk per press; animals and slow vehicles ahead may react.
+  let hornCool = 0;
+  let honkNow = false;
+  window.addEventListener('keydown', (e) => {
+    if (e.code !== 'KeyB' || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    honkNow = true;
+  });
 
   if (devHazard) {
     window.addEventListener('keydown', (e) => {
@@ -67,11 +82,21 @@ export function createDamageHazards({ scene, scenery, collider, amb, world3d, ri
     });
   }
 
+  // Candidate preview: start on the road short of the blocker.
+  const cand = CANDIDATES[devBlocker];
+  const placeCand = () => {
+    if (!cand) return;
+    dh.placeOnRoad(cand.start.roadId, cand.start.at, cand.start.dir);
+    state.missionStart = { x: state.car.x, y: state.car.y, heading: state.car.heading };
+  };
+
   const dh = {
     hz,
     group: hz3d.group,
     mods() {
-      return damageMods(state.damage, mods);
+      damageMods(state.damage, mods);
+      mods.surfaceFeel = true; // surfaces change grip and drag, not top speed (car.js)
+      return mods;
     },
 
     beforeStep() {
@@ -108,8 +133,15 @@ export function createDamageHazards({ scene, scenery, collider, amb, world3d, ri
       const d = updateDamage(state, dt, result, collider, p);
       for (const e of d.events) {
         if (e.type === 'bump' && e.amount > 0) rig.shake(3 + 10 * e.strength);
+        if (e.type === 'rough') rig.shake(e.heavy ? 5 : 2);
       }
       if (result.hit && ANIMALS.has(result.hit.kind)) hz.startle(state.car.x, state.car.y);
+      hornCool = Math.max(0, hornCool - dt);
+      if (honkNow && hornCool <= 0 && !state.inputLocked) {
+        hornCool = 0.5;
+        dh.honk();
+      }
+      honkNow = false;
       hz.update(dt, state, amb);
       for (const e of hz.events) amb.events.push(e);
       if (pendingSpawn && hz.spawn(pendingSpawn, { car: state.car, ahead: 45, force: true })) pendingSpawn = null;
@@ -141,16 +173,27 @@ export function createDamageHazards({ scene, scenery, collider, amb, world3d, ri
       }
       return false;
     },
+    // Sound the horn (also the B key).
+    honk() {
+      amb.events.push({ type: 'horn', x: state.car.x, y: state.car.y });
+      hz.honk(state.car);
+    },
     spawn(kind, ahead = 45) {
       return hz.spawn(kind, { car: state.car, ahead, force: true });
     },
     setDamage(part, v) {
       if (state.damage) state.damage[part] = v;
     },
+    // Dev: dent the car as if hit from car-space direction (f forward, r right),
+    // e.g. dent(1, 0) front, dent(0, -1) left side, dent(-1, 0.3) rear.
+    dent(f, r, amount = 0.2) {
+      if (state.damage) addDent(state.damage, { f, r }, amount);
+    },
 
     render(dt, focus, carObj, camera, fog, renderer) {
       hz3d.update(hz, dt, focus, state.car, carObj, smokeLevel(state.damage), amb.wind, camera, fog, renderer);
     },
   };
+  placeCand();
   return dh;
 }

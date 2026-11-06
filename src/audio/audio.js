@@ -30,6 +30,8 @@ const IDLE_RPM = 850;
 const BIRDS = ['nature/bird1', 'nature/bird2', 'nature/bird3', 'nature/bird4'];
 const COWS = ['animals/cow1', 'animals/cow2', 'animals/cow3'];
 const DOGS = ['animals/dog1', 'animals/dog2'];
+const CHIPS = ['damage/chip1', 'damage/chip2', 'damage/chip3'];
+const THUMPS = ['damage/thump1', 'damage/thump2'];
 const HORSES = ['animals/horse1', 'animals/horse2'];
 
 // Background chatter: locals within this range talk to each other when you
@@ -517,6 +519,12 @@ export function createAudio(world) {
     for (const e of dmg.events) {
       if (e.type === 'crash' && e.amount > 0.005) {
         oneShot('damage/crash', ctx.currentTime, 0, 0.25 + 0.6 * e.strength, 0.95 + Math.random() * 0.1);
+      } else if (e.type === 'rough') {
+        // Too fast on rough ground: a stone chip on the body, or a heavier
+        // knock underneath for bigger ones, panned around the car.
+        const pan = e.pan ?? 0;
+        if (e.heavy) oneShot(pick(THUMPS), ctx.currentTime, pan * 0.5, 0.35 + 0.3 * e.strength, 0.85 + Math.random() * 0.3, 2500);
+        oneShot(pick(CHIPS), ctx.currentTime + (e.heavy ? 0.03 : 0), pan, 0.18 + 0.2 * e.strength, 0.8 + Math.random() * 0.5);
       } else if (e.type === 'bump' && e.amount > 0.004) {
         oneShot('damage/crash', ctx.currentTime, 0, 0.1 + 0.25 * e.strength, 1.15 + Math.random() * 0.15, 900);
       }
@@ -527,7 +535,9 @@ export function createAudio(world) {
     if (!amb || !amb.events) return;
     for (const e of amb.events) {
       const r = rel(car, e.x, e.y);
-      if (e.type === 'bell') {
+      if (e.type === 'horn') {
+        oneShot('car/horn', ctx.currentTime, 0, 0.5, 0.98 + Math.random() * 0.04);
+      } else if (e.type === 'bell') {
         // Audible across a big part of the map; points you to town.
         const vol = 0.8 / (1 + r.d / 400);
         if (vol < 0.015) continue;

@@ -36,6 +36,21 @@ export const TUNING = {
   // Curb: leaving a paved road onto grass fast.
   curbMin: 14, // m/s (50 km/h)
   curbScale: 0.04,
+  // Too fast on rough ground (3D surface feel): above a surface's safe speed,
+  // stones and ruts chip at the car. Chance of a knock per second:
+  //   chance = rate[surface] * (over / safe + 0.05)^2,  over = speed - safe > 0
+  // (safe x flatSafeMul on a flat tyre: riding a flat over stones shreds it)
+  // Each knock costs `size` (x a random 0.6..1.4), mostly to the tyres.
+  rough: {
+    safe: { paved: Infinity, dirt: 16, grass: 9 }, // m/s (dirt 58, grass 32 km/h)
+    rate: { paved: 0, dirt: 0.95, grass: 0.9 },
+    offset: 0.05,
+    flatSafeMul: 0.6, // on a flat tyre rough ground is safe only at 60% of the speed
+    size: 0.025,
+    split: { tyres: 0.7, steering: 0.2, engine: 0.1 }, // share of knocks per part
+    partMul: { tyres: 1, steering: 0.8, engine: 0.5 }, // size for that part
+    heavy: 1.15, // knocks over size x this are a heavier underbody thump
+  },
   // Effects.
   tyreWorn: 0.75, // below: a soft tyre, pulls a little
   tyreFlat: 0.45, // below: flat, flaps, pulls hard, slower
@@ -68,6 +83,11 @@ export function freshDamage() {
     time: 0,
     lastSurface: null,
     hits: 0, // knocks that did damage (for the dev panel)
+    // Dents for the car's look: [{ f, r, amount }] where (f, r) is the hit
+    // direction in car space (forward, right) and amount the damage it did.
+    dents: [],
+    dentsV: 0, // bumped whenever dents change (so the model only rebuilds then)
+    flatWheel: -1, // WHEELS index of the worst tyre (-1: front tyre on flatSide)
   };
 }
 
@@ -145,6 +165,7 @@ function applyCrash(d, hit) {
     hurt(d, 'engine', a * 0.1);
     d.flatSide = hit.side;
     d.driftSide = hit.side;
+    d.flatWheel = (hit.side < 0 ? 0 : 1) + ((hit.f ?? 0) < -0.2 ? 2 : 0);
   } else {
     hurt(d, 'engine', a * 0.2);
     hurt(d, 'tyres', a * 0.2);
@@ -153,9 +174,35 @@ function applyCrash(d, hit) {
   // Rocks are low and hard: they find the tyres.
   if (hit.kind === 'rock') hurt(d, 'tyres', a * 0.6);
   if (a > T.hardCrash * 0.6) hurt(d, 'compass', a * 0.6);
+  addDent(d, hit, a);
   d.jolt += Math.min(60, a * 160) * (Math.random() < 0.5 ? -1 : 1);
   d.hits++;
   return a;
+}
+
+// Remember where the car was hit, for the dents on the 3D body. Hits close
+// to an old dent deepen it instead of making a new one.
+export function addDent(d, hit, a) {
+  if (a < 0.01 || !d.dents) return;
+  let f = hit.f;
+  let r = hit.r;
+  if (f === undefined) {
+    f = hit.dir === 'front' ? 1 : hit.dir === 'rear' ? -1 : 0;
+    r = hit.dir === 'side' ? hit.side : 0;
+  }
+  const len = Math.hypot(f, r) || 1;
+  f /= len;
+  r /= len;
+  for (const o of d.dents) {
+    if (o.f * f + o.r * r > 0.92) {
+      o.amount += a;
+      d.dentsV++;
+      return;
+    }
+  }
+  d.dents.push({ f, r, amount: a });
+  if (d.dents.length > 8) d.dents.sort((x, y) => y.amount - x.amount).length = 8;
+  d.dentsV++;
 }
 
 // Rolling over a pothole, branch or log at `speed` with wheel index `wheel`.
@@ -169,7 +216,10 @@ function applyBump(d, item, speed, wheel) {
   const side = WHEELS[wheel][0] < 0 ? -1 : 1;
   if (a > 0) {
     hurt(d, 'tyres', a);
-    if (d.tyres < 0.8) d.flatSide = side;
+    if (d.tyres < 0.8) {
+      d.flatSide = side;
+      d.flatWheel = wheel;
+    }
     if (item.big || item.kind === 'log') hurt(d, 'steering', a * 0.5);
     if (a > 0.03) hurt(d, 'compass', a * 0.4);
     d.hits++;
@@ -179,6 +229,42 @@ function applyBump(d, item, speed, wheel) {
 }
 
 const _seen = new Set();
+
+// Chance per second of a rough-ground knock at `speed` on `surface`.
+export function roughChance(surface, speed, d = null) {
+  const R = TUNING.rough;
+  const safe = (R.safe[surface] ?? Infinity) * (d && d.tyres < TUNING.tyreFlat ? R.flatSafeMul : 1);
+  const over = speed - safe;
+  if (!(over > 0)) return 0;
+  return (R.rate[surface] || 0) * (over / safe + R.offset) ** 2;
+}
+
+function rough(d, surface, speed, dt) {
+  const R = TUNING.rough;
+  const chance = roughChance(surface, speed, d);
+  const safe = (R.safe[surface] ?? Infinity) * (d.tyres < TUNING.tyreFlat ? R.flatSafeMul : 1);
+  d.rough = { surface: surface || '?', safe, chance };
+  if (chance <= 0 || Math.random() >= 1 - Math.exp(-chance * dt)) return;
+  let k = Math.random();
+  let part = 'tyres';
+  for (const [p, share] of Object.entries(R.split)) {
+    if ((k -= share) <= 0) {
+      part = p;
+      break;
+    }
+  }
+  const m = 0.6 + Math.random() * 0.8;
+  const a = R.size * m * R.partMul[part];
+  const before = d.tyres;
+  hurt(d, part, a);
+  if (part === 'tyres' && before >= 0.8 && d.tyres < 0.8) d.flatWheel = Math.floor(Math.random() * 4);
+  d.jolt += (2 + 6 * m) * (Math.random() < 0.5 ? -1 : 1);
+  d.hits++;
+  d.events.push({
+    type: 'rough', part, amount: a, heavy: m > R.heavy, strength: Math.min(1, speed / 25),
+    pan: Math.random() * 1.6 - 0.8,
+  });
+}
 
 // Call after stepCar each frame (not while paused). prev = { x, y, heading }
 // where the car was before the step.
@@ -237,6 +323,9 @@ export function updateDamage(state, dt, result, collider, prev) {
         }
       }
     }
+
+    // Too fast on rough ground (only with the 3D surface feel, result.feel).
+    if (result && result.feel) rough(d, result && result.surface, speed, dt);
 
     // Curb: off a paved road onto grass, fast.
     const surface = result && result.surface;

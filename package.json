@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "check:world": "node tools/check-world.mjs"
+    "check:world": "node tools/check-world.mjs",
+    "tune:rough": "node tools/rough-drive.mjs",
+    "check:blockers": "node --max-old-space-size=4096 tools/check-blockers.mjs"
   },
   "dependencies": {
     "phaser": "^3.90.0",

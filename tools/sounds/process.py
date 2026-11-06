@@ -68,6 +68,14 @@ RECIPES = [
     ('voices/f3', f'{EL}/voice_f3.mp3', 0, None, 'loop', 'highpass=f=90', -20),
     ('damage/flat_tyre', f'{EL}/flat_tyre.mp3', 0, None, 'loop', '', -18),
     ('damage/crash', f'{EL}/crash_thud.mp3', 0, None, 'oneshot', '', -1),
+    # Rough ground: stone chips on the body and heavier underbody thumps.
+    ('damage/chip1', f'{FS}/868788.ogg', 0, 0.34, 'oneshot', 'highpass=f=300', -1),
+    ('damage/chip2', f'{FS}/140714.ogg', 0, None, 'oneshot', 'highpass=f=300', -1),
+    ('damage/chip3', f'{FS}/140718.ogg', 0, None, 'oneshot', 'highpass=f=300', -1),
+    ('damage/thump1', f'{FS}/385938.ogg', 0.1, 0.6, 'oneshot', 'lowpass=f=5000', -1),
+    ('damage/thump2', f'{FS}/164220.ogg', 0.15, 0.6, 'oneshot', 'lowpass=f=4000', -1),
+    # Horn: one honk of a Mercury Marquis (the first of its honks).
+    ('car/horn', f'{FS}/558842.ogg', 0.36, 0.72, 'oneshot', 'highpass=f=150', -3),
 ]
 
 

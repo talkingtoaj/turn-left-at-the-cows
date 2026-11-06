@@ -238,6 +238,32 @@ function fallenTreeGeo(b, rng) {
   return mergeGeometries(parts.map((g) => (g.index ? g.toNonIndexed() : g)));
 }
 
+// Windthrow brush along a blocker's line (b.extra circles): heaps of
+// broken limbs and dead leaves, built in world space on the ground.
+function brushGeo(extra, groundAt, rng) {
+  const LEAF = [0x5f6b3a, 0x6e6a3c, 0x4f6235, 0x7a6a44];
+  const parts = [];
+  for (const e of extra) {
+    const y0 = groundAt(e.x, e.y);
+    const n = 2 + Math.floor(rng() * 2);
+    for (let k = 0; k < n; k++) {
+      const r = e.r * (0.55 + rng() * 0.35);
+      const ox = (rng() - 0.5) * e.r;
+      const oz = (rng() - 0.5) * e.r;
+      const g = new THREE.IcosahedronGeometry(r, 0).scale(1, (e.h || 1) / r * 0.7, 1).rotateY(rng() * 6).translate(e.x + ox, y0 + (e.h || 1) * 0.35, e.y + oz);
+      parts.push(colored(g, LEAF[Math.floor(rng() * LEAF.length)]));
+    }
+    for (let k = 0; k < 3; k++) {
+      const len = e.r * (1.2 + rng());
+      const g = new THREE.CylinderGeometry(0.05, 0.11, len, 4)
+        .rotateZ(Math.PI / 2 - 0.3 + rng() * 0.6).rotateY(rng() * 6)
+        .translate(e.x + (rng() - 0.5) * e.r, y0 + 0.25 + rng() * (e.h || 1) * 0.6, e.y + (rng() - 0.5) * e.r);
+      parts.push(colored(g, 0x5a4532));
+    }
+  }
+  return mergeGeometries(parts.map((g) => (g.index ? g.toNonIndexed() : g)));
+}
+
 // ---------- main ----------
 
 export function createHazards3D(scene, opts) {
@@ -303,6 +329,12 @@ export function createHazards3D(scene, opts) {
       mesh.rotation.y = -(b.angle - 90) * DEG;
       mesh.rotation.z = Math.atan2(h1 - h0, b.len);
       blockerGroup.add(mesh);
+      if (b.extra && b.extra.length) {
+        const brush = new THREE.Mesh(brushGeo(b.extra, surfaceAt, rng), vc);
+        brush.castShadow = true;
+        brush.receiveShadow = true;
+        blockerGroup.add(brush);
+      }
     }
   }
 

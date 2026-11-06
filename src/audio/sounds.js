@@ -105,6 +105,17 @@ export const SOUND_GROUPS = [
     items: [
       { id: 'damage/flat_tyre', kind: 'loop', label: 'Flat tyre flapping' },
       { id: 'damage/crash', kind: 'oneshot', label: 'Crash thud' },
+      { id: 'damage/chip1', kind: 'oneshot', label: 'Stone chip 1 (too fast on rough ground)' },
+      { id: 'damage/chip2', kind: 'oneshot', label: 'Stone chip 2 (ping)' },
+      { id: 'damage/chip3', kind: 'oneshot', label: 'Stone chip 3 (tick)' },
+      { id: 'damage/thump1', kind: 'oneshot', label: 'Underbody thump 1 (bigger knock)' },
+      { id: 'damage/thump2', kind: 'oneshot', label: 'Underbody thump 2' },
+    ],
+  },
+  {
+    group: 'Car',
+    items: [
+      { id: 'car/horn', kind: 'oneshot', label: 'Horn (B key), one friendly honk' },
     ],
   },
 ];
