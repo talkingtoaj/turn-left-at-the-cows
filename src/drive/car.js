@@ -18,19 +18,30 @@ function approach(v, target, amount) {
   return Math.max(target, v - amount);
 }
 
-// input: { up, down, left, right, brake }. Returns { moved, hitSpeed }.
-export function stepCar(car, input, dt, collider) {
+const NO_MODS = { vmaxMul: 1, accelMul: 1, pull: 0 };
+
+// input: { up, down, left, right, brake }.
+// mods (optional, from src/game/damage.js): { vmaxMul, accelMul, pull }.
+//   vmaxMul scales top speed, accelMul scales engine power (0 = stalled,
+//   the car coasts), pull is a steady turn in deg/s at speed (+ = right) from
+//   a flat tyre or bent steering.
+// Returns { moved, hitSpeed, surface, hit }. hit is the hardest knock this
+// step or null: { speed, dir: 'front'|'rear'|'side', side: -1 left | 1 right,
+// kind, x, y } where speed is the part of the car's speed going into what it
+// hit (a glancing scrape is slow even when the car is fast).
+export function stepCar(car, input, dt, collider, mods = NO_MODS) {
   const surface = collider.surfaceAt(car.x, car.y);
-  const vmax = MAX_SPEED[surface];
+  const vmax = MAX_SPEED[surface] * (mods.vmaxMul ?? 1);
+  const power = mods.accelMul ?? 1;
   let v = car.speed;
 
   // Throttle / brake / reverse.
   if (input.brake) {
     v = approach(v, 0, BRAKE * 1.2 * dt);
-  } else if (input.up && !input.down) {
-    v = v < -0.1 ? v + BRAKE * dt : v + ACCEL * (1 - Math.max(0, v) / (vmax * 1.6)) * dt;
-  } else if (input.down && !input.up) {
-    v = v > 0.1 ? v - BRAKE * dt : v - REVERSE_ACCEL * dt;
+  } else if (input.up && !input.down && power > 0) {
+    v = v < -0.1 ? v + BRAKE * dt : v + ACCEL * power * (1 - Math.max(0, v) / (vmax * 1.6)) * dt;
+  } else if (input.down && !input.up && (power > 0 || v > 0.1)) {
+    v = v > 0.1 ? v - BRAKE * dt : v - REVERSE_ACCEL * power * dt;
   } else {
     const drag = COAST + (surface === 'grass' ? 2 : 0) + Math.abs(v) * 0.03;
     v = approach(v, 0, drag * dt);
@@ -44,7 +55,9 @@ export function stepCar(car, input, dt, collider) {
   // Steering scales up with speed, eases off a bit at the top end.
   const steer = (input.right ? 1 : 0) - (input.left ? 1 : 0);
   const speedFactor = Math.min(1, Math.abs(v) / 5) * (1 - 0.35 * Math.min(1, Math.abs(v) / 25));
-  const dHeading = steer * TURN_RATE * speedFactor * Math.sign(v) * dt;
+  // Damage pull: grows with speed, none when nearly stopped.
+  const pull = (mods.pull || 0) * Math.min(1, Math.abs(v) / 8) * Math.sign(v);
+  const dHeading = (steer * TURN_RATE * speedFactor * Math.sign(v) + pull) * dt;
 
   // Move in small sub-steps, checking collisions each time.
   const steps = Math.max(1, Math.ceil((Math.abs(v) * dt) / MAX_STEP));
@@ -52,6 +65,7 @@ export function stepCar(car, input, dt, collider) {
   const startX = car.x;
   const startY = car.y;
   let hitSpeed = 0;
+  let hit = null;
   // If we somehow start inside something, let the car drive out freely.
   const stuck = collider.carBlocked(car.x, car.y, car.heading);
 
@@ -66,6 +80,7 @@ export function stepCar(car, input, dt, collider) {
       continue;
     }
     // Blocked: try sliding along one axis, losing speed.
+    if (Math.abs(v) > hitSpeed) hit = hitInfo(collider, car, nx, ny, nh, v) || hit;
     hitSpeed = Math.max(hitSpeed, Math.abs(v));
     // Only slide along an axis that carries a fair share of the motion,
     // otherwise a head-on hit would "slide" in place at full speed.
@@ -90,7 +105,22 @@ export function stepCar(car, input, dt, collider) {
 
   car.heading = ((car.heading % 360) + 360) % 360;
   car.speed = v;
-  return { moved: Math.hypot(car.x - startX, car.y - startY), hitSpeed, surface };
+  return { moved: Math.hypot(car.x - startX, car.y - startY), hitSpeed, surface, hit };
+}
+
+// Which side of the car hit something, and how hard (see stepCar).
+function hitInfo(collider, car, nx, ny, nh, v) {
+  if (!collider.contact) return null;
+  const c = collider.contact(nx, ny, nh);
+  if (!c) return null;
+  const fx = Math.sin(nh * DEG);
+  const fy = -Math.cos(nh * DEG);
+  // Velocity into the obstacle.
+  const speed = Math.max(0, (fx * c.dx + fy * c.dy) * v);
+  const cosA = fx * c.dx + fy * c.dy;
+  const right = Math.cos(nh * DEG) * c.dx + Math.sin(nh * DEG) * c.dy;
+  const dir = cosA > 0.6 ? 'front' : cosA < -0.6 ? 'rear' : 'side';
+  return { speed, dir, side: right >= 0 ? 1 : -1, kind: c.kind, x: car.x, y: car.y };
 }
 
 function tint(color, f) {

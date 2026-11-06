@@ -22,6 +22,7 @@ import { campfireOf } from './world3d/landmarks3d.js';
 import { SUN_DIR } from './world3d/world3d.js';
 import { createStats } from './stats.js';
 import { createResScale } from './resscale.js';
+import { createDamageHazards } from './damageHazards.js';
 
 const TALK_RANGE = 25;
 const READ_RANGE = 25;
@@ -74,6 +75,8 @@ const amb3d = createAmbient3D(scene, {
   campfire: campfireOf(WORLD, world3d.terrain), chimneyFix,
 });
 addCloudShadowsTo(scene);
+// Damage, potholes and road hazards (also the ?hazard, ?blocker, ?spot dev flags).
+const dh = createDamageHazards({ scene, scenery, collider, amb, world3d, rig, sunDir: SUN_DIR, params });
 
 // ---------- UI wiring (see CONTRACT3.md) ----------
 
@@ -110,7 +113,7 @@ window.addEventListener('keyup', (e) => keys.delete(e.code));
 window.addEventListener('blur', () => keys.clear());
 
 function readInput() {
-  if (state.inputLocked || state.won) return { brake: true };
+  if (state.inputLocked || state.won || (state.damage && state.damage.brokenDown)) return { brake: true };
   return {
     up: keys.has('KeyW') || keys.has('ArrowUp'),
     down: keys.has('KeyS') || keys.has('ArrowDown'),
@@ -157,7 +160,8 @@ function frame(now) {
     keys.clear(); // keys released while the map is open would otherwise stick
   } else {
     const input = readInput();
-    const result = stepCar(car, input, dt, collider);
+    const prev = dh.beforeStep();
+    const result = stepCar(car, input, dt, collider, dh.mods());
     state.odometer += result.moved;
     if (result.hitSpeed > 6) rig.shake(result.hitSpeed);
     steer += (((input.right ? 1 : 0) - (input.left ? 1 : 0)) - steer) * Math.min(1, dt * 10);
@@ -168,6 +172,7 @@ function frame(now) {
 
     // Ambient life moves after the car (dust, birds scatter, traffic stops).
     amb.update(dt, state);
+    dh.afterStep(dt, result, prev);
     // Locals wander a few metres; talk range follows where they are now.
     state.nearLocalId = nearestId(WORLD.locals, car, TALK_RANGE, personPos);
     state.nearSignId = nearestId(WORLD.signs, car, READ_RANGE);
@@ -191,7 +196,8 @@ function frame(now) {
     camera.updateProjectionMatrix();
   }
   world3d.update(now / 1000, dt, car, rig.focus, rig.shadowRadius, camera, amb);
-  amb3d.update(amb, runtime.paused ? 0 : dt, camera, rig.focus, scene.fog, e, renderer);
+  amb3d.update(amb, runtime.paused ? 0 : dt, camera, rig.focus, scene.fog, e, renderer, dh.hz.animals);
+  dh.render(runtime.paused ? 0 : dt, rig.focus, car3d.object, camera, scene.fog, renderer);
 
   // The world is frozen behind the map overlay: keep the last shadow map.
   renderer.shadowMap.autoUpdate = !runtime.paused;
@@ -214,6 +220,7 @@ window.__state = state;
 window.__runtime = runtime;
 window.__three = { renderer, scene, camera, fps, THREE, world3d, stats, res };
 window.__amb = amb;
+window.__dh = dh;
 window.__audio = audio;
 window.__cloudUniforms = cloudUniforms;
 

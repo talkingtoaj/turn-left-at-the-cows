@@ -4,6 +4,7 @@
 import { MISSIONS, currentMission, nextMission } from './missions.js';
 import { takeSnapshot, copySketch } from './snapshots.js';
 import { getNpc } from './dialogue.js';
+import { resetDamage } from './damage.js';
 
 // Waypoint snapshots and goal arrival. Sets state.won on arrival.
 export function updateGame(state, _dt) {
@@ -31,6 +32,9 @@ export function startMission(state, index) {
   if (!m) return null;
   state.missionIndex = index;
   state.won = false;
+  // Each mission starts with a fresh car, here (a breakdown brings you back).
+  state.missionStart = { x: state.car.x, y: state.car.y, heading: state.car.heading };
+  resetDamage(state);
   for (const t of m.startTopics) state.knownTopics.add(t);
   const giver = m.giverNpcId ? getNpc(m.giverNpcId) : null;
   for (const text of m.brief) {
@@ -67,4 +71,25 @@ export function finishMission(state) {
   state.talkedTo.clear();
   state.inputLocked = false;
   return startMission(state, state.missionIndex + 1);
+}
+
+// After a breakdown: the car is towed back to where this mission started,
+// fresh, and the trip meter and timer start again. What you have heard and
+// drawn stays (you remember it). Bumps state.restarts so renderers can clear
+// things that belong to the old run (hazards).
+export function restartMission(state) {
+  const m = currentMission(state);
+  if (!m) return null;
+  const s = state.missionStart || { x: state.car.x, y: state.car.y, heading: state.car.heading };
+  state.car.x = s.x;
+  state.car.y = s.y;
+  state.car.heading = s.heading;
+  state.car.speed = 0;
+  state.odometer = 0;
+  state.elapsedMs = 0;
+  state.won = false;
+  state.inputLocked = false;
+  state.restarts = (state.restarts || 0) + 1;
+  resetDamage(state);
+  return m;
 }

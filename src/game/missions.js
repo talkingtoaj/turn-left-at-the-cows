@@ -12,6 +12,13 @@
 //   arrivalLabel: snapshot label taken when the car reaches the goal
 //   finalLabel: snapshot label taken when the player closes the win screen
 //   printedMaps: ids into WORLD.printedMaps the player has during this mission
+//   blockers (optional): fallen trees right across a road, solid, placed only
+//     here so a mission stays solvable (never at random). Each is
+//     { id?, roadId, at } with `at` in metres along the road's points, or
+//     { id?, near: [x, y] } for the nearest road point. Optional `tilt`
+//     (degrees off square to the road) and `canopySide` (1 | -1).
+//     Example: blockers: [{ id: 'oak_down', roadId: 'creek_rd', at: 850 }]
+//     (three.html?blocker=demo shows one near the start).
 
 import { WORLD } from '../world/world.js';
 
