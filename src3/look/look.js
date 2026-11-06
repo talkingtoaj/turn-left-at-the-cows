@@ -18,7 +18,7 @@
 import * as THREE from 'three';
 import { TEXTURES, LAYERS, SURF, surfaceOf } from './surfaces.js';
 import { buildAOMap } from './aomap.js';
-import { patchObjects, patchTerrain, patchTrunks, skyMaterial } from './shaders.js';
+import { patchObjects, patchTerrain, patchTrunks, patchRocks, skyMaterial } from './shaders.js';
 import { createWeatherClock, keyLooks, lookAt, emptyLook } from './weather.js';
 import { cloudCover, cloudUniforms } from '../world3d/clouds.js';
 
@@ -241,6 +241,7 @@ export async function createLook(renderer, params) {
             if (o.isInstancedMesh && o.material.color && o.material.color.getHex() === 0x5a4030) trunks.add(o.material);
           });
           for (const m of trunks) patchTrunks(m, shared);
+          if (world3d.scatter.materials) patchRocks(world3d.scatter.materials.rock, shared);
         }
       }
       console.info(`[look] applied in ${Math.round(performance.now() - t1)} ms`);

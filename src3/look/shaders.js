@@ -247,6 +247,44 @@ diffuseColor.rgb *= mix(0.6, 1.0, smoothstep(0.0, 1.2, vLookP.y - vLookC.y));
   }));
 }
 
+// Scatter rocks and outcrops (instanced, src3/world3d/scatter3d.js): the
+// stone texture mapped flat along each face, pale lichen on the faces that
+// look up, darker toward the foot.
+export function patchRocks(mat, shared) {
+  const S = shared.surf;
+  chain(mat, 'look-rocks', (sh) => patch(sh, shared, {
+    defs: defines(shared),
+    vertHead: 'varying vec3 vLookC;',
+    vertBody: /* glsl */`
+{
+  vec4 lc = vec4(0.0, 0.0, 0.0, 1.0);
+  #ifdef USE_INSTANCING
+    lc = instanceMatrix * lc;
+  #endif
+  vLookC = (modelMatrix * lc).xyz;
+}`,
+    frag: /* glsl */`
+vec3 lookNW = normalize(vLookN);
+bool lookHasN = false;
+#ifdef LOOK_TEX
+{
+  vec3 n0 = lookNW;
+  vec3 det = lookDetail(${S.rock}, vLookP, n0, false, lookNW);
+  diffuseColor.rgb *= det;
+  lookHasN = true;
+  // Lichen: a coarse sample of the same texture as a mask, on upward faces.
+  vec4 L = lookLayer[${S.rock}];
+  float m = texture(lookAlb, vec3(vLookP.xz / 5.3 + vLookP.y * 0.11, L.x)).g * 2.0;
+  float lk = smoothstep(1.02, 1.25, m) * smoothstep(0.2, 0.75, n0.y);
+  diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.18, 1.2, 0.92) + vec3(0.012, 0.014, 0.0), lk * 0.75);
+}
+#endif
+diffuseColor.rgb *= mix(0.62, 1.0, smoothstep(0.0, 0.9, vLookP.y - vLookC.y));
+`,
+    fragHead: 'varying vec3 vLookC;\n',
+  }));
+}
+
 // Sky dome: the baked sky image, fading into the fog colour at the horizon.
 // Sky dome: the clear and the cloudy photo, mixed by the weather (skyMix),
 // greyed and flattened for overcast (grey), faded into the fog at the

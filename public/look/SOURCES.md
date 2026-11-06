@@ -96,6 +96,7 @@ flat along each face like the rest. Fetched by `tools/look/fetch.mjs <cache> ph`
 | rustpaint | Pruitt's truck (faded green paint, rust streaks), the buffer stop | Poly Haven, Green Metal Rust: https://polyhaven.com/a/green_metal_rust | CC0 |
 | rustytin | Voss roof and porch, shed roof, halt shelter roof, elevator roofs | Poly Haven, Rusty Corrugated Iron: https://polyhaven.com/a/rusty_corrugated_iron | CC0 |
 | galvtin | grain elevator cladding and head house | Poly Haven, Worn Corrugated Iron: https://polyhaven.com/a/worn_corrugated_iron | CC0 |
+| rock | (round 8) the district scatter rocks and the named outcrops, mapped flat along each face, lichen picked out on upward faces (`patchRocks` in `src3/look/shaders.js`). Fetched with `tools/look/fetch.mjs <cache> ph rock` | Poly Haven, Lichen Rock: https://polyhaven.com/a/lichen_rock | CC0 |
 
 Painted signs (`signs/<name>.webp`, 1024 px wide, cropped to the lettered band):
 

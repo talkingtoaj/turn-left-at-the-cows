@@ -92,6 +92,11 @@ function fallbackGeo() {
   };
 }
 
+const hash01 = (v) => {
+  const x = Math.sin(v * 12.9898 + 78.233) * 43758.5453;
+  return x - Math.floor(x);
+};
+
 // A grass tussock: thin tapered blades leaning out from a tight base. Unit
 // radius, height 1, vertex coloured (darker at the root).
 function tuftGeo() {
@@ -139,6 +144,9 @@ export function buildScatter(world, scenery, terrain, sunDir, audit = null) {
   if (!S.rocks.length && !S.shrubs.length && !S.grass.length) return { object: group, update() {}, counts: {} };
   const D = districtsFor(world);
   const geo = { ...(MODELS || fallbackGeo()), tuft: tuftGeo() };
+  // Rocks and shrubs have their own materials so the look (src3/look) can
+  // give rocks a stone texture and both a wet look in the rain.
+  const rockMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
   const solidMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
   const tuftMat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
 
@@ -172,8 +180,13 @@ export function buildScatter(world, scenery, terrain, sunDir, audit = null) {
     const sink = Math.max(0.03, Math.min(0.2 * hgt, min + 0.75 * hgt - max - 0.02));
     const base = min - sink;
     const m = new THREE.Matrix4().compose(v.set(r.x, base, r.y), q.setFromAxisAngle(up, r.rot), sc.set(r.r, hgt, r.r));
-    const f = (r.outcrop ? 0.9 : 0.74) + 0.26 * r.tint;
-    const c = new THREE.Color(f * (1 + (r.tint - 0.5) * 0.06), f, f * (1 - (r.tint - 0.5) * 0.08));
+    // Weathered grey (round 8: they read nearly white in bright sun), each
+    // rock a little different: some warmer and tan, some greener with lichen.
+    const hv = hash01(r.x * 7.13 + r.y * 3.71);
+    const f = (r.outcrop ? 0.34 : 0.32) + 0.13 * r.tint;
+    const tan = hv < 0.3 ? (0.3 - hv) / 0.3 : 0;
+    const lichen = hv > 0.72 ? (hv - 0.72) / 0.28 : 0;
+    const c = new THREE.Color(f * (1 + 0.1 * tan - 0.04 * lichen), f * (1 + 0.03 * tan + 0.04 * lichen), f * (1 - 0.1 * tan - 0.06 * lichen));
     push(r.model, r.x, r.y, r.outcrop ? 99 : r.r, m, c, hgt);
     if (audit) audit.circle(r.id, r.solid ? 'scatter_rock' : 'scatter_stone', r.x, r.y, r.r * 0.6, base, base + 0.75 * hgt);
   }
@@ -220,7 +233,7 @@ export function buildScatter(world, scenery, terrain, sunDir, audit = null) {
     const isRock = part === 'boulder' || part === 'slab';
     const kind = isRock ? 'rock' : part === 'tuft' ? 'tuft' : 'shrub';
     const mk = (cast) => {
-      const mesh = new THREE.InstancedMesh(geo[part], part === 'tuft' ? tuftMat : solidMat, n);
+      const mesh = new THREE.InstancedMesh(geo[part], part === 'tuft' ? tuftMat : isRock ? rockMat : solidMat, n);
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3).setUsage(THREE.DynamicDrawUsage);
       mesh.count = 0;
@@ -331,6 +344,7 @@ export function buildScatter(world, scenery, terrain, sunDir, audit = null) {
   return {
     object: group,
     counts,
+    materials: { rock: rockMat, shrub: solidMat, tuft: tuftMat },
     update(camera, focus, shadowRadius) {
       camera.getWorldDirection(camDir);
       const key = `${camera.far},${camera.fov},${camera.aspect},${shadowRadius}`;
