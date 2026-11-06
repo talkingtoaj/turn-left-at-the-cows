@@ -120,6 +120,7 @@ export function checkAudit(audit, heightAt, tol = TOL) {
       // Water sheets: their edges must run into the bank, never hang over lower ground.
       for (let i = 0; i + 2 < p.length; i += 3) {
         const d = p[i + 1] - heightAt(p[i], p[i + 2]);
+        if (s.ok && s.ok(p[i], p[i + 2])) continue;
         if (d > worst) {
           worst = d;
           wx = p[i];

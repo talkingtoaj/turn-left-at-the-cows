@@ -240,7 +240,45 @@ export class Terrain {
     return h00 + (h11 - h01) * fx + (h01 - h00) * fy;
   }
 
-  // Ground meshes, one per chunk so far ones get culled.
+  // Lowest and highest ground under a footprint: { rect: { x, y, w, h, angle } }
+  // or { circle: { x, y, r } }. Samples corners, edges and a grid finer than
+  // the terrain cells, so on the piecewise-flat ground it is exact to a few cm.
+  groundRange(foot) {
+    let min = Infinity;
+    let max = -Infinity;
+    const at = (x, y) => {
+      const h = this.heightAt(x, y);
+      if (h < min) min = h;
+      if (h > max) max = h;
+    };
+    if (foot.circle) {
+      const { x, y, r } = foot.circle;
+      at(x, y);
+      const rings = Math.max(1, Math.ceil(r / 1));
+      for (let k = 1; k <= rings; k++) {
+        const rr = (r * k) / rings;
+        const n = Math.max(8, Math.ceil((2 * Math.PI * rr) / 1));
+        for (let i = 0; i < n; i++) at(x + Math.cos((i / n) * 2 * Math.PI) * rr, y + Math.sin((i / n) * 2 * Math.PI) * rr);
+      }
+    } else {
+      const { x, y, w, h, angle = 0 } = foot.rect;
+      const c = Math.cos((angle * Math.PI) / 180);
+      const s = Math.sin((angle * Math.PI) / 180);
+      const nx = Math.max(1, Math.ceil(w / 1));
+      const ny = Math.max(1, Math.ceil(h / 1));
+      for (let i = 0; i <= nx; i++) {
+        for (let j = 0; j <= ny; j++) {
+          const lx = -w / 2 + (w * i) / nx;
+          const ly = -h / 2 + (h * j) / ny;
+          at(x + lx * c - ly * s, y + lx * s + ly * c);
+        }
+      }
+    }
+    return { min, max };
+  }
+
+  // Ground meshes, one per chunk so far ones get culled. material is a
+  // Material or fn(ci, cj) -> Material (painted chunks get their own).
   buildMeshes(material, colorFn) {
     const group = new THREE.Group();
     const per = Math.round(CHUNK / CELL);
@@ -294,7 +332,7 @@ export class Terrain {
         g.setIndex(idx);
         g.computeVertexNormals();
         g.computeBoundingSphere();
-        const m = new THREE.Mesh(g, material);
+        const m = new THREE.Mesh(g, typeof material === 'function' ? material(ci, cj) : material);
         m.receiveShadow = true;
         m.matrixAutoUpdate = false;
         group.add(m);

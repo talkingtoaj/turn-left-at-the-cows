@@ -257,8 +257,10 @@ function quarry(terrain, batch, l, rng) {
   batch.add(flatPolygon(pool), new THREE.Matrix4().makeTranslation(0, q.floor - 0.5, 0), 0x4f7f7a, { cast: false, material: 'water' });
   // Boulder ring along the rim: the solids from layout.js.
   for (const b of quarryBoulders(l, (oa * 180) / Math.PI)) {
-    const m = objMatrix(b.x, b.y, terrain.heightAt(b.x, b.y) - 0.15 * b.r, rng() * 360, 0, 0, 0, new THREE.Matrix4().makeScale(b.r, b.r * 0.75, b.r));
-    if (batch.audit) batch.audit.circle(l.id, 'rim_boulder', b.x, b.y, b.r * 0.6, terrain.heightAt(b.x, b.y) - 0.15 * b.r - 0.05 * b.r);
+    // Set into the ground at the low side of the boulder.
+    const bg = terrain.groundRange({ circle: { x: b.x, y: b.y, r: b.r * 0.6 } }).min;
+    const m = objMatrix(b.x, b.y, bg - 0.15 * b.r, rng() * 360, 0, 0, 0, new THREE.Matrix4().makeScale(b.r, b.r * 0.75, b.r));
+    if (batch.audit) batch.audit.circle(l.id, 'rim_boulder', b.x, b.y, b.r * 0.6, bg - 0.15 * b.r - 0.05 * b.r);
     batch.add(rock, m.multiply(new THREE.Matrix4().makeTranslation(0, 0.7, 0)), rng() < 0.5 ? 0x86807a : 0x9a948a);
   }
   // Gravel piles on the apron side of the rim.
@@ -306,75 +308,83 @@ function quarry(terrain, batch, l, rng) {
 // ---------- campground ----------
 
 function campground(terrain, batch, l, rng) {
-  const base = terrain.heightAt(l.x, l.y);
-  const P = placer(batch, l.x, l.y, base, 0);
-  const G = { cast: false, material: 'ground' };
-  // Gravel loop road (an ellipse ring) and a pad at each site.
+  const A = batch.audit;
+  // Each piece stands on its own patch of ground (the site is on a slope).
+  // range(lx, ly, w, h): ground under a local rect.
+  const range = (lx, ly, w, h) => terrain.groundRange({ rect: { x: l.x + lx, y: l.y + ly, w, h, angle: 0 } });
+  const at = (lx, ly) => placer(batch, l.x + lx, l.y + ly, terrain.heightAt(l.x + lx, l.y + ly), 0);
+  // Gravel loop road (an ellipse ring) and a pad at each site, painted on.
   const lp = CAMP.loop;
   const ring = [];
   for (let i = 0; i <= 48; i++) {
     const t = (i / 48) * Math.PI * 2;
     ring.push([l.x + lp.lx + Math.cos(t) * lp.rx, l.y + lp.ly + Math.sin(t) * lp.ry]);
   }
-  for (let i = 0; i < 48; i++) {
-    const [ax, ay] = ring[i];
-    const [bx, by] = ring[i + 1];
-    const len = Math.hypot(bx - ax, by - ay);
-    const ang = (Math.atan2(bx - ax, -(by - ay)) * 180) / Math.PI;
-    const lg = batch.place(box(3.6, 0.02, len + 0.6), (ax + bx) / 2, (ay + by) / 2, terrain.heightAt((ax + bx) / 2, (ay + by) / 2), ang, 0, 0, 0.04, 0xa29d92, G);
-    if (batch.audit) batch.audit.surface(l.id, 'camp_loop', lg, 0.05);
-  }
-  for (const p of CAMP.pads) {
-    const pg = P(box(6, 0.02, 5), p.lx, p.ly, 0.05, 0xb3a98f, G);
-    if (batch.audit) batch.audit.surface(l.id, 'camp_pad', pg, 0.06);
+  if (batch.paint) {
+    batch.paint.stroke(ring, 3.6, 0xa29d92);
+    for (const p of CAMP.pads) batch.paint.polygon([[-3, -2.5], [3, -2.5], [3, 2.5], [-3, 2.5]].map(([x, y]) => [l.x + p.lx + x, l.y + p.ly + y]), 0xb3a98f);
   }
   // Fire ring: stones round a charred bed, crossed logs.
   const f = CAMP.fire;
+  const fb = range(f.lx, f.ly, f.r * 2, f.r * 2);
   for (let i = 0; i < 12; i++) {
     const ang = (i / 12) * Math.PI * 2;
-    P(new THREE.DodecahedronGeometry(0.32, 0), f.lx + Math.cos(ang) * f.r, f.ly + Math.sin(ang) * f.r, 0.1, 0x7d786f);
+    const sx = f.lx + Math.cos(ang) * f.r;
+    const sy = f.ly + Math.sin(ang) * f.r;
+    at(sx, sy)(new THREE.DodecahedronGeometry(0.32, 0), 0, 0, 0.05, 0x7d786f);
   }
-  P(disc(f.r - 0.2, 10), f.lx, f.ly, 0.08, 0x2a2420, { cast: false });
+  if (batch.paint) batch.paint.disc(l.x + f.lx, l.y + f.ly, f.r - 0.2, 0x2a2420);
   for (let i = 0; i < 4; i++) {
     const m = new THREE.Matrix4().makeRotationY((i * Math.PI) / 4).multiply(new THREE.Matrix4().makeRotationZ(Math.PI / 2));
-    batch.place(cyl(0.12, 1.4, 5).translate(0, -0.7, 0), l.x, l.y, base, 0, f.lx, f.ly, 0.25, 0x3a2a1a, { extra: m });
+    batch.place(cyl(0.12, 1.4, 5).translate(0, -0.7, 0), l.x, l.y, fb.max, 0, f.lx, f.ly, 0.15, 0x3a2a1a, { extra: m });
   }
-  // Tents (solid rects CAMP.tent), door toward the fire.
+  // Tents (solid rects CAMP.tent), door toward the fire. They sit at the low
+  // corner and the fabric reaches the ground all round.
   CAMP.pads.forEach((p, i) => {
     if (!p.tent) return;
-    const T = placer(batch, l.x + p.lx, l.y + p.ly, base, 0);
-    if (batch.audit) batch.audit.rect(l.id, 'tent', l.x + p.lx, l.y + p.ly, CAMP.tent.w, CAMP.tent.h, 0, base, base);
-    const toFire = f.ly > p.ly ? 1 : -1;
     const { w, h } = CAMP.tent;
+    const g = range(p.lx, p.ly, w, h);
+    const sink = g.max - g.min;
+    const T = placer(batch, l.x + p.lx, l.y + p.ly, g.min - 0.05, 0);
+    if (A) A.rect(l.id, 'tent', l.x + p.lx, l.y + p.ly, w, h, 0, g.min - 0.05, null);
+    const toFire = f.ly > p.ly ? 1 : -1;
     if (i % 2) {
-      T(gable(w, h, 1.8), 0, 0, 0, p.tent);
-      T(box(0.9, 1.2, 0.05), 0, toFire * (h / 2 + 0.02), 0, 0x2a2a2a, { cast: false });
+      T(gable(w, h, 1.8 + sink), 0, 0, 0, p.tent);
+      T(box(0.9, 1.2, 0.05), 0, toFire * (h / 2 + 0.02), sink, 0x2a2a2a, { cast: false });
     } else {
-      T(new THREE.SphereGeometry(1, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2).scale(w / 2, 1.3, h / 2), 0, 0, 0, p.tent);
-      T(box(0.8, 0.9, 0.1), 0, toFire * (h / 2 - 0.1), 0, 0x2a2a2a, { cast: false });
+      T(new THREE.SphereGeometry(1, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2).scale(w / 2, 1.3 + sink, h / 2), 0, 0, 0, p.tent);
+      T(box(0.8, 0.9, 0.1), 0, toFire * (h / 2 - 0.1), sink, 0x2a2a2a, { cast: false });
     }
     // Guy ropes' pegs.
-    for (const sx of [-1, 1]) T(box(0.06, 0.25, 0.06), sx * (w / 2 + 0.5), 0, 0, 0xdddddd, { cast: false });
+    for (const sx of [-1, 1]) at(p.lx + sx * (w / 2 + 0.5), p.ly)(box(0.06, 0.25, 0.06), 0, 0, -0.05, 0xdddddd, { cast: false });
   });
-  // Picnic tables (solid rects CAMP.table).
+  // Picnic tables (solid rects CAMP.table): level top, legs down to the ground.
   for (const [tx, ty] of CAMP.tables) {
     const { w, h } = CAMP.table;
+    const g = range(tx, ty, w, h);
+    const P = placer(batch, l.x, l.y, g.max, 0);
     P(box(w, 0.08, 0.8), tx, ty, 0.75, 0x8a6a45);
     P(box(w, 0.06, 0.28), tx, ty - h / 2 + 0.05, 0.45, 0x8a6a45);
     P(box(w, 0.06, 0.28), tx, ty + h / 2 - 0.05, 0.45, 0x8a6a45);
-    for (const dx of [-w / 2 + 0.2, w / 2 - 0.2]) P(box(0.1, 0.75, h), tx + dx, ty, 0, 0x6e5234, { cast: false });
-    if (batch.audit) batch.audit.rect(l.id, 'picnic_table', l.x + tx, l.y + ty, w, h, 0, base, base + 0.3);
+    const drop = g.max - g.min + 0.1;
+    for (const dx of [-w / 2 + 0.2, w / 2 - 0.2]) P(box(0.1, 0.75 + drop, h), tx + dx, ty, -drop, 0x6e5234, { cast: false });
+    if (A) A.rect(l.id, 'picnic_table', l.x + tx, l.y + ty, w, h, 0, g.max - drop, g.max + 0.3);
   }
-  // Camp hut (solid rect CAMP.hut): log shelter with a little porch roof.
+  // Camp hut (solid rect CAMP.hut): log shelter with a little porch roof, on
+  // a stone footing where the ground falls away.
   const hu = CAMP.hut;
+  const hg = range(hu.lx, hu.ly, hu.w, hu.h);
+  const P = placer(batch, l.x, l.y, hg.max, 0);
+  const foot = hg.max - hg.min + 0.3;
   P(box(hu.w, 2.6, hu.h), hu.lx, hu.ly, -0.3, 0x7a5a3a);
-  if (batch.audit) batch.audit.rect(l.id, 'camp_hut', l.x + hu.lx, l.y + hu.ly, hu.w, hu.h, 0, base - 0.3, base);
+  if (foot > 0.4) P(box(hu.w + 0.3, foot + 0.15, hu.h + 0.3), hu.lx, hu.ly, -foot, 0x8a847a);
+  if (A) A.rect(l.id, 'camp_hut', l.x + hu.lx, l.y + hu.ly, hu.w, hu.h, 0, hg.max - Math.max(foot, 0.3), hg.max);
   P(gable(hu.w + 0.6, hu.h + 0.6, 1.2), hu.lx, hu.ly, 2.3, 0x4f6a5a);
   P(box(0.9, 1.9, 0.08), hu.lx - 0.8, hu.ly + hu.h / 2, 0, 0x5e4630, { cast: false });
   P(box(0.8, 0.6, 0.08), hu.lx + 1.1, hu.ly + hu.h / 2, 1.1, 0x2c3a46, { cast: false });
   // Water pump and a woodpile by the hut.
-  P(cyl(0.1, 1.2, 6), hu.lx + 4, hu.ly + 1, 0, 0x2f5a3a);
-  P(box(0.5, 0.15, 0.15), hu.lx + 4.2, hu.ly + 1, 1.0, 0x2f5a3a);
+  at(hu.lx + 4, hu.ly + 1)(cyl(0.1, 1.4, 6), 0, 0, -0.2, 0x2f5a3a);
+  at(hu.lx + 4.2, hu.ly + 1)(box(0.5, 0.15, 0.15), 0, 0, 1.0, 0x2f5a3a);
   return true;
 }
 
@@ -383,5 +393,5 @@ export function campfireOf(world, terrain) {
   const c = world.landmarks.find((l) => l.kind === 'campground');
   if (!c) return null;
   const p = localToWorld(c.x, c.y, 0, CAMP.fire.lx, CAMP.fire.ly);
-  return { x: p.x, y: p.y, h: terrain.heightAt(c.x, c.y) };
+  return { x: p.x, y: p.y, h: terrain.heightAt(p.x, p.y) };
 }

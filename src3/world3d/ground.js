@@ -2,7 +2,7 @@
 
 import * as THREE from 'three';
 import {
-  makeRng, measurePolyline, pointAlong, centroid, localToWorld, SegIndex,
+  makeRng, measurePolyline, pointAlong, centroid, localToWorld, SegIndex, distToPolyline, pointInPolygon,
 } from '../../src/drive/geom.js';
 import { box, cyl, flat, disc, flatPolygon } from './shapes.js';
 import { objMatrix } from './batch.js';
@@ -15,14 +15,15 @@ const NO_SHADOW = { cast: false, material: 'ground' };
 export const DECK_TOP = 0.3;
 
 // Ribbon along a polyline, draped on the ground. Pieces where skip(x, y) is
-// true are left out. Returns a non-indexed BufferGeometry or null.
+// true are left out. Samples every `step` metres, and more often where the
+// ground bends between samples (near creek banks), so it never floats or
+// sinks. Returns a non-indexed BufferGeometry or null.
 export function ribbon(pts, width, lift, heightAt, skip = null, step = 3, offset = 0) {
   const cum = measurePolyline(pts);
   const total = cum[cum.length - 1];
   const n = Math.max(2, Math.ceil(total / step) + 1);
-  const samples = [];
-  for (let i = 0; i < n; i++) {
-    const d = (total * i) / (n - 1);
+  const K = Math.max(1, Math.ceil(width / 2));
+  const sampleAt = (d) => {
     const p = pointAlong(pts, cum, d);
     // Smooth direction across bends: look a bit ahead and behind.
     const a = pointAlong(pts, cum, Math.max(0, d - 1.5));
@@ -40,11 +41,47 @@ export function ribbon(pts, width, lift, heightAt, skip = null, step = 3, offset
     const ly = cy + ny * width / 2;
     const rx = cx - nx * width / 2;
     const ry = cy - ny * width / 2;
-    samples.push({
-      l: [lx, heightAt(lx, ly) + lift, ly],
-      r: [rx, heightAt(rx, ry) + lift, ry],
+    // Points across, from right to left edge; `fine` when the ground bends
+    // across the ribbon here (then the piece uses all of them).
+    const cols = [];
+    let fine = false;
+    const hr = heightAt(rx, ry);
+    const hl = heightAt(lx, ly);
+    for (let k = 0; k <= K; k++) {
+      const t = k / K;
+      const x = rx + (lx - rx) * t;
+      const y = ry + (ly - ry) * t;
+      const h = k === 0 ? hr : k === K ? hl : heightAt(x, y);
+      if (Math.abs(h - (hr + (hl - hr) * t)) > 0.03) fine = true;
+      cols.push([x, h + lift, y]);
+    }
+    return {
+      d,
+      l: cols[K],
+      r: cols[0],
+      cols,
+      fine,
       skip: skip ? skip(cx, cy) : false,
-    });
+    };
+  };
+  const samples = [];
+  const refine = (s0, s1, depth) => {
+    if (depth < 4 && s1.d - s0.d > 0.4) {
+      const m = sampleAt((s0.d + s1.d) / 2);
+      if (Math.abs(m.l[1] - (s0.l[1] + s1.l[1]) / 2) > 0.03 || Math.abs(m.r[1] - (s0.r[1] + s1.r[1]) / 2) > 0.03) {
+        refine(s0, m, depth + 1);
+        samples.push(m);
+        refine(m, s1, depth + 1);
+      }
+    }
+  };
+  let prev = sampleAt(0);
+  samples.push(prev);
+  for (let i = 1; i < n; i++) {
+    const cur = sampleAt((total * i) / (n - 1));
+    refine(prev, cur, 0);
+    samples.push(cur);
+    prev = cur;
   }
   const v = [];
   for (let i = 0; i < samples.length - 1; i++) {
@@ -52,13 +89,32 @@ export function ribbon(pts, width, lift, heightAt, skip = null, step = 3, offset
     const s1 = samples[i + 1];
     if (s0.skip || s1.skip) continue;
     // Counter-clockwise from above. Left side is +normal = (-dy, dx).
-    v.push(...s0.r, ...s0.l, ...s1.l, ...s0.r, ...s1.l, ...s1.r);
+    if (s0.fine || s1.fine) {
+      for (let k = 0; k < K; k++) {
+        const a0 = s0.cols[k];
+        const b0 = s0.cols[k + 1];
+        const a1 = s1.cols[k];
+        const b1 = s1.cols[k + 1];
+        v.push(...a0, ...b0, ...b1, ...a0, ...b1, ...a1);
+      }
+    } else {
+      v.push(...s0.r, ...s0.l, ...s1.l, ...s0.r, ...s1.l, ...s1.r);
+    }
   }
   if (!v.length) return null;
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
   fixWinding(g);
   return g;
+}
+
+// For the world checker: is (x, y) inside some other water body (where one
+// water sheet meets another, its edge may hang over the other's bed; past
+// the map edge nobody sees it)?
+function inOtherWater(world, self) {
+  return (x, y) => x < 0 || y < 0 || x > world.size.w || y > world.size.h
+    || world.creeks.some((c) => c !== self && distToPolyline(x, y, c.points) < c.width / 2 + 4)
+    || world.lakes.some((l) => l !== self && pointInPolygon(x, y, l.polygon));
 }
 
 // Make every triangle face up (cheap insurance against winding mistakes).
@@ -141,9 +197,10 @@ export function buildGround(world, scenery, terrain, batch) {
   // Creek water and reeds. The bed is carved into the terrain.
   for (const c of world.creeks) {
     const flatH = () => 0;
-    const g = ribbon(c.points, c.width + 3, WATER_LEVEL, flatH, null, 6);
+    // Wide enough that its edges always run under the banks.
+    const g = ribbon(c.points, c.width + 8, WATER_LEVEL, flatH, null, 6);
     batch.add(g, ID, 0x467aa6, { cast: false, material: 'water' });
-    if (A) A.surface(c.id, 'creek', g, 0, { water: true });
+    if (A) A.surface(c.id, 'creek', g, 0, { water: true, ok: inOtherWater(world, c) });
     const g2 = ribbon(c.points, c.width * 0.4, WATER_LEVEL + 0.02, flatH, null, 6);
     batch.add(g2, ID, 0x5a8dba, { cast: false, material: 'water' });
     const cum = measurePolyline(c.points);
@@ -167,7 +224,7 @@ export function buildGround(world, scenery, terrain, batch) {
   for (const l of world.lakes) {
     const g = flatPolygon(l.polygon);
     const lw = batch.add(g, new THREE.Matrix4().makeTranslation(0, WATER_LEVEL, 0), 0x467aa6, { cast: false, material: 'water' });
-    if (A) A.surface(l.id, 'lake', lw, 0, { water: true });
+    if (A) A.surface(l.id, 'lake', lw, 0, { water: true, ok: inOtherWater(world, l) });
     const [mx, my] = centroid(l.polygon);
     const inner = l.polygon.map(([x, y]) => [mx + (x - mx) * 0.65, my + (y - my) * 0.65]);
     batch.add(flatPolygon(inner), new THREE.Matrix4().makeTranslation(0, WATER_LEVEL + 0.02, 0), 0x3d6e98, { cast: false, material: 'water' });
@@ -180,49 +237,16 @@ export function buildGround(world, scenery, terrain, batch) {
     }
   }
 
-  // Yards, forecourts and fields.
-  const PAD = { concrete: 0xb3b0a8, gravel: 0xa29d92, yard: 0xa48f6a, field: 0x9a8150, track: 0xa08a64 };
+  // Yards, forecourts and tracks, painted onto the terrain (paint.js) so they
+  // follow every bend. Field pads are drawn with the fields (fields3d.js).
+  const PAD = { concrete: 0xb3b0a8, gravel: 0xa29d92, yard: 0xa48f6a, track: 0xa08a64 };
   for (const p of scenery.pads) {
-    const base = H(p.x, p.y);
-    if (p.kind !== 'field') {
-      // Draped on the ground along its long axis (tracks run up hills).
-      const a = localToWorld(p.x, p.y, p.angle || 0, 0, -p.h / 2);
-      const b = localToWorld(p.x, p.y, p.angle || 0, 0, p.h / 2);
-      const g = ribbon([[a.x, a.y], [b.x, b.y]], p.w, 0.04, H, null, 3);
-      if (g) batch.add(g, ID, PAD[p.kind] ?? PAD.gravel, NO_SHADOW);
-      if (A) A.surface(`${p.kind}@${Math.round(p.x)},${Math.round(p.y)}`, `pad_${p.kind}`, g, 0.04);
-      continue;
-    }
-    const fp = batch.place(flat(p.w, p.h), p.x, p.y, base, p.angle, 0, 0, 0.04, PAD[p.kind], NO_SHADOW);
-    if (A) A.surface(`field@${Math.round(p.x)},${Math.round(p.y)}`, 'pad_field', fp, 0.04);
-    if (p.kind === 'field') {
-      // Crop rows, then a post-and-rail fence round it.
-      for (let x = -p.w / 2 + 1.5; x < p.w / 2; x += 2.6) {
-        batch.place(box(0.9, 0.35, p.h - 2), p.x, p.y, base, p.angle, x, 0, 0, 0x6f8a3c, { cast: false });
-        if (A) {
-          const c = localToWorld(p.x, p.y, p.angle || 0, x, 0);
-          A.rect('farm_field', 'garden_row', c.x, c.y, 0.9, p.h - 2, p.angle, base, base + 0.25);
-        }
-      }
-      const fw = p.w + 2;
-      const fh = p.h + 2;
-      const post = cyl(0.08, 1.2, 4);
-      const wood = 0x5a4630;
-      for (const [lx, ly, len, along] of [[0, -fh / 2, fw, 'x'], [0, fh / 2, fw, 'x'], [-fw / 2, 0, fh, 'z'], [fw / 2, 0, fh, 'z']]) {
-        const rail = along === 'x' ? box(len, 0.08, 0.08) : box(0.08, 0.08, len);
-        batch.place(rail, p.x, p.y, base, p.angle, lx, ly, 0.9, wood, { cast: false });
-        batch.place(rail, p.x, p.y, base, p.angle, lx, ly, 0.5, wood, { cast: false });
-        for (let t = -len / 2; t <= len / 2 + 0.01; t += 4) {
-          const px = along === 'x' ? lx + t : lx;
-          const py = along === 'x' ? ly : ly + t;
-          batch.place(post, p.x, p.y, base, p.angle, px, py, 0, wood, { cast: false });
-          if (A) {
-            const c = localToWorld(p.x, p.y, p.angle || 0, px, py);
-            A.circle('farm_field', 'garden_post', c.x, c.y, 0.08, base);
-          }
-        }
-      }
-    }
+    if (p.kind === 'field' || !batch.paint) continue;
+    const poly = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx, sy]) => {
+      const c = localToWorld(p.x, p.y, p.angle || 0, (sx * p.w) / 2, (sy * p.h) / 2);
+      return [c.x, c.y];
+    });
+    batch.paint.polygon(poly, PAD[p.kind] ?? PAD.gravel);
   }
 
   const coveredDrawn = new Set(world.landmarks.filter((l) => l.kind === 'covered_bridge').map((l) => l.bridgeId));

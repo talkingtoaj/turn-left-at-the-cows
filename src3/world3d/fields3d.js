@@ -5,20 +5,19 @@ import * as THREE from 'three';
 import { centroid, DEG, hashString, localToWorld } from '../../src/drive/geom.js';
 import { fenceRuns } from '../../src/drive/layout.js';
 import { box, cyl } from './shapes.js';
-import { ribbon } from './ground.js';
+import { CELL } from './terrain.js';
 import { objMatrix } from './batch.js';
 
 const I = new THREE.Matrix4();
-const GROUND = { cast: false, material: 'ground' };
 
 // Crop looks. Colours match the 2D version: wheat gold rows, corn dark green
 // (tall, blocks the view), hay pale stubble, plowed brown furrows.
 // base: soil colour under the rows. row: the raised row (null = flat stripe).
 const CROPS = {
-  wheat: { base: 0xa88d48, gap: 1.45, row: { bottom: 1.3, top: 0.7, h: 0.65, side: 0xc9a744, cap: 0xdcbc58, step: 5 } },
-  corn: { base: 0x5e4a30, gap: 1.5, row: { bottom: 0.95, top: 0.6, h: 2.2, jitter: 0.25, side: 0x44702c, cap: 0x5f8a3e, step: 4, cast: true } },
+  wheat: { base: 0xa88d48, gap: 1.45, row: { bottom: 1.3, top: 0.7, h: 0.65, side: 0xc9a744, cap: 0xdcbc58 } },
+  corn: { base: 0x5e4a30, gap: 1.5, row: { bottom: 0.95, top: 0.6, h: 2.2, jitter: 0.25, side: 0x44702c, cap: 0x5f8a3e, cast: true } },
   hay: { base: 0xd2c38a, gap: 1.6, stripe: { w: 0.55, color: 0xb9a86c } },
-  plowed: { base: 0x6e5034, gap: 1.1, row: { bottom: 0.9, top: 0, h: 0.22, side: 0x84643f, cap: 0x84643f, step: 6 } },
+  plowed: { base: 0x6e5034, gap: 1.1, row: { bottom: 0.9, top: 0, h: 0.22, side: 0x84643f, cap: 0x84643f } },
 };
 const PASTURE = 0x5c9447;
 const PASTURE_ALT = 0x649c4c;
@@ -134,15 +133,51 @@ class Tris {
   }
 }
 
-// Small deterministic noise in -0.5..0.5 for row height jitter.
-const hash2 = (x, y) => {
-  const s = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
-  return s - Math.floor(s) - 0.5;
-};
+// Where a straight line from a to b crosses the terrain's triangle edges
+// (grid lines x = i*CELL, y = j*CELL and the cell diagonals), as fractions
+// 0..1. Between two crossings the ground under the line is one flat piece.
+function groundBends(a, b, maxStep = 2) {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const L = Math.hypot(dx, dy);
+  const ts = [0, 1];
+  const family = (p0, dp) => {
+    // Crossings of p(t) = p0 + dp * t with integer multiples of CELL.
+    if (Math.abs(dp) < 1e-9) return;
+    const k0 = Math.ceil(Math.min(p0, p0 + dp) / CELL);
+    const k1 = Math.floor(Math.max(p0, p0 + dp) / CELL);
+    for (let k = k0; k <= k1; k++) ts.push((k * CELL - p0) / dp);
+  };
+  family(a[0], dx);
+  family(a[1], dy);
+  family(a[0] - a[1], dx - dy); // diagonals: gx - gy = integer
+  const n = Math.ceil(L / maxStep);
+  for (let i = 1; i < n; i++) ts.push(i / n);
+  ts.sort((p, q) => p - q);
+  const out = [];
+  const minGap = 0.25 / Math.max(L, 1e-6);
+  for (const t of ts) {
+    if (t < 0 || t > 1) continue;
+    if (out.length && t - out[out.length - 1] < minGap) {
+      if (t === 1) out[out.length - 1] = 1;
+      continue;
+    }
+    out.push(t);
+  }
+  return out;
+}
+
+// Smooth height wobble along rows (-1..1), continuous so dense samples do not
+// make a jagged top.
+const rowWobble = (x, y) => 0.6 * Math.sin(x * 0.9 + y * 1.7) + 0.4 * Math.sin(x * 2.3 - y * 0.8 + 1.3);
+
+const ROW_SINK = 0.3; // row bottoms sink this far into the ground
 
 // A raised row from a to b (world [x, y]): trapezoid cross-section (bottom
-// width, top width, height) that follows the ground. top = 0 makes a ridge.
-function rowPrism(sides, caps, a, b, H, r, audit = null, id = 'row') {
+// width, top width, height) that follows the ground, bending wherever the
+// ground does. Bottom edges sit ROW_SINK under the ground at their own spot.
+// top = 0 makes a ridge.
+export function rowPrism(sides, caps, a, b, H, r, audit = null, id = 'row') {
   const dx = b[0] - a[0];
   const dy = b[1] - a[1];
   const L = Math.hypot(dx, dy);
@@ -151,22 +186,26 @@ function rowPrism(sides, caps, a, b, H, r, audit = null, id = 'row') {
   const ty = dy / L;
   const nx = -ty;
   const ny = tx;
-  const n = Math.max(1, Math.ceil(L / r.step));
   const S = [];
-  for (let i = 0; i <= n; i++) {
-    const x = a[0] + dx * (i / n);
-    const y = a[1] + dy * (i / n);
+  for (const t of groundBends(a, b)) {
+    const x = a[0] + dx * t;
+    const y = a[1] + dy * t;
     const g = H(x, y);
-    const h = r.h * (r.jitter ? 1 + hash2(x, y) * r.jitter * 2 : 1);
+    const h = r.h * (r.jitter ? 1 + rowWobble(x, y) * r.jitter : 1);
     const pt = (w, up) => [x + nx * w, g + up, y + ny * w];
-    S.push({ bl: pt(-r.bottom / 2, -0.05), br: pt(r.bottom / 2, -0.05), tl: pt(-r.top / 2, h), tr: pt(r.top / 2, h), h });
+    const bot = (w) => {
+      const px = x + nx * w;
+      const py = y + ny * w;
+      return [px, Math.min(H(px, py), g) - ROW_SINK, py];
+    };
+    S.push({ bl: bot(-r.bottom / 2), br: bot(r.bottom / 2), tl: pt(-r.top / 2, h), tr: pt(r.top / 2, h), h });
   }
   if (audit) {
     audit.row({
       id, kind: 'crop_row',
       left: S.map((s) => [s.bl[0], s.bl[2], s.bl[1], 0]),
       right: S.map((s) => [s.br[0], s.br[2], s.br[1], 0]),
-      top: S.map((s, i) => [(s.tl[0] + s.tr[0]) / 2, (s.tl[2] + s.tr[2]) / 2, s.tl[1], S[i].h]),
+      top: S.map((s) => [(s.tl[0] + s.tr[0]) / 2, (s.tl[2] + s.tr[2]) / 2, s.tl[1], s.h]),
     });
   }
   const left = [-nx, 0.3, -ny];
@@ -189,34 +228,31 @@ function rowPrism(sides, caps, a, b, H, r, audit = null, id = 'row') {
   }
 }
 
-// Soil or grass under a field: draped stripes across the whole polygon.
-// Pastures alternate two shades, like mowing stripes.
-function fieldBase(batch, f, fr, color, H, alt = color) {
+// Soil or grass under a field, painted onto the terrain (paint.js).
+// Pastures alternate two shades in 5 m bands, like mowing stripes.
+function fieldBase(paint, f, fr, color, alt = color, stripe = null) {
+  if (!paint) return;
   const W = 5;
-  let k = 0;
-  eachRow(f.polygon, fr, W, 0.3, (a, b) => {
-    const g = ribbon([a, b], W + 0.06, 0.04, H, null, 5);
-    if (g) batch.add(g, I, k++ % 2 ? alt : color, GROUND);
-    if (batch.audit) batch.audit.surface(f.id, 'field_base', g, 0.04);
-  });
+  let vmin = Infinity;
+  for (const [x, y] of f.polygon) vmin = Math.min(vmin, x * fr.n[0] + y * fr.n[1]);
+  const shade = alt === color ? color : (x, y) => (Math.floor((x * fr.n[0] + y * fr.n[1] - vmin - 0.3) / W) % 2 ? alt : color);
+  paint.polygon(f.polygon, shade, stripe);
 }
 
 function cropField(batch, f, H) {
   const look = CROPS[cropOf(f)] || CROPS.wheat;
   const fr = frameOf(f);
-  fieldBase(batch, f, fr, look.base, H);
-  if (look.stripe) {
-    eachRow(f.polygon, fr, look.gap, 1, (a, b) => {
-      const g = ribbon([a, b], look.stripe.w, 0.08, H, null, 6);
-      if (g) batch.add(g, I, look.stripe.color, GROUND);
-      if (batch.audit) batch.audit.surface(f.id, 'hay_stripe', g, 0.08);
-    });
-    return;
-  }
-  const r = look.row;
+  // Hay windrows run along the rows: the stripe angle is the across direction.
+  const stripe = look.stripe ? { angle: ((Math.atan2(fr.n[1], fr.n[0]) % Math.PI) + Math.PI) % Math.PI } : null;
+  fieldBase(batch.paint, f, fr, look.base, look.base, stripe);
+  if (look.stripe) return;
+  rowsIn(batch, f.polygon, fr, look.gap, 1.2, look.row, H, f.id);
+}
+
+function rowsIn(batch, polygon, fr, gap, inset, r, H, id) {
   const sides = new Tris();
   const caps = new Tris();
-  eachRow(f.polygon, fr, look.gap, 1.2, (a, b) => rowPrism(sides, caps, a, b, H, r, batch.audit, f.id));
+  eachRow(polygon, fr, gap, inset, (a, b) => rowPrism(sides, caps, a, b, H, r, batch.audit, id));
   const opts = { cast: !!r.cast };
   const gs = sides.geometry();
   if (gs) batch.add(gs, I, r.side, opts);
@@ -224,9 +260,18 @@ function cropField(batch, f, H) {
   if (gc) batch.add(gc, I, r.cap, opts);
 }
 
-function pasture(batch, f, H) {
+// A level box (trough, feeder, plinth) on sloping ground: its top stays where
+// it would be on the high side, and its body reaches below the low side.
+// Returns { base: height of the level floor, low: bottom of the skirt }.
+function levelOn(terrain, foot) {
+  const { min, max } = terrain.groundRange(foot);
+  return { base: max, low: min - 0.1 };
+}
+
+function pasture(batch, f, terrain) {
+  const H = (x, y) => terrain.heightAt(x, y);
   const fr = frameOf(f);
-  fieldBase(batch, f, fr, PASTURE, H, PASTURE_ALT);
+  fieldBase(batch.paint, f, fr, PASTURE, PASTURE_ALT);
   // A water trough and a hay feeder, placed along the field's own axis.
   const [cx, cy] = centroid(f.polygon);
   let umax = 0;
@@ -234,19 +279,38 @@ function pasture(batch, f, H) {
   const at = (k) => [cx + fr.d[0] * umax * k, cy + fr.d[1] * umax * k];
   const ang = Math.atan2(fr.d[0], -fr.d[1]) / DEG + 90;
   const [tx, ty] = at(0.4);
-  batch.add(box(3, 0.6, 0.9), objMatrix(tx, ty, H(tx, ty), ang), 0x8a8f96);
-  if (batch.audit) batch.audit.rect(f.id, 'trough', tx, ty, 3, 0.9, ang, H(tx, ty), H(tx, ty));
-  batch.add(box(2.8, 0.05, 0.7), objMatrix(tx, ty, H(tx, ty) + 0.56, ang), 0x467aa6, { cast: false });
+  const t = levelOn(terrain, { rect: { x: tx, y: ty, w: 3, h: 0.9, angle: ang } });
+  batch.add(box(3, 0.6 + t.base - t.low, 0.9), objMatrix(tx, ty, t.low, ang), 0x8a8f96);
+  if (batch.audit) batch.audit.rect(f.id, 'trough', tx, ty, 3, 0.9, ang, t.low, t.base);
+  batch.add(box(2.8, 0.05, 0.7), objMatrix(tx, ty, t.base + 0.56, ang), 0x467aa6, { cast: false });
   const [fx, fy] = at(-0.5);
-  batch.add(cyl(1.1, 1.0, 8), objMatrix(fx, fy, H(fx, fy), 0), 0x6a6f72);
-  if (batch.audit) batch.audit.circle(f.id, 'feeder', fx, fy, 1.1, H(fx, fy), H(fx, fy));
-  batch.add(cyl(0.95, 0.5, 8), objMatrix(fx, fy, H(fx, fy) + 0.9, 0), 0xcdb46a, { cast: false });
+  const fd = levelOn(terrain, { circle: { x: fx, y: fy, r: 1.1 } });
+  batch.add(cyl(1.1, 1.0 + fd.base - fd.low, 8), objMatrix(fx, fy, fd.low, 0), 0x6a6f72);
+  if (batch.audit) batch.audit.circle(f.id, 'feeder', fx, fy, 1.1, fd.low, fd.base);
+  batch.add(cyl(0.95, 0.5, 8), objMatrix(fx, fy, fd.base + 0.9, 0), 0xcdb46a, { cast: false });
+}
+
+// A rail between two posts as straight legs, bending where the ground
+// between them rises above the straight line. Returns [[ax, ay, ah, bx, by, bh]].
+function railLegs(H, px, py, h0, qx, qy, h1) {
+  const knots = [[px, py, h0]];
+  for (const t of [0.25, 0.5, 0.75]) {
+    const kx = px + (qx - px) * t;
+    const ky = py + (qy - py) * t;
+    const g = H(kx, ky);
+    if (g > h0 + (h1 - h0) * t + 0.03) knots.push([kx, ky, g]);
+  }
+  knots.push([qx, qy, h1]);
+  const legs = [];
+  for (let k = 1; k < knots.length; k++) legs.push([...knots[k - 1], ...knots[k]]);
+  return legs;
 }
 
 // Fence posts exactly where the collider has them (layout.js fenceRuns).
 // wire: thin posts and two strands; rail: square wooden posts every other
 // point with three rails. Gaps where roads and mailboxes are. Each field's
-// fence is one geometry per colour, built from raw triangles.
+// fence is one geometry per colour, built from raw triangles. Rails and wires
+// bend over a bump between posts so they never dip into the ground.
 function fences(world, batch, H) {
   for (const f of fenceRuns(world)) {
     const style = f.style !== undefined ? f.style : f.field.fence !== undefined ? f.field.fence : 'wire';
@@ -265,13 +329,15 @@ function fences(world, batch, H) {
         const q = pts[i + 1];
         if (!q) continue;
         const h1 = hs[i + 1];
-        if (batch.audit) {
-          const low = rail ? 0.45 - 0.07 : 0.55 - 0.035;
-          batch.audit.span({ id: f.field.id, kind: 'fence_rail', a: [p.x, p.y, h0 + low], b: [q.x, q.y, h1 + low], clear: 0.2 });
-        }
-        for (const up of rail ? [0.45, 0.85, 1.22] : [0.55, 1.0]) {
-          if (rail) rails.beam([p.x, h0 + up, p.y], [q.x, h1 + up, q.y], 0.14, 0.05);
-          else rails.beam([p.x, h0 + up, p.y], [q.x, h1 + up, q.y], 0.07, 0.07);
+        for (const [ax, ay, ah, bx, by, bh] of railLegs(H, p.x, p.y, h0, q.x, q.y, h1)) {
+          if (batch.audit) {
+            const low = rail ? 0.45 - 0.07 : 0.55 - 0.035;
+            batch.audit.span({ id: f.field.id, kind: 'fence_rail', a: [ax, ay, ah + low], b: [bx, by, bh + low], clear: 0.2 });
+          }
+          for (const up of rail ? [0.45, 0.85, 1.22] : [0.55, 1.0]) {
+            if (rail) rails.beam([ax, ah + up, ay], [bx, bh + up, by], 0.14, 0.05);
+            else rails.beam([ax, ah + up, ay], [bx, bh + up, by], 0.07, 0.07);
+          }
         }
       }
     }
@@ -283,13 +349,58 @@ function fences(world, batch, H) {
   }
 }
 
-export function buildFields(world, terrain, batch) {
+// Hartley Farm's crop field (a scenery pad, layout.js makePads): soil painted
+// on the ground, green rows that follow it, and a post-and-rail fence.
+const PAD_ROW = { bottom: 0.9, top: 0.45, h: 0.35, side: 0x6f8a3c, cap: 0x7f9a48 };
+function padField(batch, p, H) {
+  const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+  const poly = corners.map(([sx, sy]) => {
+    const c = localToWorld(p.x, p.y, p.angle || 0, (sx * p.w) / 2, (sy * p.h) / 2);
+    return [c.x, c.y];
+  });
+  if (batch.paint) batch.paint.polygon(poly, 0x9a8150);
+  // Rows run along local y (north-south at angle 0), 2.6 m apart.
+  const r = (p.angle || 0) * DEG;
+  const fr = { d: [Math.sin(r), -Math.cos(r)], n: [Math.cos(r), Math.sin(r)] };
+  rowsIn(batch, poly, fr, 2.6, 1, PAD_ROW, H, 'farm_field');
+  // Fence posts every 4 m, rails following the ground.
+  const fw = p.w + 2;
+  const fh = p.h + 2;
+  const ring = [];
+  for (const [sx, sy, ex, ey] of [[-1, -1, 1, -1], [1, -1, 1, 1], [1, 1, -1, 1], [-1, 1, -1, -1]]) {
+    const len = Math.abs(ex - sx) * fw / 2 + Math.abs(ey - sy) * fh / 2;
+    const n = Math.round(len / 4);
+    for (let i = 0; i < n; i++) {
+      const t = i / n;
+      ring.push(localToWorld(p.x, p.y, p.angle || 0, ((sx + (ex - sx) * t) * fw) / 2, ((sy + (ey - sy) * t) * fh) / 2));
+    }
+  }
+  const posts = new Tris();
+  const rails = new Tris();
+  for (let i = 0; i < ring.length; i++) {
+    const a = ring[i];
+    const b = ring[(i + 1) % ring.length];
+    const ha = H(a.x, a.y);
+    const hb = H(b.x, b.y);
+    posts.beam([a.x, ha - 0.25, a.y], [a.x, ha + 1.2, a.y], 0.16, 0.16);
+    if (batch.audit) batch.audit.circle('farm_field', 'fence_post', a.x, a.y, 0.08, ha - 0.25);
+    for (const [ax, ay, ah, bx, by, bh] of railLegs(H, a.x, a.y, ha, b.x, b.y, hb)) {
+      for (const up of [0.5, 0.9]) rails.beam([ax, ah + up, ay], [bx, bh + up, by], 0.08, 0.08);
+      if (batch.audit) batch.audit.span({ id: 'farm_field', kind: 'fence_rail', a: [ax, ay, ah + 0.46], b: [bx, by, bh + 0.46], clear: 0.2 });
+    }
+  }
+  batch.add(posts.geometry(), I, 0x5a4630, { cast: false });
+  batch.add(rails.geometry(), I, 0x5a4630, { cast: false });
+}
+
+export function buildFields(world, terrain, batch, scenery = null) {
   const H = (x, y) => terrain.heightAt(x, y);
   fences(world, batch, H);
   for (const f of world.fields || []) {
     if (f.kind === 'crop') cropField(batch, f, H);
-    else pasture(batch, f, H);
+    else pasture(batch, f, terrain);
   }
+  for (const p of (scenery && scenery.pads) || []) if (p.kind === 'field') padField(batch, p, H);
 }
 
 // ---------- props: round bales, haystacks, rocks ----------
@@ -321,24 +432,46 @@ export function buildProps(world, terrain, batch) {
     const r = p.r || 1;
     const base = H(p.x, p.y);
     const A = batch.audit;
+    const ang = p.angle || 0;
     if (p.kind === 'bale') {
-      if (A) A.rect(p.id, 'bale', p.x, p.y, r * 0.8, 1.2, p.angle, base - 0.05 * r, base - 0.05 * r);
-      // Round bale lying on its side, about 1.2 m wide.
-      batch.add(BALE, objMatrix(p.x, p.y, base + r * 0.95, p.angle || 0, 0, 0, 0, new THREE.Matrix4().makeScale(r, r, 1.2)), 0xd9c27a);
+      // Round bale lying on its side, about 1.2 m wide, resting on the slope:
+      // tilted to the ground plane under it, sunk a little.
+      const c = Math.cos(ang * DEG);
+      const s = Math.sin(ang * DEG);
+      const sx = (H(p.x + c, p.y + s) - H(p.x - c, p.y - s)) / 2; // rise per m along local x
+      const sz = (H(p.x - s, p.y + c) - H(p.x + s, p.y - c)) / 2; // along local z (ly)
+      const tilt = new THREE.Matrix4().makeRotationZ(Math.atan(sx)).multiply(new THREE.Matrix4().makeRotationX(-Math.atan(sz)));
+      const m = tilt.multiply(new THREE.Matrix4().makeTranslation(0, r * 0.95, 0)).multiply(new THREE.Matrix4().makeScale(r, r, 1.2));
+      batch.add(BALE, objMatrix(p.x, p.y, base, ang, 0, 0, 0, m), 0xd9c27a);
+      if (A) {
+        const plane = (x, y) => {
+          const lx = (x - p.x) * c + (y - p.y) * s;
+          const lz = -(x - p.x) * s + (y - p.y) * c;
+          return base + sx * lx + sz * lz - 0.05 * r;
+        };
+        A.rect(p.id, 'bale', p.x, p.y, r * 0.8, 1.2, ang, plane, null);
+      }
     } else if (p.kind === 'haystack') {
-      if (A) A.circle(p.id, 'haystack', p.x, p.y, r, base - 0.1, base);
-      const sb = new THREE.Matrix4().makeScale(r, r * 0.8, r).premultiply(new THREE.Matrix4().makeTranslation(0, r * 0.4 - 0.1, 0));
-      batch.add(STACK_BASE, objMatrix(p.x, p.y, base, p.angle || 0, 0, 0, 0, sb), 0xcdb46a);
+      // The stack's body reaches below the low side of its footprint.
+      const g = levelOn(terrain, { circle: { x: p.x, y: p.y, r } });
+      const low = g.low - 0.1;
+      const bodyH = g.base + r * 0.8 - 0.1 - low;
+      const sb = new THREE.Matrix4().makeScale(r, bodyH, r).premultiply(new THREE.Matrix4().makeTranslation(0, low - g.base + bodyH / 2, 0));
+      batch.add(STACK_BASE, objMatrix(p.x, p.y, g.base, ang, 0, 0, 0, sb), 0xcdb46a);
       const st = new THREE.Matrix4().makeScale(r, r * 0.95, r).premultiply(new THREE.Matrix4().makeTranslation(0, r * 0.8 - 0.1 + r * 0.47, 0));
-      batch.add(STACK_TOP, objMatrix(p.x, p.y, base, p.angle || 0, 0, 0, 0, st), 0xbfa55a);
+      batch.add(STACK_TOP, objMatrix(p.x, p.y, g.base, ang, 0, 0, 0, st), 0xbfa55a);
+      if (A) A.circle(p.id, 'haystack', p.x, p.y, r, low, g.base);
     } else if (p.kind === 'rock') {
-      if (A) A.circle(p.id, 'rock', p.x, p.y, r * 0.6, base - 0.82 * r);
+      // Rocks half buried: the low side of the footprint sets the depth.
+      const { min } = terrain.groundRange({ circle: { x: p.x, y: p.y, r: r * 0.6 } });
+      if (A) A.circle(p.id, 'rock', p.x, p.y, r * 0.6, min - 0.82 * r);
       const seed = hashString(String(p.id));
       const sc = new THREE.Matrix4().makeScale(r, r, r);
-      batch.add(rockGeo(seed), objMatrix(p.x, p.y, base - r * 0.2, p.angle || 0, 0, 0, 0, sc), ROCK_COLORS[seed % ROCK_COLORS.length]);
+      batch.add(rockGeo(seed), objMatrix(p.x, p.y, min - r * 0.2, ang, 0, 0, 0, sc), ROCK_COLORS[seed % ROCK_COLORS.length]);
     }
   }
 }
+
 
 // ---------- power lines ----------
 

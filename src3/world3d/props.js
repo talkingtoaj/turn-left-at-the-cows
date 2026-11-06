@@ -129,7 +129,7 @@ export function buildLocals(world, terrain, audit = null) {
     }
     add(mergeParts(body), 0, 0, 0);
     p.position.set(l.x, terrain.heightAt(l.x, l.y), l.y);
-    if (audit) audit.circle(l.id, 'local', l.x, l.y, 0.2, terrain.heightAt(l.x, l.y), terrain.heightAt(l.x, l.y));
+    if (audit) audit.circle(l.id, 'local', l.x, l.y, 0.12, terrain.heightAt(l.x, l.y), terrain.heightAt(l.x, l.y));
     group.add(p);
     people.push({ id: l.id, obj: p, x: l.x, y: l.y, yaw: 0, legs: p.children.slice(0, 2), walk: 0 });
   });

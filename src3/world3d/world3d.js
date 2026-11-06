@@ -10,6 +10,7 @@ import { buildGround, DECK_TOP } from './ground.js';
 import { buildStructures } from './structures.js';
 import { buildSigns, buildLocals } from './props.js';
 import { buildTrees } from './trees.js';
+import { GroundPaint, paintedMaterials, stripeTint } from './paint.js';
 
 export const FOG_COLOR = 0xcdd9de;
 const SKY_TOP = 0x86acd4;
@@ -111,7 +112,7 @@ function buildSky() {
 // checker (tools/check-world.mjs) calls this too, with batch.audit set.
 export function buildObjects(world, scenery, terrain, batch, materials = {}) {
   buildGround(world, scenery, terrain, batch);
-  buildFields(world, terrain, batch);
+  buildFields(world, terrain, batch, scenery);
   buildProps(world, terrain, batch);
   const wires = buildPowerLines(world, terrain, batch);
   buildMailboxes(world, terrain, batch);
@@ -212,19 +213,21 @@ export function buildWorld3D(scene, world, scenery, collider) {
     }
     if (h < -0.4) out.lerp(BED, smoothstep(-0.4, -1.2, h));
   };
-  const terrainMat = new THREE.MeshLambertMaterial({ vertexColors: true, map: grassTexture() });
-  scene.add(terrain.buildMeshes(terrainMat, colorFn));
-  const t2 = performance.now();
-
   const batch = new Batcher();
+  batch.paint = new GroundPaint(world);
   const { wires, chimneys, dynamic, trees, locals } = buildObjects(world, scenery, terrain, batch, materials);
+  const t2 = performance.now();
+  // Ground mesh, with fields and yards painted on (after the objects, which paint).
+  const terrainMat = new THREE.MeshLambertMaterial({ vertexColors: true, map: grassTexture() });
+  const hayTint = stripeTint(0xd2c38a, 0xb9a86c);
+  scene.add(terrain.buildMeshes(paintedMaterials(terrainMat, batch.paint, hayTint), colorFn));
   if (wires) scene.add(wires);
   scene.add(batch.build(materials));
   for (const d of dynamic) scene.add(d.object);
   scene.add(trees.object);
   scene.add(locals.object);
   const t3 = performance.now();
-  console.info(`[3d] terrain ${Math.round(t1 - t0)} ms, ground mesh ${Math.round(t2 - t1)} ms, objects ${Math.round(t3 - t2)} ms`);
+  console.info(`[3d] terrain ${Math.round(t1 - t0)} ms, objects ${Math.round(t2 - t1)} ms, ground mesh ${Math.round(t3 - t2)} ms, ${batch.paint.chunks.size} painted chunks`);
 
   // Surface height the car rests on: bridge decks, else the ground.
   const surfaceAt = (x, y) => (collider.onIntactBridge(x, y) ? DECK_TOP : Math.max(terrain.heightAt(x, y), -0.2));

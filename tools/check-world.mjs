@@ -14,6 +14,7 @@ import { Terrain } from '../src3/world3d/terrain.js';
 import { Batcher } from '../src3/world3d/batch.js';
 import { buildObjects } from '../src3/world3d/world3d.js';
 import { Audit, checkAudit, TOL } from '../src3/world3d/audit.js';
+import { GroundPaint } from '../src3/world3d/paint.js';
 
 const args = new Set(process.argv.slice(2));
 const t0 = Date.now();
@@ -21,6 +22,7 @@ const scenery = generateScenery(WORLD);
 const terrain = new Terrain(WORLD);
 const batch = new Batcher();
 batch.audit = new Audit();
+batch.paint = new GroundPaint(WORLD);
 buildObjects(WORLD, scenery, terrain, batch, { glowTex: null });
 const { problems, counts } = checkAudit(batch.audit, (x, y) => terrain.heightAt(x, y));
 

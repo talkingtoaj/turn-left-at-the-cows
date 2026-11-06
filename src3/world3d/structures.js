@@ -15,14 +15,22 @@ const ROOFS = [0x8e4b3a, 0x5a5f66, 0x6b4a3a, 0x4f6a5a, 0x7a3b3b, 0x6e6a60];
 const WINDOW = 0x2c3a46;
 const FOUND = 1.5; // walls reach this far below ground so slopes never show gaps
 
-// Lowest ground under a rect, so the building never floats.
-function baseUnder(terrain, x, y, w, h, angle) {
-  let m = Infinity;
-  for (const [lx, ly] of [[0, 0], [-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]]) {
-    const p = localToWorld(x, y, angle, lx, ly);
-    m = Math.min(m, terrain.heightAt(p.x, p.y));
+const PLINTH = 0x9a958a;
+
+// Where a building stands on sloping ground: its floor is level with the high
+// side of the footprint, so the uphill wall is never buried, and walls reach
+// FOUND below that. Where the ground falls away further, a stone plinth fills
+// down past the low side, so the downhill side never shows a gap.
+// Returns { base, bottom } and draws the plinth when one is needed.
+function standOn(terrain, batch, x, y, w, h, angle) {
+  const { min, max } = terrain.groundRange({ rect: { x, y, w, h, angle } });
+  let bottom = max - FOUND;
+  if (max - min > 0.12) {
+    bottom = Math.min(bottom, min - 0.3);
+    const up = 0.18; // shows as a low stone course on the high side
+    batch.place(box(w + 0.3, max - min + 0.3 + up, h + 0.3), x, y, min - 0.3, angle, 0, 0, 0, PLINTH);
   }
-  return m;
+  return { base: max, bottom };
 }
 
 // Which side of a building faces the nearest road: 'n' | 's' | 'e' | 'w' in local terms.
@@ -89,9 +97,9 @@ export function buildStructures(world, terrain, batch, materials, extras = {}) {
 function buildBuilding(world, terrain, batch, b) {
   const a = b.angle || 0;
   const hsh = hashString(b.id);
-  const base = baseUnder(terrain, b.x, b.y, b.w, b.h, a);
+  const { base, bottom } = standOn(terrain, batch, b.x, b.y, b.w, b.h, a);
   const P = (geo, lx, ly, up, color, opts) => batch.place(geo, b.x, b.y, base, a, lx, ly, up, color, opts);
-  if (batch.audit) batch.audit.rect(b.id, b.kind, b.x, b.y, b.w, b.h, a, base - FOUND, base);
+  if (batch.audit) batch.audit.rect(b.id, b.kind, b.x, b.y, b.w, b.h, a, bottom, base);
 
   if (b.kind === 'gas') {
     const s = GAS.shop;
@@ -272,9 +280,16 @@ function buildLandmark(terrain, batch, l, rng, materials) {
       const r = 11 + rng() * 4;
       pts.push([l.x + Math.cos(ang) * r * 1.1, l.y + Math.sin(ang) * r * 0.85]);
     }
-    const scorch = batch.add(flatPolygon(pts), new THREE.Matrix4().makeTranslation(0, base + 0.05, 0), 0x4a4436, { cast: false });
-    if (A) A.surface(l.id, 'scorch', scorch, 0.05);
-    batch.add(disc(6.5, 12), mAt(l.x - 1, base + 0.08, l.y, new THREE.Matrix4().makeScale(1.15, 1, 0.85)), 0x34302a, { cast: false });
+    // Painted onto the ground, so it follows the slope.
+    if (batch.paint) {
+      batch.paint.polygon(pts, 0x4a4436);
+      const ash = [];
+      for (let i = 0; i < 12; i++) {
+        const ang = (i / 12) * Math.PI * 2;
+        ash.push([l.x - 1 + Math.cos(ang) * 6.5 * 1.15, l.y + Math.sin(ang) * 6.5 * 0.85]);
+      }
+      batch.paint.polygon(ash, 0x34302a);
+    }
     // Standing walls: jagged stone, blackened on top.
     for (const w of MILL.walls) {
       const along = w.w >= w.h;
