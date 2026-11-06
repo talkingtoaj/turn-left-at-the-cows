@@ -187,6 +187,7 @@ export function updateDamage(state, dt, result, collider, prev) {
   const car = state.car;
   const T = TUNING;
   d.events.length = 0;
+  d.frame = (d.frame || 0) + 1; // lets listeners tell a new frame's events from old ones
   d.time += dt;
   d.crashCool = Math.max(0, d.crashCool - dt);
   const speed = Math.abs(car.speed);

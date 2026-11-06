@@ -174,12 +174,15 @@ export function createAudio(world) {
     const birdPan = panner(bus);
     const birdG = gain(0, birdPan);
 
+    // Damage: flat tyre flapping loop.
+    const flatG = gain(0, bus);
+
     // Voices: dialogue (centre) and chatter (each panned on its own).
     const voiceBus = gain(1, bus);
 
     nodes = {
       master, bus, engGain, engLp, engLayers, revG, revSrc: null, gravelG, grassG, pavedG, surfSrc: {},
-      waterPan, creekG, riverG, townPan, townG, birdPan, birdG, voiceBus, started: new Set(),
+      waterPan, creekG, riverG, townPan, townG, birdPan, birdG, voiceBus, started: new Set(), flatG, flatSrc: null,
     };
 
     loadSounds(ctx, ALL_SOUNDS.map((s) => s.id), (id, buf) => {
@@ -203,6 +206,7 @@ export function createAudio(world) {
     else if (id === 'nature/river') src = loopSource(id, n.riverG);
     else if (id === 'town/murmur') src = loopSource(id, n.townG);
     else if (id === 'nature/birdsong') src = loopSource(id, n.birdG);
+    else if (id === 'damage/flat_tyre') src = n.flatSrc = loopSource(id, n.flatG);
     if (src) n.started.add(id);
   }
 
@@ -217,7 +221,10 @@ export function createAudio(world) {
   }
 
   // ---------- Per-frame ----------
-  function updateEngine(dt, car) {
+  function updateEngine(dt, car, dmg) {
+    // Damage: a stalling engine drops to a cough; a dead one is silent.
+    const dead = !!(dmg && dmg.brokenDown && dmg.cause === 'engine');
+    const stalled = !!(dmg && (dmg.stall > 0 || dmg.brokenDown));
     const v = car.speed || 0;
     const s = Math.abs(v);
     const accel = dt > 0 ? (s - Math.abs(lastSpeed)) / dt : 0;
@@ -247,6 +254,7 @@ export function createAudio(world) {
       shiftT -= dt;
       target *= 0.82;
     }
+    if (stalled) target = IDLE_RPM * 0.6;
     rpm += (target - rpm) * Math.min(1, dt * (shiftT > 0 ? 6 : 10));
 
     const n = nodes;
@@ -259,7 +267,8 @@ export function createAudio(world) {
     // Kept low and warm: opens a little with RPM and load, never past 2.6 kHz.
     ramp(n.engLp.frequency, Math.min(2600, 900 + rpm * 0.25 + load * 700), 0.06);
     const dip = shiftT > 0 ? 0.6 : 1;
-    ramp(n.engGain.gain, (0.32 + 0.22 * (rpm / 5500) + 0.18 * load) * dip, 0.05);
+    const dmgMul = dead ? 0 : stalled ? 0.3 : 1;
+    ramp(n.engGain.gain, (0.32 + 0.22 * (rpm / 5500) + 0.18 * load) * dip * dmgMul, stalled ? 0.12 : 0.05);
 
     // Reversing: the recorded reverse gear on top, pitched by speed.
     ramp(n.revG.gain, reversing ? 0.35 + Math.min(0.25, s * 0.08) : 0, 0.08);
@@ -495,6 +504,25 @@ export function createAudio(world) {
     }
   }
 
+  // Damage sounds: crash thud on hard hits (quieter thuds for potholes and
+  // branches), and the flat tyre flapping while a flat tyre rolls.
+  let dmgFrame = -1;
+  function updateDamage(dmg, s) {
+    const n = nodes;
+    const flat = dmg && dmg.tyres < 0.45 && s > 1;
+    ramp(n.flatG.gain, flat ? 0.55 * Math.min(1, s / 8) : 0, 0.15);
+    if (n.flatSrc) ramp(n.flatSrc.playbackRate, 0.6 + 0.7 * Math.min(1, s / 15), 0.1);
+    if (!dmg || dmg.frame === dmgFrame) return;
+    dmgFrame = dmg.frame;
+    for (const e of dmg.events) {
+      if (e.type === 'crash' && e.amount > 0.005) {
+        oneShot('damage/crash', ctx.currentTime, 0, 0.25 + 0.6 * e.strength, 0.95 + Math.random() * 0.1);
+      } else if (e.type === 'bump' && e.amount > 0.004) {
+        oneShot('damage/crash', ctx.currentTime, 0, 0.1 + 0.25 * e.strength, 1.15 + Math.random() * 0.15, 900);
+      }
+    }
+  }
+
   function handleEvents(car, amb) {
     if (!amb || !amb.events) return;
     for (const e of amb.events) {
@@ -544,7 +572,9 @@ export function createAudio(world) {
       nodes.master.gain.setTargetAtTime(target, ctx.currentTime, paused || muted ? 0.25 : 0.4);
       const car = state && state.car;
       if (!car) return;
-      const s = updateEngine(dt, car);
+      const dmg = state.damage || null;
+      const s = updateEngine(dt, car, dmg);
+      updateDamage(dmg, s);
       const surface = (amb && amb.playerSurface) || 'paved';
       updateSurface(dt, s, surface);
       updateWater(dt, car);

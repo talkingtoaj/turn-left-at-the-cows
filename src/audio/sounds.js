@@ -101,7 +101,7 @@ export const SOUND_GROUPS = [
     ],
   },
   {
-    group: 'Damage (not used in game yet)',
+    group: 'Damage',
     items: [
       { id: 'damage/flat_tyre', kind: 'loop', label: 'Flat tyre flapping' },
       { id: 'damage/crash', kind: 'oneshot', label: 'Crash thud' },
