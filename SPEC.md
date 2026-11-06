@@ -228,3 +228,13 @@ Middle path between low-poly and realistic, no 3D artist needed:
 - **Fallen trees that close a road** are placed only by mission design, never at random, so a mission can always be finished. This is a "the map lies" moment.
 - Hitting things causes damage (9f).
 
+
+### 9h. Review decisions (LOCKED, 6 Nov 2026)
+- **New look becomes the default.** `?look=old` keeps the old look for comparison.
+- **Weather:** both cloudy and sunny days, with a gentle change between them over time (not a clearer sky in place of the cloudy one).
+- **Trees:** try free CC0 low-poly tree models (Quaternius) behind a switch and compare.
+- **Damage and hazard tuning:** keep as is until a full mission has been played.
+- **Dents and horn:** add visible dents. The horn does not always work: each animal type has a courage chance of ignoring it, high for cows.
+- **Road blockers:** a planned fallen tree in mission 2. Cars can usually drive around a tree, so blockers must really block (a spot hemmed in by trees, fences, water or a cutting, or a wider debris spread).
+- **Off-road driving** has a tiny damage risk, much smaller than potholes.
+- Helper worktrees cleaned up. Push `main` to GitHub after a quick play.
