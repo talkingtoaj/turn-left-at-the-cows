@@ -113,7 +113,7 @@ export async function createLook(renderer, params) {
     exposure: num('exp', 0.45),
     sun: num('sun', 0.95),
     sky: num('sky', 1.0),
-    textures: params.get('tex') === '1',
+    textures: params.get('tex') !== '0',
     ao: params.get('ao') !== '0',
   };
   const t0 = performance.now();
