@@ -30,6 +30,7 @@ const SW = {
   rubber: ['#1a1a1a', 0.9, 0],
   chrome: ['#d8dadc', 0.12, 1],
   steel: ['#8a8d90', 0.35, 1],
+  alu: ['#d4d8dc', 0.32, 1],
   gap: ['#0a0a0a', 0.9, 0],
   dash: ['#2a2622', 0.8, 0],
   seat: ['#4a3e36', 0.95, 0],

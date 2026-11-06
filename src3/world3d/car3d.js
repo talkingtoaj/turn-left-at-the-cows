@@ -173,13 +173,13 @@ function surfaceStrips(T, body, A) {
 function trimParts(T, A) {
   const h = HALF_L;
   const endBelt = (z) => sectionAt(S, z).belt;
-  // Bumpers: chrome with a black rubber band, wrapping round the corners.
+  // Bumpers: brushed alloy with a black rubber band, wrapping round the corners.
   for (const s of [-1, 1]) {
     const z = s * (h + 0.045);
-    T.box(0, 0.45, z, 1.72, 0.17, 0.15, 'chrome');
+    T.box(0, 0.45, z, 1.72, 0.17, 0.15, 'alu');
     T.box(0, 0.455, z + s * 0.004, 1.74, 0.05, 0.155, 'rubber');
     for (const x of [-1, 1]) {
-      T.box(x * 0.815, 0.45, s * (h - 0.13), 0.13, 0.17, 0.42, 'chrome');
+      T.box(x * 0.815, 0.45, s * (h - 0.13), 0.13, 0.17, 0.42, 'alu');
       T.box(x * 0.82, 0.455, s * (h - 0.13), 0.135, 0.05, 0.425, 'rubber');
     }
     // Number plate.

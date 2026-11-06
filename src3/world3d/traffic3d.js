@@ -183,6 +183,19 @@ function makeMaterial(env) {
   return m;
 }
 
+// One instanced mesh of a type, on its own (the slow farm trucks in hazards3d).
+const GEOS = { sedan: () => loftCar('sedan'), wagon: () => loftCar('wagon'), pickup: () => loftCar('pickup'), hatch: () => loftCar('hatch'), farmtruck: farmTruck };
+export function vehicleMesh(type, max, env = null) {
+  const mesh = new THREE.InstancedMesh(GEOS[type](), makeMaterial(env), max);
+  mesh.count = 0;
+  mesh.frustumCulled = false;
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  mesh.setColorAt(0, new THREE.Color(1, 1, 1));
+  return mesh;
+}
+
 export function createTraffic3D(parent, opts = {}) {
   const mat = makeMaterial(opts.env || null);
   const make = (geo) => {

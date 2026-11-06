@@ -28,11 +28,11 @@ import { DEG } from '../src/drive/geom.js';
 const SOLID_R = 45; // hazards and traffic within this range are solid
 const ANIMALS = new Set(['cow', 'sheep', 'deer']);
 
-export function createDamageHazards({ scene, scenery, collider, amb, world3d, rig, sunDir, params }) {
+export function createDamageHazards({ scene, scenery, collider, amb, world3d, rig, sunDir, params, env = null }) {
   const potholes = potholesFor(WORLD);
   collider.addSurfaceEvents(potholes);
   const hz = createHazards(WORLD, scenery);
-  const hz3d = createHazards3D(scene, { terrain: world3d.terrain, surfaceAt: world3d.surfaceAt, potholes, sunDir, fallen: hz.fallen });
+  const hz3d = createHazards3D(scene, { terrain: world3d.terrain, surfaceAt: world3d.surfaceAt, potholes, sunDir, fallen: hz.fallen, env });
   const mods = {};
   const prev = { x: 0, y: 0, heading: 0 };
   const devHazard = params.get('hazard');

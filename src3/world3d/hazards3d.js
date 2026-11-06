@@ -10,6 +10,7 @@ import { DEG, makeRng } from '../../src/drive/geom.js';
 import { box } from './shapes.js';
 import { colored, instanced, puffs, puffTexture } from './ambient3d.js';
 import { treeModelFor } from './trees.js';
+import { vehicleMesh } from './traffic3d.js';
 
 const MAX_DEBRIS = 12;
 const MAX_VEHICLES = 6;
@@ -181,28 +182,6 @@ function tractorGeo() {
   return { paint: mergeGeometries(paint), trim: mergeGeometries(trim) };
 }
 
-// Old farm pickup with a flat bed.
-function truckGeo() {
-  const P = 0xeeeeee;
-  const paint = [
-    colored(box(1.9, 0.6, 1.6).translate(0, 0.45, -1.5), P), // bonnet
-    colored(box(1.9, 1.1, 1.3).translate(0, 0.45, -0.1), P), // cab body
-    colored(box(1.95, 0.5, 2.3).translate(0, 0.45, 1.6), P), // bed sides
-  ];
-  const trim = [
-    colored(box(1.7, 0.5, 1.1).translate(0, 1.4, -0.12), 0x2c3a44), // cab glass
-    colored(box(1.8, 0.08, 1.2).translate(0, 1.9, -0.1), 0xdddddd),
-    colored(box(1.7, 0.08, 2.1).translate(0, 0.62, 1.6), 0x6a4e34), // wooden bed floor
-    colored(box(1.95, 0.2, 0.2).translate(0, 0.35, -2.35), 0x888888), // bumper
-    colored(box(0.3, 0.16, 0.05).translate(-0.6, 0.78, -2.31), 0xfff3c4),
-    colored(box(0.3, 0.16, 0.05).translate(0.6, 0.78, -2.31), 0xfff3c4),
-    colored(box(0.6, 0.5, 0.5).translate(0.3, 0.68, 1.9), 0xc9b26a), // a hay bale in the back
-    wheelGeo(0.42, 0.3, -0.92, -1.45), wheelGeo(0.42, 0.3, 0.92, -1.45),
-    wheelGeo(0.42, 0.3, -0.92, 1.5), wheelGeo(0.42, 0.3, 0.92, 1.5),
-  ];
-  return { paint: mergeGeometries(paint), trim: mergeGeometries(trim) };
-}
-
 // A fixed fallen tree (src/world/fallenTrees.js), built in world space:
 // the same CC0 model the standing tree used, laid on its side along the
 // line it fell, a bark trunk the size of its collision circles, the root
@@ -288,7 +267,7 @@ function fallenGeo(f, surfaceAt, rng) {
 // ---------- main ----------
 
 export function createHazards3D(scene, opts) {
-  const { terrain, surfaceAt, potholes, sunDir, fallen } = opts;
+  const { terrain, surfaceAt, potholes, sunDir, fallen, env = null } = opts;
   const groundAt = (x, y) => terrain.heightAt(x, y);
   const group = new THREE.Group();
   scene.add(group);
@@ -299,13 +278,14 @@ export function createHazards3D(scene, opts) {
   const vc = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
   const branches = instanced(branchGeo(), vc, MAX_DEBRIS);
   const logs = instanced(logGeo(), vc, MAX_DEBRIS);
+  // Tractors keep their shapes, with the cars' sky reflections when there is
+  // one; slow farm trucks are the traffic's stake-side farm truck (one mesh).
+  const vm = env ? new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.6, metalness: 0.1, envMap: env, envMapIntensity: 0.8 }) : vc;
   const tg = tractorGeo();
-  const tractorPaint = instanced(tg.paint, vc, MAX_VEHICLES);
-  const tractorTrim = instanced(tg.trim, vc, MAX_VEHICLES);
-  const kg = truckGeo();
-  const truckPaint = instanced(kg.paint, vc, MAX_VEHICLES);
-  const truckTrim = instanced(kg.trim, vc, MAX_VEHICLES);
-  const meshes = [branches, logs, tractorPaint, tractorTrim, truckPaint, truckTrim];
+  const tractorPaint = instanced(tg.paint, vm, MAX_VEHICLES);
+  const tractorTrim = instanced(tg.trim, vm, MAX_VEHICLES);
+  const truckMesh = vehicleMesh('farmtruck', MAX_VEHICLES, env);
+  const meshes = [branches, logs, tractorPaint, tractorTrim, truckMesh];
   group.add(...meshes);
 
   // Engine smoke: grey, darker as the engine gets worse.
@@ -374,9 +354,8 @@ export function createHazards3D(scene, opts) {
         m.compose(p, q, s);
         col.setHex(v.color);
         if (v.kind === 'truck') {
-          truckPaint.setMatrixAt(nk, m);
-          truckTrim.setMatrixAt(nk, m);
-          truckPaint.setColorAt(nk, col);
+          truckMesh.setMatrixAt(nk, m);
+          truckMesh.setColorAt(nk, col);
           nk++;
         } else {
           tractorPaint.setMatrixAt(nt, m);
@@ -386,7 +365,7 @@ export function createHazards3D(scene, opts) {
         }
       }
       tractorPaint.count = tractorTrim.count = nt;
-      truckPaint.count = truckTrim.count = nk;
+      truckMesh.count = nk;
       for (const mesh of meshes) {
         mesh.visible = mesh.count > 0;
         mesh.instanceMatrix.needsUpdate = true;

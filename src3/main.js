@@ -85,7 +85,7 @@ const amb3d = createAmbient3D(scene, {
 addCloudShadowsTo(scene);
 if (look) look.afterAmbient(scene);
 // Damage, potholes and road hazards (also the ?hazard, ?fallen, ?spot dev flags).
-const dh = createDamageHazards({ scene, scenery, collider, amb, world3d, rig, sunDir: SUN_DIR, params });
+const dh = createDamageHazards({ scene, scenery, collider, amb, world3d, rig, sunDir: SUN_DIR, params, env: look ? look.carEnv() : null });
 
 // ---------- UI wiring (see CONTRACT3.md) ----------
 
