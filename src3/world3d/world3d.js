@@ -10,6 +10,9 @@ import { buildGround, DECK_TOP } from './ground.js';
 import { buildStructures } from './structures.js';
 import { buildSigns, buildLocals } from './props.js';
 import { buildTrees } from './trees.js';
+import { buildScatter } from './scatter3d.js';
+import { districtsFor, KIND_LIST, RECIPES } from '../../src/world/districts.js';
+import { scatterEnabled } from '../../src/world/scatter.js';
 import { GroundPaint, paintedMaterials, stripeTint } from './paint.js';
 
 export const FOG_COLOR = 0xcdd9de;
@@ -129,8 +132,9 @@ export function buildObjects(world, scenery, terrain, batch, materials = {}) {
   buildSigns(world, terrain, batch);
   buildStones(terrain, batch); // last: stones join the buckets already there
   const trees = buildTrees(scenery, terrain, SUN_DIR, batch.audit);
+  const scatter = buildScatter(world, scenery, terrain, SUN_DIR, batch.audit);
   const locals = buildLocals(world, terrain, batch.audit);
-  return { wires, chimneys, dynamic, trees, locals };
+  return { wires, chimneys, dynamic, trees, scatter, locals };
 }
 
 export function buildWorld3D(scene, world, scenery, collider) {
@@ -185,10 +189,30 @@ export function buildWorld3D(scene, world, scenery, collider) {
   const lakes = world.lakes.map((l) => ({ ...l, bb: bbox(l.polygon) }));
   const banks = new SegIndex(32);
   for (const c of world.creeks) banks.addPolyline(c.points, c.width / 2 + 9, c);
-  const colorFn = (x, y, h, out, rough = 0) => {
+  // Districts (src/world/districts.js): each leans the open land's grass
+  // toward its own tone; ?districts=show paints them in loud colours.
+  const districts = scatterEnabled() ? districtsFor(world) : null;
+  const showDistricts = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('districts') === 'show';
+  const TINTS = KIND_LIST.map((k) => ({ c: C(showDistricts ? RECIPES[k].show : RECIPES[k].tint.color), k: showDistricts ? 0.75 : RECIPES[k].tint.k }));
+  const tint = new THREE.Color();
+  const colorFn = (x, y, h, out, rough = 0, open = 0) => {
     const n = noise(x / 70, y / 70) * 0.65 + noise(x / 18 + 9, y / 18) * 0.35;
     out.copy(GRASS).multiplyScalar(0.92 + n * 0.12);
     out.lerp(GRASS_DRY, smoothstep(10, 30, h) * 0.45 + Math.max(0, n) * 0.15);
+    if (districts && (open > 0 || showDistricts)) {
+      const w = districts.weights(x, y);
+      tint.setRGB(0, 0, 0);
+      let k = 0;
+      for (let t = 0; t < 5; t++) {
+        if (w[t] <= 0) continue;
+        tint.r += TINTS[t].c.r * w[t];
+        tint.g += TINTS[t].c.g * w[t];
+        tint.b += TINTS[t].c.b * w[t];
+        k += TINTS[t].k * w[t];
+      }
+      // Patchy, so it reads as grass, not paint.
+      out.lerp(tint, k * (showDistricts ? 0.25 + 0.75 * open : open * (0.75 + 0.5 * Math.max(0, n))));
+    }
     // Rough meadow and scrub: patchy, tussocky, olive and straw.
     const sk = smoothstep(0.6, 0.95, rough);
     if (sk > 0) {
@@ -232,7 +256,7 @@ export function buildWorld3D(scene, world, scenery, collider) {
   };
   const batch = new Batcher();
   batch.paint = new GroundPaint(world);
-  const { wires, chimneys, dynamic, trees, locals } = buildObjects(world, scenery, terrain, batch, materials);
+  const { wires, chimneys, dynamic, trees, scatter, locals } = buildObjects(world, scenery, terrain, batch, materials);
   const t2 = performance.now();
   // Ground mesh, with fields and yards painted on (after the objects, which paint).
   const terrainMat = new THREE.MeshLambertMaterial({ vertexColors: true, map: grassTexture() });
@@ -244,6 +268,7 @@ export function buildWorld3D(scene, world, scenery, collider) {
   scene.add(objects);
   for (const d of dynamic) scene.add(d.object);
   scene.add(trees.object);
+  scene.add(scatter.object);
   scene.add(locals.object);
   const t3 = performance.now();
   console.info(`[3d] terrain ${Math.round(t1 - t0)} ms, objects ${Math.round(t2 - t1)} ms, ground mesh ${Math.round(t3 - t2)} ms, ${batch.paint.chunks.size} painted chunks`);
@@ -263,12 +288,14 @@ export function buildWorld3D(scene, world, scenery, collider) {
     ground,
     objects,
     trees,
+    scatter,
     // Per frame: animated bits and the sun's shadow box following `focus`.
     update(time, dt, car, focus, shadowRadius, camera, amb) {
       for (const d of dynamic) d.update(time);
       locals.update(car, dt, amb);
       sky.position.copy(camera.position);
       trees.update(camera, focus, shadowRadius);
+      scatter.update(camera, focus, shadowRadius);
       // Shadow box around the focus, snapped to texels to stop shimmering.
       sc.left = -shadowRadius;
       sc.right = shadowRadius;

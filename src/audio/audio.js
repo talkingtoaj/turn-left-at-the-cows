@@ -509,6 +509,7 @@ export function createAudio(world) {
   // Damage sounds: crash thud on hard hits (quieter thuds for potholes and
   // branches), and the flat tyre flapping while a flat tyre rolls.
   let dmgFrame = -1;
+  let lastSwish = -1;
   function updateDamage(dmg, s) {
     const n = nodes;
     const flat = dmg && dmg.tyres < 0.45 && s > 1;
@@ -525,6 +526,12 @@ export function createAudio(world) {
         const pan = e.pan ?? 0;
         if (e.heavy) oneShot(pick(THUMPS), ctx.currentTime, pan * 0.5, 0.35 + 0.3 * e.strength, 0.85 + Math.random() * 0.3, 2500);
         oneShot(pick(CHIPS), ctx.currentTime + (e.heavy ? 0.03 : 0), pan, 0.18 + 0.2 * e.strength, 0.8 + Math.random() * 0.5);
+      } else if (e.type === 'bump' && e.kind === 'shrub') {
+        // Through a shrub: one swish, a little different each time, and not
+        // piled up when the car ploughs through a whole drift.
+        if (ctx.currentTime - lastSwish < 0.14) continue;
+        lastSwish = ctx.currentTime;
+        oneShot('tyres/shrub', ctx.currentTime, (Math.random() - 0.5) * 0.6, (0.22 + 0.3 * e.strength) * (0.85 + Math.random() * 0.25), 0.9 + Math.random() * 0.22);
       } else if (e.type === 'bump' && e.amount > 0.004) {
         oneShot('damage/crash', ctx.currentTime, 0, 0.1 + 0.25 * e.strength, 1.15 + Math.random() * 0.15, 900);
       }

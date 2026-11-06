@@ -452,6 +452,11 @@ export function buildCar(opts = {}) {
     meshes: { paint, glass, trim, wheels: wheelMesh },
     dirt: M.dirt, // uniform { value 0..0.75 } (dev: set it for a dusty car)
     showDamage,
+    // A small upward kick to the body (m/s), e.g. driving through a shrub.
+    kick(v) {
+      sp.y[1] += v * 1.5;
+      sp.p[1] -= v * 0.25;
+    },
     // heightAt(x, y) is the surface height under a world point.
     // damage (optional): state.damage, for dents, a flat tyre and dust.
     // ride (optional): the ground under the car off-road, from
