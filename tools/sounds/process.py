@@ -81,6 +81,14 @@ RECIPES = [
     ('damage/thump2', f'{FS}/164220.ogg', 0.15, 0.6, 'oneshot', 'lowpass=f=4000', -1),
     # Horn: one honk of a Mercury Marquis (the first of its honks).
     ('car/horn', f'{FS}/558842.ogg', 0.36, 0.72, 'oneshot', 'highpass=f=150', -3),
+    # Round 8, rain: rain on the car roof (inside the car) and the wider rain
+    # outside, a puddle splash two ways, and the hiss of tyres on a wet road
+    # (the closest part of a wet-road pass-by, high-passed so the engine goes).
+    ('weather/rain_roof', f'{FS}/535869.ogg', 2, 12, 'loop', 'highpass=f=120', -22),
+    ('weather/rain', f'{FS}/595717.ogg', 0, 22, 'loop', 'highpass=f=80', -22),
+    ('weather/splash1', f'{FS}/563021.ogg', 0.3, 1.9, 'oneshot', 'highpass=f=120', -1),
+    ('weather/splash2', f'{FS}/207139.ogg', 3.6, 0.85, 'oneshot', 'highpass=f=150', -1),
+    ('tyres/wet', f'{FS}/846301.ogg', 4.5, 4.0, 'loop', 'highpass=f=500,lowpass=f=9000', -22),
 ]
 
 
@@ -156,7 +164,7 @@ def main():
             if name == 'tyres/shrub':
                 a = fades(a, fin=0.03, fout=0.22)  # noisy floor: no silence to trim
             else:
-                a = fades(trim_silence(a), fout=0.4 if name == 'bell/bell' else 0.06)
+                a = fades(trim_silence(a), fout=0.4 if name == 'bell/bell' else 0.5 if name == 'weather/splash1' else 0.06)
             g = 10 ** (target / 20) / (max(abs(x) for x in a) or 1)
             a = [x * g for x in a]
         dst = os.path.join(OUT, name + '.mp3')

@@ -119,6 +119,17 @@ export const SOUND_GROUPS = [
       { id: 'car/horn', kind: 'oneshot', label: 'Horn (B key), one friendly honk' },
     ],
   },
+  // Round 8, 3D only (createAudio(world, { weather: true }) loads them).
+  {
+    group: 'Rain',
+    items: [
+      { id: 'weather/rain_roof', kind: 'loop', label: 'Rain on the car roof', weather: true },
+      { id: 'weather/rain', kind: 'loop', label: 'Rain all round (outside)', weather: true },
+      { id: 'tyres/wet', kind: 'loop', label: 'Tyres on a wet road (hiss)', weather: true },
+      { id: 'weather/splash1', kind: 'oneshot', label: 'Puddle splash 1 (wheel through a puddle)', weather: true },
+      { id: 'weather/splash2', kind: 'oneshot', label: 'Puddle splash 2 (smaller)', weather: true },
+    ],
+  },
 ];
 
 export const ALL_SOUNDS = SOUND_GROUPS.flatMap((g) => g.items);

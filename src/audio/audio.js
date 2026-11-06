@@ -42,7 +42,10 @@ const CHAT_VOICES = 2;
 
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
-export function createAudio(world) {
+// opts.weather (3D): also load and play the rain sounds; update() then
+// takes opts.rain = { rain, wet } each frame (src/game/wetness.js).
+export function createAudio(world, opts = {}) {
+  const withWeather = !!opts.weather;
   let ctx = null;
   let muted = false;
   let nodes = null;
@@ -179,15 +182,22 @@ export function createAudio(world) {
     // Damage: flat tyre flapping loop.
     const flatG = gain(0, bus);
 
+    // Rain (3D): on the roof (muffled, close) and all round (wider, a
+    // little brighter), and the hiss of wet tyres.
+    const roofG = gain(0, filter('lowpass', 3200, 0.6, bus));
+    const rainG = gain(0, bus);
+    const wetG = gain(0, bus);
+
     // Voices: dialogue (centre) and chatter (each panned on its own).
     const voiceBus = gain(1, bus);
 
     nodes = {
       master, bus, engGain, engLp, engLayers, revG, revSrc: null, gravelG, grassG, pavedG, surfSrc: {},
       waterPan, creekG, riverG, townPan, townG, birdPan, birdG, voiceBus, started: new Set(), flatG, flatSrc: null,
+      roofG, rainG, wetG, wetSrc: null,
     };
 
-    loadSounds(ctx, ALL_SOUNDS.map((s) => s.id), (id, buf) => {
+    loadSounds(ctx, ALL_SOUNDS.filter((s) => withWeather || !s.weather).map((s) => s.id), (id, buf) => {
       bufs.set(id, buf);
       startLoop(id);
     });
@@ -209,6 +219,9 @@ export function createAudio(world) {
     else if (id === 'town/murmur') src = loopSource(id, n.townG);
     else if (id === 'nature/birdsong') src = loopSource(id, n.birdG);
     else if (id === 'damage/flat_tyre') src = n.flatSrc = loopSource(id, n.flatG);
+    else if (id === 'weather/rain_roof') src = loopSource(id, n.roofG);
+    else if (id === 'weather/rain') src = loopSource(id, n.rainG);
+    else if (id === 'tyres/wet') src = n.wetSrc = loopSource(id, n.wetG);
     if (src) n.started.add(id);
   }
 
@@ -510,6 +523,20 @@ export function createAudio(world) {
   // branches), and the flat tyre flapping while a flat tyre rolls.
   let dmgFrame = -1;
   let lastSwish = -1;
+  let lastSplash = -1;
+
+  // Rain (3D only): loops follow how hard it rains; wet tyres hiss on a wet
+  // road with speed (most on asphalt).
+  function updateRain(r, s, surface) {
+    const n = nodes;
+    const rain = r ? r.rain : 0;
+    const wet = r ? r.wet : 0;
+    ramp(n.roofG.gain, 0.5 * Math.min(1, rain * 1.2), 0.6);
+    ramp(n.rainG.gain, 0.32 * Math.sqrt(rain), 0.6);
+    const k = Math.min(1, s / 18) * wet * (surface === 'paved' ? 1 : surface === 'dirt' ? 0.55 : 0.3);
+    ramp(n.wetG.gain, 0.42 * k, 0.15);
+    if (n.wetSrc) ramp(n.wetSrc.playbackRate, 0.8 + 0.35 * Math.min(1, s / 22), 0.1);
+  }
   function updateDamage(dmg, s) {
     const n = nodes;
     const flat = dmg && dmg.tyres < 0.45 && s > 1;
@@ -532,6 +559,14 @@ export function createAudio(world) {
         if (ctx.currentTime - lastSwish < 0.14) continue;
         lastSwish = ctx.currentTime;
         oneShot('tyres/shrub', ctx.currentTime, (Math.random() - 0.5) * 0.6, (0.22 + 0.3 * e.strength) * (0.85 + Math.random() * 0.25), 0.9 + Math.random() * 0.22);
+      } else if (e.type === 'bump' && e.kind === 'puddle') {
+        // Through a puddle: one splash per puddle (the first wheel in), bigger
+        // and lower for a big puddle at speed.
+        if (ctx.currentTime - lastSplash < 0.25) continue;
+        lastSplash = ctx.currentTime;
+        const big = e.r >= 2.5 && e.strength > 0.4;
+        oneShot(big || Math.random() < 0.5 ? 'weather/splash1' : 'weather/splash2', ctx.currentTime, (Math.random() - 0.5) * 0.5,
+          (0.3 + 0.55 * e.strength) * (0.85 + Math.random() * 0.25), (big ? 0.85 : 1) + Math.random() * 0.2);
       } else if (e.type === 'bump' && e.amount > 0.004) {
         oneShot('damage/crash', ctx.currentTime, 0, 0.1 + 0.25 * e.strength, 1.15 + Math.random() * 0.15, 900);
       }
@@ -594,6 +629,7 @@ export function createAudio(world) {
       updateDamage(dmg, s);
       const surface = (amb && amb.playerSurface) || 'paved';
       updateSurface(dt, s, surface);
+      if (withWeather) updateRain(opts && opts.rain, s, surface);
       updateWater(dt, car);
       updateTown(dt, car);
       updateTalk();
