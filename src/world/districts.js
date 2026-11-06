@@ -89,11 +89,11 @@ export const RECIPES = {
 
 // District names by kind. Joined districts take the next unused name.
 const NAMES = {
-  stony: ['Carn Rise', 'Flint Rise', 'Cragside', 'Greystone Rise', 'Ravenstone Rise', 'Hob Rise', 'Scarth Rise', 'Knapp Rise', 'Kettle Rise', 'Brack Rise', 'Rowton Rise', 'Scree Rise'],
-  gorse: ['Whin Flats', 'Furze Flats', 'Broom Flats', 'Linnet Flats', 'Gold Flats', 'Stonechat Flats', 'Prickle Flats', 'Yellow Flats', 'Heath Flats', 'Bunting Flats', 'Spiny Flats', 'Gorse Flats'],
+  stony: ['Carn Rise', 'Flint Rise', 'Cragside', 'Greystone Rise', 'Ravenstone Rise', 'Hob Rise', 'Scarth Rise', 'Knapp Rise', 'Kettle Rise', 'Brack Rise', 'Rowton Rise', 'Scree Rise', 'Stony Rise', 'Cobble Rise', 'Shale Rise', 'Boulder Rise'],
+  gorse: ['Whin Flats', 'Furze Flats', 'Broom Flats', 'Linnet Flats', 'Gold Flats', 'Stonechat Flats', 'Prickle Flats', 'Yellow Flats', 'Heath Flats', 'Bunting Flats', 'Spiny Flats', 'Gorse Flats', 'Bee Flats', 'Warren Flats', 'Coney Flats', 'Sunny Flats'],
   willow: ['Osier Bottoms', 'Sallow Bottoms', 'Withy Bottoms', 'Reed Bottoms', 'Heron Bottoms', 'Alder Bottoms', 'Marsh Bottoms', 'Teal Bottoms', 'Snipe Bottoms', 'Rush Bottoms', 'Mallow Bottoms', 'Willow Bottoms'],
-  bare: ['Long Downs', 'High Downs', 'Windy Downs', 'Lark Downs', 'Pale Downs', 'Hare Downs', 'Kite Downs', 'Far Downs', 'Barrow Downs', 'Sheep Downs', 'Open Downs', 'Bare Downs'],
-  mixed: ['Thorn Common', 'Briar Common', 'Sloe Common', 'Haw Common', 'Hollin Common', 'Fox Common', 'Elder Common', 'Bryony Common', 'Rough Common', 'Rose Common', 'Bramble Common', 'Nettle Common'],
+  bare: ['Long Downs', 'High Downs', 'Windy Downs', 'Lark Downs', 'Pale Downs', 'Hare Downs', 'Kite Downs', 'Far Downs', 'Barrow Downs', 'Sheep Downs', 'Open Downs', 'Bare Downs', 'Skylark Downs', 'Thistle Downs', 'Chalk Downs', 'Bald Downs'],
+  mixed: ['Thorn Common', 'Briar Common', 'Sloe Common', 'Haw Common', 'Hollin Common', 'Fox Common', 'Elder Common', 'Bryony Common', 'Rough Common', 'Rose Common', 'Bramble Common', 'Nettle Common', 'Blackthorn Common', 'Wren Common', 'Tangle Common', 'Hawthorn Common'],
 };
 
 const cache = new WeakMap();
@@ -148,7 +148,7 @@ class Districts {
       const wd = waterDist(c.x, c.y);
       const hill = hillAt(c.x, c.y);
       const r = c.roll;
-      if (outcrops.some((o) => this.cellOf(o.x, o.y) === c)) c.kind = 'stony';
+      if (outcrops.some((o) => this.cellOf(o.x, o.y) === c || this.warpedCellOf(o.x, o.y) === c)) c.kind = 'stony';
       else if (wd < 130 && hill < 12) c.kind = r < 0.88 ? 'willow' : 'mixed';
       else if (hill > 10) c.kind = r < 0.75 ? 'stony' : 'gorse';
       else if (r < 0.28) c.kind = 'bare';
@@ -238,11 +238,23 @@ class Districts {
     return best;
   }
 
+  // The centre nearest (x, y) in the warped space the district borders use.
+  warpedCellOf(x, y) {
+    const [wx, wy] = this.warp(x, y);
+    return this.cellOf(wx, wy);
+  }
+
+  warp(x, y) {
+    return [
+      x + WARP * (0.7 * this.nx(x / 230, y / 230) + 0.3 * this.nx(x / 80 + 7, y / 80)),
+      y + WARP * (0.7 * this.ny(x / 230, y / 230) + 0.3 * this.ny(x / 80, y / 80 + 7)),
+    ];
+  }
+
   // Weights by kind at (x, y), from the warped distances to nearby centres.
   // Returns the nearest centre's district id.
   blend(x, y, out) {
-    const wx = x + WARP * (0.7 * this.nx(x / 230, y / 230) + 0.3 * this.nx(x / 80 + 7, y / 80));
-    const wy = y + WARP * (0.7 * this.ny(x / 230, y / 230) + 0.3 * this.ny(x / 80, y / 80 + 7));
+    const [wx, wy] = this.warp(x, y);
     const i = Math.floor(wx / SPACING);
     const j = Math.floor(wy / SPACING);
     let d1 = Infinity;
