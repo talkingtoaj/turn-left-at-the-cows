@@ -39,11 +39,13 @@ export const GROUND = {
   lawn: { rough: 0.12, big: 0.12 }, // town lawns and greens, mown
   hay: { rough: 0.15, big: 0.2 }, // mown hay meadow
   crop: { rough: 0.3, big: 0.3 }, // wheat, corn
-  plowed: { rough: 0.5, big: 0.35 }, // long swells, furrows across the rows
-  pasture: { rough: 0.55, big: 0.75 }, // hummocks, old cattle paths
-  forest: { rough: 0.6, big: 0.7 }, // roots and mounds
-  meadow: { rough: 0.7, big: 0.95 }, // rough, unclaimed grass
-  scrub: { rough: 1.0, big: 1.3 }, // lumps, dips, the odd boulder
+  // Round 5: pastures 1.6x lumpier (0.75 -> 1.2) so the relief reads from the
+  // chase camera; plowed, forest, meadow and scrub 1.25x.
+  plowed: { rough: 0.5, big: 0.44 }, // long swells, furrows across the rows
+  pasture: { rough: 0.6, big: 1.2 }, // hummocks, old cattle paths
+  forest: { rough: 0.6, big: 0.875 }, // roots and mounds
+  meadow: { rough: 0.7, big: 1.19 }, // rough, unclaimed grass
+  scrub: { rough: 1.0, big: 1.625 }, // lumps, dips, the odd boulder
 };
 
 const VERGE = 0.38; // roughness right at a road, yard or building edge
@@ -340,7 +342,7 @@ class Roughness {
         const py = y + (rng() - 0.5) * STEP * 0.8;
         const roll = rng();
         const g = this.at(px, py);
-        if (g.type !== 'scrub' || g.rough < 0.85 || g.big < 0.9 || roll > 0.35) continue;
+        if (g.type !== 'scrub' || g.rough < 0.85 || g.big < 1.125 || roll > 0.35) continue;
         if (this.flatDist(px, py) < 40) continue;
         let clash = false;
         for (const p of props) if (Math.abs(p.x - px) < 12 && Math.abs(p.y - py) < 12) clash = true;
