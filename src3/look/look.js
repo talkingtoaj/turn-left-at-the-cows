@@ -138,8 +138,36 @@ export async function createLook(renderer, params) {
   console.info(`[look] new look on, assets ready in ${Math.round(performance.now() - t0)} ms`);
 
   let weather = null;
+  let carEnv = null;
   return {
     opts,
+    // Reflections for the cars' paint, glass and chrome: the sunny sky above
+    // a soft green-brown ground, as a PMREM map (made once, on first use).
+    carEnv() {
+      if (carEnv) return carEnv;
+      const img = sunnySky.tex.image;
+      const W = 1024;
+      const c = document.createElement('canvas');
+      c.width = W;
+      c.height = W / 2;
+      const g = c.getContext('2d');
+      g.drawImage(img, 0, 0, W, W / 4);
+      const grad = g.createLinearGradient(0, W / 4, 0, W / 2);
+      grad.addColorStop(0, '#b4bab2');
+      grad.addColorStop(0.12, '#8a9274');
+      grad.addColorStop(0.3, '#69744e');
+      grad.addColorStop(1, '#4a5536');
+      g.fillStyle = grad;
+      g.fillRect(0, W / 4, W, W / 4);
+      const t = new THREE.CanvasTexture(c);
+      t.mapping = THREE.EquirectangularReflectionMapping;
+      t.colorSpace = THREE.SRGBColorSpace;
+      const pm = new THREE.PMREMGenerator(renderer);
+      carEnv = pm.fromEquirectangular(t).texture;
+      pm.dispose();
+      t.dispose();
+      return carEnv;
+    },
     // After buildWorld3D: swap lights and sky, add textures and contact shading.
     apply(scene, world3d, world, scenery) {
       const t1 = performance.now();
