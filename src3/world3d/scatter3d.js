@@ -10,7 +10,7 @@
 // rocks and the outcrops always show). Rocks in the sun's shadow box cast.
 //
 // Models: CC0 Quaternius rocks and shrubs, public/look/scatter.glb (made by
-// tools/look/scatter.mjs); tussocks are made here. Without the file (node,
+// tools/look/scatter.mjs); gorse (round 8) and tussocks are made here. Without the file (node,
 // tools/check-world.mjs) simple code shapes stand in, at the same sizes.
 
 import * as THREE from 'three';
@@ -25,7 +25,7 @@ const TURN = Math.cos((1.5 * Math.PI) / 180);
 const FOCUS_MOVE = 4;
 
 // Height in radii per shrub model (instance hs multiplies it).
-const SHRUB_H = { gorse: 1.05, round: 0.95, bramble: 0.75 };
+const SHRUB_H = { gorse: 0.95, round: 0.95, bramble: 0.75 };
 // Draw distance by size: an item of radius r shows within base + per * r metres.
 const REACH = {
   rock: { base: 150, per: 160 }, // r 0.25: 190 m, r 1.25: 350 m, bigger: always
@@ -92,6 +92,67 @@ function fallbackGeo() {
   };
 }
 
+const hash01 = (v) => {
+  const x = Math.sin(v * 12.9898 + 78.233) * 43758.5453;
+  return x - Math.floor(x);
+};
+
+// Gorse (round 8): a dense, rounded mound, two lumpy low-poly domes run
+// together (160 triangles), dark spiny green with the yellow blossom painted
+// on the upper faces. Unit footprint radius, height 1, base at 0, flat faces
+// each one colour.
+function gorseGeo() {
+  const dark = new THREE.Color(0x3b5422);
+  const green = new THREE.Color(0x50702c);
+  const bloom = new THREE.Color(0xe3b20c);
+  const blobs = [
+    { x: -0.12, z: 0.05, r: 0.86, y: 0.88, s: 1 },
+    { x: 0.42, z: -0.22, r: 0.6, y: 0.62, s: 2 },
+  ];
+  const pos = [];
+  const col = [];
+  const c = new THREE.Color();
+  for (const b of blobs) {
+    const g = new THREE.IcosahedronGeometry(1, 1); // already non-indexed: one colour per face
+    const p = g.attributes.position;
+    const v = new THREE.Vector3();
+    // Lumpy: each direction pushed in or out a little (same push at shared
+    // corners, so the mound stays closed).
+    for (let i = 0; i < p.count; i++) {
+      v.fromBufferAttribute(p, i).normalize();
+      const k = 1 + 0.13 * Math.sin(v.x * 5.1 + b.s) * Math.cos(v.z * 4.3 - b.s) + 0.07 * Math.sin(v.y * 7.7 + b.s * 2);
+      // Flat underneath: the lower part of the dome is cut off at the ground.
+      p.setXYZ(i, b.x + v.x * b.r * k, (Math.max(-0.3, v.y * k) + 0.3) * b.y, b.z + v.z * b.r * k);
+    }
+    for (let i = 0; i < p.count; i += 3) {
+      const cy = (p.getY(i) + p.getY(i + 1) + p.getY(i + 2)) / 3;
+      const h = hash01(i * 1.7 + b.s * 31.3);
+      c.copy(dark).lerp(green, Math.min(1, cy * 1.3) * (0.6 + 0.4 * h));
+      if (cy > 0.35 && h < 0.42 * Math.min(1, (cy - 0.35) * 2.5)) c.copy(bloom).multiplyScalar(0.8 + 0.3 * h);
+      for (let k = 0; k < 3; k++) {
+        pos.push(p.getX(i + k), p.getY(i + k), p.getZ(i + k));
+        col.push(c.r, c.g, c.b);
+      }
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  // Fit: footprint radius 1 (95% of points), height 1.
+  g.computeBoundingBox();
+  const bb = g.boundingBox;
+  const cx = (bb.min.x + bb.max.x) / 2;
+  const cz = (bb.min.z + bb.max.z) / 2;
+  const d = [];
+  for (let i = 0; i < g.attributes.position.count; i++) d.push(Math.hypot(g.attributes.position.getX(i) - cx, g.attributes.position.getZ(i) - cz));
+  d.sort((a, b) => a - b);
+  const rad = d[Math.floor(d.length * 0.95)];
+  g.translate(-cx, -bb.min.y, -cz);
+  g.scale(1 / rad, 1 / (bb.max.y - bb.min.y), 1 / rad);
+  g.computeVertexNormals();
+  return g;
+}
+
 // A grass tussock: thin tapered blades leaning out from a tight base. Unit
 // radius, height 1, vertex coloured (darker at the root).
 function tuftGeo() {
@@ -138,7 +199,11 @@ export function buildScatter(world, scenery, terrain, sunDir, audit = null) {
   group.name = 'scatter';
   if (!S.rocks.length && !S.shrubs.length && !S.grass.length) return { object: group, update() {}, counts: {} };
   const D = districtsFor(world);
-  const geo = { ...(MODELS || fallbackGeo()), tuft: tuftGeo() };
+  // Gorse is made here (round 8): the cut-down model read papery and spiky.
+  const geo = { ...(MODELS || fallbackGeo()), gorse: gorseGeo(), tuft: tuftGeo() };
+  // Rocks and shrubs have their own materials so the look (src3/look) can
+  // give rocks a stone texture and both a wet look in the rain.
+  const rockMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
   const solidMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
   const tuftMat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
 
@@ -172,8 +237,13 @@ export function buildScatter(world, scenery, terrain, sunDir, audit = null) {
     const sink = Math.max(0.03, Math.min(0.2 * hgt, min + 0.75 * hgt - max - 0.02));
     const base = min - sink;
     const m = new THREE.Matrix4().compose(v.set(r.x, base, r.y), q.setFromAxisAngle(up, r.rot), sc.set(r.r, hgt, r.r));
-    const f = (r.outcrop ? 0.9 : 0.74) + 0.26 * r.tint;
-    const c = new THREE.Color(f * (1 + (r.tint - 0.5) * 0.06), f, f * (1 - (r.tint - 0.5) * 0.08));
+    // Weathered grey (round 8: they read nearly white in bright sun), each
+    // rock a little different: some warmer and tan, some greener with lichen.
+    const hv = hash01(r.x * 7.13 + r.y * 3.71);
+    const f = (r.outcrop ? 0.34 : 0.32) + 0.13 * r.tint;
+    const tan = hv < 0.3 ? (0.3 - hv) / 0.3 : 0;
+    const lichen = hv > 0.72 ? (hv - 0.72) / 0.28 : 0;
+    const c = new THREE.Color(f * (1 + 0.1 * tan - 0.04 * lichen), f * (1 + 0.03 * tan + 0.04 * lichen), f * (1 - 0.1 * tan - 0.06 * lichen));
     push(r.model, r.x, r.y, r.outcrop ? 99 : r.r, m, c, hgt);
     if (audit) audit.circle(r.id, r.solid ? 'scatter_rock' : 'scatter_stone', r.x, r.y, r.r * 0.6, base, base + 0.75 * hgt);
   }
@@ -220,7 +290,7 @@ export function buildScatter(world, scenery, terrain, sunDir, audit = null) {
     const isRock = part === 'boulder' || part === 'slab';
     const kind = isRock ? 'rock' : part === 'tuft' ? 'tuft' : 'shrub';
     const mk = (cast) => {
-      const mesh = new THREE.InstancedMesh(geo[part], part === 'tuft' ? tuftMat : solidMat, n);
+      const mesh = new THREE.InstancedMesh(geo[part], part === 'tuft' ? tuftMat : isRock ? rockMat : solidMat, n);
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3).setUsage(THREE.DynamicDrawUsage);
       mesh.count = 0;
@@ -331,6 +401,7 @@ export function buildScatter(world, scenery, terrain, sunDir, audit = null) {
   return {
     object: group,
     counts,
+    materials: { rock: rockMat, shrub: solidMat, tuft: tuftMat },
     update(camera, focus, shadowRadius) {
       camera.getWorldDirection(camDir);
       const key = `${camera.far},${camera.fov},${camera.aspect},${shadowRadius}`;

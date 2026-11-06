@@ -73,8 +73,13 @@ export function stepCar(car, input, dt, collider, mods = NO_MODS) {
 }
 
 // Throttle, brake and drag with the surface feel (see SURFACE_FEEL).
+// mods.grip (optional, 3D wet ground, src/game/damage.js wetGrip): { accel,
+// brake, drag } multipliers on the surface's own feel (turn goes to moveCar).
+const NO_GRIP = { accel: 1, brake: 1, drag: 1, turn: 1 };
 function stepCarFeel(car, input, dt, collider, mods, surface) {
-  const S = SURFACE_FEEL[surface] || SURFACE_FEEL.paved;
+  const F = SURFACE_FEEL[surface] || SURFACE_FEEL.paved;
+  const G = mods.grip || NO_GRIP;
+  const S = G === NO_GRIP ? F : { accel: F.accel * G.accel, brake: F.brake * G.brake, coast: F.coast, drag: F.drag * G.drag };
   const vmax = TOP_SPEED * (mods.vmaxMul ?? 1);
   const power = mods.accelMul ?? 1;
   let v = car.speed;
@@ -103,7 +108,9 @@ function moveCar(car, input, dt, collider, mods, surface, v) {
   const speedFactor = Math.min(1, Math.abs(v) / 5) * (1 - 0.35 * Math.min(1, Math.abs(v) / 25));
   // Damage pull: grows with speed, none when nearly stopped.
   const pull = (mods.pull || 0) * Math.min(1, Math.abs(v) / 8) * Math.sign(v);
-  const dHeading = (steer * TURN_RATE * speedFactor * Math.sign(v) + pull) * dt;
+  // Wet grip (3D surface feel only): steering a little slower in the wet.
+  const turn = mods.surfaceFeel && mods.grip ? mods.grip.turn : 1;
+  const dHeading = (steer * TURN_RATE * turn * speedFactor * Math.sign(v) + pull) * dt;
 
   // Move in small sub-steps, checking collisions each time.
   const steps = Math.max(1, Math.ceil((Math.abs(v) * dt) / MAX_STEP));

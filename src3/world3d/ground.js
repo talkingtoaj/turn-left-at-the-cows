@@ -116,6 +116,14 @@ const DIRT_LIFT = 0.04;
 // which includes the road's bumps and ruts. Vertex colours: darker shoulder
 // and ruts. Pieces where skip(x, y) is true are left out. Returns geometries.
 function dirtRoad(r, heightAt, skip) {
+  const { rows, across, cols } = dirtRoadRows(r, heightAt, skip);
+  return dirtRoadMesh(rows, across, cols);
+}
+
+// The dirt road's rows of cross-section points (also used by the puddles,
+// src3/world3d/puddles3d.js, so a puddle on the road lies exactly on it):
+// { rows: [{ d, skip, v: [[x, y, z] per across] }], across, cols, lift }.
+export function dirtRoadRows(r, heightAt, skip) {
   const pts = r.points;
   const half = r.width / 2;
   const rut = r.width * 0.22;
@@ -172,6 +180,10 @@ function dirtRoad(r, heightAt, skip) {
     rows.push(cur);
     prev = cur;
   }
+  return { rows, across, cols, lift: DIRT_LIFT };
+}
+
+function dirtRoadMesh(rows, across, cols) {
   // Pieces of about 80 m, so each lands in its own map chunk and gets culled.
   const out = [];
   let pos = [];

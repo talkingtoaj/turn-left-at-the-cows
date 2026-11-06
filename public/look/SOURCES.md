@@ -55,13 +55,16 @@ releases all packs as CC0: https://quaternius.com). Cut down to 110 to 130
 triangles each with meshoptimizer, recoloured with the game's own rock greys
 and shrub greens (darker toward the ground), base at 0, footprint radius 1
 and height 1, by `tools/look/scatter.mjs`. 20 KB in all. The grass tussocks
-are made in code (`src3/world3d/scatter3d.js`).
+are made in code (`src3/world3d/scatter3d.js`), and since round 8 so is the
+gorse (two lumpy low-poly domes, blossom painted on; the cut-down model read
+papery and spiky): its mesh in `scatter.glb` is no longer drawn. Rocks are
+tinted darker in the game and take the Lichen Rock texture (above).
 
 | Mesh | Model | Source | License |
 |---|---|---|---|
 | boulder | Rock (Rock_1, 160 tris) | https://poly.pizza/m/Z6M4GNkgWt | CC0 |
 | slab (standing stones) | Rock (162 tris) | https://poly.pizza/m/4MUaQTcDdc | CC0 |
-| gorse (blossom painted on) | Bush with Flowers (leaves only, 900 tris) | https://poly.pizza/m/U1ymDy8tbY | CC0 |
+| gorse (blossom painted on; not drawn since round 8) | Bush with Flowers (leaves only, 900 tris) | https://poly.pizza/m/U1ymDy8tbY | CC0 |
 | round (willow bottoms) | Bush (Bush_Large, 360 tris) | https://poly.pizza/m/ooG6CkLyE8 | CC0 |
 | bramble (berries painted on) | Bush (Bush_Common, 900 tris) | https://poly.pizza/m/EoTERLq3z2 | CC0 |
 
@@ -96,6 +99,7 @@ flat along each face like the rest. Fetched by `tools/look/fetch.mjs <cache> ph`
 | rustpaint | Pruitt's truck (faded green paint, rust streaks), the buffer stop | Poly Haven, Green Metal Rust: https://polyhaven.com/a/green_metal_rust | CC0 |
 | rustytin | Voss roof and porch, shed roof, halt shelter roof, elevator roofs | Poly Haven, Rusty Corrugated Iron: https://polyhaven.com/a/rusty_corrugated_iron | CC0 |
 | galvtin | grain elevator cladding and head house | Poly Haven, Worn Corrugated Iron: https://polyhaven.com/a/worn_corrugated_iron | CC0 |
+| rock | (round 8) the district scatter rocks and the named outcrops, mapped flat along each face, lichen picked out on upward faces (`patchRocks` in `src3/look/shaders.js`). Fetched with `tools/look/fetch.mjs <cache> ph rock` | Poly Haven, Lichen Rock: https://polyhaven.com/a/lichen_rock | CC0 |
 
 Painted signs (`signs/<name>.webp`, 1024 px wide, cropped to the lettered band):
 

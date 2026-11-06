@@ -33,6 +33,9 @@ export const TEXTURES = [
   { name: 'rustpaint', strength: 1.0, chroma: 1.0, normal: true },
   { name: 'rustytin', strength: 1.0, chroma: 1.0, normal: true },
   { name: 'galvtin', strength: 1.0, chroma: 1.0, normal: true },
+  // Round 8: the scatter rocks and outcrops (Poly Haven Lichen Rock, CC0),
+  // weathered stone with pale lichen; little of its red-brown cast.
+  { name: 'rock', strength: 1.0, chroma: 0.35, normal: true },
 ];
 const T = Object.fromEntries(TEXTURES.map((t, i) => [t.name, i]));
 
@@ -63,6 +66,7 @@ export const LAYERS = [
   { name: 'rusty panel', tex: T.rustpaint, scale: [2.4, 2.4], normal: 0.4 },
   { name: 'rusty tin', tex: T.rustytin, scale: [1.8, 1.8], normal: 1 },
   { name: 'galvanised tin', tex: T.galvtin, scale: [2.4, 2.4], normal: 1 },
+  { name: 'rock', tex: T.rock, scale: [1.8, 1.8], normal: 1 },
 ];
 export const SURF = Object.fromEntries(LAYERS.map((l, i) => [l ? l.name : 'plain', i]));
 

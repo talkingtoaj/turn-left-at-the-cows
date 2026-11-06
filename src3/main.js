@@ -27,6 +27,9 @@ import { spotFor } from './spots.js';
 import { setRoughnessEnabled, setRollEnabled } from '../src/world/roughness.js';
 import { setScatterEnabled } from '../src/world/scatter.js';
 import { districtsFor } from '../src/world/districts.js';
+import { createWetness } from '../src/game/wetness.js';
+import { createWeatherClock } from './look/weather.js';
+import { createRain3D } from './world3d/rain3d.js';
 
 const TALK_RANGE = 25;
 const READ_RANGE = 25;
@@ -43,6 +46,8 @@ renderer.shadowMap.type = THREE.PCFShadowMap;
 app.appendChild(renderer.domElement);
 
 const params = new URLSearchParams(window.location.search);
+// Dev: ?rain=on rains now (on an overcast day unless ?weather says otherwise).
+if (params.get('rain') === 'on' && !params.has('weather')) params.set('weather', 'overcast');
 const stats = createStats(renderer, params.has('stats'));
 const res = createResScale(renderer, params);
 // New light, sky, weather and textures (src3/look); ?look=old for the old look.
@@ -53,7 +58,7 @@ const districtLabel = () => {
   const d = districtsFor(WORLD).at(state.car.x, state.car.y);
   return `${d.name} (${d.kind})`;
 };
-const statsExtra = () => `res ${res.ratio.toFixed(2)} (dpr ${window.devicePixelRatio})${showDistricts ? `\n${districtLabel()}` : ''}`;
+const statsExtra = () => `res ${res.ratio.toFixed(2)} (dpr ${window.devicePixelRatio})\nrain ${wetness.rain.toFixed(2)} wet ${wetness.wet.toFixed(2)} puddles ${wetness.puddle.toFixed(2)}${showDistricts ? `\n${districtLabel()}` : ''}`;
 let districtEl = null;
 if (showDistricts && !params.has('stats')) {
   districtEl = document.createElement('div');
@@ -64,6 +69,16 @@ if (showDistricts && !params.has('stats')) {
 // Dev: ?spot=<name> starts the car at a review spot (src3/spots.js).
 const spot = params.has('spot') ? spotFor(params.get('spot'), WORLD) : null;
 if (spot) Object.assign(state.car, spot, { speed: 0 });
+
+// Rain and wet ground (round 8, src/game/wetness.js), driven by the weather.
+// ?rain=on|off, ?wet=<0..1>; ?weather=cycle speeds it up like the weather.
+const wetness = createWetness(WORLD.seed || 1, {
+  rain: params.get('rain'),
+  wet: params.has('wet') ? Number(params.get('wet')) : null,
+  speed: params.get('weather') === 'cycle' ? 15 : 1,
+});
+// Without the new look there is no weather clock of its own: keep one here.
+const ownWeather = look ? null : createWeatherClock(WORLD.seed || 1, params.get('weather'));
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.8, 450);
@@ -91,7 +106,7 @@ const rig = new CameraRig(camera);
 
 // Ambient life (shared logic) and sound.
 const amb = createAmbient(WORLD, scenery);
-const audio = createAudio(WORLD);
+const audio = createAudio(WORLD, { weather: true });
 // Smoke from chimneys our models put somewhere other than the shared house formula.
 const chimneyFix = [];
 for (const ch of amb.chimneys || []) {
@@ -106,6 +121,8 @@ addCloudShadowsTo(scene);
 if (look) look.afterAmbient(scene);
 // Damage, potholes and road hazards (also the ?hazard, ?fallen, ?spot dev flags).
 const dh = createDamageHazards({ scene, scenery, collider, amb, world3d, rig, sunDir: SUN_DIR, params, env: look ? look.carEnv() : null });
+// Rain streaks and wheel spray.
+const rain3d = createRain3D(scene);
 
 // ---------- UI wiring (see CONTRACT3.md) ----------
 
@@ -190,6 +207,7 @@ function frame(now) {
     keys.clear(); // keys released while the map is open would otherwise stick
   } else {
     const input = readInput();
+    dh.setWet(wetness.wet);
     const prev = dh.beforeStep();
     const result = stepCar(car, input, dt, collider, dh.mods());
     // The ground under the car (src/world/roughness.js): safe speed off-road,
@@ -212,11 +230,34 @@ function frame(now) {
     // Ambient life moves after the car (dust, birds scatter, traffic stops).
     amb.update(dt, state);
     dh.afterStep(dt, result, prev);
-    // Through a shrub: a little bounce of the body and the camera.
+    // Through a shrub: a little bounce of the body and the camera. Through a
+    // puddle: a splash at the wheel and a small jolt.
     for (const ev of (state.damage && state.damage.events) || []) {
       if (ev.type === 'bump' && ev.kind === 'shrub') {
         car3d.kick(0.05 + 0.12 * ev.strength);
         rig.shake(2 + 4 * ev.strength);
+      } else if (ev.type === 'bump' && ev.kind === 'puddle') {
+        // Both front wheels throw water (the puddle counts once, at the first wheel in).
+        const h = car.heading * (Math.PI / 180);
+        for (const side of [-0.85, 0.85]) {
+          const wx = car.x + Math.sin(h) * 1.4 + Math.cos(h) * side;
+          const wy = car.y - Math.cos(h) * 1.4 + Math.sin(h) * side;
+          rain3d.splash(wx, world3d.surfaceAt(wx, wy), wy, Math.abs(car.speed), car.heading, ev.r >= 3);
+        }
+        car3d.kick(0.03 + 0.05 * ev.strength);
+        rig.shake(1 + 2 * ev.strength);
+      }
+    }
+    // Fine spray off the rear tyres on a wet road at speed.
+    if (wetness.wet > 0.3 && result.surface !== 'grass') {
+      const h = car.heading * (Math.PI / 180);
+      const fx = Math.sin(h);
+      const fy = -Math.cos(h);
+      const amount = (wetness.wet - 0.3) * (result.surface === 'paved' ? 1 : 0.6);
+      for (const side of [-0.8, 0.8]) {
+        const wx = car.x - fx * 1.4 - fy * side;
+        const wy = car.y - fy * 1.4 + fx * side;
+        rain3d.spray(wx, world3d.surfaceAt(wx, wy), wy, Math.abs(car.speed), car.heading, amount, dt);
       }
     }
     // Locals wander a few metres; talk range follows where they are now.
@@ -235,18 +276,24 @@ function frame(now) {
   rig.rumble(Math.max(roadRumble, groundRumble) * (runtime.paused ? 0 : 1));
   const e = rig.update(carPos, car.heading, dt, runtime.cameraMode, groundAt, state.view.northUp);
   // Sound every frame, even paused (it ducks while the map is open).
-  audio.update(dt, state, amb, { paused: runtime.paused });
+  audio.update(dt, state, amb, { paused: runtime.paused, rain: wetness });
 
-  // Fog and draw distance: driver's view is hazy; top view sees its patch clearly.
-  scene.fog.near = THREE.MathUtils.lerp(150, 260, e);
-  scene.fog.far = THREE.MathUtils.lerp(420, 600, e);
+  // Fog and draw distance: driver's view is hazy; top view sees its patch
+  // clearly. Rain closes it in.
+  const wv = look ? (look.weather ?? 0.5) : ownWeather.update(state);
+  if (!runtime.paused) wetness.update(state, wv);
+  scene.fog.near = THREE.MathUtils.lerp(150, 260, e) * (1 - 0.45 * wetness.rain);
+  scene.fog.far = THREE.MathUtils.lerp(420, 600, e) * (1 - 0.25 * wetness.rain);
   const far = scene.fog.far + 30;
   if (camera.far !== far) {
     camera.far = far;
     camera.updateProjectionMatrix();
   }
-  if (look) look.update(state); // weather drift
+  if (look) look.update(state, wetness.rain, wetness.wet); // weather drift, rain
+  world3d.puddles.update(wetness.puddle, wetness.rain, now / 1000, scene.fog.color);
+  rain3d.update(runtime.paused ? 0 : dt, now / 1000, camera, wetness.rain, scene.fog.color);
   world3d.update(now / 1000, dt, car, rig.focus, rig.shadowRadius, camera, amb);
+  amb3d.wet = wetness.wet;
   amb3d.update(amb, runtime.paused ? 0 : dt, camera, rig.focus, scene.fog, e, renderer, dh.hz.animals);
   dh.render(runtime.paused ? 0 : dt, rig.focus, car3d.object, camera, scene.fog, renderer);
 
@@ -277,5 +324,7 @@ window.__audio = audio;
 window.__cloudUniforms = cloudUniforms;
 window.__look = look;
 window.__car3d = car3d;
+window.__wet = wetness;
+window.__rain3d = rain3d;
 
 requestAnimationFrame(frame);

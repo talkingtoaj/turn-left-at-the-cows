@@ -35,7 +35,7 @@
 //
 // Dev: three.html?scatter=off builds the world without any of it.
 
-import { makeRng, hashString, SegIndex } from '../drive/geom.js';
+import { makeRng, hashString, SegIndex, nearestOnPolyline } from '../drive/geom.js';
 import { TREE_HIT_R, POLE_R } from '../drive/layout.js';
 import { makeNoise, smoothstep } from './noise.js';
 import { roughnessFor } from './roughness.js';
@@ -143,29 +143,60 @@ function makeScatter(world, scenery) {
   for (const o of world.outcrops || []) {
     const orng = makeRng(hashString(`${o.id}:${seed}`));
     const n = 5 + Math.floor(orng() * 11);
-    const spread = 5 + n * 0.85;
+    // Round 8: outcrops are landmarks you steer by from the road, so they are
+    // big, and the few-rock ones bigger still (small 1 at 5 rocks, 0 at 15):
+    // a massive main boulder and tall standing stones.
+    const small = (15 - n) / 10;
+    // The standing stones lean to the side facing the nearest road, so the
+    // crest does not hide them from it.
+    let toRoad = null;
+    let best = Infinity;
+    for (const rd of world.roads) {
+      const p = nearestOnPolyline(o.x, o.y, rd.points);
+      if (p.d < best) {
+        best = p.d;
+        toRoad = Math.atan2(p.y - o.y, p.x - o.x);
+      }
+    }
+    const spread = (5 + n * 0.85) * (1 + 0.5 * small);
     const placed = [];
     let tries = 0;
-    while (placed.length < n && tries++ < 400) {
+    let slabs = 0;
+    while (placed.length < n && tries++ < 600) {
       const big = placed.length === 0;
-      const a = orng() * Math.PI * 2;
+      // A few tall standing stones (at least two in a small outcrop); the
+      // rest big rounded boulders.
+      const roll = orng();
+      const slab = !big && (roll < 0.35 || (small > 0.5 && slabs < 2));
+      let a = orng() * Math.PI * 2;
+      if (slab && toRoad !== null && tries < 300) a = toRoad + (a / Math.PI - 1) * 1.3; // within about 75 degrees of the road side
       const d = big ? orng() * 2 : spread * Math.sqrt(orng()) * (0.35 + 0.65 * orng());
       const x = o.x + Math.cos(a) * d;
       const y = o.y + Math.sin(a) * d;
-      // A few tall standing stones; the rest big rounded boulders.
-      const slab = orng() < 0.35;
-      const r = slab ? 0.9 + orng() * 0.8 : (big ? 2.2 : 1.1) + orng() * (big ? 1.0 : 1.4);
-      const hs = slab ? 2.2 + orng() * 1.6 : 0.75 + orng() * 0.5;
+      let r;
+      let hs;
+      if (slab) {
+        r = (0.9 + orng() * 0.7) * (1 + 0.6 * small);
+        hs = (3.2 + orng() * 2.4 + 5 * small) / r; // 3.2..5.6 m tall, 8.2..10.6 m in a small outcrop
+      } else {
+        r = ((big ? 2.4 : 1.2) + orng() * (big ? 1.2 : 1.4)) * (1.15 + 0.55 * small);
+        hs = 0.75 + orng() * 0.5 + 0.25 * small;
+      }
       // Rocks in a cluster either touch or leave a car's width between them.
       let ok = true;
       for (const p of placed) {
         const gap = Math.hypot(p.x - x, p.y - y) - p.r - r;
         if (gap > -0.15 * Math.min(p.r, r) && gap < CLEAR) ok = false;
         if (gap < -0.7 * Math.min(p.r, r)) ok = false; // not inside each other
+        // The same between their collision circles (0.85 r): big rocks that
+        // touch must still be one lump there, not a slit a car nearly fits.
+        const gc = Math.hypot(p.x - x, p.y - y) - 0.85 * (p.r + r);
+        if (gc > 0.5 && gc < CLEAR) ok = false;
       }
       const g = R.at(x, y);
-      if (!ok || g.open < 0.999 || g.fd < SOLID_FD || gapTo(x, y, r, 12) < CLEAR) continue;
+      if (!ok || g.open < 0.999 || g.fd < SOLID_FD + r || gapTo(x, y, r, r + CLEAR + 8) < CLEAR) continue;
       placed.push({ x, y, r, slab, hs });
+      if (slab) slabs++;
     }
     let maxR = 0;
     placed.forEach((p, i) => {

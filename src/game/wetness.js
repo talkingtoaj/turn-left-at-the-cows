@@ -1,0 +1,105 @@
+// Rain and wet ground (round 8). Plain logic, no engine code. The weather
+// (src3/look/weather.js: w = 0 sunny .. 1 overcast) drives it:
+//
+//   rain    0..1  how hard it rains now. Only when overcast enough (w above
+//                 RAIN_FROM); how hard drifts slowly and deterministically
+//                 between a drizzle and a downpour over game time.
+//   wet     0..1  how wet the ground is. Rises while it rains (dry to soaked
+//                 in about WET_UP game minutes of full rain), dries slowly
+//                 once it stops (DRY_OVERCAST minutes under cloud, DRY_SUN in
+//                 sunshine).
+//   puddle  0..1  how full the puddles are. They fill behind the wet ground
+//                 and drain slower still, so they last well after the rain.
+//
+// Time is game minutes (the game clock runs 10x real time, so 1 game minute
+// is 6 s), sped up with ?weather=cycle like the weather. Everything is a
+// function of the weather and game time from the mission start, so a mission
+// plays the same each time.
+//
+//   const W = createWetness(seed, { rain: 'on'|'off'|null, wet: 0..1|null, speed })
+//   W.update(state, w)    every frame; returns W
+//   W.rain, W.wet, W.puddle
+//
+// Dev: ?rain=on (rain now, ground already soaked unless ?wet is given),
+// ?rain=off (never rains), ?wet=<0..1> pins the ground's wetness and the
+// puddles. Handling numbers live in src/game/damage.js (TUNING.wet).
+
+export const WETNESS = {
+  RAIN_FROM: 0.8, // weather w where rain can start...
+  RAIN_FULL: 0.95, // ...and where it can be at full strength
+  RAIN_MIN: 0.45, // the lightest rain of a rainy spell (x the w ramp)
+  WET_UP: 14, // game minutes of full rain from dry to soaked
+  DRY_OVERCAST: 80, // game minutes from soaked to dry under cloud
+  DRY_SUN: 45, // ... and in full sun
+  PUDDLE_UP: 22, // puddles fill (from empty to full, following the wet ground)
+  PUDDLE_DOWN: 130, // and drain this slowly
+  START: 0.7, // at a mission start in the rain, the ground is already this wet
+};
+
+const smooth = (a, b, x) => {
+  const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
+
+function hashStr(s) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+
+export function createWetness(seed, opts = {}) {
+  const forceRain = opts.rain === 'on' ? 1 : opts.rain === 'off' ? 0 : null;
+  const pinWet = Number.isFinite(opts.wet) ? Math.max(0, Math.min(1, opts.wet)) : null;
+  const speed = opts.speed || 1;
+  // Seeded phases for the drizzle / downpour drift (periods 9 to 31 game minutes).
+  const h = hashStr(`rain:${seed}`);
+  const ph = [h & 1023, (h >>> 10) & 1023, (h >>> 20) & 1023].map((v) => (v / 1024) * Math.PI * 2);
+  const strength = (t) => 0.5 + 0.5 * (0.5 * Math.sin(t / 31 * 6.283 + ph[0]) + 0.3 * Math.sin(t / 17 * 6.283 + ph[1]) + 0.2 * Math.sin(t / 9 * 6.283 + ph[2]));
+  let t = 0; // game minutes since the first update (x speed)
+  let lastClock = null;
+  let started = false;
+  const W = {
+    rain: 0,
+    wet: pinWet ?? 0,
+    puddle: pinWet ?? 0,
+    t: 0,
+    rainAt(w, tt) {
+      if (forceRain !== null) return forceRain;
+      const ramp = smooth(WETNESS.RAIN_FROM, WETNESS.RAIN_FULL, w);
+      if (ramp <= 0) return 0;
+      return ramp * (WETNESS.RAIN_MIN + (1 - WETNESS.RAIN_MIN) * strength(tt));
+    },
+    update(state, w) {
+      let dMin = 0;
+      if (lastClock !== null) {
+        let d = state.clockMinutes - lastClock;
+        if (d < -720) d += 1440;
+        if (d > 0 && d < 60) dMin = d * speed;
+      }
+      lastClock = state.clockMinutes;
+      t += dMin;
+      W.t = t;
+      W.rain = W.rainAt(w, t);
+      if (!started) {
+        started = true;
+        if (pinWet === null) {
+          const r = forceRain === 1 ? 1 / WETNESS.START : W.rain;
+          W.wet = Math.min(1, r * WETNESS.START);
+          W.puddle = W.wet * 0.85;
+        }
+      }
+      if (pinWet !== null) return W;
+      if (W.rain > 0.02) {
+        W.wet = Math.min(1, W.wet + (W.rain / WETNESS.WET_UP) * dMin);
+      } else {
+        const dry = WETNESS.DRY_OVERCAST + (WETNESS.DRY_SUN - WETNESS.DRY_OVERCAST) * (1 - Math.min(1, w * 1.4));
+        W.wet = Math.max(0, W.wet - dMin / dry);
+      }
+      // Puddles follow the wet ground up, and drain slowly behind it.
+      if (W.wet > W.puddle) W.puddle = Math.min(W.wet, W.puddle + dMin / WETNESS.PUDDLE_UP);
+      else if (W.rain <= 0.02) W.puddle = Math.max(W.wet, W.puddle - dMin / WETNESS.PUDDLE_DOWN);
+      return W;
+    },
+  };
+  return W;
+}

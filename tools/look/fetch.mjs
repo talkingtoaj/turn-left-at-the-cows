@@ -3,10 +3,10 @@
 // public/look/tex (512 px webp: colour, plus a normal map where listed).
 // The sky is baked by tools/look/bake_sky.py from the cached HDRI.
 //
-//   node tools/look/fetch.mjs <cacheDir> [ph]
+//   node tools/look/fetch.mjs <cacheDir> [ph [name]]
 //
-// With `ph` only the Poly Haven textures (the ruins and grain elevator set)
-// are fetched.
+// With `ph` only the Poly Haven textures (the ruins and grain elevator set,
+// the rocks) are fetched; `ph <name>` only that one.
 //
 // Needs unzip and ffmpeg on the PATH. Sources are listed in public/look/SOURCES.md.
 
@@ -49,8 +49,10 @@ export const POLYHAVEN = [
   { name: 'rustpaint', id: 'green_metal_rust' },
   { name: 'rustytin', id: 'rusty_corrugated_iron' },
   { name: 'galvtin', id: 'worn_corrugated_iron' },
+  { name: 'rock', id: 'lichen_rock' }, // round 8: the scatter rocks and outcrops
 ];
 const onlyPH = process.argv[3] === 'ph';
+const onlyName = process.argv[4]; // with ph: just this one (e.g. rock)
 
 const HDRI = { id: 'kloofendal_38d_partly_cloudy_puresky', res: '2k' };
 
@@ -67,7 +69,7 @@ function ffmpeg(src, dst, turn) {
   execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-i', src, '-vf', vf.join(','), '-quality', '82', dst]);
 }
 
-for (const t of POLYHAVEN) {
+for (const t of POLYHAVEN.filter((p) => !onlyName || p.name === onlyName)) {
   const files = await (await fetch(`https://api.polyhaven.com/files/${t.id}`)).json();
   for (const [key, suffix] of [['Diffuse', ''], ['nor_gl', '_n']]) {
     const url = files[key]['1k'].jpg.url;

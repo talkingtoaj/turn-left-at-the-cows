@@ -335,6 +335,8 @@ export function createAmbient3D(scene, opts) {
     group,
     // amb: the ambient state; focus: THREE.Vector3 (camera focus); topE: 0 chase .. 1 top.
     // extraAnimals: more animals drawn with the herd meshes (road hazards).
+    // Wet ground (round 8): no dust off wet roads (set from main.js, 0..1).
+    wet: 0,
     update(amb, dt, camera, focus, fog, topE, renderer, extraAnimals = null) {
       time += dt;
       const fx = focus.x;
@@ -437,10 +439,11 @@ export function createAmbient3D(scene, opts) {
         pf.mat.uniforms.farClip.value = camera.far * 0.92;
       }
       dust.begin();
-      for (const d of amb.dust) {
+      const dustK = Math.max(0, 1 - this.wet * 2.5);
+      for (const d of dustK > 0 ? amb.dust : []) {
         if (!near(d.x, d.y, 400)) continue;
         const f = d.age / d.life;
-        dust.push(d.x, groundAt(d.x, d.y) + (d.z || 0.3) + d.size * 0.35, d.y, d.size * 1.5, 0.8 * (1 - f) * Math.min(1, d.age * 6), 0.92);
+        dust.push(d.x, groundAt(d.x, d.y) + (d.z || 0.3) + d.size * 0.35, d.y, d.size * 1.5, 0.8 * (1 - f) * Math.min(1, d.age * 6) * dustK, 0.92);
       }
       dust.end();
 
