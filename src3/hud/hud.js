@@ -4,7 +4,8 @@ import { runtime } from '../runtime.js';
 import { headingText, clockText, timerText } from '../../src/hud/format.js';
 import { greet, ask, listTopics } from '../../src/game/dialogue.js';
 import { currentMission, currentGoal, nextMission, MISSIONS } from '../../src/game/missions.js';
-import { finishMission } from '../../src/game/update.js';
+import { finishMission, restartMission } from '../../src/game/update.js';
+import { compassHeading, warningLights, PARTS } from '../../src/game/damage.js';
 import { renderSketchCanvas, renderPrintedMapCanvas, trueMapDef } from '../map/sketchRender.js';
 import { openMissionCard } from '../../src/ui/missionCard.js';
 import { openHelp } from '../../src/ui/help.js';
@@ -20,7 +21,8 @@ import { speak } from '../../src/audio/voice.js';
 // Ignore M this long after the map closes, so the same keypress that
 // closed it does not open it again.
 const MAP_REOPEN_GUARD_MS = 150;
-const DASH_W = 960; // design width of the dash; scaled down on small screens
+const DASH_W = 1080; // design width of the dash; scaled down on small screens
+const BREAKDOWN_AUTO_S = 7; // the breakdown card tows you back on its own after this
 const ODO_CELL_H = 30;
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -125,6 +127,21 @@ const CSS = `
   align-items: center; justify-content: center; gap: 10px; pointer-events: auto; cursor: zoom-out; }
 .hud-zoom canvas { display: block; box-shadow: 5px 5px 0 rgba(0,0,0,0.4); }
 .hud-zoom div { color: #ece7d8; font-size: 15px; }
+.hud-lights { position: absolute; left: 0; right: 0; top: 21px; display: grid; grid-template-columns: repeat(2, 30px);
+  gap: 3px 8px; justify-content: center; }
+.hud-light { width: 30px; height: 17px; display: block; }
+.hud-light path, .hud-light circle, .hud-light rect, .hud-light line { stroke: #3c3e43; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.hud-light .hud-fill { fill: #3c3e43; stroke: none; }
+.hud-light.hud-on path, .hud-light.hud-on circle, .hud-light.hud-on rect, .hud-light.hud-on line { stroke: #e6a23a; filter: drop-shadow(0 0 3px rgba(230,162,58,0.8)); }
+.hud-light.hud-on .hud-fill { fill: #e6a23a; }
+.hud-light.hud-bad path, .hud-light.hud-bad circle, .hud-light.hud-bad rect, .hud-light.hud-bad line { stroke: #e0503c; filter: drop-shadow(0 0 4px rgba(224,80,60,0.9)); }
+.hud-light.hud-bad .hud-fill { fill: #e0503c; }
+.hud-light.hud-blink { animation: hud-blink 0.9s steps(2, start) infinite; }
+@keyframes hud-blink { to { visibility: hidden; } }
+.hud-dev-dmg { position: absolute; top: 44px; right: 12px; padding: 6px 9px; background: rgba(0,0,0,0.65); color: #d8f0d8;
+  font: 12px/1.4 "Courier New", Courier, monospace; white-space: pre; pointer-events: none; }
+.hud-broke .hud-win-sub { margin-bottom: 8px; }
+.hud-broke p { color: #ece7d8; font-size: 16px; line-height: 1.45; margin: 8px 6px; }
 @media (max-width: 480px) { .hud-win-row { padding: 0 16px; } .hud-thumb { width: 140px; } }
 `;
 
@@ -187,6 +204,34 @@ function buildCompass(parent) {
   return card;
 }
 
+// Dash warning lights, like a real car's: tyre, engine, steering, compass.
+// Dark until a part is hurt, amber when worn, red and blinking when bad.
+const LIGHT_ICONS = {
+  // Tyre pressure: a tyre section with an exclamation mark.
+  tyres: '<path d="M8 3 C4 6 4 12 8 15 M22 3 C26 6 26 12 22 15 M9 15 H21"/><line x1="15" y1="5" x2="15" y2="10"/><circle class="hud-fill" cx="15" cy="12.6" r="1.1"/>',
+  // Engine block outline.
+  engine: '<path d="M6 6 H18 L21 9 H24 V13 H21 V15 H9 L6 12 Z M3 8 V13 M3 10.5 H6 M10 6 V4 H15 V6"/>',
+  // Steering wheel with a mark.
+  steering: '<circle cx="15" cy="9" r="6.5"/><circle cx="15" cy="9" r="1.6"/><path d="M8.6 8 H13.4 M16.6 8 H21.4 M15 10.6 V15.4"/><path d="M4 3 L4 9 M26 3 L26 9"/>',
+  // Compass: ring with a needle.
+  compass: '<circle cx="15" cy="9" r="7"/><path d="M15 3.5 L17.2 9 L15 14.5 L12.8 9 Z"/><circle class="hud-fill" cx="15" cy="9" r="1"/>',
+};
+const LIGHT_TITLES = { tyres: 'Tyre', engine: 'Engine', steering: 'Steering', compass: 'Compass' };
+
+function buildLights(parent) {
+  const box = el('div', 'hud-lights', parent);
+  const out = {};
+  for (const k of PARTS) {
+    const s = document.createElementNS(SVG_NS, 'svg');
+    s.setAttribute('viewBox', '0 0 30 18');
+    s.setAttribute('class', 'hud-light');
+    s.innerHTML = `<title>${LIGHT_TITLES[k]}</title>${LIGHT_ICONS[k]}`;
+    box.appendChild(s);
+    out[k] = s;
+  }
+  return out;
+}
+
 // Mechanical odometer: one rolling drum per digit, the last two (tenths and
 // hundredths of a km) inverted like a classic trip meter.
 function buildOdometer(parent) {
@@ -229,6 +274,8 @@ export function createHUD(root, { openMap } = {}) {
   clockTxt.style.fontSize = '26px';
   const timerTxt = el('div', 'hud-gauge', bezel(790, 150, 'TRIP TIME'));
   timerTxt.style.fontSize = '18px';
+  const lights = buildLights(bezel(958, 104, 'WARNING'));
+  const devDmg = new URLSearchParams(window.location.search).has('damage') ? el('div', 'hud-dev-dmg', hud) : null;
   el('div', 'hud-hint', inner,
     'Arrows/WASD drive · Space handbrake · E talk · M map · C camera · N north/heading-up · K mute · H help');
 
@@ -260,6 +307,7 @@ export function createHUD(root, { openMap } = {}) {
   let promptText = null;
   let card = null; // mission card while it shows
   let help = null; // how-to-play panel while it shows
+  let broke = null; // breakdown card while it shows: { at }
   const last = {}; // last text written per element, to skip DOM writes
   let lastScaleW = -1;
 
@@ -504,6 +552,10 @@ export function createHUD(root, { openMap } = {}) {
       if (!runtime.paused) markMapClosed();
       return;
     }
+    if (broke) {
+      if (!e.repeat && (e.key === 'Enter' || e.key === 'Escape')) endBreakdown();
+      return;
+    }
     if (runtime.paused || card || help) return;
     if (zoomBox) {
       if (!e.repeat && (e.key === 'Escape' || e.key === 'Enter' || e.key.toLowerCase() === 'e')) closeZoom();
@@ -522,9 +574,14 @@ export function createHUD(root, { openMap } = {}) {
 
   // ---------------------------------------------------------------- per frame
   function updateDash() {
-    const { car } = state;
-    compassCard.style.transform = `rotate(${-car.heading}deg)`;
-    setText('heading', headingTxt, headingText(car.heading));
+    // The compass shows what the (maybe damaged) needle reads, not the truth.
+    const shown = compassHeading(state);
+    const ck = Math.round(shown * 4);
+    if (last.compass !== ck) {
+      last.compass = ck;
+      compassCard.style.transform = `rotate(${-shown}deg)`;
+    }
+    setText('heading', headingTxt, headingText(shown));
 
     // Rolling drums: the last drum turns smoothly, each higher drum rolls
     // only while every drum below it is passing from 9 to 0.
@@ -543,6 +600,7 @@ export function createHUD(root, { openMap } = {}) {
       }
     }
 
+    const { car } = state;
     setText('speed', speedTxt, String(Math.round(Math.abs(car.speed) * 3.6)));
     setText('gear', gearTxt, car.speed < -0.2 ? 'REV' : '');
     setText('clock', clockTxt, clockText(state.clockMinutes));
@@ -556,6 +614,57 @@ export function createHUD(root, { openMap } = {}) {
       inner.style.transform = `translateX(-50%) scale(${s})`;
       hud.style.setProperty('--hud-dash-h', `${Math.round(92 * s)}px`);
     }
+  }
+
+  function updateLights() {
+    const w = warningLights(state.damage);
+    for (const k of PARTS) {
+      const cls = 'hud-light' + (w[k] === 1 ? ' hud-on' : w[k] === 2 ? ' hud-bad hud-blink' : '');
+      if (last['light' + k] === cls) continue;
+      last['light' + k] = cls;
+      lights[k].setAttribute('class', cls);
+    }
+    if (devDmg && state.damage) {
+      const d = state.damage;
+      const txt = PARTS.map((k) => `${k.padEnd(9)}${d[k].toFixed(3)}`).join('\n')
+        + `\nhits     ${d.hits}${d.stall > 0 ? '\nSTALLED' : ''}${d.brokenDown ? `\nBROKEN (${d.cause})` : ''}`;
+      setText('devDmg', devDmg, txt);
+    }
+  }
+
+  // Breakdown: once the car has rolled to a stop, a short card, then the
+  // mission starts again from where it began (Enter, click, or on its own).
+  const BREAK_TEXT = {
+    engine: 'The engine coughs, rattles and dies. Smoke pours out from under the bonnet.',
+    tyres: 'The tyre is in shreds. You are going nowhere on that.',
+    steering: 'Something in the steering snapped. The wheel just spins.',
+  };
+  function showBreakdown() {
+    if (dialogue) closeDialogue();
+    state.inputLocked = true;
+    runtime.paused = true;
+    winShade.textContent = '';
+    const panel = el('div', 'hud-win hud-win-small hud-broke', winShade);
+    el('h2', null, panel, 'Your car broke down');
+    const m = currentMission(state);
+    if (m) el('div', 'hud-win-sub', panel, m.title);
+    el('p', null, panel, BREAK_TEXT[state.damage.cause] || BREAK_TEXT.engine);
+    el('p', null, panel, 'A farmer tows you back to where this trip began, and the garage patches the car up. Your notes and map are still with you.');
+    el('div', 'hud-win-foot hud-mono', panel, 'Enter: try again');
+    panel.addEventListener('click', endBreakdown);
+    winShade.style.display = 'block';
+    broke = { timer: setTimeout(endBreakdown, BREAKDOWN_AUTO_S * 1000) };
+  }
+  function endBreakdown() {
+    if (!broke) return;
+    clearTimeout(broke.timer);
+    broke = null;
+    winShade.style.display = 'none';
+    winShade.textContent = '';
+    restartMission(state);
+    currentSignId = undefined;
+    runtime.paused = false;
+    state.inputLocked = false;
   }
 
   function updateSign() {
@@ -721,12 +830,15 @@ export function createHUD(root, { openMap } = {}) {
       markMapClosed();
     }
     updateDash();
+    updateLights();
+    if (broke) return;
     updateSign();
     updateMailbox();
     updatePrompt();
     updateGoalLine();
     if (dialogue || winShown || card || help) state.inputLocked = true;
     if (state.won && !winShown) showWin();
+    if (!state.won && !broke && !card && !help && state.damage && state.damage.brokenDown && state.damage.stopT > 1.2) showBreakdown();
     if (state.briefPending && !dialogue && !state.won && !card && !help) showCard();
   }
 
