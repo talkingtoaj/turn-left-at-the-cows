@@ -9,6 +9,8 @@
 // bumpier than others.
 //
 // Two scales:
+//   roll:  gentle rolling everywhere off-road, 13 to 40 m waves (ROLL),
+//          in the terrain mesh and heightAt.
 //   big:   lumps 8 to 40 m across, in the terrain mesh and heightAt (seen).
 //   small: under the 4 m mesh spacing: only surface detail in the shader,
 //          a little ride bounce and camera rumble in the car, and the
@@ -33,20 +35,41 @@ import { buildingSolids, makePads } from '../drive/layout.js';
 import { makeNoise, smoothstep } from './noise.js';
 
 // rough: small-scale roughness (0..1). big: big bump size in metres.
+// roll: share of the rolling layer (see ROLL below), 1 = full.
 export const GROUND = {
-  paved: { rough: 0, big: 0 },
-  dirt: { rough: 0, big: 0 }, // dirt roads keep their own bumps (roadbumps.js)
-  lawn: { rough: 0.12, big: 0.12 }, // town lawns and greens, mown
-  hay: { rough: 0.15, big: 0.2 }, // mown hay meadow
-  crop: { rough: 0.3, big: 0.3 }, // wheat, corn
+  paved: { rough: 0, big: 0, roll: 0 },
+  dirt: { rough: 0, big: 0, roll: 0 }, // dirt roads keep their own bumps (roadbumps.js)
+  lawn: { rough: 0.12, big: 0.12, roll: 0.45 }, // town lawns and greens, mown
+  hay: { rough: 0.15, big: 0.2, roll: 0.6 }, // mown hay meadow
+  crop: { rough: 0.3, big: 0.3, roll: 0.6 }, // wheat, corn
   // Round 5: pastures 1.6x lumpier (0.75 -> 1.2) so the relief reads from the
   // chase camera; plowed, forest, meadow and scrub 1.25x.
-  plowed: { rough: 0.5, big: 0.44 }, // long swells, furrows across the rows
-  pasture: { rough: 0.6, big: 1.2 }, // hummocks, old cattle paths
-  forest: { rough: 0.6, big: 0.875 }, // roots and mounds
-  meadow: { rough: 0.7, big: 1.19 }, // rough, unclaimed grass
-  scrub: { rough: 1.0, big: 1.625 }, // lumps, dips, the odd boulder
+  plowed: { rough: 0.5, big: 0.44, roll: 0.7 }, // long swells, furrows across the rows
+  pasture: { rough: 0.6, big: 1.2, roll: 1 }, // hummocks, old cattle paths
+  forest: { rough: 0.6, big: 0.875, roll: 0.9 }, // roots and mounds
+  meadow: { rough: 0.7, big: 1.19, roll: 1 }, // rough, unclaimed grass
+  scrub: { rough: 1.0, big: 1.625, roll: 1.1 }, // lumps, dips, the odd boulder
 };
+
+// Rolling ground: a gentle, lower-frequency band over ALL off-road ground,
+// so the land tilts a few degrees one way, then another, every 6 to 20 m,
+// instead of reading as flat with bumps on it. Three octaves of value noise
+// (lattice 20, 11 and 6.5 m: wavelengths about 40, 22 and 13 m, the smallest
+// still about 3 mesh cells), each turned so the lattice never lines up with
+// the 4 m grid. The amount drifts slowly over the map (0.55x to 1.45x, about
+// 300 m across), so some country is gentle and some rolls more. At full share
+// (meadow, pasture): height mostly within 0.25 to 0.75 m of level, slopes
+// median about 3 degrees (10% under 1, 10% over 6.5); hay, crops and lawns
+// get about 0.5x to 0.6x of that.
+// Fades out like the big bumps near roads, water, yards and buildings, but
+// over a shorter run (ROLL_FULL), so the ground beside the road rolls too.
+const ROLL = [
+  // [lattice m, amplitude m, rotation rad]
+  [20, 0.72, 0.4],
+  [11, 0.52, 1.3],
+  [6.5, 0.32, 2.2],
+];
+const ROLL_FULL = 22;
 
 const VERGE = 0.38; // roughness right at a road, yard or building edge
 const EDGE_OUT = 3; // field patches blend from this far outside their fence...
@@ -58,6 +81,7 @@ export const FURROW_GAP = 1.1; // metres between plow furrows (fields3d.js CROPS
 
 const cache = new WeakMap();
 let enabled = true;
+let rollOn = true;
 
 // Dev: three.html?rough=off builds the world without rough ground (flat
 // patches, no stones or cattle paths, the old grass safe speed) to compare.
@@ -65,9 +89,14 @@ export function setRoughnessEnabled(on) {
   enabled = !!on;
 }
 
+// Dev: three.html?roll=off builds the world without the rolling layer.
+export function setRollEnabled(on) {
+  rollOn = !!on;
+}
+
 export function roughnessFor(world) {
   let r = cache.get(world);
-  if (!r) cache.set(world, (r = new Roughness(world, enabled)));
+  if (!r) cache.set(world, (r = new Roughness(world, enabled, rollOn)));
   return r;
 }
 
@@ -79,15 +108,18 @@ function hash01(seed, s) {
 }
 
 class Roughness {
-  constructor(world, on = true) {
+  constructor(world, on = true, roll = true) {
     this.world = world;
     this.off = !on;
+    this.roll = roll;
     const seed = world.seed || 1;
     this.nA = makeNoise(seed + 701);
     this.nB = makeNoise(seed + 702);
     this.nC = makeNoise(seed + 703);
     this.nD = makeNoise(seed + 704);
     this.nS = makeNoise(seed + 705);
+    this.nR = ROLL.map(([s, a, t], i) => ({ n: makeNoise(seed + 711 + i), k: 1 / s, a, c: Math.cos(t), s: Math.sin(t) }));
+    this.nRv = makeNoise(seed + 719);
 
     // Patches: fields (and the farm crop pad), forests, in a 64 m bucket grid.
     this.patches = new SegIndex(64);
@@ -225,6 +257,7 @@ class Roughness {
     let lump = 0; // crop, hay, lawn lumps
     let plowSwell = 0;
     let swellAt = null;
+    let roll = 0; // share of the rolling layer
     for (const it of this.patches.near(x, y)) {
       const p = it.data;
       if (x < p.bb.minX - p.out || x > p.bb.maxX + p.out || y < p.bb.minY - p.out || y > p.bb.maxY + p.out) continue;
@@ -235,6 +268,7 @@ class Roughness {
       const g = GROUND[p.type];
       wSum += w;
       rough += w * Math.min(1, g.rough * p.mul);
+      roll += w * g.roll;
       const a = w * g.big * p.mul;
       big += a;
       if (p.type === 'pasture') hum += a;
@@ -258,6 +292,7 @@ class Roughness {
       if (w <= 0) continue;
       wSum += w;
       rough += w * GROUND.lawn.rough;
+      roll += w * GROUND.lawn.roll;
       lump += w * GROUND.lawn.big;
       big += w * GROUND.lawn.big;
       if (w > bestW) {
@@ -272,6 +307,7 @@ class Roughness {
       forest /= wSum;
       lump /= wSum;
       plowSwell /= wSum;
+      roll /= wSum;
       wSum = 1;
     }
     // The rest is open countryside: rough meadow, with patches of scrub.
@@ -287,6 +323,7 @@ class Roughness {
       meadowA = wBg * GROUND.meadow.big * (1 - sk) * vary;
       scrubA = wBg * GROUND.scrub.big * sk * vary;
       big += meadowA + scrubA;
+      roll += wBg * (GROUND.meadow.roll + (GROUND.scrub.roll - GROUND.meadow.roll) * sk);
       if (wBg > bestW) best = { type: sk > 0.5 ? 'scrub' : 'meadow' };
     }
     o.type = best ? best.type : 'meadow';
@@ -295,7 +332,16 @@ class Roughness {
     const fadeSmall = smoothstep(0, SMALL_FULL, fd);
     o.rough = VERGE + (rough - VERGE) * fadeSmall;
     o.big = big * fadeBig;
-    if (!withHeight || fadeBig <= 0 || big <= 0) return o;
+    if (!withHeight) return o;
+
+    // Rolling ground (see ROLL).
+    let hr = 0;
+    const fadeRoll = this.roll ? smoothstep(FADE_IN, ROLL_FULL, fd) * roll : 0;
+    if (fadeRoll > 0) hr = fadeRoll * this.rollAt(x, y);
+    if (fadeBig <= 0 || big <= 0) {
+      o.h = hr;
+      return o;
+    }
 
     // Big bump shapes (each about -0.5..0.5 times its size).
     const { nA, nB, nC, nD } = this;
@@ -319,8 +365,16 @@ class Roughness {
       const across = x * ca + y * sa;
       h += plowSwell * (0.7 * nB(along / 45, across / 15 + 7) + 0.3 * nA(x / 30, y / 30)) * 0.9;
     }
-    o.h = h * fadeBig;
+    o.h = h * fadeBig + hr;
     return o;
+  }
+
+  // The rolling layer at full share (m), with its slow drift over the map.
+  rollAt(x, y) {
+    const v = 0.55 + 0.9 * smoothstep(-0.45, 0.45, this.nRv(x / 300 + 41, y / 300 - 9));
+    let h = 0;
+    for (const o of this.nR) h += o.a * o.n((x * o.c - y * o.s) * o.k + 17, (x * o.s + y * o.c) * o.k - 5);
+    return h * v;
   }
 
   height(x, y) {

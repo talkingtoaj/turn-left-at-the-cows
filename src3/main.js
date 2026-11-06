@@ -24,7 +24,7 @@ import { createStats } from './stats.js';
 import { createResScale } from './resscale.js';
 import { createDamageHazards } from './damageHazards.js';
 import { spotFor } from './spots.js';
-import { setRoughnessEnabled } from '../src/world/roughness.js';
+import { setRoughnessEnabled, setRollEnabled } from '../src/world/roughness.js';
 
 const TALK_RANGE = 25;
 const READ_RANGE = 25;
@@ -63,6 +63,7 @@ window.addEventListener('resize', () => {
 // ---------- world ----------
 
 if (params.get('rough') === 'off') setRoughnessEnabled(false); // dev: compare without rough ground
+if (params.get('roll') === 'off') setRollEnabled(false); // dev: compare without the rolling layer
 const scenery = generateScenery(WORLD);
 const collider = new Collider(WORLD, scenery);
 const world3d = buildWorld3D(scene, WORLD, scenery, collider);
