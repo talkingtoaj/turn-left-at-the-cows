@@ -40,6 +40,8 @@ export const MILL = {
     { lx: 1.5, ly: 0, w: 1, h: 5 },
   ],
   chimney: { lx: -6, ly: 4, w: 2.4, h: 2.4 },
+  // The water wheel, fallen in the fire, leaning on the creek-side wall.
+  wheel: { lx: -5.5, ly: -8.4, w: 6.8, h: 1.8, r: 3.2 },
 };
 
 export const RADIO_MAST = {
@@ -98,6 +100,55 @@ export const CAMP = {
   hut: { lx: -28, ly: -26, w: 4.5, h: 3.5 },
   loop: { lx: 2, ly: -10, rx: 32, ry: 17 },
 };
+
+// Ruins and old things (drawn by src3/world3d/ruins3d.js). Local frames as
+// usual: lx right, ly back (south at angle 0).
+// Abandoned farmhouse: the house (sagging roof), a collapsed shed, a hand
+// pump in the yard and a windpump with its wheel half gone.
+export const FARM_RUIN = {
+  house: { lx: 0, ly: 0, w: 11, h: 8.5 },
+  shed: { lx: 13, ly: 5, w: 7, h: 5.5 },
+  pump: { lx: -5.5, ly: 7.5, r: 0.35 },
+  windpump: { lx: 10, ly: -9 },
+};
+// A rusting truck: its body, angle from the landmark.
+export const TRUCK = { w: 2.3, h: 5.8 };
+// Disused railway: the bank (bottom width, top width, height) along the
+// landmark's `points`; the halt platform and shelter beside it.
+export const RAILWAY = {
+  bank: { bottom: 7.4, top: 3.6, h: 0.85 },
+  platform: { w: 3.4, len: 28, h: 0.9 },
+  shelter: { w: 2.4, len: 4.2, at: 5 }, // at: metres along from the platform middle
+};
+// Wooden grain elevator: the tall bin house and the low driveway shed in front.
+export const ELEVATOR = {
+  main: { lx: 0, ly: 0, w: 9, h: 9 },
+  annex: { lx: 0, ly: 8.5, w: 7, h: 8 },
+  H: 21,
+};
+// Farm windpump (windmill pumping water): four splayed legs.
+export const WINDPUMP = {
+  legs: [[-1.5, -1.5], [1.5, -1.5], [1.5, 1.5], [-1.5, 1.5]],
+  legR: 0.18,
+  H: 10.5,
+  wheelR: 1.7,
+};
+
+// The track frame at a railway landmark's halt: nearest point on the line to
+// (l.x, l.y), heading along the line (deg), and which side the platform is
+// on (1 right of the heading, -1 left). Shared so solids and drawing agree.
+export function railFrame(l) {
+  const p = nearestOnPolyline(l.x, l.y, l.points);
+  const side = (-p.dy) * (l.x - p.x) + p.dx * (l.y - p.y) > 0 ? 1 : -1;
+  return { x: p.x, y: p.y, dx: p.dx, dy: p.dy, angle: (Math.atan2(-p.dx, p.dy) * 180) / Math.PI, side };
+}
+
+// A rect along segment a-b (world [x, y]) of the given width.
+function segRect(a, b, w) {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  return { x: (a[0] + b[0]) / 2, y: (a[1] + b[1]) / 2, w, h: Math.hypot(dx, dy), angle: (Math.atan2(-dx, dy) * 180) / Math.PI };
+}
 
 export const TREE_HIT_R = 1.0;
 export const LOCAL_HIT_R = 0.5;
@@ -225,10 +276,35 @@ export function landmarkSolids(l, world = null) {
     for (const [lx, ly] of WATER_TOWER.legs) circles.push({ x: l.x + lx, y: l.y + ly, r: WATER_TOWER.legR });
   } else if (l.kind === 'mill_ruin') {
     for (const w of MILL.walls) rects.push(partRect(l.x, l.y, 0, w));
-    rects.push(partRect(l.x, l.y, 0, MILL.chimney));
+    rects.push(partRect(l.x, l.y, 0, MILL.chimney), partRect(l.x, l.y, 0, MILL.wheel));
   } else if (l.kind === 'radio_mast') {
     circles.push({ x: l.x, y: l.y, r: RADIO_MAST.baseR });
     for (const p of anchorPoints(l)) circles.push({ x: p.x, y: p.y, r: RADIO_MAST.anchorR });
+  } else if (l.kind === 'farm_ruin') {
+    const a = l.angle || 0;
+    rects.push(partRect(l.x, l.y, a, FARM_RUIN.house), partRect(l.x, l.y, a, FARM_RUIN.shed));
+    const p = localToWorld(l.x, l.y, a, FARM_RUIN.pump.lx, FARM_RUIN.pump.ly);
+    circles.push({ x: p.x, y: p.y, r: FARM_RUIN.pump.r });
+    const w = localToWorld(l.x, l.y, a, FARM_RUIN.windpump.lx, FARM_RUIN.windpump.ly);
+    for (const [lx, ly] of WINDPUMP.legs) circles.push({ x: w.x + lx, y: w.y + ly, r: WINDPUMP.legR });
+  } else if (l.kind === 'rusty_truck') {
+    rects.push(partRect(l.x, l.y, l.angle || 0, { lx: 0, ly: 0, ...TRUCK }));
+  } else if (l.kind === 'railway') {
+    // The bank is solid (a car cannot climb it), with the platform and shelter.
+    const B = RAILWAY.bank;
+    for (let i = 0; i < l.points.length - 1; i++) rects.push(segRect(l.points[i], l.points[i + 1], B.bottom - 1.2));
+    for (const p of l.points.slice(1, -1)) circles.push({ x: p[0], y: p[1], r: (B.bottom - 1.2) / 2 });
+    const f = railFrame(l);
+    const off = B.bottom / 2 + RAILWAY.platform.w / 2 - 0.4;
+    const rx = -f.dy * f.side;
+    const ry = f.dx * f.side;
+    const pa = [f.x + rx * off - f.dx * RAILWAY.platform.len / 2, f.y + ry * off - f.dy * RAILWAY.platform.len / 2];
+    const pb = [f.x + rx * off + f.dx * RAILWAY.platform.len / 2, f.y + ry * off + f.dy * RAILWAY.platform.len / 2];
+    rects.push(segRect(pa, pb, RAILWAY.platform.w));
+  } else if (l.kind === 'grain_elevator') {
+    rects.push(partRect(l.x, l.y, l.angle || 0, ELEVATOR.main), partRect(l.x, l.y, l.angle || 0, ELEVATOR.annex));
+  } else if (l.kind === 'windpump') {
+    for (const [lx, ly] of WINDPUMP.legs) circles.push({ x: l.x + lx, y: l.y + ly, r: WINDPUMP.legR });
   }
   return { rects, circles };
 }
@@ -370,6 +446,8 @@ function makeTreeRejector(world, pads) {
   const lines = new SegIndex(48);
   for (const r of world.roads) lines.addPolyline(r.points, 12, 12);
   for (const c of world.creeks) lines.addPolyline(c.points, c.width / 2 + 3, c.width / 2 + 3);
+  // Long landmarks (the old railway bank).
+  for (const l of world.landmarks) if (l.points) lines.addPolyline(l.points, 10, 10);
   const lakes = world.lakes.map((l) => ({ ...l, bb: bbox(l.polygon) }));
   const fields = (world.fields || []).map((f) => ({ ...f, bb: bbox(f.polygon) }));
   const clear = [

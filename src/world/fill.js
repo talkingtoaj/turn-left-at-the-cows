@@ -135,6 +135,12 @@ function makeKeepOut(world) {
     lines.addPolyline(c.points, c.width / 2 + PAD.water + 4, c.width / 2 + PAD.water);
     addPts(c.points);
   }
+  // Long landmarks (the old railway bank) keep fill off like a road.
+  for (const l of world.landmarks) {
+    if (!l.points) continue;
+    lines.addPolyline(l.points, 4 + PAD.road + 4, 4 + PAD.road);
+    addPts(l.points);
+  }
   const polys = [];
   const addPoly = (poly, pad) => polys.push({ poly, pad, bb: bbox(poly) });
   for (const l of world.lakes) addPoly(l.polygon, PAD.lake);

@@ -11,6 +11,8 @@ import {
 } from '../../src/drive/geom.js';
 import { buildingSolids, quarryOpening, QUARRY } from '../../src/drive/layout.js';
 import { RoadBumps } from './roadbumps.js';
+import { makeNoise, smoothstep } from '../../src/world/noise.js';
+import { roughnessFor } from '../../src/world/roughness.js';
 
 export const CELL = 4; // metres between height samples
 export const CHUNK = 250; // metres per ground mesh chunk
@@ -21,43 +23,9 @@ const BED = -1.7; // creek and lake bed
 // so they roll with the land.
 export const DIRT_KEEP = 0.3;
 
-// ---------- seeded value noise ----------
-
-export function makeNoise(seed) {
-  const rng = makeRng(seed);
-  const N = 256;
-  const vals = new Float32Array(N);
-  const perm = new Uint8Array(N * 2);
-  for (let i = 0; i < N; i++) {
-    vals[i] = rng() * 2 - 1;
-    perm[i] = i;
-  }
-  for (let i = N - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    const t = perm[i];
-    perm[i] = perm[j];
-    perm[j] = t;
-  }
-  for (let i = 0; i < N; i++) perm[N + i] = perm[i];
-  const v = (ix, iy) => vals[perm[(ix & 255) + perm[iy & 255]]];
-  const fade = (t) => t * t * t * (t * (t * 6 - 15) + 10);
-  return function noise(x, y) {
-    const ix = Math.floor(x);
-    const iy = Math.floor(y);
-    const fx = fade(x - ix);
-    const fy = fade(y - iy);
-    const a = v(ix, iy);
-    const b = v(ix + 1, iy);
-    const c = v(ix, iy + 1);
-    const d = v(ix + 1, iy + 1);
-    return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
-  };
-}
-
-export function smoothstep(e0, e1, x) {
-  const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
-  return t * t * (3 - 2 * t);
-}
+// Seeded value noise and smoothstep live in src/world/noise.js (engine-free,
+// shared with src/world/roughness.js).
+export { makeNoise, smoothstep };
 
 // ---------- quarry pit ----------
 
@@ -133,6 +101,11 @@ export class Terrain {
     this.cols = Math.round(world.size.w / CELL) + 1;
     this.rows = Math.round(world.size.h / CELL) + 1;
     this.h = new Float32Array(this.cols * this.rows);
+    // Rough ground by patch (src/world/roughness.js): its big bumps go into
+    // the height grid; the small ones are surface detail and ride only.
+    this.rough = roughnessFor(world);
+    this.roughGrid = new Uint8Array(this.cols * this.rows); // small roughness 0..255 per sample
+    this.bumpGrid = new Float32Array(this.cols * this.rows); // big bump height (m) in each sample
     this.build();
     this.bumps = new RoadBumps(world);
   }
@@ -182,6 +155,8 @@ export class Terrain {
       for (const c of s.circles) disc(c.x, c.y, c.r + 10);
     }
     for (const l of world.landmarks) if (l.kind !== 'radio_mast' && l.kind !== 'lookout_tower') disc(l.x, l.y, l.r ? l.r + 10 : 30);
+    // The old railway: graded level like a paved road.
+    for (const l of world.landmarks) if (l.points) flat.addPolyline(l.points, 8 + BLEND, 8);
     for (const t of world.towns) disc(t.x, t.y, 90);
     for (const p of world.places || [world.goal]) disc(p.x, p.y, 70);
     const lakes = world.lakes.map((l) => ({ ...l, bb: bbox(l.polygon) }));
@@ -213,6 +188,10 @@ export class Terrain {
           const dm = Math.hypot(x - mast.x, y - mast.y);
           if (dm < 55) h = THREE.MathUtils.lerp(mastH, h, smoothstep(32, 55, dm));
         }
+        const g = this.rough.at(x, y, true);
+        h += g.h;
+        this.roughGrid[j * this.cols + i] = this.rough.off ? 0 : Math.round(g.rough * 255);
+        this.bumpGrid[j * this.cols + i] = g.h;
         // Water: creek channel and lake basin.
         for (const s of water.near(x, y)) {
           const d = distToSegment(x, y, s.ax, s.ay, s.bx, s.by);
@@ -313,6 +292,7 @@ export class Terrain {
         const pos = new Float32Array(w * hgt * 3);
         const colors = new Float32Array(w * hgt * 3);
         const uvs = new Float32Array(w * hgt * 2);
+        const rough = new Float32Array(w * hgt * 2);
         for (let j = 0; j < hgt; j++) {
           for (let i = 0; i < w; i++) {
             const gi = i0 + i;
@@ -325,7 +305,9 @@ export class Terrain {
             pos[k * 3 + 2] = y;
             uvs[k * 2] = x / 14;
             uvs[k * 2 + 1] = y / 14;
-            colorFn(x, y, this.h[gj * this.cols + gi], col);
+            rough[k * 2] = this.roughGrid[gj * this.cols + gi] / 255;
+            rough[k * 2 + 1] = this.bumpGrid[gj * this.cols + gi];
+            colorFn(x, y, this.h[gj * this.cols + gi], col, this.roughGrid[gj * this.cols + gi] / 255);
             colors[k * 3] = col.r;
             colors[k * 3 + 1] = col.g;
             colors[k * 3 + 2] = col.b;
@@ -346,6 +328,9 @@ export class Terrain {
         g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
         g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
         g.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+        // Small roughness and big bump height, for the look shader's surface
+        // detail and the shade in hollows (see src3/look/shaders.js).
+        g.setAttribute('lookRough', new THREE.BufferAttribute(rough, 2));
         g.setIndex(idx);
         g.computeVertexNormals();
         g.computeBoundingSphere();

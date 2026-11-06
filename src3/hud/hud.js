@@ -628,7 +628,7 @@ export function createHUD(root, { openMap } = {}) {
       const d = state.damage;
       const txt = PARTS.map((k) => `${k.padEnd(9)}${d[k].toFixed(3)}`).join('\n')
         + `\nhits     ${d.hits}${d.stall > 0 ? '\nSTALLED' : ''}${d.brokenDown ? `\nBROKEN (${d.cause})` : ''}`
-        + (d.rough ? `\nsurface  ${d.rough.surface}\nsafe     ${Number.isFinite(d.rough.safe) ? `${Math.round(d.rough.safe * 3.6)} km/h` : 'any'}`
+        + (d.rough ? `\nsurface  ${d.rough.surface}${d.rough.ground ? `\nground   ${d.rough.ground}\nrough    ${d.rough.r.toFixed(2)}` : ''}\nsafe     ${Number.isFinite(d.rough.safe) ? `${Math.round(d.rough.safe * 3.6)} km/h` : 'any'}`
           + `\nknock/s  ${d.rough.chance.toFixed(3)}` : '');
       setText('devDmg', devDmg, txt);
     }

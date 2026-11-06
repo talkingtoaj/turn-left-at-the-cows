@@ -420,6 +420,29 @@ export function buildCar(opts = {}) {
     }
     return s[0];
   };
+  // Small bumps (m) under the four tyres: tussocks and stones (value noise
+  // at 0.7 and 1.6 m) and, on plowed ground, furrows across the rows.
+  // Returns { y: mean, p: front minus rear, r: right minus left } or null.
+  let lastSB = null;
+  const SMALL_AMP = 0.035; // m at roughness 1
+  const FURROW_AMP = 0.05; // m
+  const smallBumps = (ride, car, fx, fy) => {
+    if (!ride || !(ride.rough > 0.02)) return null;
+    const ca = Math.cos(ride.plowAngle || 0);
+    const sa = Math.sin(ride.plowAngle || 0);
+    const at = (lx, lz) => {
+      const x = car.x - fy * lx - fx * lz;
+      const y = car.y + fx * lx - fy * lz;
+      let v = (vnoise(x / 0.7, y / 0.7) * 0.6 + vnoise(x / 1.6 + 7.3, y / 1.6) * 0.4) * SMALL_AMP * ride.rough;
+      if (ride.plow > 0) v += ride.plow * FURROW_AMP * 0.5 * Math.cos((2 * Math.PI * (x * ca + y * sa)) / 1.1);
+      return v;
+    };
+    const a = at(-wfx, wfz);
+    const b = at(wfx, wfz);
+    const c = at(-wfx, wrz);
+    const d = at(wfx, wrz);
+    return { y: (a + b + c + d) / 4, p: (a + b - c - d) / 2, r: (b + d - a - c) / 2 };
+  };
   const flatDrop = () => (flatKey < 0 ? null : wheels[flatKey]);
   const [wfx, wfz] = [WHEELS[1][0], WHEELS[0][1]];
   const wrz = WHEELS[2][1];
@@ -431,7 +454,10 @@ export function buildCar(opts = {}) {
     showDamage,
     // heightAt(x, y) is the surface height under a world point.
     // damage (optional): state.damage, for dents, a flat tyre and dust.
-    update(car, dt, heightAt, steer, damage) {
+    // ride (optional): the ground under the car off-road, from
+    // src/world/roughness.js ({ rough, plow, plowAngle }): small bumps under
+    // the 4 m mesh spacing that only the body feels (wheels stay on the ground).
+    update(car, dt, heightAt, steer, damage, ride = null) {
       if (damage !== undefined) showDamage(damage);
       const h = car.heading * DEG;
       const fx = Math.sin(h);
@@ -472,6 +498,14 @@ export function buildCar(opts = {}) {
         sp.y[0] -= y - prevY;
         sp.p[0] -= (pitch - prevP) * 0.6;
         sp.r[0] -= (roll - prevR) * 0.6;
+        // Small bumps under the tyres kick the body the same way.
+        const sb = smallBumps(ride, car, fx, fy);
+        if (sb && lastSB) {
+          sp.y[0] += (sb.y - lastSB.y) * 0.8;
+          sp.p[0] += Math.atan2(sb.p - lastSB.p, wheelbase) * 0.8;
+          sp.r[0] += Math.atan2(sb.r - lastSB.r, wfx * 2) * 0.8;
+        }
+        lastSB = sb ? { ...sb } : null;
         spring(sp.y, 0, dt);
         spring(sp.p, 0, dt);
         spring(sp.r, 0, dt);
@@ -513,6 +547,21 @@ export function buildCar(opts = {}) {
 // all move together and the paint, glass and trim meshes stay joined. Paint
 // near a dent darkens a little (scuffed); smooth normals are rebuilt.
 const HALF_W = S.hw;
+// Smooth value noise in 2D, about -1..1 (for the small ride bumps).
+function vnoise(x, y) {
+  const ix = Math.floor(x);
+  const iy = Math.floor(y);
+  const fx = x - ix;
+  const fy = y - iy;
+  const u = fx * fx * (3 - 2 * fx);
+  const v = fy * fy * (3 - 2 * fy);
+  const h = (i, j) => hash3(i, j, 0.5) * 2 - 1;
+  const a = h(ix, iy);
+  const b = h(ix + 1, iy);
+  const c = h(ix, iy + 1);
+  const d = h(ix + 1, iy + 1);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
 function hash3(x, y, z) {
   const h = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
   return h - Math.floor(h);

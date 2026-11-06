@@ -31,6 +31,8 @@ const ANIMALS = new Set(['cow', 'sheep', 'deer']);
 export function createDamageHazards({ scene, scenery, collider, amb, world3d, rig, sunDir, params, env = null }) {
   const potholes = potholesFor(WORLD);
   collider.addSurfaceEvents(potholes);
+  // Half-buried stones in rough scrub: roll over them with a knock.
+  collider.addSurfaceEvents(world3d.terrain.rough.boulders);
   const hz = createHazards(WORLD, scenery);
   const hz3d = createHazards3D(scene, { terrain: world3d.terrain, surfaceAt: world3d.surfaceAt, potholes, sunDir, fallen: hz.fallen, env });
   const mods = {};

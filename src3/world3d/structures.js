@@ -9,6 +9,7 @@ import {
 import { box, cyl, cone, pyramid, gable, strut, disc, flatPolygon } from './shapes.js';
 import { buildKind } from './kinds.js';
 import { buildNewLandmark } from './landmarks3d.js';
+import { buildRuin, buildWindpumpWheels } from './ruins3d.js';
 
 const WALLS = [0xe8e2d0, 0xf1ede4, 0xe6d9a8, 0xc9d3d6, 0xd9b9a0, 0xcfd8c4];
 const ROOFS = [0x8e4b3a, 0x5a5f66, 0x6b4a3a, 0x4f6a5a, 0x7a3b3b, 0x6e6a60];
@@ -87,10 +88,13 @@ export function buildStructures(world, terrain, batch, materials, extras = {}) {
   const dynamic = [];
   const rng = makeRng(world.seed + 202);
   for (const l of world.landmarks) {
+    if (buildRuin(world, terrain, batch, l)) continue;
     if (buildNewLandmark(world, terrain, batch, l, rng)) continue;
     const d = buildLandmark(terrain, batch, l, rng, materials);
     if (d) dynamic.push(d);
   }
+  const wheels = buildWindpumpWheels(world, terrain);
+  if (wheels) dynamic.push(wheels);
   return dynamic;
 }
 
@@ -326,6 +330,7 @@ function buildLandmark(terrain, batch, l, rng, materials) {
     }
     P(cyl(1.4, 0.45, 12), 11, 5, 0, 0x8f8a80);
     if (A) A.circle(l.id, 'millstone', l.x + 11, l.y + 5, 1.4, base, base + 0.2);
+    millWheel(terrain, batch, l, rng);
     return null;
   }
 
@@ -360,27 +365,84 @@ function buildLandmark(terrain, batch, l, rng, materials) {
     const wg = new THREE.BufferGeometry();
     wg.setAttribute('position', new THREE.Float32BufferAttribute(wire, 3));
     const wires = new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ color: 0x9a9a9a, transparent: true, opacity: 0.8 }));
-    // The blinking light on top: an unlit bulb plus a glow sprite that shows through fog.
-    const light = new THREE.Group();
-    light.position.set(l.x, base + H + 0.5, l.y);
-    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.45, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff2a1a, fog: false }));
-    const glow = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: materials.glowTex, color: 0xff3020, fog: false, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: false,
-    }));
-    glow.scale.set(0.05, 0.05, 1);
-    light.add(bulb, glow);
+    // Blinking red light on top: an unlit bulb plus a glow
+    // sprite that shows through fog. Small and soft by day, but seen from
+    // far off: past the far plane the glow is drawn just inside it, along the
+    // same line of sight (its size is in screen terms, so it looks the same).
     const obj = new THREE.Group();
-    obj.add(wires, light);
+    obj.add(wires);
+    const bulbs = [];
+    const glows = [];
+    for (const [hh, gs] of [[H + 0.5, 0.026]]) {
+      const light = new THREE.Group();
+      light.position.set(l.x, base + hh, l.y);
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.45, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff2a1a, fog: false, toneMapped: false }));
+      const glow = new THREE.Sprite(new THREE.SpriteMaterial({
+        // Normal blending: a red dot reads against a bright sky, where an
+        // additive glow would wash out to pink.
+        map: materials.glowTex, color: 0xff2414, fog: false, transparent: true, opacity: 0.9, depthWrite: false,
+        sizeAttenuation: false, toneMapped: false,
+      }));
+      glow.scale.set(gs, gs, 1);
+      glow.frustumCulled = false;
+      const home = light.position.clone();
+      const dir = new THREE.Vector3();
+      const camPos = new THREE.Vector3();
+      glow.onBeforeRender = (r, sc, cam) => {
+        camPos.setFromMatrixPosition(cam.matrixWorld);
+        dir.subVectors(home, camPos);
+        const d = dir.length();
+        const lim = (cam.far || 1e9) * 0.9;
+        if (d > lim) glow.position.copy(dir.multiplyScalar(lim / d)).add(camPos).sub(home);
+        else glow.position.set(0, 0, 0);
+        glow.updateMatrixWorld();
+      };
+      light.add(bulb, glow);
+      obj.add(light);
+      bulbs.push(bulb);
+      glows.push(glow);
+    }
     return {
       object: obj,
       update(t) {
-        const on = (t % 1.6) < 0.8;
-        bulb.material.color.setHex(on ? 0xff2a1a : 0x3a0a08);
-        glow.visible = on;
+        // (dev: window.__mastLight = true / false holds it on or off for screenshots)
+        const on = globalThis.__mastLight ?? (t % 1.6) < 0.8;
+        for (const b of bulbs) b.material.color.setHex(on ? 0xff2a1a : 0x3a0a08);
+        for (const g of glows) g.visible = on;
       },
     };
   }
   return null;
+}
+
+// The mill's water wheel: fallen off its axle in the fire and leaning back
+// against the creek-side wall, charred paddles between two rusted iron rims,
+// its foot sunk in the bank.
+function millWheel(terrain, batch, l, rng) {
+  const W = MILL.wheel;
+  const R = W.r;
+  const cx = l.x + W.lx;
+  const cy = l.y + W.ly;
+  const g = terrain.groundRange({ rect: { x: cx, y: cy, w: W.w, h: W.h, angle: 0 } });
+  const lean = new THREE.Matrix4().makeRotationX(0.3).multiply(new THREE.Matrix4().makeRotationZ(0.12));
+  const frame = new THREE.Matrix4().makeTranslation(cx, g.min + R - 0.55, cy).multiply(lean);
+  const rim = new THREE.TorusGeometry(R, 0.11, 4, 22);
+  for (const z of [-0.55, 0.55]) batch.add(rim, frame.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, z)), 0x5e3a26);
+  batch.add(new THREE.CylinderGeometry(0.35, 0.35, 1.5, 8).rotateX(Math.PI / 2), frame, 0x3a2f28);
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    for (const z of [-0.5, 0.5]) {
+      const sp = box(0.14, R, 0.14).rotateZ(a);
+      batch.add(sp, frame.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, z)), 0x2a2420, { cast: false });
+    }
+  }
+  for (let i = 0; i < 20; i++) {
+    if (rng() < 0.3) continue; // burned away
+    const a = (i / 20) * Math.PI * 2;
+    const paddle = new THREE.BoxGeometry(0.08, 0.7, 1.2).translate(0, R - 0.3, 0).rotateZ(a);
+    batch.add(paddle, frame, rng() < 0.5 ? 0x1d1a17 : 0x3a2c20, { cast: false });
+  }
+  if (batch.audit) batch.audit.rect(l.id, 'mill_wheel', cx, cy, 1.0, 0.8, 0, g.min - 0.55 + R - R * Math.cos(0.12) - 0.4, null);
 }
 
 function mAt(x, y, z, extra = null) {

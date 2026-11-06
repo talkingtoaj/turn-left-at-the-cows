@@ -26,11 +26,37 @@ batch.paint = new GroundPaint(WORLD);
 buildObjects(WORLD, scenery, terrain, batch, { glowTex: null });
 const { problems, counts } = checkAudit(batch.audit, (x, y) => terrain.heightAt(x, y));
 
+// Rough ground (src/world/roughness.js) must fade to nothing at roads,
+// bridges and fords, so no road gets a lip: its big bumps within a few
+// metres of any road edge, bridge or ford must be (almost) zero.
+let roughWorst = { h: 0 };
+const roughAt = (x, y, what) => {
+  const h = Math.abs(terrain.rough.height(x, y));
+  if (h > roughWorst.h) roughWorst = { h, x: Math.round(x), y: Math.round(y), what };
+};
+for (const r of WORLD.roads) {
+  for (let i = 0; i < r.points.length - 1; i++) {
+    const [ax, ay] = r.points[i];
+    const [bx, by] = r.points[i + 1];
+    const L = Math.hypot(bx - ax, by - ay) || 1;
+    const nx = -(by - ay) / L;
+    const ny = (bx - ax) / L;
+    for (const off of [0, r.width / 2, r.width / 2 + 3, -r.width / 2, -r.width / 2 - 3]) roughAt(ax + nx * off, ay + ny * off, `road ${r.id}`);
+  }
+}
+for (const b of WORLD.bridges) roughAt(b.x, b.y, `bridge ${b.id}`);
+const ROUGH_TOL = 0.03;
+if (roughWorst.h > ROUGH_TOL) {
+  problems.push({ id: roughWorst.what, kind: 'rough_ground', type: 'lip', by: +roughWorst.h.toFixed(2), x: roughWorst.x, y: roughWorst.y });
+}
+counts.roughRoads = WORLD.roads.length;
+
 if (args.has('--json')) {
   console.log(JSON.stringify({ counts, problems }, null, 1));
 } else {
   console.log(`World check (tolerance ${TOL * 100} cm), built in ${Date.now() - t0} ms`);
   console.log(`checked: ${Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(', ')}`);
+  console.log(`rough ground at road edges and bridges: biggest bump ${(roughWorst.h * 100).toFixed(1)} cm (limit ${ROUGH_TOL * 100} cm)`);
   const byKind = new Map();
   for (const p of problems) {
     const k = `${p.kind} ${p.type}`;

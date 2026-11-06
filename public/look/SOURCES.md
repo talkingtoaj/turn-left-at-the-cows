@@ -60,3 +60,14 @@ glass and chrome reflect the CC0 Poly Haven sunny sky listed above
 
 The fixed fallen trees lie down the same Quaternius CC0 tree models listed
 above (code-made shapes with `?trees=old`); the root plate and soil are code.
+
+## Ruins, windpumps, grain elevator, rough ground (no files)
+
+The old Voss place, Pruitt's old truck, the old railway and Gilmore Halt, the
+mill's fallen wheel, the farm windpumps and Ashford's grain elevator are built
+in code (`src3/world3d/ruins3d.js`, `structures.js`) from simple shapes. They
+use only the textures listed above (siding, boards, tin, concrete, gravel and
+the AI rust texture, matched by colour in `src3/look/surfaces.js`). The halt's
+sign is a plain board with bars like the road signs: no new image, no AI.
+Rough ground (`src/world/roughness.js`) is seeded noise; its small bumps reuse
+the CC0 soil normal map above. No new assets and no AI spend.

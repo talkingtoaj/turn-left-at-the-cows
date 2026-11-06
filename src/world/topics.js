@@ -49,6 +49,12 @@ export const TOPICS = [
   { id: 'okafor_farm', label: 'the Okafor dairy', kind: 'farm', fame: 0.3, ref: { type: 'building', id: 'o_house' } },
   { id: 'pruitt_farm', label: 'the Pruitt farm', kind: 'farm', fame: 0.3, ref: { type: 'building', id: 'p_house' } },
   { id: 'brandt', label: 'Brandt', kind: 'town', fame: 0.7, ref: { type: 'offmap', id: 'brandt' } },
+
+  // Places that changed: ruins and old things (landmarks in data.js).
+  { id: 'voss_place', label: 'the old Voss place', kind: 'landmark', fame: 0.3, ref: { type: 'landmark', id: 'voss_place' } },
+  { id: 'pruitt_truck', label: "Pruitt's old truck", kind: 'landmark', fame: 0.15, ref: { type: 'landmark', id: 'pruitt_truck' } },
+  { id: 'railway_halt', label: 'the old railway halt', kind: 'landmark', fame: 0.35, ref: { type: 'landmark', id: 'old_railway' } },
+  { id: 'ashford_elevator', label: 'the old grain elevator', kind: 'landmark', fame: 0.5, ref: { type: 'landmark', id: 'ashford_elevator' } },
 ];
 
 export const TOPIC_BY_ID = Object.fromEntries(TOPICS.map((t) => [t.id, t]));

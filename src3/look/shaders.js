@@ -114,6 +114,9 @@ export function patchTerrain(mat, shared) {
   const S = shared.surf;
   chain(mat, 'look-terrain', (sh) => patch(sh, shared, {
     defs: defines(shared),
+    vertHead: 'attribute vec2 lookRough;\nvarying vec2 vLookR;',
+    vertBody: 'vLookR = lookRough;',
+    fragHead: 'varying vec2 vLookR;\n',
     frag: /* glsl */`
 vec3 lookNW = normalize(vLookN);
 bool lookHasN = false;
@@ -129,6 +132,22 @@ bool lookHasN = false;
   diffuseColor.rgb *= mix(dB, dA, gw);
   lookNW = normalize(mix(nB, nA, gw));
   lookHasN = true;
+  // Small bumps (under the 4 m mesh spacing) on rough ground: the soil
+  // normal map again, coarser and turned, as tussocks and stones, plus a
+  // little shade in the hollows. src/world/roughness.js sets lookRough.
+  // Hollows of the big bumps a little darker, tops a little paler, so the
+  // relief reads even in flat light (paint included).
+  diffuseColor.rgb *= 1.0 + clamp(vLookR.y * 0.3, -0.22, 0.12);
+  if (vLookR.x > 0.02) {
+    vec2 q = mat2(0.80, -0.60, 0.60, 0.80) * vLookP.xz;
+    vec4 L = lookLayer[${S.soil}];
+    vec3 tn = texture(lookNrm, vec3(q / 2.7, L.x)).xyz * 2.0 - 1.0;
+    vec3 tn2 = texture(lookNrm, vec3(q.yx / 6.3 + 0.37, L.x)).xyz * 2.0 - 1.0;
+    vec2 b = (tn.xy * 0.6 + tn2.xy * 0.8) * vLookR.x * 1.1;
+    lookNW = normalize(lookNW + vec3(b.x, 0.0, b.y));
+    float hol = texture(lookAlb, vec3(q.yx / 6.3 + 0.37, L.x)).g * 2.0;
+    diffuseColor.rgb *= mix(1.0, clamp(0.78 + 0.25 * hol, 0.7, 1.08), vLookR.x * 0.6);
+  }
 }
 #endif
 #ifdef LOOK_AO
