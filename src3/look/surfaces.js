@@ -21,6 +21,7 @@ export const TEXTURES = [
   { name: 'shingles', strength: 1.0, chroma: 0.2, normal: true },
   { name: 'brick', strength: 1.0, chroma: 0.6, normal: true },
   { name: 'concrete', strength: 1.0, chroma: 0.0, normal: true },
+  { name: 'rust', strength: 1.0, chroma: 1.0, normal: false }, // AI made, see SOURCES.md
 ];
 const T = Object.fromEntries(TEXTURES.map((t, i) => [t.name, i]));
 
@@ -41,6 +42,7 @@ export const LAYERS = [
   { name: 'shingles', tex: T.shingles, scale: [2, 2], normal: 1 },
   { name: 'brick', tex: T.brick, scale: [2, 1], normal: 1 },
   { name: 'concrete', tex: T.concrete, scale: [3, 1.5], normal: 0.7 },
+  { name: 'rusty paint', tex: T.rust, scale: [3, 3], normal: 0 },
   { name: 'logs', tex: T.bark, scale: [1.6, 1.2], swap: true, normal: 1 },
 ];
 export const SURF = Object.fromEntries(LAYERS.map((l, i) => [l ? l.name : 'plain', i]));
@@ -66,6 +68,7 @@ const STANDING = {
     0x9c9480, 0x8a8984, 0xb9b6ae, 0x9a9890, 0xb0a994, 0x7d776a, 0x9b9a94,
     0x7f7b74, 0xa39e93, 0x8e8a82, 0x9a968c, 0x7d786f, 0x5e574e, 0x7d756a, 0x86807a, 0x8a8170, 0x77766f], // incl. rocks
   soil: [0x84643f], // ploughed rows
+  'rusty paint': [0x7f9aa6, 0x93aebb, 0xb7cdd6, 0x6c8693, 0xbfc1bc, 0x8f918e, 0x9ea3a6, 0x5d6468, 0x4b4f52],
 };
 
 function table(groups) {
