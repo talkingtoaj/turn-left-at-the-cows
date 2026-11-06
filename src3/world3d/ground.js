@@ -2,7 +2,7 @@
 
 import * as THREE from 'three';
 import {
-  makeRng, measurePolyline, pointAlong, centroid, localToWorld, SegIndex,
+  makeRng, measurePolyline, pointAlong, centroid, localToWorld, SegIndex, distToPolyline, pointInPolygon,
 } from '../../src/drive/geom.js';
 import { box, cyl, flat, disc, flatPolygon } from './shapes.js';
 import { objMatrix } from './batch.js';
@@ -15,14 +15,15 @@ const NO_SHADOW = { cast: false, material: 'ground' };
 export const DECK_TOP = 0.3;
 
 // Ribbon along a polyline, draped on the ground. Pieces where skip(x, y) is
-// true are left out. Returns a non-indexed BufferGeometry or null.
+// true are left out. Samples every `step` metres, and more often where the
+// ground bends between samples (near creek banks), so it never floats or
+// sinks. Returns a non-indexed BufferGeometry or null.
 export function ribbon(pts, width, lift, heightAt, skip = null, step = 3, offset = 0) {
   const cum = measurePolyline(pts);
   const total = cum[cum.length - 1];
   const n = Math.max(2, Math.ceil(total / step) + 1);
-  const samples = [];
-  for (let i = 0; i < n; i++) {
-    const d = (total * i) / (n - 1);
+  const K = Math.max(1, Math.ceil(width / 2));
+  const sampleAt = (d) => {
     const p = pointAlong(pts, cum, d);
     // Smooth direction across bends: look a bit ahead and behind.
     const a = pointAlong(pts, cum, Math.max(0, d - 1.5));
@@ -40,11 +41,47 @@ export function ribbon(pts, width, lift, heightAt, skip = null, step = 3, offset
     const ly = cy + ny * width / 2;
     const rx = cx - nx * width / 2;
     const ry = cy - ny * width / 2;
-    samples.push({
-      l: [lx, heightAt(lx, ly) + lift, ly],
-      r: [rx, heightAt(rx, ry) + lift, ry],
+    // Points across, from right to left edge; `fine` when the ground bends
+    // across the ribbon here (then the piece uses all of them).
+    const cols = [];
+    let fine = false;
+    const hr = heightAt(rx, ry);
+    const hl = heightAt(lx, ly);
+    for (let k = 0; k <= K; k++) {
+      const t = k / K;
+      const x = rx + (lx - rx) * t;
+      const y = ry + (ly - ry) * t;
+      const h = k === 0 ? hr : k === K ? hl : heightAt(x, y);
+      if (Math.abs(h - (hr + (hl - hr) * t)) > 0.03) fine = true;
+      cols.push([x, h + lift, y]);
+    }
+    return {
+      d,
+      l: cols[K],
+      r: cols[0],
+      cols,
+      fine,
       skip: skip ? skip(cx, cy) : false,
-    });
+    };
+  };
+  const samples = [];
+  const refine = (s0, s1, depth) => {
+    if (depth < 4 && s1.d - s0.d > 0.4) {
+      const m = sampleAt((s0.d + s1.d) / 2);
+      if (Math.abs(m.l[1] - (s0.l[1] + s1.l[1]) / 2) > 0.03 || Math.abs(m.r[1] - (s0.r[1] + s1.r[1]) / 2) > 0.03) {
+        refine(s0, m, depth + 1);
+        samples.push(m);
+        refine(m, s1, depth + 1);
+      }
+    }
+  };
+  let prev = sampleAt(0);
+  samples.push(prev);
+  for (let i = 1; i < n; i++) {
+    const cur = sampleAt((total * i) / (n - 1));
+    refine(prev, cur, 0);
+    samples.push(cur);
+    prev = cur;
   }
   const v = [];
   for (let i = 0; i < samples.length - 1; i++) {
@@ -52,7 +89,17 @@ export function ribbon(pts, width, lift, heightAt, skip = null, step = 3, offset
     const s1 = samples[i + 1];
     if (s0.skip || s1.skip) continue;
     // Counter-clockwise from above. Left side is +normal = (-dy, dx).
-    v.push(...s0.r, ...s0.l, ...s1.l, ...s0.r, ...s1.l, ...s1.r);
+    if (s0.fine || s1.fine) {
+      for (let k = 0; k < K; k++) {
+        const a0 = s0.cols[k];
+        const b0 = s0.cols[k + 1];
+        const a1 = s1.cols[k];
+        const b1 = s1.cols[k + 1];
+        v.push(...a0, ...b0, ...b1, ...a0, ...b1, ...a1);
+      }
+    } else {
+      v.push(...s0.r, ...s0.l, ...s1.l, ...s0.r, ...s1.l, ...s1.r);
+    }
   }
   if (!v.length) return null;
   const g = new THREE.BufferGeometry();
@@ -61,9 +108,124 @@ export function ribbon(pts, width, lift, heightAt, skip = null, step = 3, offset
   return g;
 }
 
+const DIRT = { shoulder: 0x9a8157, road: 0xbda275, rut: 0xa98f63 };
+const DIRT_LIFT = 0.04;
+
+// A dirt road as one mesh: a cross-section of points (shoulder, road edge,
+// either side of each rut, centre) every metre along it, each on heightAt(),
+// which includes the road's bumps and ruts. Vertex colours: darker shoulder
+// and ruts. Pieces where skip(x, y) is true are left out. Returns geometries.
+function dirtRoad(r, heightAt, skip) {
+  const pts = r.points;
+  const half = r.width / 2;
+  const rut = r.width * 0.22;
+  // Offsets across (right to left) and their colours.
+  const across = [-(half + 0.8), -(half + 0.4), -half, -(half - 0.8), -(rut + 0.45), -rut, -(rut - 0.45), 0, rut - 0.45, rut, rut + 0.45, half - 0.8, half, half + 0.4, half + 0.8];
+  const C = (hex) => new THREE.Color(hex);
+  const cols = across.map((o) => {
+    const a = Math.abs(o);
+    if (a > half + 0.01) return C(DIRT.shoulder);
+    if (a > half - 0.01) return C(DIRT.shoulder).lerp(C(DIRT.road), 0.5);
+    if (Math.abs(a - rut) < 0.01) return C(DIRT.rut).multiplyScalar(0.96);
+    if (Math.abs(a - rut) < 0.5) return C(DIRT.rut).lerp(C(DIRT.road), 0.35);
+    return C(DIRT.road);
+  });
+  const cum = measurePolyline(pts);
+  const total = cum[cum.length - 1];
+  const n = Math.max(2, Math.ceil(total / 1.4) + 1);
+  const rowAt = (d) => {
+    const p = pointAlong(pts, cum, d);
+    const a = pointAlong(pts, cum, Math.max(0, d - 1.5));
+    const b = pointAlong(pts, cum, Math.min(total, d + 1.5));
+    let dx = b.x - a.x;
+    let dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    dx /= len;
+    dy /= len;
+    const nx = -dy;
+    const ny = dx;
+    return {
+      d,
+      skip: skip(p.x, p.y),
+      v: across.map((o) => {
+        const x = p.x + nx * o;
+        const y = p.y + ny * o;
+        return [x, heightAt(x, y) + DIRT_LIFT, y];
+      }),
+    };
+  };
+  // Extra rows where the ground bends between two (creek banks).
+  const rows = [];
+  const refine = (r0, r1, depth) => {
+    if (depth >= 3) return;
+    const m = rowAt((r0.d + r1.d) / 2);
+    if (!m.v.some((q, k) => Math.abs(q[1] - (r0.v[k][1] + r1.v[k][1]) / 2) > 0.05)) return;
+    refine(r0, m, depth + 1);
+    rows.push(m);
+    refine(m, r1, depth + 1);
+  };
+  let prev = rowAt(0);
+  rows.push(prev);
+  for (let i = 1; i < n; i++) {
+    const cur = rowAt((total * i) / (n - 1));
+    refine(prev, cur, 0);
+    rows.push(cur);
+    prev = cur;
+  }
+  // Pieces of about 80 m, so each lands in its own map chunk and gets culled.
+  const out = [];
+  let pos = [];
+  let col = [];
+  const flush = () => {
+    if (!pos.length) return;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    fixWinding(g, true);
+    out.push(g);
+    pos = [];
+    col = [];
+  };
+  const push = (q, c) => {
+    pos.push(q[0], q[1], q[2]);
+    col.push(c.r, c.g, c.b);
+  };
+  let start = 0;
+  for (let i = 0; i < rows.length - 1; i++) {
+    const r0 = rows[i];
+    const r1 = rows[i + 1];
+    if (r0.d - start > 80) {
+      flush();
+      start = r0.d;
+    }
+    if (r0.skip || r1.skip) continue;
+    for (let k = 0; k < across.length - 1; k++) {
+      push(r0.v[k], cols[k]);
+      push(r0.v[k + 1], cols[k + 1]);
+      push(r1.v[k + 1], cols[k + 1]);
+      push(r0.v[k], cols[k]);
+      push(r1.v[k + 1], cols[k + 1]);
+      push(r1.v[k], cols[k]);
+    }
+  }
+  flush();
+  return out;
+}
+
+// For the world checker: is (x, y) inside some other water body (where one
+// water sheet meets another, its edge may hang over the other's bed; past
+// the map edge nobody sees it)?
+function inOtherWater(world, self) {
+  return (x, y) => x < 0 || y < 0 || x > world.size.w || y > world.size.h
+    || world.creeks.some((c) => c !== self && distToPolyline(x, y, c.points) < c.width / 2 + 4)
+    || world.lakes.some((l) => l !== self && pointInPolygon(x, y, l.polygon));
+}
+
 // Make every triangle face up (cheap insurance against winding mistakes).
-function fixWinding(g) {
+// withColors: swap the colour attribute along with the positions.
+function fixWinding(g, withColors = false) {
   const p = g.attributes.position.array;
+  const c = withColors ? g.attributes.color.array : null;
   for (let i = 0; i < p.length; i += 9) {
     const ax = p[i + 3] - p[i];
     const az = p[i + 5] - p[i + 2];
@@ -75,6 +237,11 @@ function fixWinding(g) {
         const t = p[i + 3 + k];
         p[i + 3 + k] = p[i + 6 + k];
         p[i + 6 + k] = t;
+        if (c) {
+          const u = c[i + 3 + k];
+          c[i + 3 + k] = c[i + 6 + k];
+          c[i + 6 + k] = u;
+        }
       }
     }
   }
@@ -82,6 +249,7 @@ function fixWinding(g) {
 
 export function buildGround(world, scenery, terrain, batch) {
   const H = (x, y) => terrain.heightAt(x, y);
+  const A = batch.audit;
   const rng = makeRng(world.seed + 7);
   const creek = world.creeks[0];
   const water = new SegIndex(32);
@@ -90,15 +258,17 @@ export function buildGround(world, scenery, terrain, batch) {
   const roadIdx = new SegIndex(32);
   for (const r of world.roads) roadIdx.addPolyline(r.points, r.width / 2 + 3, r);
 
-  const addRibbon = (pts, width, lift, color, skip, offset = 0) => {
+  const addRibbon = (pts, width, lift, color, skip, offset = 0, id = 'road') => {
     const g = ribbon(pts, width, lift, H, skip, 3, offset);
     if (g) batch.add(g, ID, color, NO_SHADOW);
+    if (A) A.surface(id, 'road', g, lift);
   };
   // Round caps at the road ends only (junctions); the dense curve needs none in between.
   const addCaps = (pts, width, lift, color, skip) => {
     for (const [x, y] of [pts[0], pts[pts.length - 1]]) {
       if (skip && skip(x, y)) continue;
-      batch.add(disc(width / 2, 14), objMatrix(x, y, H(x, y) + lift, 0), color, NO_SHADOW);
+      const g = batch.add(disc(width / 2, 14), objMatrix(x, y, H(x, y) + lift, 0), color, NO_SHADOW);
+      if (A) A.surface('road_cap', 'road', g, lift);
     }
   };
 
@@ -106,12 +276,19 @@ export function buildGround(world, scenery, terrain, batch) {
   const dirt = world.roads.filter((r) => r.type !== 'paved');
   const paved = world.roads.filter((r) => r.type === 'paved');
   for (const r of dirt) {
-    addRibbon(r.points, r.width + 1.6, 0.03, 0x9a8157, nearWater);
-    addCaps(r.points, r.width + 1.6, 0.03, 0x9a8157, nearWater);
-    addRibbon(r.points, r.width, 0.05, 0xbda275, nearWater);
-    addCaps(r.points, r.width, 0.05, 0xbda275, nearWater);
-    addRibbon(r.points, 0.6, 0.07, 0xa98f63, nearWater, r.width * 0.22);
-    addRibbon(r.points, 0.6, 0.07, 0xa98f63, nearWater, -r.width * 0.22);
+    // One mesh with the bumps and ruts in it (roadbumps.js), shoulder to
+    // shoulder. Round ends are painted on the ground.
+    for (const g of dirtRoad(r, H, nearWater)) {
+      batch.add(g, ID, 0xffffff, { ...NO_SHADOW, keepColors: true });
+      if (A) A.surface(r.id, 'dirt_road', g, DIRT_LIFT);
+    }
+    if (batch.paint) {
+      for (const [x, y] of [r.points[0], r.points[r.points.length - 1]]) {
+        if (nearWater(x, y)) continue;
+        batch.paint.disc(x, y, r.width / 2 + 0.8, DIRT.shoulder);
+        batch.paint.disc(x, y, r.width / 2, DIRT.road);
+      }
+    }
   }
   for (const r of paved) {
     addRibbon(r.points, r.width + 1.8, 0.09, 0x8c8a82, nearWater);
@@ -131,14 +308,17 @@ export function buildGround(world, scenery, terrain, batch) {
       if (nearWater(a.x, a.y)) continue;
       const g = ribbon([[a.x, a.y], [b.x, b.y]], 0.25, 0.15, H, null, 3);
       if (g) batch.add(g, ID, 0xe6d690, NO_SHADOW);
+      if (A) A.surface(r.id, 'road_dash', g, 0.15);
     }
   }
 
   // Creek water and reeds. The bed is carved into the terrain.
   for (const c of world.creeks) {
     const flatH = () => 0;
-    const g = ribbon(c.points, c.width + 3, WATER_LEVEL, flatH, null, 6);
+    // Wide enough that its edges always run under the banks.
+    const g = ribbon(c.points, c.width + 8, WATER_LEVEL, flatH, null, 6);
     batch.add(g, ID, 0x467aa6, { cast: false, material: 'water' });
+    if (A) A.surface(c.id, 'creek', g, 0, { water: true, ok: inOtherWater(world, c) });
     const g2 = ribbon(c.points, c.width * 0.4, WATER_LEVEL + 0.02, flatH, null, 6);
     batch.add(g2, ID, 0x5a8dba, { cast: false, material: 'water' });
     const cum = measurePolyline(c.points);
@@ -154,13 +334,15 @@ export function buildGround(world, scenery, terrain, batch) {
       const s = 0.6 + rng() * 0.8;
       const m = objMatrix(x, y, Math.max(H(x, y), WATER_LEVEL), rng() * 360, 0, 0, 0, new THREE.Matrix4().makeScale(s, s, s));
       batch.add(reed, m, rng() < 0.5 ? 0x3f6a33 : 0x6b8a3f, { cast: false });
+      if (A) A.circle(c.id, 'reed', x, y, 0.14 * s, Math.max(H(x, y), WATER_LEVEL), null, WATER_LEVEL);
     }
   }
 
   // Lakes: flat water with a darker middle, lily pads.
   for (const l of world.lakes) {
     const g = flatPolygon(l.polygon);
-    batch.add(g, new THREE.Matrix4().makeTranslation(0, WATER_LEVEL, 0), 0x467aa6, { cast: false, material: 'water' });
+    const lw = batch.add(g, new THREE.Matrix4().makeTranslation(0, WATER_LEVEL, 0), 0x467aa6, { cast: false, material: 'water' });
+    if (A) A.surface(l.id, 'lake', lw, 0, { water: true, ok: inOtherWater(world, l) });
     const [mx, my] = centroid(l.polygon);
     const inner = l.polygon.map(([x, y]) => [mx + (x - mx) * 0.65, my + (y - my) * 0.65]);
     batch.add(flatPolygon(inner), new THREE.Matrix4().makeTranslation(0, WATER_LEVEL + 0.02, 0), 0x3d6e98, { cast: false, material: 'water' });
@@ -173,43 +355,27 @@ export function buildGround(world, scenery, terrain, batch) {
     }
   }
 
-  // Yards, forecourts and fields.
-  const PAD = { concrete: 0xb3b0a8, gravel: 0xa29d92, yard: 0xa48f6a, field: 0x9a8150, track: 0xa08a64 };
+  // Yards, forecourts and tracks, painted onto the terrain (paint.js) so they
+  // follow every bend. Field pads are drawn with the fields (fields3d.js).
+  const PAD = { concrete: 0xb3b0a8, gravel: 0xa29d92, yard: 0xa48f6a, track: 0xa08a64 };
   for (const p of scenery.pads) {
-    const base = H(p.x, p.y);
-    if (p.kind !== 'field') {
-      // Draped on the ground along its long axis (tracks run up hills).
-      const a = localToWorld(p.x, p.y, p.angle || 0, 0, -p.h / 2);
-      const b = localToWorld(p.x, p.y, p.angle || 0, 0, p.h / 2);
-      const g = ribbon([[a.x, a.y], [b.x, b.y]], p.w, 0.04, H, null, 3);
-      if (g) batch.add(g, ID, PAD[p.kind] ?? PAD.gravel, NO_SHADOW);
-      continue;
-    }
-    batch.place(flat(p.w, p.h), p.x, p.y, base, p.angle, 0, 0, 0.04, PAD[p.kind], NO_SHADOW);
-    if (p.kind === 'field') {
-      // Crop rows, then a post-and-rail fence round it.
-      for (let x = -p.w / 2 + 1.5; x < p.w / 2; x += 2.6) {
-        batch.place(box(0.9, 0.35, p.h - 2), p.x, p.y, base, p.angle, x, 0, 0, 0x6f8a3c, { cast: false });
-      }
-      const fw = p.w + 2;
-      const fh = p.h + 2;
-      const post = cyl(0.08, 1.2, 4);
-      const wood = 0x5a4630;
-      for (const [lx, ly, len, along] of [[0, -fh / 2, fw, 'x'], [0, fh / 2, fw, 'x'], [-fw / 2, 0, fh, 'z'], [fw / 2, 0, fh, 'z']]) {
-        const rail = along === 'x' ? box(len, 0.08, 0.08) : box(0.08, 0.08, len);
-        batch.place(rail, p.x, p.y, base, p.angle, lx, ly, 0.9, wood, { cast: false });
-        batch.place(rail, p.x, p.y, base, p.angle, lx, ly, 0.5, wood, { cast: false });
-        for (let t = -len / 2; t <= len / 2 + 0.01; t += 4) {
-          const px = along === 'x' ? lx + t : lx;
-          const py = along === 'x' ? ly : ly + t;
-          batch.place(post, p.x, p.y, base, p.angle, px, py, 0, wood, { cast: false });
-        }
-      }
-    }
+    if (p.kind === 'field' || !batch.paint) continue;
+    const poly = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx, sy]) => {
+      const c = localToWorld(p.x, p.y, p.angle || 0, (sx * p.w) / 2, (sy * p.h) / 2);
+      return [c.x, c.y];
+    });
+    batch.paint.polygon(poly, PAD[p.kind] ?? PAD.gravel);
   }
 
   const coveredDrawn = new Set(world.landmarks.filter((l) => l.kind === 'covered_bridge').map((l) => l.bridgeId));
   for (const b of world.bridges) {
+    if (A && b.kind !== 'ford') {
+      // The road meets the deck (or the stub) at both ends.
+      for (const dir of [-1, 1]) {
+        const e = localToWorld(b.x, b.y, b.angle, 0, dir * (b.length / 2 + 3));
+        A.point({ id: b.id, kind: 'bridge_end', x: e.x, y: e.y, min: DECK_TOP - 0.6, max: DECK_TOP });
+      }
+    }
     if (coveredDrawn.has(b.id)) continue; // drawn with the landmarks (landmarks3d.js)
     if (b.kind === 'ford') buildFord(world, b, batch, rng);
     else buildBridge(world, b, creek, batch, rng);

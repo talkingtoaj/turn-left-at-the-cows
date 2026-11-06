@@ -23,6 +23,7 @@ import { SUN_DIR } from './world3d/world3d.js';
 import { createStats } from './stats.js';
 import { createResScale } from './resscale.js';
 import { createDamageHazards } from './damageHazards.js';
+import { spotFor } from './spots.js';
 
 const TALK_RANGE = 25;
 const READ_RANGE = 25;
@@ -42,6 +43,10 @@ const params = new URLSearchParams(window.location.search);
 const stats = createStats(renderer, params.has('stats'));
 const res = createResScale(renderer, params);
 const statsExtra = () => `res ${res.ratio.toFixed(2)} (dpr ${window.devicePixelRatio})`;
+
+// Dev: ?spot=<name> starts the car at a review spot (src3/spots.js).
+const spot = params.has('spot') ? spotFor(params.get('spot'), WORLD) : null;
+if (spot) Object.assign(state.car, spot, { speed: 0 });
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.8, 450);
@@ -183,6 +188,7 @@ function frame(now) {
 
   car3d.update(car, runtime.paused ? 0 : dt, world3d.surfaceAt, steer);
   carPos.copy(car3d.object.position);
+  rig.rumble(world3d.terrain.bumps.roughness(car.x, car.y) * Math.min(1, Math.abs(car.speed) / 20) * (runtime.paused ? 0 : 1));
   const e = rig.update(carPos, car.heading, dt, runtime.cameraMode, groundAt, state.view.northUp);
   // Sound every frame, even paused (it ducks while the map is open).
   audio.update(dt, state, amb, { paused: runtime.paused });

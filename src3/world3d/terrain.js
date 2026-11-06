@@ -10,11 +10,16 @@ import {
   makeRng, distToSegment, pointInPolygon, distToPolygonEdge, SegIndex, bbox,
 } from '../../src/drive/geom.js';
 import { buildingSolids, quarryOpening, QUARRY } from '../../src/drive/layout.js';
+import { RoadBumps } from './roadbumps.js';
 
 export const CELL = 4; // metres between height samples
 export const CHUNK = 250; // metres per ground mesh chunk
 export const WATER_LEVEL = -0.6;
 const BED = -1.7; // creek and lake bed
+
+// Dirt roads keep this much of the hills under them (paved roads keep none),
+// so they roll with the land.
+export const DIRT_KEEP = 0.3;
 
 // ---------- seeded value noise ----------
 
@@ -129,6 +134,7 @@ export class Terrain {
     this.rows = Math.round(world.size.h / CELL) + 1;
     this.h = new Float32Array(this.cols * this.rows);
     this.build();
+    this.bumps = new RoadBumps(world);
   }
 
   build() {
@@ -163,7 +169,11 @@ export class Terrain {
     // width, plus flat discs (as zero-length segments). Indexed by grid cell
     // so each height sample only checks nearby features.
     const flat = new SegIndex(64);
-    for (const r of world.roads) flat.addPolyline(r.points, r.width / 2 + 4 + BLEND, r.width / 2 + 4);
+    for (const r of world.roads) if (r.type === 'paved') flat.addPolyline(r.points, r.width / 2 + 4 + BLEND, r.width / 2 + 4);
+    // Dirt roads only flatten part way (DIRT_KEEP).
+    const dirtFlat = new SegIndex(64);
+    for (const r of world.roads) if (r.type !== 'paved') dirtFlat.addPolyline(r.points, r.width / 2 + 4 + BLEND, r.width / 2 + 4);
+    const keep = (x, y) => THREE.MathUtils.lerp(DIRT_KEEP, 1, smoothstep(0, BLEND, dirtFlat.minDist(x, y, (s) => s.data)));
     for (const c of world.creeks) flat.addPolyline(c.points, c.width / 2 + 8 + BLEND, c.width / 2 + 8);
     const disc = (x, y, r) => flat.add(x, y, x, y, r + BLEND, r);
     for (const b of world.buildings) {
@@ -191,13 +201,14 @@ export class Terrain {
       return best;
     };
 
-    const mastH = mast ? raw(mast.x, mast.y) * smoothstep(0, BLEND, flatDist(mast.x, mast.y)) : 0;
+    const flatK = (x, y) => Math.min(smoothstep(0, BLEND, flatDist(x, y)), keep(x, y));
+    const mastH = mast ? raw(mast.x, mast.y) * flatK(mast.x, mast.y) : 0;
 
     for (let j = 0; j < this.rows; j++) {
       const y = j * CELL;
       for (let i = 0; i < this.cols; i++) {
         const x = i * CELL;
-        let h = raw(x, y) * smoothstep(0, BLEND, flatDist(x, y));
+        let h = raw(x, y) * flatK(x, y);
         if (mast) {
           const dm = Math.hypot(x - mast.x, y - mast.y);
           if (dm < 55) h = THREE.MathUtils.lerp(mastH, h, smoothstep(32, 55, dm));
@@ -222,8 +233,14 @@ export class Terrain {
     }
   }
 
-  // Height at any world point, matching the mesh triangles exactly.
+  // Height at any world point: the ground mesh, plus the bumps and ruts of
+  // dirt roads (drawn by the road mesh, see roadbumps.js).
   heightAt(x, y) {
+    return this.gridHeightAt(x, y) + this.bumps.at(x, y);
+  }
+
+  // Height of the ground mesh itself, matching its triangles exactly.
+  gridHeightAt(x, y) {
     const gx = Math.max(0, Math.min(this.cols - 1.001, x / CELL));
     const gy = Math.max(0, Math.min(this.rows - 1.001, y / CELL));
     const i = Math.floor(gx);
@@ -240,7 +257,45 @@ export class Terrain {
     return h00 + (h11 - h01) * fx + (h01 - h00) * fy;
   }
 
-  // Ground meshes, one per chunk so far ones get culled.
+  // Lowest and highest ground under a footprint: { rect: { x, y, w, h, angle } }
+  // or { circle: { x, y, r } }. Samples corners, edges and a grid finer than
+  // the terrain cells, so on the piecewise-flat ground it is exact to a few cm.
+  groundRange(foot) {
+    let min = Infinity;
+    let max = -Infinity;
+    const at = (x, y) => {
+      const h = this.heightAt(x, y);
+      if (h < min) min = h;
+      if (h > max) max = h;
+    };
+    if (foot.circle) {
+      const { x, y, r } = foot.circle;
+      at(x, y);
+      const rings = Math.max(1, Math.ceil(r / 1));
+      for (let k = 1; k <= rings; k++) {
+        const rr = (r * k) / rings;
+        const n = Math.max(8, Math.ceil((2 * Math.PI * rr) / 1));
+        for (let i = 0; i < n; i++) at(x + Math.cos((i / n) * 2 * Math.PI) * rr, y + Math.sin((i / n) * 2 * Math.PI) * rr);
+      }
+    } else {
+      const { x, y, w, h, angle = 0 } = foot.rect;
+      const c = Math.cos((angle * Math.PI) / 180);
+      const s = Math.sin((angle * Math.PI) / 180);
+      const nx = Math.max(1, Math.ceil(w / 1));
+      const ny = Math.max(1, Math.ceil(h / 1));
+      for (let i = 0; i <= nx; i++) {
+        for (let j = 0; j <= ny; j++) {
+          const lx = -w / 2 + (w * i) / nx;
+          const ly = -h / 2 + (h * j) / ny;
+          at(x + lx * c - ly * s, y + lx * s + ly * c);
+        }
+      }
+    }
+    return { min, max };
+  }
+
+  // Ground meshes, one per chunk so far ones get culled. material is a
+  // Material or fn(ci, cj) -> Material (painted chunks get their own).
   buildMeshes(material, colorFn) {
     const group = new THREE.Group();
     const per = Math.round(CHUNK / CELL);
@@ -294,7 +349,7 @@ export class Terrain {
         g.setIndex(idx);
         g.computeVertexNormals();
         g.computeBoundingSphere();
-        const m = new THREE.Mesh(g, material);
+        const m = new THREE.Mesh(g, typeof material === 'function' ? material(ci, cj) : material);
         m.receiveShadow = true;
         m.matrixAutoUpdate = false;
         group.add(m);

@@ -15,14 +15,22 @@ const ROOFS = [0x8e4b3a, 0x5a5f66, 0x6b4a3a, 0x4f6a5a, 0x7a3b3b, 0x6e6a60];
 const WINDOW = 0x2c3a46;
 const FOUND = 1.5; // walls reach this far below ground so slopes never show gaps
 
-// Lowest ground under a rect, so the building never floats.
-function baseUnder(terrain, x, y, w, h, angle) {
-  let m = Infinity;
-  for (const [lx, ly] of [[0, 0], [-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]]) {
-    const p = localToWorld(x, y, angle, lx, ly);
-    m = Math.min(m, terrain.heightAt(p.x, p.y));
+const PLINTH = 0x9a958a;
+
+// Where a building stands on sloping ground: its floor is level with the high
+// side of the footprint, so the uphill wall is never buried, and walls reach
+// FOUND below that. Where the ground falls away further, a stone plinth fills
+// down past the low side, so the downhill side never shows a gap.
+// Returns { base, bottom } and draws the plinth when one is needed.
+function standOn(terrain, batch, x, y, w, h, angle) {
+  const { min, max } = terrain.groundRange({ rect: { x, y, w, h, angle } });
+  let bottom = max - FOUND;
+  if (max - min > 0.12) {
+    bottom = Math.min(bottom, min - 0.3);
+    const up = 0.18; // shows as a low stone course on the high side
+    batch.place(box(w + 0.3, max - min + 0.3 + up, h + 0.3), x, y, min - 0.3, angle, 0, 0, 0, PLINTH);
   }
-  return m;
+  return { base: max, bottom };
 }
 
 // Which side of a building faces the nearest road: 'n' | 's' | 'e' | 'w' in local terms.
@@ -89,8 +97,9 @@ export function buildStructures(world, terrain, batch, materials, extras = {}) {
 function buildBuilding(world, terrain, batch, b) {
   const a = b.angle || 0;
   const hsh = hashString(b.id);
-  const base = baseUnder(terrain, b.x, b.y, b.w, b.h, a);
+  const { base, bottom } = standOn(terrain, batch, b.x, b.y, b.w, b.h, a);
   const P = (geo, lx, ly, up, color, opts) => batch.place(geo, b.x, b.y, base, a, lx, ly, up, color, opts);
+  if (batch.audit) batch.audit.rect(b.id, b.kind, b.x, b.y, b.w, b.h, a, bottom, base);
 
   if (b.kind === 'gas') {
     const s = GAS.shop;
@@ -193,11 +202,16 @@ function buildBuilding(world, terrain, batch, b) {
 function buildLandmark(terrain, batch, l, rng, materials) {
   const base = terrain.heightAt(l.x, l.y);
   const P = (geo, lx, ly, up, color, opts) => batch.place(geo, l.x, l.y, base, 0, lx, ly, up, color, opts);
+  const A = batch.audit;
 
   if (l.kind === 'church') {
     const n = CHURCH.nave;
     const t = CHURCH.tower;
     const stone = 0xe4ded0;
+    if (A) {
+      A.rect(l.id, 'church', l.x + n.lx, l.y + n.ly, n.w, n.h, 0, base - FOUND, base);
+      A.rect(l.id, 'church', l.x + t.lx, l.y + t.ly, t.w, t.h, 0, base - FOUND, base);
+    }
     P(box(n.w, 7 + FOUND, n.h), n.lx, n.ly, -FOUND, stone);
     P(gable(n.w + 0.8, n.h + 0.8, 6), n.lx, n.ly, 7, 0x55585e);
     // Tall pointed windows along the nave.
@@ -223,6 +237,7 @@ function buildLandmark(terrain, batch, l, rng, materials) {
       const gy = -12 + rng() * 30;
       const tilt = new THREE.Matrix4().makeRotationZ((rng() - 0.5) * 0.2);
       batch.place(box(0.7, 0.9, 0.2), l.x, l.y, base, 0, gx, gy, 0, 0xb9b6ae, { cast: false, extra: tilt });
+      if (A) A.rect(l.id, 'gravestone', l.x + gx, l.y + gy, 0.7, 0.2, 0, base, base + 0.4);
     }
     return null;
   }
@@ -233,6 +248,7 @@ function buildLandmark(terrain, batch, l, rng, materials) {
     const top = 0.72;
     const legs = WATER_TOWER.legs.map(([x, y]) => [new THREE.Vector3(x, -FOUND, y), new THREE.Vector3(x * top, H, y * top)]);
     const steel = 0x5d6468;
+    if (A) for (const [x, y] of WATER_TOWER.legs) A.circle(l.id, 'tower_leg', l.x + x, l.y + y, WATER_TOWER.legR * 0.7, base - FOUND);
     for (const [a, b] of legs) batch.add(strut(a, b, WATER_TOWER.legR * 0.7, 6), mAt(l.x, base, l.y), steel);
     // Horizontal rings and X bracing between legs.
     const at = (leg, f) => new THREE.Vector3().lerpVectors(leg[0], leg[1], f);
@@ -264,8 +280,16 @@ function buildLandmark(terrain, batch, l, rng, materials) {
       const r = 11 + rng() * 4;
       pts.push([l.x + Math.cos(ang) * r * 1.1, l.y + Math.sin(ang) * r * 0.85]);
     }
-    batch.add(flatPolygon(pts), new THREE.Matrix4().makeTranslation(0, base + 0.05, 0), 0x4a4436, { cast: false });
-    batch.add(disc(6.5, 12), mAt(l.x - 1, base + 0.08, l.y, new THREE.Matrix4().makeScale(1.15, 1, 0.85)), 0x34302a, { cast: false });
+    // Painted onto the ground, so it follows the slope.
+    if (batch.paint) {
+      batch.paint.polygon(pts, 0x4a4436);
+      const ash = [];
+      for (let i = 0; i < 12; i++) {
+        const ang = (i / 12) * Math.PI * 2;
+        ash.push([l.x - 1 + Math.cos(ang) * 6.5 * 1.15, l.y + Math.sin(ang) * 6.5 * 0.85]);
+      }
+      batch.paint.polygon(ash, 0x34302a);
+    }
     // Standing walls: jagged stone, blackened on top.
     for (const w of MILL.walls) {
       const along = w.w >= w.h;
@@ -281,6 +305,7 @@ function buildLandmark(terrain, batch, l, rng, materials) {
         const gw = along ? seg : w.w;
         const gd = along ? w.h : seg;
         P(box(gw, hgt + FOUND, gd), lx, ly, -FOUND, 0x7a7166);
+        if (A) A.rect(l.id, 'mill_wall', l.x + lx, l.y + ly, gw, gd, 0, base - FOUND, base + Math.min(0.5, hgt / 2));
         P(box(gw + 0.02, 0.5 + rng() * 0.6, gd + 0.02), lx, ly, hgt - 0.4, 0x2c2824);
       }
     }
@@ -300,6 +325,7 @@ function buildLandmark(terrain, batch, l, rng, materials) {
       batch.place(box(0.45, 3 + rng() * 4, 0.45), l.x, l.y, base, rng() * 180, (rng() - 0.5) * 10, (rng() - 0.5) * 8, 0.1, 0x1d1a17, { extra: lean });
     }
     P(cyl(1.4, 0.45, 12), 11, 5, 0, 0x8f8a80);
+    if (A) A.circle(l.id, 'millstone', l.x + 11, l.y + 5, 1.4, base, base + 0.2);
     return null;
   }
 
@@ -309,6 +335,7 @@ function buildLandmark(terrain, batch, l, rng, materials) {
     const legAt = (k, y) => new THREE.Vector3(Math.sin((k * 120 * Math.PI) / 180) * r, y, -Math.cos((k * 120 * Math.PI) / 180) * r);
     const m0 = mAt(l.x, base, l.y);
     P(cyl(RADIO_MAST.baseR, 0.6, 12), 0, 0, -0.2, 0xa9a69c);
+    if (A) A.circle(l.id, 'mast_base', l.x, l.y, RADIO_MAST.baseR, base - 0.2, base + 0.3);
     // Lattice in red and white bands, 10 m each.
     const step = 2.5;
     for (let y = 0; y < H; y += step) {
@@ -323,6 +350,7 @@ function buildLandmark(terrain, batch, l, rng, materials) {
     for (const p of anchorPoints(l)) {
       const ab = terrain.heightAt(p.x, p.y);
       batch.add(box(RADIO_MAST.anchorR * 2, 0.8 + FOUND, RADIO_MAST.anchorR * 2), mAt(p.x, ab - FOUND, p.y), 0xa9a69c);
+      if (A) A.rect(l.id, 'mast_anchor', p.x, p.y, RADIO_MAST.anchorR * 2, RADIO_MAST.anchorR * 2, 0, ab - FOUND, ab + 0.4);
     }
     const wire = [];
     for (const p of anchorPoints(l)) {
