@@ -527,7 +527,9 @@ export function createAudio(world) {
     if (!amb || !amb.events) return;
     for (const e of amb.events) {
       const r = rel(car, e.x, e.y);
-      if (e.type === 'bell') {
+      if (e.type === 'horn') {
+        oneShot('car/horn', ctx.currentTime, 0, 0.5, 0.98 + Math.random() * 0.04);
+      } else if (e.type === 'bell') {
         // Audible across a big part of the map; points you to town.
         const vol = 0.8 / (1 + r.d / 400);
         if (vol < 0.015) continue;

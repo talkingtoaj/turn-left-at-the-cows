@@ -12,6 +12,7 @@
 // Dev URL flags: ?hazard=cows|sheep|tractor|truck|deer|branch|log (spawns one
 // just ahead, again each time you press G), ?blocker=demo (a fallen tree on
 // the road near the start), ?spot=x,y,heading (start there).
+// Keys: B horn.
 
 import { WORLD } from '../src/world/world.js';
 import { state } from '../src/state.js';
@@ -60,6 +61,16 @@ export function createDamageHazards({ scene, scenery, collider, amb, world3d, ri
     const list = hz.setBlockers(defs);
     amb.setRoadBlocks(list.map((b) => ({ roadId: b.roadId, at: b.at })));
   }
+
+  // Horn: B. One honk per press; animals and slow vehicles ahead may react.
+  let hornCool = 0;
+  let honkNow = false;
+  window.addEventListener('keydown', (e) => {
+    if (e.code !== 'KeyB' || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    honkNow = true;
+  });
 
   if (devHazard) {
     window.addEventListener('keydown', (e) => {
@@ -110,6 +121,12 @@ export function createDamageHazards({ scene, scenery, collider, amb, world3d, ri
         if (e.type === 'bump' && e.amount > 0) rig.shake(3 + 10 * e.strength);
       }
       if (result.hit && ANIMALS.has(result.hit.kind)) hz.startle(state.car.x, state.car.y);
+      hornCool = Math.max(0, hornCool - dt);
+      if (honkNow && hornCool <= 0 && !state.inputLocked) {
+        hornCool = 0.5;
+        dh.honk();
+      }
+      honkNow = false;
       hz.update(dt, state, amb);
       for (const e of hz.events) amb.events.push(e);
       if (pendingSpawn && hz.spawn(pendingSpawn, { car: state.car, ahead: 45, force: true })) pendingSpawn = null;
@@ -140,6 +157,11 @@ export function createDamageHazards({ scene, scenery, collider, amb, world3d, ri
         acc += L;
       }
       return false;
+    },
+    // Sound the horn (also the B key).
+    honk() {
+      amb.events.push({ type: 'horn', x: state.car.x, y: state.car.y });
+      hz.honk(state.car);
     },
     spawn(kind, ahead = 45) {
       return hz.spawn(kind, { car: state.car, ahead, force: true });

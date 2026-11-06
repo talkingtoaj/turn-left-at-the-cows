@@ -277,7 +277,7 @@ export function createHUD(root, { openMap } = {}) {
   const lights = buildLights(bezel(958, 104, 'WARNING'));
   const devDmg = new URLSearchParams(window.location.search).has('damage') ? el('div', 'hud-dev-dmg', hud) : null;
   el('div', 'hud-hint', inner,
-    'Arrows/WASD drive · Space handbrake · E talk · M map · C camera · N north/heading-up · K mute · H help');
+    'Arrows/WASD drive · Space handbrake · E talk · M map · C camera · B horn · N north/heading-up · K mute · H help');
 
   // ---------------------------------------------------------------- overlays
   const goalLine = el('div', 'hud-goal-line hud-mono', hud);

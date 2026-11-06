@@ -25,6 +25,7 @@ export const CONTROLS = [
   [['N'], 'North-up / heading-up'],
   [['K'], 'Mute'],
   [['C'], 'Camera (3D only)', '3d'],
+  [['B'], 'Horn (3D only)', '3d'],
   [['H'], 'Help'],
   [['Enter'], 'Next mission'],
 ];
