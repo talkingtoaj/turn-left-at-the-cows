@@ -19,7 +19,17 @@ function chain(mat, key, fn) {
   mat.needsUpdate = true;
 }
 
+// Rain (round 8): how wet everything is (0..1) and the colour wet surfaces
+// reflect (the horizon / fog colour, set by look.js). Shared by every
+// patched material, so one write updates them all.
+export const WET = {
+  lookWet: { value: 0 },
+  lookSkyCol: { value: new THREE.Color(0.8, 0.85, 0.9) },
+};
+
 function uniforms(sh, shared) {
+  sh.uniforms.lookWet = WET.lookWet;
+  sh.uniforms.lookSkyCol = WET.lookSkyCol;
   const { layers } = shared;
   const L = layers.map((l) => (l ? new THREE.Vector4(l.tex, l.scale[0], l.scale[1], l.swap ? 1 : 0) : new THREE.Vector4(0, 1, 1, 0)));
   sh.uniforms.lookAlb = { value: shared.albedo };
@@ -79,6 +89,17 @@ uniform vec2 lookAOSize;
 #endif
 varying vec3 vLookP;
 varying vec3 vLookN;
+uniform float lookWet;
+uniform vec3 lookSkyCol;
+`;
+
+// Wet shine (round 8): wet surfaces reflect the sky at a glancing view, by
+// lookWetShine (set in each patch's fragment code).
+const SHINE_OUT = /* glsl */`
+if (lookWetShine > 0.0) {
+  float lfr = pow(1.0 - clamp(dot(normalize(vViewPosition), normal), 0.0, 1.0), 4.0);
+  outgoingLight = mix(outgoingLight, lookSkyCol * 0.85, clamp(lookWetShine * (0.12 + 0.88 * lfr), 0.0, 1.0));
+}
 `;
 
 // World position and normal, with instancing.
@@ -110,8 +131,9 @@ function patch(sh, shared, { defs, vertHead = '', vertBody = '', fragHead = '', 
     .replace('#include <project_vertex>', `#include <project_vertex>\n${VERT_BODY}${vertBody}`);
   sh.fragmentShader = sh.fragmentShader
     .replace('#include <common>', `#include <common>\n${defs}${FRAG_COMMON}${fragHead}`)
-    .replace('#include <normal_fragment_begin>', `${frag}\n#include <normal_fragment_begin>`)
-    .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>\n${NORMAL_OUT}`);
+    .replace('#include <normal_fragment_begin>', `float lookWetShine = 0.0;\n${frag}\n#include <normal_fragment_begin>`)
+    .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>\n${NORMAL_OUT}`)
+    .replace('#include <opaque_fragment>', `${SHINE_OUT}\n#include <opaque_fragment>`);
 }
 
 // Lighting slope boost for gentle terrain (see patchTerrain).
@@ -123,9 +145,9 @@ export function patchTerrain(mat, shared) {
   const S = shared.surf;
   chain(mat, 'look-terrain', (sh) => patch(sh, shared, {
     defs: defines(shared),
-    vertHead: 'attribute vec2 lookRough;\nvarying vec2 vLookR;',
-    vertBody: 'vLookR = lookRough;',
-    fragHead: 'varying vec2 vLookR;\n',
+    vertHead: 'attribute vec2 lookRough;\nvarying vec2 vLookR;\nattribute float lookMud;\nvarying float vLookMud;',
+    vertBody: 'vLookR = lookRough;\nvLookMud = lookMud;',
+    fragHead: 'varying vec2 vLookR;\nvarying float vLookMud;\n',
     frag: /* glsl */`
 vec3 lookNW = normalize(vLookN);
 bool lookHasN = false;
@@ -171,6 +193,16 @@ bool lookHasN = false;
 #ifdef LOOK_AO
 diffuseColor.rgb *= texture2D(lookAO, vLookP.xz / lookAOSize).r;
 #endif
+// Wet ground (round 8): darker, bare soil more than grass; mud (willow
+// bottoms, creek low ground, hollows) browner and a little shiny.
+if (lookWet > 0.001) {
+  float lgw = smoothstep(0.0, 0.04, diffuseColor.g - max(diffuseColor.r, diffuseColor.b));
+  float lmk = clamp(vLookMud, 0.0, 1.0) * lookWet;
+  diffuseColor.rgb *= 1.0 - lookWet * mix(0.36, 0.2, lgw);
+  vec3 lmud = vec3(dot(diffuseColor.rgb, vec3(0.3333))) * vec3(1.2, 0.88, 0.52);
+  diffuseColor.rgb = mix(diffuseColor.rgb, lmud * 0.78, lmk * 0.72);
+  lookWetShine = lookWet * (0.04 + 0.22 * lmk);
+}
 `,
   }));
 }
@@ -203,8 +235,25 @@ bool lookHasN = false;
   #ifdef LOOK_AO
     diffuseColor.rgb *= texture2D(lookAO, vLookP.xz / lookAOSize).r;
   #endif
+  // Wet roads and pads (round 8): darker; the dirt road browner (mud), the
+  // asphalt shiny.
+  if (lookWet > 0.001) {
+    int ls = int(vLookSG.x + 0.5);
+    float ldk = ls == ${shared.surf['dirt road']} ? 0.42 : ls == ${shared.surf.asphalt} ? 0.34 : 0.28;
+    diffuseColor.rgb *= 1.0 - lookWet * ldk;
+    if (ls == ${shared.surf['dirt road']}) {
+      vec3 lmud = vec3(dot(diffuseColor.rgb, vec3(0.3333))) * vec3(1.06, 0.84, 0.6);
+      diffuseColor.rgb = mix(diffuseColor.rgb, lmud * 0.85, lookWet * 0.5);
+      lookWetShine = lookWet * 0.16;
+    } else if (ls == ${shared.surf.asphalt}) {
+      lookWetShine = lookWet * 0.42;
+    } else {
+      lookWetShine = lookWet * 0.12;
+    }
+  }
 #else
   diffuseColor.rgb *= mix(0.55, 1.0, smoothstep(0.0, 1.6, vLookP.y - vLookSG.y));
+  diffuseColor.rgb *= 1.0 - 0.12 * lookWet; // rain-darkened walls and roofs
 #endif
 `,
     fragHead: 'varying vec2 vLookSG;\n',
@@ -280,9 +329,22 @@ bool lookHasN = false;
 }
 #endif
 diffuseColor.rgb *= mix(0.62, 1.0, smoothstep(0.0, 0.9, vLookP.y - vLookC.y));
+// Wet stone: darker and a little shiny.
+diffuseColor.rgb *= 1.0 - 0.38 * lookWet;
+lookWetShine = lookWet * 0.2;
 `,
     fragHead: 'varying vec3 vLookC;\n',
   }));
+}
+
+// Shrubs and tussocks (instanced): only the wet look, a little darker in the rain.
+export function patchWetPlants(mat) {
+  chain(mat, 'look-wet-plants', (sh) => {
+    sh.uniforms.lookWet = WET.lookWet;
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float lookWet;')
+      .replace('#include <normal_fragment_begin>', 'diffuseColor.rgb *= 1.0 - 0.26 * lookWet;\n#include <normal_fragment_begin>');
+  });
 }
 
 // Sky dome: the baked sky image, fading into the fog colour at the horizon.

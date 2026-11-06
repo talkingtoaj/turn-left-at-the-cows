@@ -11,6 +11,9 @@
 //    faces are mapped flat along themselves, the ground from above.
 //
 // 4. Weather (weather.js): sunny, partly cloudy and overcast, drifting slowly.
+// 5. Rain (round 8, src/game/wetness.js): a darker sky and light while it
+//    rains; wet, darker ground, muddy low ground and dirt roads, shiny
+//    asphalt and stone (shaders.js WET).
 //
 // Dev URL knobs: ?weather=sunny|cloudy|overcast|cycle &exp=<exposure> &sun=<sun scale> &sky=<sky scale> &tm=agx
 // &sat=<saturation> &tex=0 (light only) &ao=0 (no ground contact shading).
@@ -18,7 +21,7 @@
 import * as THREE from 'three';
 import { TEXTURES, LAYERS, SURF, surfaceOf } from './surfaces.js';
 import { buildAOMap } from './aomap.js';
-import { patchObjects, patchTerrain, patchTrunks, patchRocks, skyMaterial } from './shaders.js';
+import { patchObjects, patchTerrain, patchTrunks, patchRocks, patchWetPlants, skyMaterial, WET } from './shaders.js';
 import { createWeatherClock, keyLooks, lookAt, emptyLook } from './weather.js';
 import { cloudCover, cloudUniforms } from '../world3d/clouds.js';
 
@@ -139,6 +142,9 @@ export async function createLook(renderer, params) {
 
   let weather = null;
   let carEnv = null;
+  // Rain (round 8, src/game/wetness.js): how hard it rains darkens the sky,
+  // the light and the haze; the wetness goes to every patched material.
+  const rainNow = { rain: 0, wet: 0 };
   return {
     opts,
     // Reflections for the cars' paint, glass and chrome: the sunny sky above
@@ -191,20 +197,27 @@ export async function createLook(renderer, params) {
       world3d.sky.material = skyMat;
       const sunLight = world3d.sun;
       let lastW = -1;
+      let lastRain = -1;
+      WET.lookSkyCol.value = scene.fog.color; // wet surfaces reflect the haze
       weather = {
         clock,
         update(state) {
           const w = clock.update(state);
-          if (Math.abs(w - lastW) < 1e-4) return;
+          const rk = rainNow.rain;
+          if (Math.abs(w - lastW) < 1e-4 && Math.abs(rk - lastRain) < 1e-3) return;
           lastW = w;
+          lastRain = rk;
           lookAt(keys, w, cur);
-          cur.sh.forEach((c, i) => probe.sh.coefficients[i].set(c[0], c[1], c[2]));
+          // Rain: a darker, bluer-grey day; the sun all but gone.
+          const dim = 1 - 0.28 * rk;
+          cur.sh.forEach((c, i) => probe.sh.coefficients[i].set(c[0] * dim, c[1] * dim, c[2] * dim * (1 + 0.03 * rk)));
           sunLight.color.setRGB(cur.sunColor[0], cur.sunColor[1], cur.sunColor[2], THREE.LinearSRGBColorSpace);
-          sunLight.intensity = cur.sun;
-          sunLight.shadow.intensity = cur.shadow;
-          scene.fog.color.setRGB(cur.fog[0], cur.fog[1], cur.fog[2], THREE.LinearSRGBColorSpace);
+          sunLight.intensity = cur.sun * (1 - 0.6 * rk);
+          sunLight.shadow.intensity = cur.shadow * (1 - 0.5 * rk);
+          const fd = 1 - 0.38 * rk;
+          scene.fog.color.setRGB(cur.fog[0] * fd * (1 - 0.03 * rk), cur.fog[1] * fd, cur.fog[2] * fd * (1 + 0.03 * rk), THREE.LinearSRGBColorSpace);
           scene.background.copy(scene.fog.color);
-          skyMat.uniforms.gain.value = cur.gain;
+          skyMat.uniforms.gain.value = cur.gain * (1 - 0.42 * rk);
           skyMat.uniforms.skyMix.value = cur.skyMix;
           skyMat.uniforms.grey.value = cur.grey;
           cloudCover.value = cur.cover;
@@ -243,11 +256,19 @@ export async function createLook(renderer, params) {
           for (const m of trunks) patchTrunks(m, shared);
           if (world3d.scatter.materials) patchRocks(world3d.scatter.materials.rock, shared);
         }
+        if (world3d.scatter.materials) {
+          patchWetPlants(world3d.scatter.materials.shrub);
+          patchWetPlants(world3d.scatter.materials.tuft);
+        }
       }
       console.info(`[look] applied in ${Math.round(performance.now() - t1)} ms`);
     },
     // Every frame: weather drift (cheap: uniforms only, and only on change).
-    update(state) {
+    // rain, wet: src/game/wetness.js.
+    update(state, rain = 0, wet = 0) {
+      rainNow.rain = rain;
+      rainNow.wet = wet;
+      WET.lookWet.value = wet;
       if (weather) weather.update(state);
     },
     get weather() { return weather ? weather.clock.w : null; },
