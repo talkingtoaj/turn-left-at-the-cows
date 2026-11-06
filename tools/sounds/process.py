@@ -68,6 +68,8 @@ RECIPES = [
     ('voices/f3', f'{EL}/voice_f3.mp3', 0, None, 'loop', 'highpass=f=90', -20),
     ('damage/flat_tyre', f'{EL}/flat_tyre.mp3', 0, None, 'loop', '', -18),
     ('damage/crash', f'{EL}/crash_thud.mp3', 0, None, 'oneshot', '', -1),
+    # Horn: one honk of a Mercury Marquis (the first of its honks).
+    ('car/horn', f'{FS}/558842.ogg', 0.36, 0.72, 'oneshot', 'highpass=f=150', -3),
 ]
 
 

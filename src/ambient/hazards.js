@@ -23,6 +23,7 @@
 //   hz.spawn(kind, opts)               // dev: force one now ('cows'|'sheep'|'tractor'|'truck'|'deer'|'branch'|'log')
 //   hz.setBlockers(defs)               // [{ id?, roadId, at } | { id?, near: [x, y] }]
 //   hz.startle(x, y)                   // an animal was hit: its group runs off
+//   hz.honk(car)                       // the player sounded the horn (see HORN)
 //   hz.reset()                         // clears moving hazards and debris (mission restart)
 //   hz.events    this frame's [{ type: 'moo', x, y }] (merged into amb.events by the caller)
 //
@@ -44,6 +45,23 @@ const T = {
   cleanupR: 420, // removed once this far from the player
   maxActive: 3,
   minDriveSpeed: 2, // the timers only run while you drive
+};
+
+// The horn. Each animal on or near the road ahead (within `range`) rolls
+// against its courage, the chance it ignores the honk. A brave animal that
+// stays loses a little courage with each honk (`braveDecay`), so repeated
+// honks move even a stubborn cow in the end, though it only ambles
+// (`amble` x its walking speed). Sheep trot off; deer bolt back into cover.
+// Tractors and trucks you sit behind may pull onto the verge and slow down
+// for `pullTime` seconds so you can pass.
+export const HORN = {
+  range: 40, // metres
+  behind: 6, // metres behind the car that still count (an animal beside you)
+  courage: { cow: 0.75, sheep: 0.4, deer: 0.1, horse: 0.45, tractor: 0.3, truck: 0.5 },
+  braveDecay: 0.8, // courage x this after each honk it ignores
+  amble: { cow: 0.65, sheep: 1.5, horse: 1 },
+  pullTime: 14, // s on the verge
+  pullSpeed: { tractor: 2.5, truck: 3.5 }, // m/s while pulled over
 };
 
 const TRACTOR_COLORS = [0x3f7a35, 0xb8352a, 0x2f5f9a];
@@ -298,7 +316,7 @@ export function createHazards(world, scenery, opts = {}) {
     const p = at(h.r, h.s);
     const fx = p.dx * h.dir;
     const fy = p.dy * h.dir;
-    const off = h.r.road.width * 0.24;
+    const off = h.r.road.width * 0.24 + (h.pull || 0);
     h.v.x = p.x - fy * off;
     h.v.y = p.y + fx * off;
     h.v.heading = headingOf(fx, fy);
@@ -444,6 +462,14 @@ export function createHazards(world, scenery, opts = {}) {
   function stepVehicle(h, dt, car) {
     const v = h.v;
     let target = h.cruise;
+    // Pulled over after a honk: onto the verge and slow, then back.
+    const w = h.r.road.width;
+    const pullTo = h.pullT > 0 ? w * 0.26 + 1 : 0;
+    if (h.pullT > 0) {
+      h.pullT -= dt;
+      target = Math.min(target, HORN.pullSpeed[v.kind] || 3);
+    }
+    h.pull = (h.pull || 0) + Math.max(-0.8 * dt, Math.min(0.8 * dt, pullTo - (h.pull || 0)));
     const fx = Math.sin(v.heading * DEG);
     const fy = -Math.cos(v.heading * DEG);
     const px = car.x - v.x;
@@ -504,6 +530,80 @@ export function createHazards(world, scenery, opts = {}) {
     for (let k = 0; k < 3; k++) {
       const t = half + 1.5 + k * 1.8;
       out.push({ x: b.x + ux * t * c, y: b.y + uy * t * c, r: 1.8, kind });
+    }
+  }
+
+  // ---------- horn ----------
+  // Is (x, y) on or near the road ahead of the car, within the horn's range?
+  function inHornReach(car, x, y) {
+    const dx = x - car.x;
+    const dy = y - car.y;
+    const d = Math.hypot(dx, dy);
+    if (d > HORN.range) return false;
+    const fwd = dx * Math.sin(car.heading * DEG) - dy * Math.cos(car.heading * DEG);
+    return fwd > -HORN.behind;
+  }
+
+  function honk(car) {
+    const C = HORN.courage;
+    for (const h of list) {
+      if (h.members && (h.kind === 'cows' || h.kind === 'sheep')) {
+        if (h.phase === 'leave' || h.phase === 'off') continue;
+        const w = h.r.road.width;
+        let staying = 0;
+        let ignored = 0;
+        for (const m of h.members) {
+          if (m.honked) continue;
+          const a = m.a;
+          if (!inHornReach(car, a.x, a.y)) {
+            staying++;
+            continue;
+          }
+          const courage = (C[a.kind] ?? 0.5) * (m.brave ?? 1);
+          if (rng() < courage) {
+            // Ignores it, but looks round at you, and is a bit less sure next time.
+            m.brave = (m.brave ?? 1) * HORN.braveDecay;
+            m.face = headingOf(car.x - a.x, car.y - a.y);
+            m.idleT = R(3, 6);
+            staying++;
+            ignored++;
+            continue;
+          }
+          // Moves off the road, away from the car's side.
+          m.honked = true;
+          const toCar = (car.x - a.x) * m.qr.x + (car.y - a.y) * m.qr.y;
+          const side = Math.abs(toCar) > 1.5 ? (toCar > 0 ? -1 : 1) : h.side;
+          m.target = side * (w / 2 + R(4, 9));
+          m.speed *= HORN.amble[a.kind] ?? 1;
+          m.delay = a.kind === 'cow' ? R(0.6, 2) : R(0.1, 0.6);
+        }
+        if (ignored && h.kind === 'cows' && rng() < 0.5) events.push({ type: 'moo', x: h.x, y: h.y });
+        if (!staying) h.phase = 'leave';
+      } else if (h.members && h.kind === 'deer') {
+        if (h.phase !== 'wait' || !h.members.some((m) => inHornReach(car, m.a.x, m.a.y))) continue;
+        if (rng() < C.deer) continue;
+        // Bolts back the way it came, into cover, instead of across the road.
+        const w = h.r.road.width;
+        for (const m of h.members) {
+          m.target = Math.sign(m.lat || 1) * (w / 2 + R(22, 30));
+          m.delay *= 0.5;
+        }
+        h.phase = 'dash';
+      } else if (h.v) {
+        // Only when you are behind it, going its way.
+        const v = h.v;
+        if (h.pullT > 0 || !inHornReach(car, v.x, v.y)) continue;
+        const fx = Math.sin(v.heading * DEG);
+        const fy = -Math.cos(v.heading * DEG);
+        const behind = (car.x - v.x) * fx + (car.y - v.y) * fy < -2;
+        const sameWay = Math.sin(car.heading * DEG) * fx - Math.cos(car.heading * DEG) * fy > 0.5;
+        if (!behind || !sameWay) continue;
+        if (rng() < (C[v.kind] ?? 0.4) * (h.brave ?? 1)) {
+          h.brave = (h.brave ?? 1) * HORN.braveDecay;
+          continue;
+        }
+        h.pullT = HORN.pullTime;
+      }
     }
   }
 
@@ -607,6 +707,7 @@ export function createHazards(world, scenery, opts = {}) {
 
     setBlockers,
     blockerSolids,
+    honk,
 
     startle(x, y) {
       for (const h of list) {

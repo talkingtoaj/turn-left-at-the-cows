@@ -107,6 +107,12 @@ export const SOUND_GROUPS = [
       { id: 'damage/crash', kind: 'oneshot', label: 'Crash thud' },
     ],
   },
+  {
+    group: 'Car',
+    items: [
+      { id: 'car/horn', kind: 'oneshot', label: 'Horn (B key), one friendly honk' },
+    ],
+  },
 ];
 
 export const ALL_SOUNDS = SOUND_GROUPS.flatMap((g) => g.items);
