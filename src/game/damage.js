@@ -58,6 +58,26 @@ export const TUNING = {
     partMul: { tyres: 1, steering: 0.8, engine: 0.5 }, // size for that part
     heavy: 1.15, // knocks over size x this are a heavier underbody thump
   },
+  // Wet ground (round 8, 3D surface feel only; src/game/wetness.js says how
+  // wet). Each surface's grip at full wetness, as multipliers on its dry
+  // SURFACE_FEEL (src/drive/car.js): accel (how hard you can speed up),
+  // brake (how hard you can stop: braking distance grows as 1 / brake),
+  // turn (steering rate) and drag (rolling drag). Blended in by wetness
+  // (wet^1.2, so a damp road is barely different from a dry one).
+  wet: {
+    paved: { accel: 0.96, brake: 0.82, turn: 0.97, drag: 1 },
+    dirt: { accel: 0.84, brake: 0.66, turn: 0.92, drag: 1.15 },
+    grass: { accel: 0.8, brake: 0.66, turn: 0.9, drag: 1.2 },
+    // Mud (src/world/mud.js: Willow Bottoms, creek low ground), on top of
+    // the above on dirt and off-road, scaled by how muddy (0..1) and how wet.
+    mud: { accel: 0.72, brake: 0.75, turn: 0.86, drag: 1.5 },
+    // Puddles (src3/world3d/puddles3d.js): each one you drive through keeps
+    // this much of your speed (a big one a little less) and splashes.
+    puddleSlow: 0.95,
+    puddleBigSlow: 0.9, // a puddle of radius puddleBigR m or more
+    puddleBigR: 3.5,
+    puddleMinSpeed: 2.5, // m/s: slower than this just wades in quietly
+  },
   // Effects.
   tyreWorn: 0.75, // below: a soft tyre, pulls a little
   tyreFlat: 0.45, // below: flat, flaps, pulls hard, slower
@@ -126,6 +146,20 @@ export function damageMods(d, out = {}) {
   }
   if (d.steering < T.steerBent) out.pull += d.driftSide * (T.steerBent - d.steering) * 10;
   if (d.stall > 0 || d.brokenDown) out.accelMul = 0;
+  return out;
+}
+
+// Grip in the wet (TUNING.wet) for stepCar's surface feel: fills and returns
+// out = { accel, brake, turn, drag } multipliers for `surface` at wetness
+// `wet` (0..1) with `mud` (0..1) under the car. All 1 when dry.
+export function wetGrip(surface, wet, mud = 0, out = {}) {
+  const T = TUNING.wet;
+  const S = T[surface] || T.paved;
+  const k = Math.max(0, Math.min(1, wet)) ** 1.2;
+  const m = surface === 'paved' ? 0 : Math.max(0, Math.min(1, mud)) * k;
+  for (const p of ['accel', 'brake', 'turn', 'drag']) {
+    out[p] = (1 + (S[p] - 1) * k) * (1 + (T.mud[p] - 1) * m);
+  }
   return out;
 }
 
@@ -335,6 +369,15 @@ export function updateDamage(state, dt, result, collider, prev) {
             d.recent.set(item, 0);
             // Shrubs (3D district scatter): drive-through, no damage; a small
             // slowdown, and a bump event for the swish and a little bounce.
+            // Puddles (3D, in the wet): no damage; a splash and a small slowdown.
+            if (item.kind === 'puddle') {
+              const W = T.wet;
+              if (speed > W.puddleMinSpeed) {
+                car.speed *= item.r >= W.puddleBigR ? W.puddleBigSlow : W.puddleSlow;
+                d.events.push({ type: 'bump', kind: 'puddle', strength: Math.min(1, speed / 18), amount: 0, id: item.id, x: wx, y: wy, r: item.r, wheel: w });
+              }
+              return;
+            }
             if (item.kind === 'shrub') {
               if (speed > 1.5) {
                 car.speed *= T.shrubSlow;

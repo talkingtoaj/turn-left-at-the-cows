@@ -19,7 +19,8 @@ import { WORLD } from '../src/world/world.js';
 import { state } from '../src/state.js';
 import { CAR_CIRCLES, CAR_R } from '../src/drive/collider.js';
 import { potholesFor } from '../src/world/potholes.js';
-import { damageMods, updateDamage, smokeLevel, addDent } from '../src/game/damage.js';
+import { damageMods, updateDamage, smokeLevel, addDent, wetGrip } from '../src/game/damage.js';
+import { mudFor } from '../src/world/mud.js';
 import { currentMission } from '../src/game/missions.js';
 import { createHazards, HAZARD_KINDS } from '../src/ambient/hazards.js';
 import { createHazards3D } from './world3d/hazards3d.js';
@@ -42,6 +43,9 @@ export function createDamageHazards({ scene, scenery, collider, amb, world3d, ri
   const hz = createHazards(WORLD, scenery);
   const hz3d = createHazards3D(scene, { terrain: world3d.terrain, surfaceAt: world3d.surfaceAt, potholes, sunDir, fallen: hz.fallen, env });
   const mods = {};
+  const grip = {};
+  const mud = mudFor(WORLD);
+  let wetNow = 0; // ground wetness (src/game/wetness.js), set by setWet
   const prev = { x: 0, y: 0, heading: 0 };
   const devHazard = params.get('hazard');
   const devFallen = params.has('fallen') ? hz.fallen[Number(params.get('fallen')) - 1] : null;
@@ -92,7 +96,19 @@ export function createDamageHazards({ scene, scenery, collider, amb, world3d, ri
     mods() {
       damageMods(state.damage, mods);
       mods.surfaceFeel = true; // surfaces change grip and drag, not top speed (car.js)
+      // Wet ground (round 8): less grip, more on mud (damage.js TUNING.wet).
+      if (wetNow > 0.005) {
+        const c = state.car;
+        mods.grip = wetGrip(collider.surfaceAt(c.x, c.y), wetNow, mud.at(c.x, c.y), grip);
+      } else mods.grip = null;
       return mods;
+    },
+    // How wet the ground is now (0..1).
+    setWet(wet) {
+      wetNow = wet;
+    },
+    get grip() {
+      return mods.grip;
     },
 
     beforeStep() {
@@ -113,6 +129,8 @@ export function createDamageHazards({ scene, scenery, collider, amb, world3d, ri
       }
       collider.surfaceDynamic.length = 0;
       hz.pushSurface(car.x, car.y, SOLID_R, collider.surfaceDynamic);
+      // Puddles with water in them now (round 8).
+      if (world3d.puddles) world3d.puddles.pushSurface(car.x, car.y, 12, collider.surfaceDynamic);
       return prev;
     },
 
