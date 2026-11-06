@@ -43,6 +43,11 @@ RECIPES = [
     ('tyres/paved', f'{EL}/tyre_paved.mp3', 0, None, 'loop', '', -20),
     # Round 3: the user picked this softer field loop over the first one.
     ('tyres/grass', f'{EL3}/tyre_grass.mp3', 0, None, 'loop', 'highpass=f=40,lowpass=f=6000', -20),
+    # Shrub swish (one-shot): the first full swish of the FIRST grass loop
+    # (raw_el/tyre_grass.mp3, rejected as a loop because the swish repeats like
+    # something stuck to the tyre). Just that one swish, 0.52 to 1.14 s, before
+    # the next one starts; slow fade in and a long fade out.
+    ('tyres/shrub', f'{EL}/tyre_grass.mp3', 0.52, 0.62, 'oneshot', 'highpass=f=90,lowpass=f=9000', -1),
     ('nature/creek', f'{FS}/231536.ogg', 2, 12, 'loop', '', -20),
     ('nature/river', f'{FS}/420557.ogg', 5, 12, 'loop', '', -20),
     ('nature/birdsong', f'{FS}/490845.ogg', 2, 15, 'loop', 'highpass=f=300', -22),
@@ -148,7 +153,10 @@ def main():
             g = 10 ** (target / 20) / (rms(a) or 1)
             a = soft_limit([x * g for x in a], 10 ** (-1 / 20))
         else:
-            a = fades(trim_silence(a), fout=0.4 if name == 'bell/bell' else 0.06)
+            if name == 'tyres/shrub':
+                a = fades(a, fin=0.03, fout=0.22)  # noisy floor: no silence to trim
+            else:
+                a = fades(trim_silence(a), fout=0.4 if name == 'bell/bell' else 0.06)
             g = 10 ** (target / 20) / (max(abs(x) for x in a) or 1)
             a = [x * g for x in a]
         dst = os.path.join(OUT, name + '.mp3')

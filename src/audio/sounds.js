@@ -55,6 +55,7 @@ export const SOUND_GROUPS = [
       { id: 'tyres/paved', kind: 'loop', label: 'Paved road' },
       { id: 'tyres/gravel', kind: 'loop', label: 'Gravel / dirt road' },
       { id: 'tyres/grass', kind: 'loop', label: 'Grass / field' },
+      { id: 'tyres/shrub', kind: 'oneshot', label: 'Shrub swish (driving through a shrub)' },
     ],
   },
   {

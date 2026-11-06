@@ -106,6 +106,7 @@ export class Terrain {
     this.rough = roughnessFor(world);
     this.roughGrid = new Uint8Array(this.cols * this.rows); // small roughness 0..255 per sample
     this.bumpGrid = new Float32Array(this.cols * this.rows); // big bump height (m) in each sample
+    this.openGrid = new Uint8Array(this.cols * this.rows); // open countryside share 0..255 (districts tint)
     this.build();
     this.bumps = new RoadBumps(world);
   }
@@ -192,6 +193,7 @@ export class Terrain {
         h += g.h;
         this.roughGrid[j * this.cols + i] = this.rough.off ? 0 : Math.round(g.rough * 255);
         this.bumpGrid[j * this.cols + i] = g.h;
+        this.openGrid[j * this.cols + i] = Math.round(Math.max(0, Math.min(1, g.open)) * smoothstep(1, 8, g.fd) * 255);
         // Water: creek channel and lake basin.
         for (const s of water.near(x, y)) {
           const d = distToSegment(x, y, s.ax, s.ay, s.bx, s.by);
@@ -307,7 +309,7 @@ export class Terrain {
             uvs[k * 2 + 1] = y / 14;
             rough[k * 2] = this.roughGrid[gj * this.cols + gi] / 255;
             rough[k * 2 + 1] = this.bumpGrid[gj * this.cols + gi];
-            colorFn(x, y, this.h[gj * this.cols + gi], col, this.roughGrid[gj * this.cols + gi] / 255);
+            colorFn(x, y, this.h[gj * this.cols + gi], col, this.roughGrid[gj * this.cols + gi] / 255, this.openGrid[gj * this.cols + gi] / 255);
             colors[k * 3] = col.r;
             colors[k * 3 + 1] = col.g;
             colors[k * 3 + 2] = col.b;

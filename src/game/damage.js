@@ -36,6 +36,8 @@ export const TUNING = {
   // Curb: leaving a paved road onto grass fast.
   curbMin: 14, // m/s (50 km/h)
   curbScale: 0.04,
+  // Shrubs (3D district scatter): each one you drive through keeps this much of your speed.
+  shrubSlow: 0.95,
   // Too fast on rough ground (3D surface feel): above a surface's safe speed,
   // stones and ruts chip at the car. Chance of a knock per second:
   //   chance = rate[surface] * (over / safe + 0.05)^2,  over = speed - safe > 0
@@ -331,6 +333,15 @@ export function updateDamage(state, dt, result, collider, prev) {
             if (_seen.has(item) || d.recent.has(item)) return;
             _seen.add(item);
             d.recent.set(item, 0);
+            // Shrubs (3D district scatter): drive-through, no damage; a small
+            // slowdown, and a bump event for the swish and a little bounce.
+            if (item.kind === 'shrub') {
+              if (speed > 1.5) {
+                car.speed *= T.shrubSlow;
+                d.events.push({ type: 'bump', kind: 'shrub', strength: Math.min(1, speed / 18), amount: 0, id: item.id });
+              }
+              return;
+            }
             const a = applyBump(d, item, speed, w);
             // Branches and logs slow you a little; a big hole too.
             const slow = item.kind === 'log' ? 0.8 : item.kind === 'branch' ? 0.9 : item.big ? 0.93 : 0.97;

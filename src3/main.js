@@ -25,6 +25,8 @@ import { createResScale } from './resscale.js';
 import { createDamageHazards } from './damageHazards.js';
 import { spotFor } from './spots.js';
 import { setRoughnessEnabled, setRollEnabled } from '../src/world/roughness.js';
+import { setScatterEnabled } from '../src/world/scatter.js';
+import { districtsFor } from '../src/world/districts.js';
 
 const TALK_RANGE = 25;
 const READ_RANGE = 25;
@@ -45,7 +47,19 @@ const stats = createStats(renderer, params.has('stats'));
 const res = createResScale(renderer, params);
 // New light, sky, weather and textures (src3/look); ?look=old for the old look.
 const look = params.get('look') !== 'old' ? await (await import('./look/look.js')).createLook(renderer, params) : null;
-const statsExtra = () => `res ${res.ratio.toFixed(2)} (dpr ${window.devicePixelRatio})`;
+// Dev: ?districts=show also names the district under the car (in ?stats, or a small label).
+const showDistricts = params.get('districts') === 'show';
+const districtLabel = () => {
+  const d = districtsFor(WORLD).at(state.car.x, state.car.y);
+  return `${d.name} (${d.kind})`;
+};
+const statsExtra = () => `res ${res.ratio.toFixed(2)} (dpr ${window.devicePixelRatio})${showDistricts ? `\n${districtLabel()}` : ''}`;
+let districtEl = null;
+if (showDistricts && !params.has('stats')) {
+  districtEl = document.createElement('div');
+  districtEl.style.cssText = 'position:fixed;left:6px;top:6px;z-index:9999;pointer-events:none;font:13px/1.3 sans-serif;color:#fff;background:rgba(0,0,0,0.55);padding:4px 8px;border-radius:4px';
+  document.body.appendChild(districtEl);
+}
 
 // Dev: ?spot=<name> starts the car at a review spot (src3/spots.js).
 const spot = params.has('spot') ? spotFor(params.get('spot'), WORLD) : null;
@@ -64,6 +78,9 @@ window.addEventListener('resize', () => {
 
 if (params.get('rough') === 'off') setRoughnessEnabled(false); // dev: compare without rough ground
 if (params.get('roll') === 'off') setRollEnabled(false); // dev: compare without the rolling layer
+// Dev: ?scatter=off builds the world without the district scatter (rocks,
+// shrubs, tussocks, outcrops) and without the district grass tints.
+if (params.get('scatter') === 'off') setScatterEnabled(false);
 const scenery = generateScenery(WORLD);
 const collider = new Collider(WORLD, scenery);
 const world3d = buildWorld3D(scene, WORLD, scenery, collider);
@@ -195,6 +212,13 @@ function frame(now) {
     // Ambient life moves after the car (dust, birds scatter, traffic stops).
     amb.update(dt, state);
     dh.afterStep(dt, result, prev);
+    // Through a shrub: a little bounce of the body and the camera.
+    for (const ev of (state.damage && state.damage.events) || []) {
+      if (ev.type === 'bump' && ev.kind === 'shrub') {
+        car3d.kick(0.05 + 0.12 * ev.strength);
+        rig.shake(2 + 4 * ev.strength);
+      }
+    }
     // Locals wander a few metres; talk range follows where they are now.
     state.nearLocalId = nearestId(WORLD.locals, car, TALK_RANGE, personPos);
     state.nearSignId = nearestId(WORLD.signs, car, READ_RANGE);
@@ -231,6 +255,7 @@ function frame(now) {
   renderer.render(scene, camera);
   hud.update(dt);
   stats.end(statsExtra);
+  if (districtEl && (fps.frames & 15) === 0) districtEl.textContent = districtLabel();
 
   fps.frames++;
   fps.acc += now - (fps.prev || now);

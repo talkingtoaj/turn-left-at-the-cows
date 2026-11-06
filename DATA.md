@@ -40,6 +40,7 @@ World size is 6500 x 3200. Mission 1 country is x 0..3000 (Fenwick County). Miss
 - `bridges [{id, roadId, creekId, kind: 'bridge'|'covered'|'ford', intact, length, width, x, y, angle, waterWidth}]`.
   x, y, angle are COMPUTED where the built road crosses the built creek; the road is straightened over the deck. Fords are `intact: true` bridges (passable), drawn as a gravel causeway. `b_covered` (covered bridge, Ridge Road) is `intact: false`: its roof fell in.
 - `hills [{id, x, y, r, h}]`: 3D terrain bumps placed inside road bends (roads stay flat; terrain blends to 0 within 70 m of roads).
+- `outcrops [{id, name, x, y}]`: named rock outcrops on hilltops ("the Grey Stones"), for directions. The rocks are seeded around (x, y) by `src/world/scatter.js`; the district around each is always stony (`src/world/districts.js`). 3D only. Candidate spots: `node tools/pick-outcrops.mjs`.
 - `buildings [{id, kind, x, y, w, h, angle, farm?, chimney?}]`. kinds: house, shop, gas, barn, farmhouse, store, diner, cabin, shed (unknown kinds render as houses for now). `farm` groups farm buildings (one yard pad per farm). `chimney: true` = smoke later.
 - `landmarks [{id, kind, name, x, y, r?, clearR?, bridgeId?, angle?}]`. Rendered now: church, water_tower, mill_ruin, radio_mast. DATA ONLY (not drawn, no collision solids yet): grain_silos, lookout_tower (on hill `h_lookout`), covered_bridge (sits on `b_covered`, x/y/angle copied from it), quarry (`r` = pit radius), campground. `clearR` = tree-free radius.
 - `forests [{id, polygon, density}]`.
