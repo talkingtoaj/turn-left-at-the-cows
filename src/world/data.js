@@ -171,6 +171,23 @@ export const WORLD_SOURCE = {
     { id: 'h_river_rd_b', x: 3500, y: 2120, r: 120, h: 22 },
   ],
 
+  // Named rock outcrops: clusters of big rocks on hilltops, seen from the
+  // roads, for directions ("turn off at the Grey Stones"). Spots picked from
+  // tools/pick-outcrops.mjs (local tops of the 3D ground on open land, 70 to
+  // 400 m off a road); the rocks themselves are seeded (src/world/scatter.js).
+  // Their districts are always stony (src/world/districts.js).
+  outcrops: [
+    { id: 'oc_grey', name: 'the Grey Stones', x: 2540, y: 1160 },
+    { id: 'oc_raven', name: 'Raven Crag', x: 5400, y: 1060 },
+    { id: 'oc_oldmen', name: 'the Old Men', x: 3300, y: 1100 },
+    { id: 'oc_teeth', name: "the Giant's Teeth", x: 3060, y: 420 },
+    { id: 'oc_cairn', name: "Shepherd's Cairn", x: 3500, y: 2120 },
+    { id: 'oc_whet', name: 'the Whetstones', x: 2780, y: 2080 },
+    { id: 'oc_tinker', name: "Tinker's Rocks", x: 1420, y: 1360 },
+    { id: 'oc_anvil', name: 'the Anvil', x: 560, y: 1460 },
+    { id: 'oc_gallow', name: 'Gallow Crag', x: 1260, y: 2420 },
+  ],
+
   // Rectangles centred on (x, y), rotated by angle. Solid.
   // kind: 'house' | 'shop' | 'gas' | 'barn' | 'farmhouse' | 'store' | 'diner' | 'cabin' | 'shed'
   // (unknown kinds render as houses for now). farm: groups farm buildings

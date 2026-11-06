@@ -21,7 +21,10 @@
 // nothing gets a step or a lip.
 //
 //   const R = roughnessFor(world)
-//   R.at(x, y)         -> { type, rough, big, plow, plowAngle } (per frame use)
+//   R.at(x, y)         -> { type, rough, big, plow, plowAngle, open, fd } (per frame use)
+//                         open: share of open countryside (not field, forest
+//                         or town lawn) 0..1; fd: metres beyond the nearest
+//                         road edge or flat feature (yard, building, water...)
 //   R.height(x, y)     -> big bump height (m), terrain build only
 //   R.boulders         -> half-buried stones in the roughest scrub (surface events)
 //
@@ -225,9 +228,11 @@ class Roughness {
     o.h = 0;
     o.plow = 0;
     o.plowAngle = 0;
+    o.open = 0;
     // On a road?
     const roadD = this.roadDist(x, y);
     const road = this._road;
+    o.fd = roadD;
     if (road && roadD < 0) {
       o.type = road.type;
       o.rough = 0;
@@ -236,16 +241,9 @@ class Roughness {
     }
     // Near roads, yards and buildings: a trodden, mown verge, no big bumps.
     const fd = Math.min(this.flatDist(x, y), roadD);
+    o.fd = fd;
     if (withHeight === 'only' && fd <= FADE_IN) return o;
 
-    if (this.off) {
-      // Rough ground switched off: one roughness everywhere off-road, giving
-      // the old grass safe speed (32 km/h), no bumps.
-      o.type = 'grass';
-      o.rough = 0.5;
-      o.big = 0;
-      return o;
-    }
     // Patch weights.
     let wSum = 0;
     let rough = 0;
@@ -309,6 +307,17 @@ class Roughness {
       plowSwell /= wSum;
       roll /= wSum;
       wSum = 1;
+    }
+    o.open = 1 - wSum;
+    if (this.off) {
+      // Rough ground switched off: one roughness everywhere off-road, giving
+      // the old grass safe speed (32 km/h), no bumps.
+      o.type = 'grass';
+      o.rough = 0.5;
+      o.big = 0;
+      o.plow = 0;
+      o.plowAngle = 0;
+      return o;
     }
     // The rest is open countryside: rough meadow, with patches of scrub.
     const wBg = 1 - wSum;
