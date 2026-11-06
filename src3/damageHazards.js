@@ -11,7 +11,9 @@
 //
 // Dev URL flags: ?hazard=cows|sheep|tractor|truck|deer|branch|log (spawns one
 // just ahead, again each time you press G), ?blocker=demo (a fallen tree on
-// the road near the start), ?spot=x,y,heading (start there).
+// the road near the start), ?blocker=cand1|cand2|cand3 (a mission 2
+// candidate from src3/blockerCandidates.js, car placed 100 m before it),
+// ?spot=x,y,heading (start there).
 // Keys: B horn.
 
 import { WORLD } from '../src/world/world.js';
@@ -23,6 +25,7 @@ import { currentMission } from '../src/game/missions.js';
 import { createHazards, HAZARD_KINDS } from '../src/ambient/hazards.js';
 import { createHazards3D } from './world3d/hazards3d.js';
 import { DEG } from '../src/drive/geom.js';
+import { CANDIDATES } from './blockerCandidates.js';
 
 const SOLID_R = 45; // hazards and traffic within this range are solid
 const ANIMALS = new Set(['cow', 'sheep', 'deer']);
@@ -58,6 +61,7 @@ export function createDamageHazards({ scene, scenery, collider, amb, world3d, ri
     const m = currentMission(state);
     const defs = [...((m && m.blockers) || [])];
     if (devBlocker === 'demo') defs.push(DEMO_BLOCKER);
+    if (CANDIDATES[devBlocker]) defs.push(CANDIDATES[devBlocker].def);
     const list = hz.setBlockers(defs);
     amb.setRoadBlocks(list.map((b) => ({ roadId: b.roadId, at: b.at })));
   }
@@ -77,6 +81,14 @@ export function createDamageHazards({ scene, scenery, collider, amb, world3d, ri
       if (e.code === 'KeyG' && !e.repeat) pendingSpawn = devHazard;
     });
   }
+
+  // Candidate preview: start on the road short of the blocker.
+  const cand = CANDIDATES[devBlocker];
+  const placeCand = () => {
+    if (!cand) return;
+    dh.placeOnRoad(cand.start.roadId, cand.start.at, cand.start.dir);
+    state.missionStart = { x: state.car.x, y: state.car.y, heading: state.car.heading };
+  };
 
   const dh = {
     hz,
@@ -182,5 +194,6 @@ export function createDamageHazards({ scene, scenery, collider, amb, world3d, ri
       hz3d.update(hz, dt, focus, state.car, carObj, smokeLevel(state.damage), amb.wind, camera, fog, renderer);
     },
   };
+  placeCand();
   return dh;
 }
