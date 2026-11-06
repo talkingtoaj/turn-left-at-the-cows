@@ -32,3 +32,18 @@ The weather (`src3/look/weather.js`) blends the two; overcast is the cloudy sky 
 | brick | chimneys, brick fronts | ambientCG Bricks105: https://ambientcg.com/view?id=Bricks105 | CC0 |
 | concrete | plinths, stone, rocks, pads | ambientCG Concrete034: https://ambientcg.com/view?id=Concrete034 | CC0 |
 | rust | water tower, silos, steel | AI (Gemini gemini-3.1-flash-image, 1K), our own. Prompt: "Seamless tileable texture, flat orthographic photo scan of an old painted steel water tank panel seen straight on, faded off-white paint, scattered orange-brown rust spots and vertical rust streaks running down from faint horizontal rivet seams, even flat lighting, no shadows, no perspective, fills the whole frame edge to edge" | ours |
+
+## Tree models (`trees.glb`, only with `?trees=new`)
+
+All by Quaternius, CC0 1.0 (licence shown on each Poly Pizza page; Quaternius
+releases all packs as CC0: https://quaternius.com). Cut down to about 200
+triangles (near) and 50 (far) each with meshoptimizer, recoloured with the
+game's leaf and trunk colours, by `tools/look/trees.mjs`. 23 KB in all.
+
+| Mesh | Model | Source | License |
+|---|---|---|---|
+| pine, pineFar | Pine Tree (1681 tris) | https://poly.pizza/m/gX8WmgkeEm | CC0 |
+| oakA, oakAFar | Tree (1810 tris) | https://poly.pizza/m/9nvGuZlbpE | CC0 |
+| oakB, oakBFar | Tree (1366 tris) | https://poly.pizza/m/8qABc2Nslz | CC0 |
+| willow, willowFar | Willow (2752 tris) | https://poly.pizza/m/mBrUbIp9Zd | CC0 |
+| bush | Bush (364 tris) | https://poly.pizza/m/92EytlU1El | CC0 |
