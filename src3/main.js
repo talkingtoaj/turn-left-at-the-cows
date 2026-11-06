@@ -42,6 +42,8 @@ app.appendChild(renderer.domElement);
 const params = new URLSearchParams(window.location.search);
 const stats = createStats(renderer, params.has('stats'));
 const res = createResScale(renderer, params);
+// Look test: ?look=new swaps in the new light and textures (src3/look).
+const look = params.get('look') === 'new' ? await (await import('./look/look.js')).createLook(renderer, params) : null;
 const statsExtra = () => `res ${res.ratio.toFixed(2)} (dpr ${window.devicePixelRatio})`;
 
 // Dev: ?spot=<name> starts the car at a review spot (src3/spots.js).
@@ -62,6 +64,7 @@ window.addEventListener('resize', () => {
 const scenery = generateScenery(WORLD);
 const collider = new Collider(WORLD, scenery);
 const world3d = buildWorld3D(scene, WORLD, scenery, collider);
+if (look) look.apply(scene, world3d, WORLD, scenery);
 const car3d = buildCar();
 scene.add(car3d.object);
 const rig = new CameraRig(camera);
@@ -80,6 +83,7 @@ const amb3d = createAmbient3D(scene, {
   campfire: campfireOf(WORLD, world3d.terrain), chimneyFix,
 });
 addCloudShadowsTo(scene);
+if (look) look.afterAmbient(scene);
 // Damage, potholes and road hazards (also the ?hazard, ?blocker, ?spot dev flags).
 const dh = createDamageHazards({ scene, scenery, collider, amb, world3d, rig, sunDir: SUN_DIR, params });
 
