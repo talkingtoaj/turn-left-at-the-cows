@@ -34,6 +34,12 @@ export class CameraRig {
     this._look = new THREE.Vector3();
   }
 
+  // Gentle rumble on rough ground, 0..1 (roughness times speed). Smoothed,
+  // and drawn from slow sine waves, so it never jitters.
+  rumble(level) {
+    this.rumbleWant = Math.max(0, Math.min(1, level));
+  }
+
   shake(hitSpeed) {
     this.shakeT = 0.12;
     this.shakeAmp = 0.12 * Math.min(3, hitSpeed / 8);
@@ -82,6 +88,16 @@ export class CameraRig {
     this.pos.y = Math.max(this.pos.y, groundAt(this.pos.x, this.pos.z) + 1.0);
 
     cam.position.copy(this.pos);
+    this.rumbleT = (this.rumbleT || 0) + dt;
+    this.rumbleAmt = (this.rumbleAmt || 0) + ((this.rumbleWant || 0) - (this.rumbleAmt || 0)) * Math.min(1, dt * 4);
+    if (this.rumbleAmt > 0.002) {
+      // Chase view only (top view is far above the road).
+      const a = this.rumbleAmt * 0.022 * (1 - this.blend);
+      const t = this.rumbleT;
+      cam.position.y += a * (0.6 * Math.sin(t * 47) + 0.4 * Math.sin(t * 29 + 1.3));
+      cam.position.x += a * 0.5 * Math.sin(t * 37 + 0.7);
+      cam.position.z += a * 0.5 * Math.sin(t * 41 + 2.1);
+    }
     if (this.shakeT > 0) {
       this.shakeT -= dt;
       cam.position.x += (Math.random() - 0.5) * this.shakeAmp * 2;

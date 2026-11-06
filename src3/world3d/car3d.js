@@ -81,14 +81,35 @@ export function buildCar() {
     const w = new THREE.Mesh(wheelGeo, mat);
     w.position.set(x, 0.34, z);
     w.castShadow = true;
-    tilt.add(w);
-    wheels.push({ obj: w, front: z < 0 });
+    group.add(w); // wheels stay on the ground; the body above them bobs
+    wheels.push({ obj: w, front: z < 0, x, z });
   }
 
+  // Ride: the chassis follows the plane under the four tyres (visual only,
+  // stepCar is untouched). The body sits on a soft spring above it, so
+  // bumps give a small, smooth bob and a little lag in pitch and roll.
+  const SPRING = 11; // rad/s
+  const DAMP = 0.5; // damping ratio
+  const MAX_BOB = 0.07; // m
+  const MAX_LEAN = 0.035; // rad, extra body pitch/roll from the spring
   let spin = 0;
   let y = null;
   let pitch = 0;
   let roll = 0;
+  let lastX = 0;
+  let lastY = 0;
+  // Spring states: [offset, velocity] for height, pitch and roll.
+  const sp = { y: [0, 0], p: [0, 0], r: [0, 0] };
+  const spring = (s, target, dt) => {
+    // Semi-implicit Euler in two half steps (stable at 20 fps too).
+    for (let i = 0; i < 2; i++) {
+      const h = dt / 2;
+      const acc = SPRING * SPRING * (target - s[0]) - 2 * DAMP * SPRING * s[1];
+      s[1] += acc * h;
+      s[0] += s[1] * h;
+    }
+    return s[0];
+  };
   return {
     object: group,
     // heightAt(x, y) is the surface height under a world point.
@@ -96,17 +117,47 @@ export function buildCar() {
       const h = car.heading * DEG;
       const fx = Math.sin(h);
       const fy = -Math.cos(h);
-      const hf = heightAt(car.x + fx * 1.4, car.y + fy * 1.4);
-      const hb = heightAt(car.x - fx * 1.4, car.y - fy * 1.4);
-      const hr = heightAt(car.x - fy * 0.85, car.y + fx * 0.85);
-      const hl = heightAt(car.x + fy * 0.85, car.y - fx * 0.85);
-      const target = (hf + hb + hr + hl) / 4;
-      const k = Math.min(1, dt * 12);
-      y = y === null ? target : y + (target - y) * k;
-      pitch += (Math.atan2(hf - hb, 2.8) - pitch) * k;
-      roll += (Math.atan2(hr - hl, 1.7) - roll) * k;
+      // Ground under each tyre (local x right, local z back).
+      const at = (lx, lz) => heightAt(car.x - fy * lx - fx * lz, car.y + fx * lx - fy * lz);
+      const hFL = at(-0.88, -1.42);
+      const hFR = at(0.88, -1.42);
+      const hRL = at(-0.88, 1.38);
+      const hRR = at(0.88, 1.38);
+      const target = (hFL + hFR + hRL + hRR) / 4;
+      const tPitch = Math.atan2((hFL + hFR) / 2 - (hRL + hRR) / 2, 2.8);
+      const tRoll = Math.atan2((hFR + hRR) / 2 - (hFL + hRL) / 2, 1.76);
+      const jumped = y === null || Math.hypot(car.x - lastX, car.y - lastY) > 5;
+      lastX = car.x;
+      lastY = car.y;
+      if (jumped) {
+        y = target;
+        pitch = tPitch;
+        roll = tRoll;
+        sp.y[0] = sp.y[1] = sp.p[0] = sp.p[1] = sp.r[0] = sp.r[1] = 0;
+      } else if (dt > 0) {
+        // Chassis: quick but smooth (no jitter from single bumps).
+        const k = 1 - Math.exp(-dt * 22);
+        const prevY = y;
+        const prevP = pitch;
+        const prevR = roll;
+        y += (target - y) * k;
+        pitch += (tPitch - pitch) * k;
+        roll += (tRoll - roll) * k;
+        // Body: kicked opposite to how the chassis just moved, springs back.
+        sp.y[0] -= y - prevY;
+        sp.p[0] -= (pitch - prevP) * 0.6;
+        sp.r[0] -= (roll - prevR) * 0.6;
+        spring(sp.y, 0, dt);
+        spring(sp.p, 0, dt);
+        spring(sp.r, 0, dt);
+        sp.y[0] = Math.max(-MAX_BOB, Math.min(MAX_BOB, sp.y[0]));
+        sp.p[0] = Math.max(-MAX_LEAN, Math.min(MAX_LEAN, sp.p[0]));
+        sp.r[0] = Math.max(-MAX_LEAN, Math.min(MAX_LEAN, sp.r[0]));
+      }
       group.position.set(car.x, y, car.y);
       group.rotation.set(pitch, -h, roll);
+      tilt.position.y = sp.y[0];
+      tilt.rotation.set(sp.p[0], 0, sp.r[0]);
       spin -= (car.speed * dt) / 0.34;
       for (const w of wheels) {
         w.obj.rotation.set(spin, w.front ? -steer * 0.4 : 0, 0, 'YXZ');

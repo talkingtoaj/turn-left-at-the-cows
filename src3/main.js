@@ -178,6 +178,7 @@ function frame(now) {
 
   car3d.update(car, runtime.paused ? 0 : dt, world3d.surfaceAt, steer);
   carPos.copy(car3d.object.position);
+  rig.rumble(world3d.terrain.bumps.roughness(car.x, car.y) * Math.min(1, Math.abs(car.speed) / 20) * (runtime.paused ? 0 : 1));
   const e = rig.update(carPos, car.heading, dt, runtime.cameraMode, groundAt, state.view.northUp);
   // Sound every frame, even paused (it ducks while the map is open).
   audio.update(dt, state, amb, { paused: runtime.paused });
