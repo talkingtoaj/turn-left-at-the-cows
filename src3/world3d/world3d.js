@@ -104,6 +104,14 @@ function buildSky() {
   }));
   mesh.renderOrder = -1000;
   mesh.frustumCulled = false;
+  // Centre the dome on whichever camera draws it, right before it is drawn.
+  // A camera more than 10 m from the dome's centre would be outside it and
+  // see the flat background with the dome's hard edge across the sky (this
+  // is what pinned review cameras hit when the dome only followed the chase camera).
+  mesh.onBeforeRender = (r, s, cam) => {
+    mesh.position.setFromMatrixPosition(cam.matrixWorld);
+    mesh.updateMatrixWorld();
+  };
   return mesh;
 }
 
