@@ -220,9 +220,11 @@ export function buildWorld3D(scene, world, scenery, collider) {
   // Ground mesh, with fields and yards painted on (after the objects, which paint).
   const terrainMat = new THREE.MeshLambertMaterial({ vertexColors: true, map: grassTexture() });
   const hayTint = stripeTint(0xd2c38a, 0xb9a86c);
-  scene.add(terrain.buildMeshes(paintedMaterials(terrainMat, batch.paint, hayTint), colorFn));
+  const ground = terrain.buildMeshes(paintedMaterials(terrainMat, batch.paint, hayTint), colorFn);
+  scene.add(ground);
   if (wires) scene.add(wires);
-  scene.add(batch.build(materials));
+  const objects = batch.build(materials);
+  scene.add(objects);
   for (const d of dynamic) scene.add(d.object);
   scene.add(trees.object);
   scene.add(locals.object);
@@ -239,6 +241,11 @@ export function buildWorld3D(scene, world, scenery, collider) {
     sun,
     sky,
     surfaceAt,
+    // For the look test (src3/look): lights and meshes it restyles.
+    hemi,
+    ground,
+    objects,
+    trees,
     // Per frame: animated bits and the sun's shadow box following `focus`.
     update(time, dt, car, focus, shadowRadius, camera, amb) {
       for (const d of dynamic) d.update(time);
