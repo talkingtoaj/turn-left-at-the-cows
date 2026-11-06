@@ -22,6 +22,17 @@ export const TEXTURES = [
   { name: 'brick', strength: 1.0, chroma: 0.6, normal: true },
   { name: 'concrete', strength: 1.0, chroma: 0.0, normal: true },
   { name: 'rust', strength: 1.0, chroma: 1.0, normal: false }, // AI made, see SOURCES.md
+  // Round 5: the ruins and the grain elevator (Poly Haven, CC0). Weathered
+  // things carry their own colour (peeling paint, rust), so full chroma: the
+  // pieces use colours near each texture's mean.
+  { name: 'stonewall', strength: 1.0, chroma: 0.8, normal: true },
+  { name: 'peeling', strength: 0.85, chroma: 0.55, normal: true },
+  { name: 'greyplanks', strength: 1.0, chroma: 0.6, normal: true },
+  { name: 'charred', strength: 1.0, chroma: 1.0, normal: true },
+  { name: 'rustheavy', strength: 1.0, chroma: 1.0, normal: true },
+  { name: 'rustpaint', strength: 1.0, chroma: 1.0, normal: true },
+  { name: 'rustytin', strength: 1.0, chroma: 1.0, normal: true },
+  { name: 'galvtin', strength: 1.0, chroma: 1.0, normal: true },
 ];
 const T = Object.fromEntries(TEXTURES.map((t, i) => [t.name, i]));
 
@@ -44,6 +55,14 @@ export const LAYERS = [
   { name: 'concrete', tex: T.concrete, scale: [3, 1.5], normal: 0.7 },
   { name: 'rusty paint', tex: T.rust, scale: [3, 3], normal: 0 },
   { name: 'logs', tex: T.bark, scale: [1.6, 1.2], swap: true, normal: 1 },
+  { name: 'stone wall', tex: T.stonewall, scale: [2.6, 2.6], normal: 1 },
+  { name: 'peeling boards', tex: T.peeling, scale: [3, 3], swap: true, normal: 1 },
+  { name: 'grey boards', tex: T.greyplanks, scale: [2.2, 2.2], swap: true, normal: 1 },
+  { name: 'charred', tex: T.charred, scale: [1.6, 1.6], normal: 1 },
+  { name: 'heavy rust', tex: T.rustheavy, scale: [1.4, 1.4], normal: 0.6 },
+  { name: 'rusty panel', tex: T.rustpaint, scale: [2.4, 2.4], normal: 0.4 },
+  { name: 'rusty tin', tex: T.rustytin, scale: [1.8, 1.8], normal: 1 },
+  { name: 'galvanised tin', tex: T.galvtin, scale: [2.4, 2.4], normal: 1 },
 ];
 export const SURF = Object.fromEntries(LAYERS.map((l, i) => [l ? l.name : 'plain', i]));
 
@@ -68,6 +87,15 @@ const STANDING = {
     0x9c9480, 0x8a8984, 0xb9b6ae, 0x9a9890, 0xb0a994, 0x7d776a, 0x9b9a94,
     0x7f7b74, 0xa39e93, 0x8e8a82, 0x9a968c, 0x7d786f, 0x5e574e, 0x7d756a, 0x86807a, 0x8a8170, 0x77766f], // incl. rocks
   soil: [0x84643f], // ploughed rows
+  // Ruins and the grain elevator (src3/world3d/ruins3d.js, structures.js).
+  'stone wall': [0x877763, 0x3b342d, 0x7a6c5b, 0x3c332b, 0x857563, 0x5f554a, 0x8a7b68],
+  'peeling boards': [0xa59d90, 0x7d7468],
+  'grey boards': [0x5e5a52, 0x4f4b45, 0x55514a, 0x4a4640, 0x6a655c, 0x5d5850, 0x58534b, 0x403c36, 0x433d35, 0x3e3a34, 0x3a3430],
+  charred: [0x2a2520, 0x2b2621, 0x3d3329],
+  'heavy rust': [0x6a3e24, 0x5e3720, 0x52301c, 0x74462a, 0x5f3b25, 0x3e2a1e, 0x6a5446, 0x5c3b27],
+  'rusty panel': [0x56634a, 0x4c5942, 0x434f3a, 0x5d6a50, 0x8a3f2c],
+  'rusty tin': [0x6a3a26, 0x60341f, 0x6b3b27, 0x6c3c28, 0x5a2c1a, 0x4a2416],
+  'galvanised tin': [0xb2b0ab, 0x84827e],
   'rusty paint': [0x7f9aa6, 0x93aebb, 0xb7cdd6, 0x6c8693, 0xbfc1bc, 0x8f918e, 0x9ea3a6, 0x5d6468, 0x4b4f52],
 };
 

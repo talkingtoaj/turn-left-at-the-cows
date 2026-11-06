@@ -2,6 +2,7 @@
 // layout.js so what you see matches what you hit.
 
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { hashString, localToWorld, distToPolyline, makeRng } from '../../src/drive/geom.js';
 import {
   GAS, CHURCH, WATER_TOWER, MILL, RADIO_MAST, SILO, anchorPoints,
@@ -95,7 +96,35 @@ export function buildStructures(world, terrain, batch, materials, extras = {}) {
   }
   const wheels = buildWindpumpWheels(world, terrain);
   if (wheels) dynamic.push(wheels);
+  const signs = buildSigns(batch);
+  if (signs) dynamic.push(signs);
   return dynamic;
+}
+
+// Painted signs the ruins asked for (batch.signs, see ruins3d.js): one mesh
+// per image, its quads merged. Browser only (the image loads async; the
+// world checker and dev tools run without a DOM and skip them).
+function buildSigns(batch) {
+  const list = batch.signs;
+  batch.signs = null;
+  if (!list || !list.length || typeof document === 'undefined') return null;
+  const group = new THREE.Group();
+  const byName = new Map();
+  for (const s of list) {
+    if (!byName.has(s.name)) byName.set(s.name, []);
+    byName.get(s.name).push(new THREE.PlaneGeometry(s.w, s.h).applyMatrix4(s.matrix));
+  }
+  const loader = new THREE.TextureLoader();
+  for (const [name, geos] of byName) {
+    const tex = loader.load(`${import.meta.env.BASE_URL}look/signs/${name}.webp`);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    const mat = new THREE.MeshLambertMaterial({ map: tex, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    const mesh = new THREE.Mesh(mergeGeometries(geos, false), mat);
+    mesh.receiveShadow = true;
+    group.add(mesh);
+  }
+  return { object: group, update() {} };
 }
 
 function buildBuilding(world, terrain, batch, b) {
@@ -308,25 +337,25 @@ function buildLandmark(terrain, batch, l, rng, materials) {
         const ly = w.ly + (along ? 0 : t);
         const gw = along ? seg : w.w;
         const gd = along ? w.h : seg;
-        P(box(gw, hgt + FOUND, gd), lx, ly, -FOUND, 0x7a7166);
+        P(box(gw, hgt + FOUND, gd), lx, ly, -FOUND, 0x877763); // stone wall texture
         if (A) A.rect(l.id, 'mill_wall', l.x + lx, l.y + ly, gw, gd, 0, base - FOUND, base + Math.min(0.5, hgt / 2));
-        P(box(gw + 0.02, 0.5 + rng() * 0.6, gd + 0.02), lx, ly, hgt - 0.4, 0x2c2824);
+        P(box(gw + 0.02, 0.5 + rng() * 0.6, gd + 0.02), lx, ly, hgt - 0.4, 0x3b342d); // scorched
       }
     }
     const c = MILL.chimney;
-    P(box(c.w, 13 + FOUND, c.h), c.lx, c.ly, -FOUND, 0x6b5a4c);
-    P(box(c.w + 0.3, 0.5, c.h + 0.3), c.lx, c.ly, 12.6, 0x3a302a);
+    P(box(c.w, 13 + FOUND, c.h), c.lx, c.ly, -FOUND, 0x7a6c5b);
+    P(box(c.w + 0.3, 0.5, c.h + 0.3), c.lx, c.ly, 12.6, 0x3c332b);
     P(box(c.w * 0.5, 0.3, c.h * 0.5), c.lx, c.ly, 13.0, 0x111111);
     // Rubble, fallen charred beams (some leaning), and a millstone.
     const rubble = new THREE.DodecahedronGeometry(0.4, 0);
     for (let i = 0; i < 40; i++) {
       const s = 0.5 + rng() * 1.2;
       const m = mAt(l.x + (rng() - 0.5) * 20, base, l.y + (rng() - 0.5) * 14, new THREE.Matrix4().makeScale(s, s * 0.6, s));
-      batch.add(rubble, m, rng() < 0.5 ? 0x7d756a : 0x5e574e, { cast: false });
+      batch.add(rubble, m, rng() < 0.5 ? 0x857563 : 0x5f554a, { cast: false });
     }
     for (let i = 0; i < 7; i++) {
       const lean = new THREE.Matrix4().makeRotationX(i < 3 ? 0.6 + rng() * 0.4 : Math.PI / 2 - 0.05);
-      batch.place(box(0.45, 3 + rng() * 4, 0.45), l.x, l.y, base, rng() * 180, (rng() - 0.5) * 10, (rng() - 0.5) * 8, 0.1, 0x1d1a17, { extra: lean });
+      batch.place(box(0.45, 3 + rng() * 4, 0.45), l.x, l.y, base, rng() * 180, (rng() - 0.5) * 10, (rng() - 0.5) * 8, 0.1, 0x2a2520, { extra: lean }); // charred
     }
     P(cyl(1.4, 0.45, 12), 11, 5, 0, 0x8f8a80);
     if (A) A.circle(l.id, 'millstone', l.x + 11, l.y + 5, 1.4, base, base + 0.2);
@@ -427,20 +456,21 @@ function millWheel(terrain, batch, l, rng) {
   const lean = new THREE.Matrix4().makeRotationX(0.3).multiply(new THREE.Matrix4().makeRotationZ(0.12));
   const frame = new THREE.Matrix4().makeTranslation(cx, g.min + R - 0.55, cy).multiply(lean);
   const rim = new THREE.TorusGeometry(R, 0.11, 4, 22);
-  for (const z of [-0.55, 0.55]) batch.add(rim, frame.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, z)), 0x5e3a26);
-  batch.add(new THREE.CylinderGeometry(0.35, 0.35, 1.5, 8).rotateX(Math.PI / 2), frame, 0x3a2f28);
+  // Iron rims and axle, heavy rust; spokes and paddles old wet wood, some charred.
+  for (const z of [-0.55, 0.55]) batch.add(rim, frame.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, z)), 0x5f3b25);
+  batch.add(new THREE.CylinderGeometry(0.35, 0.35, 1.5, 8).rotateX(Math.PI / 2), frame, 0x52301c);
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2;
     for (const z of [-0.5, 0.5]) {
       const sp = box(0.14, R, 0.14).rotateZ(a);
-      batch.add(sp, frame.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, z)), 0x2a2420, { cast: false });
+      batch.add(sp, frame.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, z)), 0x3a3430, { cast: false });
     }
   }
   for (let i = 0; i < 20; i++) {
     if (rng() < 0.3) continue; // burned away
     const a = (i / 20) * Math.PI * 2;
     const paddle = new THREE.BoxGeometry(0.08, 0.7, 1.2).translate(0, R - 0.3, 0).rotateZ(a);
-    batch.add(paddle, frame, rng() < 0.5 ? 0x1d1a17 : 0x3a2c20, { cast: false });
+    batch.add(paddle, frame, rng() < 0.5 ? 0x2b2621 : 0x3a3430, { cast: false });
   }
   if (batch.audit) batch.audit.rect(l.id, 'mill_wheel', cx, cy, 1.0, 0.8, 0, g.min - 0.55 + R - R * Math.cos(0.12) - 0.4, null);
 }

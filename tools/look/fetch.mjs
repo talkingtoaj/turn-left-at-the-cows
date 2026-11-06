@@ -3,7 +3,10 @@
 // public/look/tex (512 px webp: colour, plus a normal map where listed).
 // The sky is baked by tools/look/bake_sky.py from the cached HDRI.
 //
-//   node tools/look/fetch.mjs <cacheDir>
+//   node tools/look/fetch.mjs <cacheDir> [ph]
+//
+// With `ph` only the Poly Haven textures (the ruins and grain elevator set)
+// are fetched.
 //
 // Needs unzip and ffmpeg on the PATH. Sources are listed in public/look/SOURCES.md.
 
@@ -35,6 +38,20 @@ export const TEXTURES = [
   { name: 'concrete', id: 'Concrete034', normal: true },
 ];
 
+// name in the game -> Poly Haven texture id (1k jpg diffuse and GL normal).
+// The ruins and the grain elevator (round 5).
+export const POLYHAVEN = [
+  { name: 'stonewall', id: 'old_stone_wall' },
+  { name: 'peeling', id: 'weathered_peeling_timber' },
+  { name: 'greyplanks', id: 'wood_planks_grey' },
+  { name: 'charred', id: 'wood_peeling_paint_weathered' },
+  { name: 'rustheavy', id: 'rust_coarse_01' },
+  { name: 'rustpaint', id: 'green_metal_rust' },
+  { name: 'rustytin', id: 'rusty_corrugated_iron' },
+  { name: 'galvtin', id: 'worn_corrugated_iron' },
+];
+const onlyPH = process.argv[3] === 'ph';
+
 const HDRI = { id: 'kloofendal_38d_partly_cloudy_puresky', res: '2k' };
 
 async function download(url, file) {
@@ -49,6 +66,18 @@ function ffmpeg(src, dst, turn) {
   if (turn) vf.unshift('transpose=1');
   execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-i', src, '-vf', vf.join(','), '-quality', '82', dst]);
 }
+
+for (const t of POLYHAVEN) {
+  const files = await (await fetch(`https://api.polyhaven.com/files/${t.id}`)).json();
+  for (const [key, suffix] of [['Diffuse', ''], ['nor_gl', '_n']]) {
+    const url = files[key]['1k'].jpg.url;
+    const file = path.join(cache, `${t.id}_${key}_1k.jpg`);
+    await download(url, file);
+    ffmpeg(file, path.join(out, `${t.name}${suffix}.webp`));
+  }
+  console.log(t.name, t.id);
+}
+if (onlyPH) process.exit(0);
 
 for (const t of TEXTURES) {
   const zip = path.join(cache, `${t.id}_1K-JPG.zip`);
