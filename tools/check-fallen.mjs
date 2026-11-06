@@ -14,6 +14,12 @@
 //
 //   npm run check:fallen            (npm run check:blockers is the same)
 //
+// The district scatter (src/world/scatter.js) is in the collider here, as
+// in the game, so its solid rocks must leave the way past too. And every
+// solid scatter rock must keep off roads, tracks and yards and leave a car's
+// width to every other solid thing, so none ever closes a way through
+// (tools/scatter-checks.mjs).
+//
 // Exits 1 when any check fails.
 
 import { WORLD } from '../src/world/world.js';
@@ -22,6 +28,8 @@ import { Collider, CAR_R } from '../src/drive/collider.js';
 import { createHazards } from '../src/ambient/hazards.js';
 import { measurePolyline, pointAlong, distToPolyline, pointInPolygon } from '../src/drive/geom.js';
 import { MISSIONS } from '../src/game/missions.js';
+import { scatterFor } from '../src/world/scatter.js';
+import { scatterWayProblems } from './scatter-checks.mjs';
 
 const APPROACH = 30; // m along the road before and after the tree
 const CORRIDOR = 8; // m past the road edge the way past may use
@@ -31,6 +39,10 @@ const CELL = 0.5;
 const t0 = Date.now();
 const scenery = generateScenery(WORLD);
 const collider = new Collider(WORLD, scenery);
+const bare = new Collider(WORLD, scenery); // without the scatter, for the gap check
+const scatter = scatterFor(WORLD, scenery);
+for (const s of scatter.solids) collider.addCircle(s);
+collider.addSurfaceEvents(scatter.surface);
 const hz = createHazards(WORLD, scenery);
 
 const N8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
@@ -129,5 +141,12 @@ for (const f of hz.fallen) {
     console.log(`  FAIL ${where}: ${fails.join('; ')}`);
   } else console.log(`  ok   ${where}`);
 }
-console.log(`${bad ? `${bad} FAILED` : 'OK: there is a way past every fallen tree'} (${((Date.now() - t0) / 1000).toFixed(1)} s)`);
+const sw = scatterWayProblems(WORLD, scenery, bare, 2 * CLEAR);
+console.log(`Scatter rocks: ${sw.solid} solid; each keeps ${(2 * CLEAR).toFixed(2)} m (a car) from every other solid thing and stays off roads, tracks and yards`);
+for (const p of sw.problems.slice(0, 25)) console.log(`  FAIL ${p.id} at ${p.x},${p.y}: ${p.type} (${p.by} m)`);
+if (sw.problems.length) {
+  console.log(`  ${sw.problems.length} scatter rock problems`);
+  bad++;
+} else console.log('  ok   no scatter rock closes a way');
+console.log(`${bad ? `${bad} FAILED` : 'OK: there is a way past every fallen tree, and no scatter rock closes a way'} (${((Date.now() - t0) / 1000).toFixed(1)} s)`);
 process.exit(bad ? 1 : 0);

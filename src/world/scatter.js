@@ -13,8 +13,9 @@
 // Where things go, per 12 m cell of open land (no road, field, forest, yard,
 // town or water, see roughness.at().open and .fd):
 //   - the district recipe sets how many of each (RECIPES in ./districts.js),
-//   - rocks gather on rises (the big bumps and the rolling layer) and the
-//     authored hills, as much as the recipe's `rise` says,
+//   - rocks lie in loose scatters (a seeded clump field) and gather on rises
+//     (the big bumps and the rolling layer) and the authored hills, as much
+//     as the recipe's `rise` says,
 //   - shrubs gather in drifts: a seeded drift field, pulled toward hollows
 //     and gullies and toward fence lines and wood edges,
 //   - tussocks thicken in hollows.
@@ -73,6 +74,7 @@ function makeScatter(world, scenery) {
   const nDrift = makeNoise(seed + 951);
   const nDrift2 = makeNoise(seed + 952);
   const nTint = makeNoise(seed + 953);
+  const nClump = makeNoise(seed + 954);
   const W = world.size.w;
   const H = world.size.h;
 
@@ -222,12 +224,14 @@ function makeScatter(world, scenery) {
       const edgeD = edges.minDist(cx, cy);
       const edgeK = 1 - smoothstep(3, 18, edgeD);
       const dn = 0.62 * nDrift(cx / 40, cy / 40) + 0.38 * nDrift2(cx / 13, cy / 13);
-      const driftK = smoothstep(0.22, 0.6, dn + 0.4 * edgeK + 0.3 * hollow);
+      const driftK = smoothstep(0.3, 0.6, dn + 0.4 * edgeK + 0.3 * hollow);
       const tintN = 0.5 + 0.5 * nTint(cx / 60, cy / 60);
       const area = (CELL * CELL) / 100;
 
       // Rocks.
-      const rockD = recipe.rocks * ((1 - recipe.rise) + recipe.rise * (0.25 + 1.5 * Math.min(1.5, rise)));
+      // Rocks lie in scatters (a few together, then open grass), more on rises.
+      const clump = smoothstep(-0.1, 0.45, nClump(cx / 28, cy / 28));
+      const rockD = recipe.rocks * ((1 - recipe.rise) + recipe.rise * (0.25 + 1.5 * Math.min(1.5, rise))) * (0.2 + 2 * clump);
       let n = Math.floor(rockD * area + crng());
       for (let k = 0; k < n; k++) {
         const x = cx + (crng() - 0.5) * CELL;
@@ -252,7 +256,7 @@ function makeScatter(world, scenery) {
       }
 
       // Shrubs, in drifts.
-      const shrubD = recipe.shrubs * ((1 - recipe.drift) + recipe.drift * driftK * 4.5) * smoothstep(FD.shrub, FD.shrub + 6, fd0);
+      const shrubD = recipe.shrubs * ((1 - recipe.drift) + recipe.drift * driftK * 7) * smoothstep(FD.shrub, FD.shrub + 6, fd0);
       n = Math.floor(shrubD * area + crng());
       const shrubSum = shrubOf[0] + shrubOf[1] + shrubOf[2] || 1;
       for (let k = 0; k < n; k++) {
@@ -283,10 +287,8 @@ function makeScatter(world, scenery) {
         const x = cx + (crng() - 0.5) * CELL;
         const y = cy + (crng() - 0.5) * CELL;
         const r = recipe.gr0 + (recipe.gr1 - recipe.gr0) * crng();
-        if (k > 0 || fd0 < FD.grass + 7) {
-          const gi = R.at(x, y);
-          if (gi.open < 0.999 || gi.fd < FD.grass + r) continue;
-        }
+        const gi = R.at(x, y);
+        if (gi.open < 0.999 || gi.fd < FD.grass + r) continue;
         out.grass.push({ x: r2(x), y: r2(y), r: r2(r), hs: r2(0.8 + crng() * 0.6), rot: r2(crng() * Math.PI * 2), tint: r2(crng()) });
       }
     }

@@ -47,7 +47,7 @@ export const KIND_LIST = ['stony', 'gorse', 'willow', 'bare', 'mixed'];
 export const RECIPES = {
   stony: {
     label: 'Stony Rise',
-    rocks: { n: 0.2, r: [0.22, 1.25], big: 0.3, rise: 1 },
+    rocks: { n: 0.4, r: [0.25, 1.6], big: 0.35, rise: 1 },
     shrubs: { n: 0.03, drift: 0.5, shrub: 'gorse', r: [0.5, 0.9] },
     grass: { n: 0.2, r: [0.25, 0.45] },
     tint: { color: 0x8c8f68, k: 0.38 },
@@ -56,7 +56,7 @@ export const RECIPES = {
   gorse: {
     label: 'Gorse Flats',
     rocks: { n: 0.02, r: [0.2, 0.55], big: 0.1, rise: 0.3 },
-    shrubs: { n: 0.42, drift: 0.92, shrub: 'gorse', r: [0.55, 1.15] },
+    shrubs: { n: 0.32, drift: 0.95, shrub: 'gorse', r: [0.7, 1.5] },
     grass: { n: 0.12, r: [0.25, 0.45] },
     tint: { color: 0x7b8743, k: 0.32 },
     show: 0xe8c430,
@@ -64,7 +64,7 @@ export const RECIPES = {
   willow: {
     label: 'Willow Bottoms',
     rocks: { n: 0.012, r: [0.2, 0.45], big: 0, rise: 0 },
-    shrubs: { n: 0.28, drift: 0.8, shrub: 'round', r: [0.6, 1.3] },
+    shrubs: { n: 0.22, drift: 0.85, shrub: 'round', r: [0.8, 1.6] },
     grass: { n: 0.6, r: [0.3, 0.6] },
     tint: { color: 0x4d8a3a, k: 0.36 },
     show: 0x3a7ad0,
@@ -79,8 +79,8 @@ export const RECIPES = {
   },
   mixed: {
     label: 'Bramble Common',
-    rocks: { n: 0.055, r: [0.22, 0.9], big: 0.2, rise: 0.6 },
-    shrubs: { n: 0.2, drift: 0.85, shrub: 'bramble', r: [0.6, 1.2] },
+    rocks: { n: 0.055, r: [0.22, 1.1], big: 0.25, rise: 0.6 },
+    shrubs: { n: 0.15, drift: 0.9, shrub: 'bramble', r: [0.7, 1.4] },
     grass: { n: 0.25, r: [0.25, 0.5] },
     tint: { color: 0x6a8642, k: 0.22 },
     show: 0xa04ad0,

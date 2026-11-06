@@ -25,7 +25,7 @@ const TURN = Math.cos((1.5 * Math.PI) / 180);
 const FOCUS_MOVE = 4;
 
 // Height in radii per shrub model (instance hs multiplies it).
-const SHRUB_H = { gorse: 1.05, round: 0.95, bramble: 1.0 };
+const SHRUB_H = { gorse: 1.05, round: 0.95, bramble: 0.75 };
 // Draw distance by size: an item of radius r shows within base + per * r metres.
 const REACH = {
   rock: { base: 150, per: 160 }, // r 0.25: 190 m, r 1.25: 350 m, bigger: always
@@ -84,11 +84,11 @@ function colored(g, hex, dark = 0.35) {
 function fallbackGeo() {
   const blob = (detail) => new THREE.IcosahedronGeometry(1, detail).scale(1, 0.5, 1).translate(0, 0.5, 0);
   return {
-    boulder: colored(blob(0), 0xa29e94),
-    slab: colored(new THREE.CylinderGeometry(0.7, 1, 1, 6).translate(0, 0.5, 0), 0x9c9890),
-    gorse: colored(blob(1), 0x3e5a28, 0.45),
-    round: colored(blob(1), 0x4c7a30, 0.45),
-    bramble: colored(blob(1), 0x41582a, 0.45),
+    boulder: colored(blob(0), 0xb4afa3),
+    slab: colored(new THREE.CylinderGeometry(0.7, 1, 1, 6).translate(0, 0.5, 0), 0xaca89e),
+    gorse: colored(blob(1), 0x4f6e2c, 0.4),
+    round: colored(blob(1), 0x5a8c36, 0.4),
+    bramble: colored(blob(1), 0x4f6a30, 0.4),
   };
 }
 
@@ -178,8 +178,9 @@ export function buildScatter(world, scenery, terrain, sunDir, audit = null) {
     if (audit) audit.circle(r.id, r.solid ? 'scatter_rock' : 'scatter_stone', r.x, r.y, r.r * 0.6, base, base + 0.75 * hgt);
   }
   for (const s of S.shrubs) {
-    const hgt = s.r * s.hs * SHRUB_H[s.model];
-    const { min } = terrain.groundRange({ circle: { x: s.x, y: s.y, r: s.r * 0.5 } });
+    const { min, max } = terrain.groundRange({ circle: { x: s.x, y: s.y, r: s.r * 0.5 } });
+    // On a steep bit the shrub grows a little taller, so the slope never swallows it.
+    const hgt = Math.max(s.r * s.hs * SHRUB_H[s.model], (max - min + 0.06) / 0.6);
     const base = min - 0.1 * hgt;
     const m = new THREE.Matrix4().compose(v.set(s.x, base, s.y), q.setFromAxisAngle(up, s.rot), sc.set(s.r, hgt, s.r));
     const f = 0.84 + 0.3 * s.tint;

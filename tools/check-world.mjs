@@ -1,6 +1,9 @@
 // World checker: builds the 3D world exactly like the game does (same build
 // functions, no DOM) and checks every placed thing against the ground height.
 // Lists anything floating or buried by more than about 10 cm.
+// Also the district scatter (src/world/scatter.js): rocks, shrubs and
+// tussocks must never sit on a road, bridge, yard, track or pad, in a field,
+// forest, creek or lake, or in a town (tools/scatter-checks.mjs).
 //
 //   npm run check:world            summary plus the first problems
 //   npm run check:world -- --all   every problem
@@ -15,6 +18,7 @@ import { Batcher } from '../src3/world3d/batch.js';
 import { buildObjects } from '../src3/world3d/world3d.js';
 import { Audit, checkAudit, TOL } from '../src3/world3d/audit.js';
 import { GroundPaint } from '../src3/world3d/paint.js';
+import { scatterPlacementProblems } from './scatter-checks.mjs';
 
 const args = new Set(process.argv.slice(2));
 const t0 = Date.now();
@@ -50,6 +54,11 @@ if (roughWorst.h > ROUGH_TOL) {
   problems.push({ id: roughWorst.what, kind: 'rough_ground', type: 'lip', by: +roughWorst.h.toFixed(2), x: roughWorst.x, y: roughWorst.y });
 }
 counts.roughRoads = WORLD.roads.length;
+
+// Scatter placement.
+const sp = scatterPlacementProblems(WORLD, scenery);
+problems.push(...sp.problems);
+Object.assign(counts, sp.counts);
 
 if (args.has('--json')) {
   console.log(JSON.stringify({ counts, problems }, null, 1));
