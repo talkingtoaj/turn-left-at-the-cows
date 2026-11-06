@@ -40,9 +40,13 @@ const VIEWS = [
   { name: 'hartley_wide', car: { x: 2610, y: 490, heading: 0 }, cam: [2560, 40, 520], look: [2720, 0, 380] },
   { name: 'hartley_edge', car: { x: 2610, y: 490, heading: 0 }, cam: [2630, 1.8, 410], look: [2680, 3, 365] },
   { name: 'hartley_pasture', car: { x: 2745, y: 540, heading: 90 }, cam: [2752, 2.2, 532], look: [2830, 0, 440] },
-  { name: 'slope', car: { x: 2440, y: 470, heading: 60 }, cam: [2420, 6, 520], look: [2500, 0, 440] },
-  { name: 'dirtroad', car: { road: 'farm_rd', at: 0.45 } },
+  // Steep pasture west of the farm: trough and feeder on the slope.
+  { name: 'slope', car: { x: 2498, y: 564, heading: 0 }, cam: [2506, 1.6, 452], look: [2488, 0.3, 430] },
+  { name: 'slope_wide', car: { x: 2498, y: 564, heading: 0 }, cam: [2530, 8, 480], look: [2480, 0, 420] },
+  // Dirt roads with the car on them: chase view, and low beside the car.
+  { name: 'dirtroad', car: { road: 'ridge_rd', at: 0.5 } },
   { name: 'dirtroad_low', car: { road: 'creek_rd', at: 0.3 }, rel: [-3.2, 0.9, 5] },
+  { name: 'dirtroad_ridge_low', car: { road: 'ridge_rd', at: 0.5 }, rel: [2.8, 0.8, 7.5] },
 ];
 
 const pw = await import(findPlaywright());

@@ -22,6 +22,7 @@ import { campfireOf } from './world3d/landmarks3d.js';
 import { SUN_DIR } from './world3d/world3d.js';
 import { createStats } from './stats.js';
 import { createResScale } from './resscale.js';
+import { spotFor } from './spots.js';
 
 const TALK_RANGE = 25;
 const READ_RANGE = 25;
@@ -41,6 +42,10 @@ const params = new URLSearchParams(window.location.search);
 const stats = createStats(renderer, params.has('stats'));
 const res = createResScale(renderer, params);
 const statsExtra = () => `res ${res.ratio.toFixed(2)} (dpr ${window.devicePixelRatio})`;
+
+// Dev: ?spot=<name> starts the car at a review spot (src3/spots.js).
+const spot = params.has('spot') ? spotFor(params.get('spot'), WORLD) : null;
+if (spot) Object.assign(state.car, spot, { speed: 0 });
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.8, 450);
