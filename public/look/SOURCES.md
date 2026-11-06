@@ -55,13 +55,16 @@ releases all packs as CC0: https://quaternius.com). Cut down to 110 to 130
 triangles each with meshoptimizer, recoloured with the game's own rock greys
 and shrub greens (darker toward the ground), base at 0, footprint radius 1
 and height 1, by `tools/look/scatter.mjs`. 20 KB in all. The grass tussocks
-are made in code (`src3/world3d/scatter3d.js`).
+are made in code (`src3/world3d/scatter3d.js`), and since round 8 so is the
+gorse (two lumpy low-poly domes, blossom painted on; the cut-down model read
+papery and spiky): its mesh in `scatter.glb` is no longer drawn. Rocks are
+tinted darker in the game and take the Lichen Rock texture (above).
 
 | Mesh | Model | Source | License |
 |---|---|---|---|
 | boulder | Rock (Rock_1, 160 tris) | https://poly.pizza/m/Z6M4GNkgWt | CC0 |
 | slab (standing stones) | Rock (162 tris) | https://poly.pizza/m/4MUaQTcDdc | CC0 |
-| gorse (blossom painted on) | Bush with Flowers (leaves only, 900 tris) | https://poly.pizza/m/U1ymDy8tbY | CC0 |
+| gorse (blossom painted on; not drawn since round 8) | Bush with Flowers (leaves only, 900 tris) | https://poly.pizza/m/U1ymDy8tbY | CC0 |
 | round (willow bottoms) | Bush (Bush_Large, 360 tris) | https://poly.pizza/m/ooG6CkLyE8 | CC0 |
 | bramble (berries painted on) | Bush (Bush_Common, 900 tris) | https://poly.pizza/m/EoTERLq3z2 | CC0 |
 
