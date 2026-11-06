@@ -39,9 +39,9 @@ import { makeNoise, smoothstep } from './noise.js';
 export const GROUND = {
   paved: { rough: 0, big: 0, roll: 0 },
   dirt: { rough: 0, big: 0, roll: 0 }, // dirt roads keep their own bumps (roadbumps.js)
-  lawn: { rough: 0.12, big: 0.12, roll: 0.45 }, // town lawns and greens, mown
-  hay: { rough: 0.15, big: 0.2, roll: 0.6 }, // mown hay meadow
-  crop: { rough: 0.3, big: 0.3, roll: 0.6 }, // wheat, corn
+  lawn: { rough: 0.12, big: 0.12, roll: 0.4 }, // town lawns and greens, mown
+  hay: { rough: 0.15, big: 0.2, roll: 0.5 }, // mown hay meadow
+  crop: { rough: 0.3, big: 0.3, roll: 0.55 }, // wheat, corn
   // Round 5: pastures 1.6x lumpier (0.75 -> 1.2) so the relief reads from the
   // chase camera; plowed, forest, meadow and scrub 1.25x.
   plowed: { rough: 0.5, big: 0.44, roll: 0.7 }, // long swells, furrows across the rows
@@ -60,7 +60,7 @@ export const GROUND = {
 // 300 m across), so some country is gentle and some rolls more. At full share
 // (meadow, pasture): height mostly within 0.25 to 0.75 m of level, slopes
 // median about 3 degrees (10% under 1, 10% over 6.5); hay, crops and lawns
-// get about 0.5x to 0.6x of that.
+// get about 0.4x to 0.55x of that.
 // Fades out like the big bumps near roads, water, yards and buildings, but
 // over a shorter run (ROLL_FULL), so the ground beside the road rolls too.
 const ROLL = [

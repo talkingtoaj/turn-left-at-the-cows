@@ -58,8 +58,14 @@ vec3 lookDetail(int s, vec3 P, vec3 N, bool top, inout vec3 nW) {
     T = normalize(cross(vec3(0.0, 1.0, 0.0), N));
     B = cross(N, T);
   }
-  if (L.w > 0.5) { vec3 t = T; T = B; B = t; }
-  vec3 uvw = vec3(dot(P, T) / L.y, dot(P, B) / L.z, L.x);
+  // Ground (top): plain x/z projection. Taking dot(P, T) with the tilted
+  // tangent would swing the texture by (world position x tilt), hundreds of
+  // metres across one sloping triangle, and smear it into streaks on
+  // rolling ground.
+  vec3 PT = top || abs(N.y) > 0.97 ? vec3(1.0, 0.0, 0.0) : T;
+  vec3 PB = top || abs(N.y) > 0.97 ? vec3(0.0, 0.0, 1.0) : B;
+  if (L.w > 0.5) { vec3 t = T; T = B; B = t; t = PT; PT = PB; PB = t; }
+  vec3 uvw = vec3(dot(P, PT) / L.y, dot(P, PB) / L.z, L.x);
   vec3 det = texture(lookAlb, uvw).rgb * 2.0;
   vec3 tn = texture(lookNrm, uvw).xyz * 2.0 - 1.0;
   tn.xy *= lookNStr[s];
@@ -108,6 +114,9 @@ function patch(sh, shared, { defs, vertHead = '', vertBody = '', fragHead = '', 
     .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>\n${NORMAL_OUT}`);
 }
 
+// Lighting slope boost for gentle terrain (see patchTerrain).
+const ROLL_SHADE = 2.6;
+
 // Terrain chunks: grass detail where the ground is green, soil detail
 // elsewhere (fields, yards, mud, sand), plus the contact patches.
 export function patchTerrain(mat, shared) {
@@ -121,6 +130,15 @@ export function patchTerrain(mat, shared) {
 vec3 lookNW = normalize(vLookN);
 bool lookHasN = false;
 #ifdef LOOK_TEX
+{
+  // Gentle slopes (the rolling ground, a few degrees) barely change the
+  // light, so the land read flat between its silhouettes. Light them as if
+  // tilted ROLL_SHADE times as much, fading back to the true slope by about
+  // 20 degrees so hillsides and banks keep their shading.
+  float sl = length(lookNW.xz);
+  float kx = mix(${ROLL_SHADE.toFixed(2)}, 1.0, smoothstep(0.08, 0.35, sl));
+  lookNW = normalize(vec3(lookNW.x * kx, lookNW.y, lookNW.z * kx));
+}
 {
   float gw = smoothstep(0.0, 0.04, diffuseColor.g - max(diffuseColor.r, diffuseColor.b));
   vec3 nA = lookNW;
