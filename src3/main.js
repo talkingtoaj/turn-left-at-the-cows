@@ -205,6 +205,7 @@ function frame(now) {
     camera.far = far;
     camera.updateProjectionMatrix();
   }
+  if (look) look.update(state); // weather drift
   world3d.update(now / 1000, dt, car, rig.focus, rig.shadowRadius, camera, amb);
   amb3d.update(amb, runtime.paused ? 0 : dt, camera, rig.focus, scene.fog, e, renderer, dh.hz.animals);
   dh.render(runtime.paused ? 0 : dt, rig.focus, car3d.object, camera, scene.fog, renderer);
@@ -233,5 +234,6 @@ window.__amb = amb;
 window.__dh = dh;
 window.__audio = audio;
 window.__cloudUniforms = cloudUniforms;
+window.__look = look;
 
 requestAnimationFrame(frame);

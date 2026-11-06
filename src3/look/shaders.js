@@ -211,9 +211,17 @@ diffuseColor.rgb *= mix(0.6, 1.0, smoothstep(0.0, 1.2, vLookP.y - vLookC.y));
 }
 
 // Sky dome: the baked sky image, fading into the fog colour at the horizon.
-export function skyMaterial(tex, gain, fogColor) {
+// Sky dome: the clear and the cloudy photo, mixed by the weather (skyMix),
+// greyed and flattened for overcast (grey), faded into the fog at the
+// horizon. bgS / bgC turn each photo back into its own radiance.
+export function skyMaterial(sunnyTex, cloudyTex, bgS, bgC, fogColor) {
   return new THREE.ShaderMaterial({
-    uniforms: { skyTex: { value: tex }, gain: { value: gain }, fogCol: { value: fogColor } },
+    uniforms: {
+      skyS: { value: sunnyTex }, skyC: { value: cloudyTex },
+      bgS: { value: bgS }, bgC: { value: bgC },
+      gain: { value: 1 }, skyMix: { value: 1 }, grey: { value: 0 },
+      fogCol: { value: fogColor },
+    },
     vertexShader: /* glsl */`
 varying vec3 vDir;
 void main() {
@@ -221,15 +229,30 @@ void main() {
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }`,
     fragmentShader: /* glsl */`
-uniform sampler2D skyTex;
+uniform sampler2D skyS;
+uniform sampler2D skyC;
+uniform float bgS;
+uniform float bgC;
 uniform float gain;
+uniform float skyMix;
+uniform float grey;
 uniform vec3 fogCol;
 varying vec3 vDir;
 void main() {
   vec3 d = normalize(vDir);
   float u = atan(d.z, d.x) * 0.15915494 + 0.5;
   float v = clamp(asin(clamp(d.y, -1.0, 1.0)) / 1.5707963, 0.0, 1.0);
-  vec3 c = texture2D(skyTex, vec2(u, v)).rgb * gain;
+  vec2 uv = vec2(u, v);
+  vec3 cs = skyMix < 0.999 ? texture2D(skyS, uv).rgb * bgS : vec3(0.0);
+  vec3 cc = skyMix > 0.001 ? texture2D(skyC, uv).rgb * bgC : vec3(0.0);
+  // The clear photo is a dull steel blue after the look's desaturation: give
+  // it back some blue.
+  cs = max(mix(vec3(dot(cs, vec3(0.2126, 0.7152, 0.0722))), cs, 1.45), 0.0);
+  vec3 c = mix(cs, cc, skyMix);
+  // Overcast: grey, low contrast, a little brighter overhead.
+  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  vec3 g = vec3(mix(1.45, l, 0.3) * (0.85 + 0.3 * v)) * vec3(0.97, 1.0, 1.04);
+  c = mix(c, g, grey) * gain;
   c = mix(fogCol, c, smoothstep(-0.01, 0.12, d.y));
   gl_FragColor = vec4(c, 1.0);
   #include <tonemapping_fragment>

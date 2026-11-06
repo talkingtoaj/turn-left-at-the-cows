@@ -12,6 +12,15 @@ export const cloudUniforms = {
   uCloudDark: { value: DARK },
 };
 
+// Cloud cover, 0..1 (the weather sets it; 1 = every ambient cloud). Each
+// cloud has its own threshold, so as cover falls clouds shrink away one by
+// one instead of all at once.
+export const cloudCover = { value: 1 };
+const coverOf = (i) => {
+  const h = Math.sin(i * 12.9898 + 4.1) * 43758.5453;
+  return h - Math.floor(h);
+};
+
 const VERT_HEAD = 'varying vec2 vCloudXZ;\n';
 const VERT_BODY = `
   vec4 cloudW = vec4( transformed, 1.0 );
@@ -69,22 +78,27 @@ export function addCloudShadowsTo(root) {
 const _pick = [];
 export function updateCloudUniforms(clouds, x, y) {
   _pick.length = 0;
-  for (const c of clouds) {
-    const R = Math.max(c.rx, c.ry);
+  const cover = cloudCover.value;
+  for (let i = 0; i < clouds.length; i++) {
+    const c = clouds[i];
+    const f = cover >= 1 ? 1 : Math.min(1, Math.max(0, (cover * 1.2 - coverOf(i) * 0.9) / 0.3));
+    if (f <= 0.02) continue;
+    const R = Math.max(c.rx, c.ry) * f;
     const d = Math.hypot(c.x - x, c.y - y) - R;
-    if (d < 700) _pick.push([d, c]);
+    if (d < 700) _pick.push([d, c, f]);
   }
   _pick.sort((a, b) => a[0] - b[0]);
   const U = cloudUniforms.uClouds.value;
   const RT = cloudUniforms.uCloudRot.value;
   for (let i = 0; i < MAX_CLOUDS; i++) {
     const c = _pick[i] && _pick[i][1];
+    const f = c ? _pick[i][2] : 1;
     if (!c) {
       U[i].set(1e7, 1e7, 1e-6, 1e-6);
       continue;
     }
     const a = ((c.angle || 0) * Math.PI) / 180;
-    U[i].set(c.x, c.y, 1 / c.rx, 1 / c.ry);
+    U[i].set(c.x, c.y, 1 / (c.rx * f), 1 / (c.ry * f));
     RT[i].set(Math.cos(a), Math.sin(a));
   }
 }

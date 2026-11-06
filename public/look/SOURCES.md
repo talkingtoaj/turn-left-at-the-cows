@@ -8,10 +8,12 @@ Fetched and converted by `tools/look/fetch.mjs` (textures, 512 px webp) and
 
 | File | Source | License |
 |---|---|---|
-| `sky.webp`, `sky.json` | Poly Haven, Kloofendal 38d Partly Cloudy (Pure Sky), 2k HDR: https://polyhaven.com/a/kloofendal_38d_partly_cloudy_puresky | CC0 |
+| `sky.webp`, `sky.json` (cloudy) | Poly Haven, Kloofendal 38d Partly Cloudy (Pure Sky), 2k HDR: https://polyhaven.com/a/kloofendal_38d_partly_cloudy_puresky | CC0 |
+| `sky_sunny.webp`, `sky_sunny.json` (clear) | Poly Haven, Qwantani Mid Morning (Pure Sky), 2k HDR: https://polyhaven.com/a/qwantani_mid_morning_puresky | CC0 |
 
-`sky.webp` is the upper half of the HDRI, turned so its sun sits at the game's sun.
-`sky.json` holds the sky light as spherical harmonics, the sun's strength and the horizon colour.
+Each sky `.webp` is the upper half of the HDRI, turned so its sun sits at the game's sun.
+Each `.json` holds the sky light as spherical harmonics, the sun's strength and the horizon colour.
+The weather (`src3/look/weather.js`) blends the two; overcast is the cloudy sky greyed in the shader.
 
 ## Textures (`tex/<name>.webp`, normal map `tex/<name>_n.webp`)
 
