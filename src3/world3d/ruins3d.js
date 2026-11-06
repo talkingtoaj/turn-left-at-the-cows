@@ -519,31 +519,29 @@ function mergeSimple(geos) {
   return g;
 }
 
-// The turning wheels of every working windpump: one instanced mesh, one
-// draw call. Returns { object, update(t) } or null.
+// The turning wheels of every working windpump: one small mesh each (shared
+// geometry and material), so a far one is culled. Returns { object, update(t) } or null.
 export function buildWindpumpWheels(world, terrain) {
   const list = world.landmarks.filter((l) => l.kind === 'windpump');
   if (!list.length) return null;
   const geo = wheelGeometry(false);
+  geo.computeBoundingSphere();
   const mat = new THREE.MeshLambertMaterial({ color: 0xc8ccce, side: THREE.DoubleSide });
-  const mesh = new THREE.InstancedMesh(geo, mat, list.length);
-  mesh.castShadow = true;
-  mesh.frustumCulled = false;
-  const frames = list.map((l, i) => {
+  const group = new THREE.Group();
+  const wheels = list.map((l, i) => {
     const base = Math.min(...WINDPUMP.legs.map(([lx, ly]) => terrain.heightAt(l.x + lx, l.y + ly)));
-    return { m: objMatrix(l.x, l.y, base, WIND_FROM, 0, -0.7, WINDPUMP.H + 0.45), speed: 1.1 + 0.35 * Math.sin(i * 2.1), phase: i * 1.3 };
+    const hub = new THREE.Group();
+    hub.matrixAutoUpdate = false;
+    hub.matrix.copy(objMatrix(l.x, l.y, base, WIND_FROM, 0, -0.7, WINDPUMP.H + 0.45));
+    const m = new THREE.Mesh(geo, mat);
+    m.castShadow = true;
+    hub.add(m);
+    group.add(hub);
+    return { m, speed: 1.1 + 0.35 * Math.sin(i * 2.1), phase: i * 1.3 };
   });
-  const spin = new THREE.Matrix4();
-  const out = new THREE.Matrix4();
   const update = (t) => {
-    frames.forEach((f, i) => {
-      spin.makeRotationZ(f.phase + t * f.speed);
-      out.multiplyMatrices(f.m, spin);
-      mesh.setMatrixAt(i, out);
-    });
-    mesh.instanceMatrix.needsUpdate = true;
+    for (const w of wheels) w.m.rotation.z = w.phase + t * w.speed;
   };
   update(0);
-  mesh.computeBoundingSphere();
-  return { object: mesh, update };
+  return { object: group, update };
 }

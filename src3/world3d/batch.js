@@ -28,7 +28,8 @@ export class Batcher {
   // Add a geometry with a world matrix, a colour, and options. Returns the
   // placed (world space) geometry.
   // opts: { cast: true, receive: true, material: 'lambert' | 'basic' | custom material,
-  //         keepColors: true to keep the geometry's own vertex colours }
+  //         keepColors: true to keep the geometry's own vertex colours,
+  //         share: true to join an existing bucket (see below) }
   add(geo, matrix, color, opts = {}) {
     const keep = opts.keepColors && geo.attributes.color;
     const g = prep(geo);
@@ -50,7 +51,15 @@ export class Batcher {
     const cz = Math.floor(p.getZ(0) / BATCH_CHUNK);
     const cast = opts.cast !== false;
     const mat = opts.material || 'lambert';
-    const key = `${cx}:${cz}:${cast}:${typeof mat === 'string' ? mat : mat.uuid}`;
+    const mk = typeof mat === 'string' ? mat : mat.uuid;
+    let key = `${cx}:${cz}:${cast}:${mk}`;
+    // opts.share: small scattered pieces (stones) join a bucket this chunk
+    // already has, or else a coarse 1.2 km one, so they never add a draw
+    // call of their own to every chunk they are in.
+    if (opts.share && !this.buckets.has(key)) {
+      const other = `${cx}:${cz}:${!cast}:${mk}`;
+      key = this.buckets.has(other) ? other : `big:${Math.floor(p.getX(0) / 1200)}:${Math.floor(p.getZ(0) / 1200)}:${cast}:${mk}`;
+    }
     let b = this.buckets.get(key);
     if (!b) {
       b = { geos: [], cast, receive: opts.receive !== false, mat };

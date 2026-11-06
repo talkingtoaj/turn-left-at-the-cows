@@ -554,7 +554,7 @@ export function buildStones(terrain, batch) {
     const seed = hashString(b.id);
     const sc = new THREE.Matrix4().makeScale(b.r * 1.15, b.r * 0.8, b.r);
     if (batch.audit) batch.audit.circle(b.id, 'stone', b.x, b.y, b.r * 0.6, min - 0.6 * b.r);
-    batch.add(rockGeo(seed), objMatrix(b.x, b.y, min - b.r * 0.35, b.angle, 0, 0, 0, sc), ROCK_COLORS[seed % ROCK_COLORS.length], { cast: false });
+    batch.add(rockGeo(seed), objMatrix(b.x, b.y, min - b.r * 0.35, b.angle, 0, 0, 0, sc), ROCK_COLORS[seed % ROCK_COLORS.length], { cast: false, share: true });
   }
 }
 

@@ -365,7 +365,7 @@ function buildLandmark(terrain, batch, l, rng, materials) {
     const wg = new THREE.BufferGeometry();
     wg.setAttribute('position', new THREE.Float32BufferAttribute(wire, 3));
     const wires = new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ color: 0x9a9a9a, transparent: true, opacity: 0.8 }));
-    // Blinking red lights (top and half way up): an unlit bulb plus a glow
+    // Blinking red light on top: an unlit bulb plus a glow
     // sprite that shows through fog. Small and soft by day, but seen from
     // far off: past the far plane the glow is drawn just inside it, along the
     // same line of sight (its size is in screen terms, so it looks the same).
@@ -373,7 +373,7 @@ function buildLandmark(terrain, batch, l, rng, materials) {
     obj.add(wires);
     const bulbs = [];
     const glows = [];
-    for (const [hh, gs] of [[H + 0.5, 0.026], [H * 0.5, 0.017]]) {
+    for (const [hh, gs] of [[H + 0.5, 0.026]]) {
       const light = new THREE.Group();
       light.position.set(l.x, base + hh, l.y);
       const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.45, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff2a1a, fog: false, toneMapped: false }));

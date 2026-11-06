@@ -122,12 +122,12 @@ export function buildObjects(world, scenery, terrain, batch, materials = {}) {
   buildGround(world, scenery, terrain, batch);
   buildFields(world, terrain, batch, scenery);
   buildProps(world, terrain, batch);
-  buildStones(terrain, batch);
   const wires = buildPowerLines(world, terrain, batch);
   buildMailboxes(world, terrain, batch);
   const chimneys = new Map();
   const dynamic = buildStructures(world, terrain, batch, materials, { chimneys });
   buildSigns(world, terrain, batch);
+  buildStones(terrain, batch); // last: stones join the buckets already there
   const trees = buildTrees(scenery, terrain, SUN_DIR, batch.audit);
   const locals = buildLocals(world, terrain, batch.audit);
   return { wires, chimneys, dynamic, trees, locals };
