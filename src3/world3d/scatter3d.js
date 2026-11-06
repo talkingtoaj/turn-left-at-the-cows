@@ -113,7 +113,7 @@ function gorseGeo() {
   const col = [];
   const c = new THREE.Color();
   for (const b of blobs) {
-    const g = new THREE.IcosahedronGeometry(1, 1).toNonIndexed();
+    const g = new THREE.IcosahedronGeometry(1, 1); // already non-indexed: one colour per face
     const p = g.attributes.position;
     const v = new THREE.Vector3();
     // Lumpy: each direction pushed in or out a little (same push at shared
