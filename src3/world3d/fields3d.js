@@ -2,7 +2,7 @@
 // power lines and roadside mailboxes. All static, baked into the batches.
 
 import * as THREE from 'three';
-import { centroid, DEG, hashString, localToWorld } from '../../src/drive/geom.js';
+import { centroid, DEG, hashString, localToWorld, makeRng } from '../../src/drive/geom.js';
 import { fenceRuns } from '../../src/drive/layout.js';
 import { box, cyl } from './shapes.js';
 import { CELL } from './terrain.js';
@@ -334,6 +334,34 @@ function pasture(batch, f, terrain) {
   batch.add(cyl(1.1, 1.0 + fd.base - fd.low, 8), objMatrix(fx, fy, fd.low, 0), 0x6a6f72);
   if (batch.audit) batch.audit.circle(f.id, 'feeder', fx, fy, 1.1, fd.low, fd.base);
   batch.add(cyl(0.95, 0.5, 8), objMatrix(fx, fy, fd.base + 0.9, 0), 0xcdb46a, { cast: false });
+  if (!terrain.rough.off) cattlePaths(batch.paint, f, [tx, ty], [fx, fy], cx, cy);
+}
+
+// Old cattle paths: narrow trodden tracks that wander from the trough to the
+// feeder and out to a corner or two of the field, painted on the grass.
+const PATH = 0x7a7a4a;
+function cattlePaths(paint, f, trough, feeder, cx, cy) {
+  if (!paint || !f.animals || f.animals.kind === 'horses') return;
+  const rng = makeRng(hashString(f.id) ^ 0x7a71);
+  const inset = (p, k) => [p[0] + (cx - p[0]) * k, p[1] + (cy - p[1]) * k];
+  const ends = [[trough, feeder]];
+  const corners = f.polygon.slice().sort(() => rng() - 0.5);
+  for (const c of corners.slice(0, 2)) ends.push([rng() < 0.5 ? trough : feeder, inset(c, 0.08)]);
+  for (const [a, b] of ends) {
+    const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const n = Math.max(2, Math.round(L / 3));
+    const nx = -(b[1] - a[1]) / L;
+    const ny = (b[0] - a[0]) / L;
+    const ph = rng() * 6;
+    const amp = 1.5 + rng() * 2.5;
+    const pts = [];
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      const w = Math.sin(t * Math.PI) * amp * Math.sin(t * 7 + ph);
+      pts.push([a[0] + (b[0] - a[0]) * t + nx * w, a[1] + (b[1] - a[1]) * t + ny * w]);
+    }
+    paint.stroke(pts, 0.7 + rng() * 0.4, PATH);
+  }
 }
 
 // A rail between two posts as straight legs, bending where the ground
@@ -518,6 +546,17 @@ export function buildProps(world, terrain, batch) {
   }
 }
 
+// Half-buried stones in rough scrub (src/world/roughness.js boulders): low
+// lumps you can roll over with a knock, sunk well into the ground.
+export function buildStones(terrain, batch) {
+  for (const b of terrain.rough.boulders) {
+    const { min } = terrain.groundRange({ circle: { x: b.x, y: b.y, r: b.r * 0.7 } });
+    const seed = hashString(b.id);
+    const sc = new THREE.Matrix4().makeScale(b.r * 1.15, b.r * 0.8, b.r);
+    if (batch.audit) batch.audit.circle(b.id, 'stone', b.x, b.y, b.r * 0.6, min - 0.6 * b.r);
+    batch.add(rockGeo(seed), objMatrix(b.x, b.y, min - b.r * 0.35, b.angle, 0, 0, 0, sc), ROCK_COLORS[seed % ROCK_COLORS.length], { cast: false });
+  }
+}
 
 // ---------- power lines ----------
 

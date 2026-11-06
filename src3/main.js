@@ -24,6 +24,7 @@ import { createStats } from './stats.js';
 import { createResScale } from './resscale.js';
 import { createDamageHazards } from './damageHazards.js';
 import { spotFor } from './spots.js';
+import { setRoughnessEnabled } from '../src/world/roughness.js';
 
 const TALK_RANGE = 25;
 const READ_RANGE = 25;
@@ -61,6 +62,7 @@ window.addEventListener('resize', () => {
 
 // ---------- world ----------
 
+if (params.get('rough') === 'off') setRoughnessEnabled(false); // dev: compare without rough ground
 const scenery = generateScenery(WORLD);
 const collider = new Collider(WORLD, scenery);
 const world3d = buildWorld3D(scene, WORLD, scenery, collider);
@@ -153,6 +155,7 @@ const groundAt = world3d.terrain.heightAt.bind(world3d.terrain);
 const personPos = (id) => amb.personPos(id);
 let last = performance.now();
 let steer = 0;
+const ground = { type: 'paved', rough: 0, plow: 0, plowAngle: 0, offRoad: false };
 const fps = { frames: 0, acc: 0, value: 0 };
 
 function frame(now) {
@@ -171,6 +174,15 @@ function frame(now) {
     const input = readInput();
     const prev = dh.beforeStep();
     const result = stepCar(car, input, dt, collider, dh.mods());
+    // The ground under the car (src/world/roughness.js): safe speed off-road,
+    // ride bounce and camera rumble.
+    const g = world3d.terrain.rough.at(car.x, car.y);
+    ground.type = g.type;
+    ground.rough = g.rough;
+    ground.plow = g.plow;
+    ground.plowAngle = g.plowAngle;
+    ground.offRoad = result.surface === 'grass';
+    result.ground = ground;
     state.odometer += result.moved;
     if (result.hitSpeed > 6) rig.shake(result.hitSpeed);
     steer += (((input.right ? 1 : 0) - (input.left ? 1 : 0)) - steer) * Math.min(1, dt * 10);
@@ -190,9 +202,12 @@ function frame(now) {
     updateGame(state, dt);
   }
 
-  car3d.update(car, runtime.paused ? 0 : dt, world3d.surfaceAt, steer, state.damage || null);
+  car3d.update(car, runtime.paused ? 0 : dt, world3d.surfaceAt, steer, state.damage || null, ground.offRoad ? ground : null);
   carPos.copy(car3d.object.position);
-  rig.rumble(world3d.terrain.bumps.roughness(car.x, car.y) * Math.min(1, Math.abs(car.speed) / 20) * (runtime.paused ? 0 : 1));
+  // Camera rumble: dirt road bumps, or the ground's own small bumps off-road.
+  const roadRumble = world3d.terrain.bumps.roughness(car.x, car.y) * Math.min(1, Math.abs(car.speed) / 20);
+  const groundRumble = ground.offRoad ? ground.rough * 0.85 * Math.min(1, Math.abs(car.speed) / 14) : 0;
+  rig.rumble(Math.max(roadRumble, groundRumble) * (runtime.paused ? 0 : 1));
   const e = rig.update(carPos, car.heading, dt, runtime.cameraMode, groundAt, state.view.northUp);
   // Sound every frame, even paused (it ducks while the map is open).
   audio.update(dt, state, amb, { paused: runtime.paused });

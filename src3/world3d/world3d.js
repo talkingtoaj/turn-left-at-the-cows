@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { pointInPolygon, distToPolygonEdge, bbox, SegIndex, distToSegment } from '../../src/drive/geom.js';
 import { Terrain, makeNoise, smoothstep, quarryPit } from './terrain.js';
-import { buildFields, buildMailboxes, buildProps, buildPowerLines } from './fields3d.js';
+import { buildFields, buildMailboxes, buildProps, buildPowerLines, buildStones } from './fields3d.js';
 import { Batcher } from './batch.js';
 import { buildGround, DECK_TOP } from './ground.js';
 import { buildStructures } from './structures.js';
@@ -122,6 +122,7 @@ export function buildObjects(world, scenery, terrain, batch, materials = {}) {
   buildGround(world, scenery, terrain, batch);
   buildFields(world, terrain, batch, scenery);
   buildProps(world, terrain, batch);
+  buildStones(terrain, batch);
   const wires = buildPowerLines(world, terrain, batch);
   buildMailboxes(world, terrain, batch);
   const chimneys = new Map();
@@ -171,6 +172,8 @@ export function buildWorld3D(scene, world, scenery, collider) {
   const C = (h) => new THREE.Color(h);
   const GRASS = C(0x5f8f4a);
   const GRASS_DRY = C(0x86965a);
+  const SCRUB_DRY = C(0x9a9a5c);
+  const SCRUB_DARK = C(0x4d6a36);
   const FOREST = C(0x4b7240);
   const MUD = C(0x6c6444);
   const BED = C(0x4f4a36);
@@ -182,10 +185,16 @@ export function buildWorld3D(scene, world, scenery, collider) {
   const lakes = world.lakes.map((l) => ({ ...l, bb: bbox(l.polygon) }));
   const banks = new SegIndex(32);
   for (const c of world.creeks) banks.addPolyline(c.points, c.width / 2 + 9, c);
-  const colorFn = (x, y, h, out) => {
+  const colorFn = (x, y, h, out, rough = 0) => {
     const n = noise(x / 70, y / 70) * 0.65 + noise(x / 18 + 9, y / 18) * 0.35;
     out.copy(GRASS).multiplyScalar(0.92 + n * 0.12);
     out.lerp(GRASS_DRY, smoothstep(10, 30, h) * 0.45 + Math.max(0, n) * 0.15);
+    // Rough meadow and scrub: patchy, tussocky, olive and straw.
+    const sk = smoothstep(0.6, 0.95, rough);
+    if (sk > 0) {
+      const p = noise(x / 7 + 31, y / 7) * 0.6 + noise(x / 3.1, y / 3.1 + 17) * 0.4;
+      out.lerp(p > 0 ? SCRUB_DRY : SCRUB_DARK, sk * (0.25 + 0.5 * Math.min(1, Math.abs(p) * 2.2)));
+    }
     for (const f of forests) {
       if (x < f.bb.minX - 16 || x > f.bb.maxX + 16 || y < f.bb.minY - 16 || y > f.bb.maxY + 16) continue;
       const inside = pointInPolygon(x, y, f.polygon);

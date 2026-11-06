@@ -43,6 +43,11 @@ export const TUNING = {
   // Each knock costs `size` (x a random 0.6..1.4), mostly to the tyres.
   rough: {
     safe: { paved: Infinity, dirt: 16, grass: 9 }, // m/s (dirt 58, grass 32 km/h)
+    // Off-road the ground's own roughness (src/world/roughness.js, 0..1) sets
+    // the safe speed instead of safe.grass: from groundSafe[0] on smooth
+    // ground to groundSafe[1] on the roughest, so mown hay is about 40 km/h,
+    // an average pasture about 30 and rough scrub 20.
+    groundSafe: [44 / 3.6, 20 / 3.6],
     rate: { paved: 0, dirt: 0.95, grass: 0.9 },
     offset: 0.05,
     flatSafeMul: 0.6, // on a flat tyre rough ground is safe only at 60% of the speed
@@ -230,20 +235,32 @@ function applyBump(d, item, speed, wheel) {
 
 const _seen = new Set();
 
-// Chance per second of a rough-ground knock at `speed` on `surface`.
-export function roughChance(surface, speed, d = null) {
+// Safe speed (m/s) on `surface`; off-road (grass) with ground = { rough }
+// from src/world/roughness.js it follows the ground's roughness.
+export function roughSafe(surface, ground = null, d = null) {
   const R = TUNING.rough;
-  const safe = (R.safe[surface] ?? Infinity) * (d && d.tyres < TUNING.tyreFlat ? R.flatSafeMul : 1);
+  let safe = R.safe[surface] ?? Infinity;
+  if (surface === 'grass' && ground && Number.isFinite(ground.rough)) {
+    const r = Math.max(0, Math.min(1, ground.rough));
+    safe = R.groundSafe[0] + (R.groundSafe[1] - R.groundSafe[0]) * r;
+  }
+  return safe * (d && d.tyres < TUNING.tyreFlat ? R.flatSafeMul : 1);
+}
+
+// Chance per second of a rough-ground knock at `speed` on `surface`.
+export function roughChance(surface, speed, d = null, ground = null) {
+  const R = TUNING.rough;
+  const safe = roughSafe(surface, ground, d);
   const over = speed - safe;
   if (!(over > 0)) return 0;
   return (R.rate[surface] || 0) * (over / safe + R.offset) ** 2;
 }
 
-function rough(d, surface, speed, dt) {
+function rough(d, surface, speed, dt, ground) {
   const R = TUNING.rough;
-  const chance = roughChance(surface, speed, d);
-  const safe = (R.safe[surface] ?? Infinity) * (d.tyres < TUNING.tyreFlat ? R.flatSafeMul : 1);
-  d.rough = { surface: surface || '?', safe, chance };
+  const chance = roughChance(surface, speed, d, ground);
+  const safe = roughSafe(surface, ground, d);
+  d.rough = { surface: surface || '?', safe, chance, ground: ground ? ground.type : null, r: ground ? ground.rough : null };
   if (chance <= 0 || Math.random() >= 1 - Math.exp(-chance * dt)) return;
   let k = Math.random();
   let part = 'tyres';
@@ -325,7 +342,8 @@ export function updateDamage(state, dt, result, collider, prev) {
     }
 
     // Too fast on rough ground (only with the 3D surface feel, result.feel).
-    if (result && result.feel) rough(d, result && result.surface, speed, dt);
+    // result.ground (optional): { type, rough } of the ground under the car.
+    if (result && result.feel) rough(d, result && result.surface, speed, dt, result.ground);
 
     // Curb: off a paved road onto grass, fast.
     const surface = result && result.surface;
