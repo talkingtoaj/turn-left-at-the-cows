@@ -1,4 +1,4 @@
-// Look test shader patches (?look=new only). They chain onto any patch a
+// Look test shader patches (not with ?look=old). They chain onto any patch a
 // material already has (ground paint, cloud shadows).
 //
 // Textures are detail on the piece's own colour (see look.js). Mapping needs

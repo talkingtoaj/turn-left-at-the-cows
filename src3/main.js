@@ -42,8 +42,8 @@ app.appendChild(renderer.domElement);
 const params = new URLSearchParams(window.location.search);
 const stats = createStats(renderer, params.has('stats'));
 const res = createResScale(renderer, params);
-// Look test: ?look=new swaps in the new light and textures (src3/look).
-const look = params.get('look') === 'new' ? await (await import('./look/look.js')).createLook(renderer, params) : null;
+// New light, sky, weather and textures (src3/look); ?look=old for the old look.
+const look = params.get('look') !== 'old' ? await (await import('./look/look.js')).createLook(renderer, params) : null;
 const statsExtra = () => `res ${res.ratio.toFixed(2)} (dpr ${window.devicePixelRatio})`;
 
 // Dev: ?spot=<name> starts the car at a review spot (src3/spots.js).

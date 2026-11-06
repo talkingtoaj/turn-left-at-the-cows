@@ -1,6 +1,6 @@
-# Look test assets (?look=new)
+# Look assets
 
-Loaded only when the URL has `?look=new`. All CC0 (public domain) or made by us with AI.
+Loaded by the default look (not with `?look=old`). All CC0 (public domain) or made by us with AI.
 Fetched and converted by `tools/look/fetch.mjs` (textures, 512 px webp) and
 `tools/look/bake_sky.py` (sky). AI calls are logged in `tools/look/ai_log.jsonl`.
 

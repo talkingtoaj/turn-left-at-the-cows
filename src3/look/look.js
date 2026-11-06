@@ -1,5 +1,5 @@
-// Look test, only when the URL has ?look=new (SPEC 9e). Without it nothing
-// here runs and the game renders exactly as before.
+// The game's look (SPEC 9e, default since 9h). With ?look=old nothing here
+// runs and the game renders with the old light and flat colours.
 //
 // 1. Light: a real sky (Poly Haven HDRI, baked by tools/look/bake_sky.py) is
 //    the background and, as spherical harmonics, the sky light (a LightProbe
@@ -18,7 +18,7 @@ import { TEXTURES, LAYERS, SURF, surfaceOf } from './surfaces.js';
 import { buildAOMap } from './aomap.js';
 import { patchObjects, patchTerrain, patchTrunks, skyMaterial } from './shaders.js';
 
-export const LOOK_NEW = new URLSearchParams(window.location.search).get('look') === 'new';
+export const LOOK_NEW = new URLSearchParams(window.location.search).get('look') !== 'old';
 
 const BASE = `${import.meta.env.BASE_URL}look/`;
 const SIZE = 512;
