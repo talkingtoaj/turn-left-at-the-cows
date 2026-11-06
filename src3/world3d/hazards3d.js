@@ -65,9 +65,9 @@ function potholeMesh(list, groundAt, sunDir) {
       const d = Math.hypot(dx, dy) || 1;
       return 0.78 + 0.28 * ((dx * sx + dy * sz) / (d * sl));
     };
-    const rimCol = paved ? 0x5f5e59 : 0x8d7350;
-    const wallCol = paved ? 0x3e3d3a : 0x6a5436;
-    const floorCol = paved ? 0x2f2e2c : 0x4f3f28;
+    const rimCol = paved ? 0x6e6d68 : 0x9c8259;
+    const wallCol = paved ? 0x55534f : 0x7c6442;
+    const floorCol = paved ? 0x474542 : 0x6a5536;
     const push = (pt, extra, hex, shade) => {
       pos.push(pt[0], h(pt[0], pt[1], extra), pt[1]);
       c.setHex(hex).multiplyScalar(shade);
@@ -94,13 +94,26 @@ function potholeMesh(list, groundAt, sunDir) {
       push(i1, 0.006, floorCol, 0.9 + (s1 - 0.78) * 0.5);
     }
   }
+  // Make every triangle face up (counter-clockwise seen from above).
+  for (let i = 0; i < pos.length; i += 9) {
+    const ax = pos[i + 3] - pos[i];
+    const az = pos[i + 5] - pos[i + 2];
+    const bx = pos[i + 6] - pos[i];
+    const bz = pos[i + 8] - pos[i + 2];
+    if (az * bx - ax * bz < 0) {
+      for (let k = 0; k < 3; k++) {
+        [pos[i + 3 + k], pos[i + 6 + k]] = [pos[i + 6 + k], pos[i + 3 + k]];
+        [col[i + 3 + k], col[i + 6 + k]] = [col[i + 6 + k], col[i + 3 + k]];
+      }
+    }
+  }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  g.computeVertexNormals();
   // Flat patches: normals straight up so the dip shading above is what shows.
-  const n = g.attributes.normal;
-  for (let i = 0; i < n.count; i++) n.setXYZ(i, 0, 1, 0);
+  const nrm = new Float32Array(pos.length);
+  for (let i = 1; i < nrm.length; i += 3) nrm[i] = 1;
+  g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
   g.computeBoundingSphere();
   const mat = new THREE.MeshLambertMaterial({
     vertexColors: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4,
@@ -108,8 +121,6 @@ function potholeMesh(list, groundAt, sunDir) {
   const mesh = new THREE.Mesh(g, mat);
   mesh.receiveShadow = true;
   mesh.castShadow = false;
-  // Triangles wind the other way round for the even rings; draw both sides.
-  mat.side = THREE.DoubleSide;
   return mesh;
 }
 
@@ -120,7 +131,7 @@ function branchGeo() {
   const BARK = 0x5b4632;
   const LEAF = 0x5d7a3a;
   const parts = [
-    colored(new THREE.CylinderGeometry(0.06, 0.1, 1, 5).rotateX(Math.PI / 2).translate(0, 0.1, 0), BARK),
+    colored(new THREE.CylinderGeometry(0.1, 0.16, 1, 6).rotateX(Math.PI / 2).translate(0, 0.15, 0), BARK),
     colored(new THREE.CylinderGeometry(0.025, 0.045, 0.45, 4).rotateX(Math.PI / 2).rotateY(0.7).translate(0.15, 0.1, -0.15), BARK),
     colored(new THREE.CylinderGeometry(0.02, 0.04, 0.4, 4).rotateX(Math.PI / 2).rotateY(-0.8).translate(-0.13, 0.12, 0.12), BARK),
     colored(new THREE.CylinderGeometry(0.02, 0.035, 0.35, 4).rotateX(Math.PI / 2).rotateY(0.5).translate(0.12, 0.1, 0.3), BARK),
@@ -251,7 +262,7 @@ export function createHazards3D(scene, opts) {
   group.add(...meshes);
 
   // Engine smoke: grey, darker as the engine gets worse.
-  const smoke = puffs(MAX_SMOKE, 0x6c6a66, 0.6, puffTexture(), 1 / 600);
+  const smoke = puffs(MAX_SMOKE, 0x8e8c88, 0.6, puffTexture(), 1 / 600);
   group.add(smoke.points);
   const puffsLive = [];
   let smokeAcc = 0;
@@ -280,8 +291,17 @@ export function createHazards3D(scene, opts) {
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       // Trunk along +x in model space; turn it to the blocker's heading.
-      mesh.position.set(b.x, surfaceAt(b.x, b.y), b.y);
+      // Rest on the lower of the middle and the ends, tilted to the ground.
+      const ux = Math.sin(b.angle * DEG);
+      const uy = -Math.cos(b.angle * DEG);
+      const half = b.len / 2;
+      const h0 = surfaceAt(b.x - ux * half, b.y - uy * half);
+      const h1 = surfaceAt(b.x + ux * half, b.y + uy * half);
+      const hm = surfaceAt(b.x, b.y);
+      mesh.position.set(b.x, Math.min(hm, (h0 + h1) / 2), b.y);
+      mesh.rotation.order = 'YZX';
       mesh.rotation.y = -(b.angle - 90) * DEG;
+      mesh.rotation.z = Math.atan2(h1 - h0, b.len);
       blockerGroup.add(mesh);
     }
   }
@@ -353,7 +373,7 @@ export function createHazards3D(scene, opts) {
 
       // Engine smoke from under the bonnet: more and darker as it gets worse.
       if (dt > 0 && smokeLevel > 0) {
-        smokeAcc += dt * (2 + 16 * smokeLevel);
+        smokeAcc += dt * (1.5 + 10 * smokeLevel);
         const h = car.heading * DEG;
         while (smokeAcc >= 1) {
           smokeAcc -= 1;
@@ -362,8 +382,8 @@ export function createHazards3D(scene, opts) {
             x: car.x + Math.sin(h) * 1.7 + (Math.random() - 0.5) * 0.6,
             y: car.y - Math.cos(h) * 1.7 + (Math.random() - 0.5) * 0.6,
             z: carObj.position.y + 0.95,
-            age: 0, life: 1.6 + Math.random() * 1.4 + smokeLevel * 1.5, size: 0.35 + smokeLevel * 0.3,
-            dark: 0.55 + (1 - smokeLevel) * 0.4,
+            age: 0, life: 1.4 + Math.random() * 1.2 + smokeLevel * 1.2, size: 0.25 + smokeLevel * 0.2,
+            dark: 0.7 + (1 - smokeLevel) * 0.3,
           });
         }
       }
@@ -382,9 +402,9 @@ export function createHazards3D(scene, opts) {
         f.z += (1.4 / (1 + f.age)) * dt;
         f.x += wx * 0.4 * dt;
         f.y += wy * 0.4 * dt;
-        f.size += dt * 0.9;
+        f.size += dt * 0.7;
         const k = f.age / f.life;
-        smoke.push(f.x, f.z, f.y, f.size * 1.8, 0.75 * (1 - k) * Math.min(1, f.age * 8), f.dark + k * 0.3);
+        smoke.push(f.x, f.z, f.y, f.size * 1.6, 0.55 * (1 - k) * Math.min(1, f.age * 8), f.dark + k * 0.25);
       }
       smoke.end();
       const hgt = renderer.getDrawingBufferSize(_v2).y;
