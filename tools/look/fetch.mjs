@@ -42,7 +42,7 @@ export const TEXTURES = [
 // The ruins and the grain elevator (round 5).
 export const POLYHAVEN = [
   { name: 'stonewall', id: 'old_stone_wall' },
-  { name: 'peeling', id: 'weathered_peeling_timber' },
+  { name: 'peeling', id: 'weathered_plank_siding' }, // round 6: was weathered_peeling_timber (blotchy up close)
   { name: 'greyplanks', id: 'wood_planks_grey' },
   { name: 'charred', id: 'wood_peeling_paint_weathered' },
   { name: 'rustheavy', id: 'rust_coarse_01' },

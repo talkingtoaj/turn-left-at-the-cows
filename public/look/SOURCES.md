@@ -72,7 +72,7 @@ flat along each face like the rest. Fetched by `tools/look/fetch.mjs <cache> ph`
 | Name | Used on | Source | License |
 |---|---|---|---|
 | stonewall | mill walls, chimney and rubble, scorched tops, the halt's platform | Poly Haven, Old Stone Wall: https://polyhaven.com/a/old_stone_wall | CC0 |
-| peeling | Voss farmhouse weatherboard, peeling white paint | Poly Haven, Weathered Peeling Timber: https://polyhaven.com/a/weathered_peeling_timber | CC0 |
+| peeling | Voss farmhouse weatherboard (round 6: clear horizontal lap boards, tinted by the old white paint colour; replaced Weathered Peeling Timber, which read as blotchy grey up close) | Poly Haven, Weathered Plank Siding: https://polyhaven.com/a/weathered_plank_siding | CC0 |
 | greyplanks | boarded windows, Voss shed and door, halt shelter, sign posts, sleepers, mill wheel paddles and spokes, elevator door | Poly Haven, Wood Planks Grey: https://polyhaven.com/a/wood_planks_grey | CC0 |
 | charred | the mill's fallen beams and burned paddles | Poly Haven, Wood Peeling Paint Weathered: https://polyhaven.com/a/wood_peeling_paint_weathered | CC0 |
 | rustheavy | hand pump, rails, wheel rims and axle, truck fenders, frame and bumper, broken windpump, elevator spout | Poly Haven, Rust Coarse 01: https://polyhaven.com/a/rust_coarse_01 | CC0 |

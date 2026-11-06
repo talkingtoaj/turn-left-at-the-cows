@@ -26,7 +26,7 @@ export const TEXTURES = [
   // things carry their own colour (peeling paint, rust), so full chroma: the
   // pieces use colours near each texture's mean.
   { name: 'stonewall', strength: 1.0, chroma: 0.8, normal: true },
-  { name: 'peeling', strength: 0.85, chroma: 0.55, normal: true },
+  { name: 'peeling', strength: 1.0, chroma: 0.4, normal: true }, // weathered lap siding (round 6)
   { name: 'greyplanks', strength: 1.0, chroma: 0.6, normal: true },
   { name: 'charred', strength: 1.0, chroma: 1.0, normal: true },
   { name: 'rustheavy', strength: 1.0, chroma: 1.0, normal: true },
@@ -56,7 +56,7 @@ export const LAYERS = [
   { name: 'rusty paint', tex: T.rust, scale: [3, 3], normal: 0 },
   { name: 'logs', tex: T.bark, scale: [1.6, 1.2], swap: true, normal: 1 },
   { name: 'stone wall', tex: T.stonewall, scale: [2.6, 2.6], normal: 1 },
-  { name: 'peeling boards', tex: T.peeling, scale: [3, 3], swap: true, normal: 1 },
+  { name: 'peeling boards', tex: T.peeling, scale: [2.4, 2.4], normal: 1 }, // boards about 17 cm, already level
   { name: 'grey boards', tex: T.greyplanks, scale: [2.2, 2.2], swap: true, normal: 1 },
   { name: 'charred', tex: T.charred, scale: [1.6, 1.6], normal: 1 },
   { name: 'heavy rust', tex: T.rustheavy, scale: [1.4, 1.4], normal: 0.6 },
