@@ -61,13 +61,32 @@ glass and chrome reflect the CC0 Poly Haven sunny sky listed above
 The fixed fallen trees lie down the same Quaternius CC0 tree models listed
 above (code-made shapes with `?trees=old`); the root plate and soil are code.
 
-## Ruins, windpumps, grain elevator, rough ground (no files)
+## Ruins and the grain elevator (round 5)
 
-The old Voss place, Pruitt's old truck, the old railway and Gilmore Halt, the
-mill's fallen wheel, the farm windpumps and Ashford's grain elevator are built
-in code (`src3/world3d/ruins3d.js`, `structures.js`) from simple shapes. They
-use only the textures listed above (siding, boards, tin, concrete, gravel and
-the AI rust texture, matched by colour in `src3/look/surfaces.js`). The halt's
-sign is a plain board with bars like the road signs: no new image, no AI.
-Rough ground (`src/world/roughness.js`) is seeded noise; its small bumps reuse
-the CC0 soil normal map above. No new assets and no AI spend.
+The old mill, the Voss place, Pruitt's truck, Gilmore Halt and Ashford's
+grain elevator are built in code (`src3/world3d/ruins3d.js`, `structures.js`)
+and take these weathered textures by colour (`src3/look/surfaces.js`), mapped
+flat along each face like the rest. Fetched by `tools/look/fetch.mjs <cache> ph`
+(Poly Haven 1k jpg, cut to 512 px webp, colour and GL normal map).
+
+| Name | Used on | Source | License |
+|---|---|---|---|
+| stonewall | mill walls, chimney and rubble, scorched tops, the halt's platform | Poly Haven, Old Stone Wall: https://polyhaven.com/a/old_stone_wall | CC0 |
+| peeling | Voss farmhouse weatherboard, peeling white paint | Poly Haven, Weathered Peeling Timber: https://polyhaven.com/a/weathered_peeling_timber | CC0 |
+| greyplanks | boarded windows, Voss shed and door, halt shelter, sign posts, sleepers, mill wheel paddles and spokes, elevator door | Poly Haven, Wood Planks Grey: https://polyhaven.com/a/wood_planks_grey | CC0 |
+| charred | the mill's fallen beams and burned paddles | Poly Haven, Wood Peeling Paint Weathered: https://polyhaven.com/a/wood_peeling_paint_weathered | CC0 |
+| rustheavy | hand pump, rails, wheel rims and axle, truck fenders, frame and bumper, broken windpump, elevator spout | Poly Haven, Rust Coarse 01: https://polyhaven.com/a/rust_coarse_01 | CC0 |
+| rustpaint | Pruitt's truck (faded green paint, rust streaks), the buffer stop | Poly Haven, Green Metal Rust: https://polyhaven.com/a/green_metal_rust | CC0 |
+| rustytin | Voss roof and porch, shed roof, halt shelter roof, elevator roofs | Poly Haven, Rusty Corrugated Iron: https://polyhaven.com/a/rusty_corrugated_iron | CC0 |
+| galvtin | grain elevator cladding and head house | Poly Haven, Worn Corrugated Iron: https://polyhaven.com/a/worn_corrugated_iron | CC0 |
+
+Painted signs (`signs/<name>.webp`, 1024 px wide, cropped to the lettered band):
+
+| File | Used on | Source | License |
+|---|---|---|---|
+| `signs/gilmore.webp` | Gilmore Halt name board, both faces | AI (Gemini gemini-3.1-flash-image, 1K, 21:9), our own. Prompt in `tools/look/ai_log.jsonl` | ours |
+| `signs/coop.webp` | "ASHFORD CO-OP" band on all four sides of the elevator top | AI (Gemini gemini-3.1-flash-image, 1K, 21:9), our own. Prompt in `tools/look/ai_log.jsonl` | ours |
+
+Windpumps are plain code shapes (steel and the rust colours above). Broken
+window glass is a few plain triangles. Rough ground (`src/world/roughness.js`)
+is seeded noise; its small bumps reuse the CC0 soil normal map above.

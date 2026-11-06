@@ -486,8 +486,10 @@ export function buildCar(opts = {}) {
         roll = tRoll;
         sp.y[0] = sp.y[1] = sp.p[0] = sp.p[1] = sp.r[0] = sp.r[1] = 0;
       } else if (dt > 0) {
-        // Chassis: quick but smooth (no jitter from single bumps).
-        const k = 1 - Math.exp(-dt * 22);
+        // Chassis: quick but smooth (no jitter from single bumps). A little
+        // softer off-road, where the taller big bumps (and the 4 m terrain
+        // triangles they sit on) would otherwise kick the pitch.
+        const k = 1 - Math.exp(-dt * (ride ? 16 : 22));
         const prevY = y;
         const prevP = pitch;
         const prevR = roll;

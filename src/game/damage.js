@@ -46,7 +46,7 @@ export const TUNING = {
     // Off-road the ground's own roughness (src/world/roughness.js, 0..1) sets
     // the safe speed instead of safe.grass: from groundSafe[0] on smooth
     // ground to groundSafe[1] on the roughest, so mown hay is about 40 km/h,
-    // an average pasture about 30 and rough scrub 20.
+    // an average pasture about 30 (rough 0.6, round 5) and rough scrub 20.
     groundSafe: [44 / 3.6, 20 / 3.6],
     rate: { paved: 0, dirt: 0.95, grass: 0.9 },
     offset: 0.05,
