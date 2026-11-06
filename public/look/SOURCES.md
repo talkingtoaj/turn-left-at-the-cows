@@ -47,3 +47,16 @@ game's leaf and trunk colours, by `tools/look/trees.mjs`. 23 KB in all.
 | oakB, oakBFar | Tree (1366 tris) | https://poly.pizza/m/8qABc2Nslz | CC0 |
 | willow, willowFar | Willow (2752 tris) | https://poly.pizza/m/mBrUbIp9Zd | CC0 |
 | bush | Bush (364 tris) | https://poly.pizza/m/92EytlU1El | CC0 |
+
+## Cars and fallen trees (no files)
+
+The player's car, the traffic cars and the farm trucks are built in code
+(`src3/world3d/carbody.js`, `car3d.js`, `traffic3d.js`). Their trim textures
+(number plates with a made-up "ASHFORD COUNTY" plate, grille, lamp lenses,
+hubcap, tyre tread, seat fabric, badge) are drawn in code on a canvas at load
+time (`src3/world3d/caratlas.js`): ours, no image files and no AI. The paint,
+glass and chrome reflect the CC0 Poly Haven sunny sky listed above
+(`look.carEnv()` in `src3/look/look.js`).
+
+The fixed fallen trees lie down the same Quaternius CC0 tree models listed
+above (code-made shapes with `?trees=old`); the root plate and soil are code.
