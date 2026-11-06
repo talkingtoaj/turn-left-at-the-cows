@@ -21,7 +21,7 @@ const MAX_DUST = 500;
 const MAX_SMOKE = 900;
 const TROT = [1, 0, 2, 0]; // horse pose per trot step
 
-function colored(geo, hex) {
+export function colored(geo, hex) {
   const g = geo.index ? geo.toNonIndexed() : geo;
   g.deleteAttribute('uv');
   g.computeVertexNormals();
@@ -33,7 +33,7 @@ function colored(geo, hex) {
   return g;
 }
 
-function instanced(geo, mat, n, shadow = true) {
+export function instanced(geo, mat, n, shadow = true) {
   const m = new THREE.InstancedMesh(geo, mat, n);
   m.count = 0;
   m.frustumCulled = false; // instances move all over; we cull by distance ourselves
@@ -153,7 +153,7 @@ function trafficGeos() {
 
 // ---------- puffs (dust and smoke) ----------
 
-function puffTexture() {
+export function puffTexture() {
   const c = document.createElement('canvas');
   c.width = c.height = 64;
   const g = c.getContext('2d');
@@ -206,7 +206,7 @@ void main() {
 
 const PUFF_ATTRS = ['position', 'size', 'alpha', 'shade'];
 
-function puffs(max, color, fogAmount, tex, grow = 0) {
+export function puffs(max, color, fogAmount, tex, grow = 0) {
   const geo = new THREE.BufferGeometry();
   const pos = new Float32Array(max * 3);
   const size = new Float32Array(max);
@@ -344,7 +344,8 @@ export function createAmbient3D(scene, opts) {
   return {
     group,
     // amb: the ambient state; focus: THREE.Vector3 (camera focus); topE: 0 chase .. 1 top.
-    update(amb, dt, camera, focus, fog, topE, renderer) {
+    // extraAnimals: more animals drawn with the herd meshes (road hazards).
+    update(amb, dt, camera, focus, fog, topE, renderer, extraAnimals = null) {
       time += dt;
       const fx = focus.x;
       const fz = focus.z;
@@ -416,8 +417,10 @@ export function createAmbient3D(scene, opts) {
       // Animals: graze with a slow nod; walk with a little bob. Horses trot
       // through their poses; running deer gallop with a bounding body.
       for (const mesh of animalMeshes) animalCount.set(mesh, 0);
-      for (let i = 0; i < amb.animals.length; i++) {
-        const a = amb.animals[i];
+      const nAmb = amb.animals.length;
+      const nAll = nAmb + (extraAnimals ? extraAnimals.length : 0);
+      for (let i = 0; i < nAll; i++) {
+        const a = i < nAmb ? amb.animals[i] : extraAnimals[i - nAmb];
         if (!near(a.x, a.y, ANIMAL_R)) continue;
         const h = herd[a.kind] || herd.sheep;
         let pose = 0;
