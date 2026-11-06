@@ -238,3 +238,9 @@ Middle path between low-poly and realistic, no 3D artist needed:
 - **Road blockers:** a planned fallen tree in mission 2. Cars can usually drive around a tree, so blockers must really block (a spot hemmed in by trees, fences, water or a cutting, or a wider debris spread).
 - **Off-road driving** has a tiny damage risk, much smaller than potholes.
 - Helper worktrees cleaned up. Push `main` to GitHub after a quick play.
+
+### 9i. Round 2 decisions (LOCKED, 6 Nov 2026)
+- **Fallen trees are obstacles, not walls.** No mission-changing road blocks. A fallen tree lies where a tree could really have grown (its root plate in a forest edge, tree row or roadside tree line, never on a bridge or in water) and leaves room to steer around it, slowly, or over the verge. A few are fixed in the world from the seed; they never change a mission's route. The blocker check now makes sure there is always a way past.
+- **CC0 tree models are the default.** `?trees=old` keeps the code-made ones.
+- **Surface feel tuning stays** (dirt safe speed 58 km/h, grass 32 km/h) until a mission has been played.
+- **Cars get more detail and textures,** the player's car first: an era-fitting late-80s car, more shape detail and real materials, keeping dents, tilt, wheels and the flat tyre. Traffic cars get variety too.
