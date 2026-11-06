@@ -65,7 +65,7 @@ const scenery = generateScenery(WORLD);
 const collider = new Collider(WORLD, scenery);
 const world3d = buildWorld3D(scene, WORLD, scenery, collider);
 if (look) look.apply(scene, world3d, WORLD, scenery);
-const car3d = buildCar();
+const car3d = buildCar({ env: look ? look.carEnv() : null });
 scene.add(car3d.object);
 const rig = new CameraRig(camera);
 
@@ -80,12 +80,12 @@ for (const ch of amb.chimneys || []) {
 }
 const amb3d = createAmbient3D(scene, {
   terrain: world3d.terrain, surfaceAt: world3d.surfaceAt, scenery, sunDir: SUN_DIR,
-  campfire: campfireOf(WORLD, world3d.terrain), chimneyFix,
+  campfire: campfireOf(WORLD, world3d.terrain), chimneyFix, carEnv: look ? look.carEnv() : null,
 });
 addCloudShadowsTo(scene);
 if (look) look.afterAmbient(scene);
-// Damage, potholes and road hazards (also the ?hazard, ?blocker, ?spot dev flags).
-const dh = createDamageHazards({ scene, scenery, collider, amb, world3d, rig, sunDir: SUN_DIR, params });
+// Damage, potholes and road hazards (also the ?hazard, ?fallen, ?spot dev flags).
+const dh = createDamageHazards({ scene, scenery, collider, amb, world3d, rig, sunDir: SUN_DIR, params, env: look ? look.carEnv() : null });
 
 // ---------- UI wiring (see CONTRACT3.md) ----------
 
@@ -235,5 +235,6 @@ window.__dh = dh;
 window.__audio = audio;
 window.__cloudUniforms = cloudUniforms;
 window.__look = look;
+window.__car3d = car3d;
 
 requestAnimationFrame(frame);

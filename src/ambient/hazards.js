@@ -9,8 +9,10 @@
 //   deer          near forest: wait by the road, then dart across (rare).
 // Fallen branches and small logs (not solid, a knock and a slow-down if you
 // drive over them fast) turn up on roads under trees, on their own timer.
-// Fallen trees right across a road come only from mission data
-// (mission.blockers), never at random, so missions stay solvable.
+// A few fixed fallen trees (scenery.fallen, src/world/fallenTrees.js) lie
+// part way across roads: the trunk and root plate are solid, the crown is
+// brush that slows you and knocks the car like a branch. There is always a
+// way past (npm run check:fallen).
 //
 // API:
 //   const hz = createHazards(world, scenery, { rngSeed })
@@ -18,10 +20,9 @@
 //   hz.animals   [{ id, kind: 'cow'|'sheep'|'deer', x, y, heading, moving, running }]
 //   hz.vehicles  [{ id, kind: 'tractor'|'truck', x, y, heading, speed, color }]
 //   hz.debris    [{ id, kind: 'branch'|'log', x, y, angle, len, hl, hw, r }]  (surface events)
-//   hz.blockers  [{ id, roadId, at, x, y, angle, len, canopySide, reach, extra }] (fallen trees)
+//   hz.fallen    [{ id, roadId, at, x, y, heading, h, solidLen, solids, crown, extent, ... }] (fixed fallen trees)
 //   hz.pushSolids(x, y, range, out)    // solid circles near (x, y) for collider.dynamic
 //   hz.spawn(kind, opts)               // dev: force one now ('cows'|'sheep'|'tractor'|'truck'|'deer'|'branch'|'log')
-//   hz.setBlockers(defs)               // [{ id?, roadId, at, reach? } | { id?, near: [x, y], reach? }]
 //   hz.startle(x, y)                   // an animal was hit: its group runs off
 //   hz.honk(car)                       // the player sounded the horn (see HORN)
 //   hz.reset()                         // clears moving hazards and debris (mission restart)
@@ -33,6 +34,7 @@ import {
   makeRng, DEG, SegIndex, distToSegment, measurePolyline, pointAlong, pointInPolygon, distToPolygonEdge,
   bbox, centroid, headingOf,
 } from '../drive/geom.js';
+import { fallenShape } from '../world/fallenTrees.js';
 
 export const HAZARD_KINDS = ['cows', 'sheep', 'tractor', 'truck', 'deer', 'branch', 'log'];
 
@@ -177,7 +179,7 @@ export function createHazards(world, scenery, opts = {}) {
   const animals = [];
   const vehicles = [];
   const debris = [];
-  const blockers = [];
+  const fallen = ((scenery && scenery.fallen) || []).map((f) => ({ ...f, ...fallenShape(f) }));
   const events = [];
   let nextId = 1;
   let movingT = R(...T.firstMoving);
@@ -492,78 +494,6 @@ export function createHazards(world, scenery, opts = {}) {
     v.heading = turnToward(hPrev, v.heading, 60 * dt);
   }
 
-  // ---------- blockers ----------
-  // A blocker is a fallen tree right across the road plus a windthrow of
-  // brush and broken limbs along the same line out into the roadside, so it
-  // cannot just be driven round. def.reach = [left, right]: metres of debris
-  // beyond each road edge (left / right of the road's own direction; default
-  // 8 each, the trunk alone). Validate placements with npm run check:blockers.
-  function setBlockers(defs) {
-    blockers.length = 0;
-    for (const [i, b] of (defs || []).entries()) {
-      let r = b.roadId ? roadById.get(b.roadId) : null;
-      let s = b.at;
-      if (b.near) {
-        const q = roadAt(b.near[0], b.near[1], 40);
-        if (!q) continue;
-        r = q.r;
-        s = q.s;
-      }
-      if (!r || s === undefined) continue;
-      s = Math.max(5, Math.min(r.len - 5, s));
-      const p = at(r, s);
-      const w = r.road.width;
-      const roadH = headingOf(p.dx, p.dy);
-      const tilt = b.tilt !== undefined ? b.tilt : ((i * 37) % 24) - 12;
-      const id = b.id || `blocker${i}`;
-      const bl = {
-        id, roadId: r.road.id, at: s, x: p.x, y: p.y,
-        angle: (roadH + 90 + tilt + 360) % 360, len: w + 16, canopySide: b.canopySide || (i % 2 ? -1 : 1),
-        reach: b.reach || [8, 8], extra: [], extent: 0,
-      };
-      blockerDebris(bl, w);
-      blockers.push(bl);
-    }
-    return blockers;
-  }
-
-  // Brush piles past the trunk's ends out to `reach`, as solid circles
-  // { x, y, r, kind: 'brush', h } (h: pile height, for drawing). The trunk
-  // axis +u points to the road's right (tilt 0).
-  function blockerDebris(b, w) {
-    const ux = Math.sin(b.angle * DEG);
-    const uy = -Math.cos(b.angle * DEG);
-    const rr = makeRng((b.id.length * 7919 + Math.round(b.x * 3 + b.y)) >>> 0);
-    const half = b.len / 2;
-    let extent = half + 7;
-    for (const [sgn, out] of [[-1, w / 2 + b.reach[0]], [1, w / 2 + b.reach[1]]]) {
-      // Overlapping the crown and root plate so there is no gap.
-      for (let t = half + 1.6; t <= out + 0.01; t += 2.1) {
-        const lat = (rr() - 0.5) * 1.4;
-        const rad = 1.3 + rr() * 0.6;
-        b.extra.push({ x: b.x + ux * t * sgn - uy * lat, y: b.y + uy * t * sgn + ux * lat, r: rad, kind: 'brush', h: 0.6 + rr() * 0.9 });
-      }
-      extent = Math.max(extent, out + 2);
-    }
-    b.extent = extent;
-  }
-
-  // Fallen tree solids: trunk circles across the road, the root plate at one
-  // end and the crown at the other, then the brush piles.
-  function blockerSolids(b, out, kind = 'tree') {
-    const ux = Math.sin(b.angle * DEG);
-    const uy = -Math.cos(b.angle * DEG);
-    const half = b.len / 2;
-    for (let t = -half; t <= half + 0.01; t += 0.7) out.push({ x: b.x + ux * t, y: b.y + uy * t, r: 0.55, kind });
-    const c = b.canopySide;
-    out.push({ x: b.x - ux * (half + 0.6) * c, y: b.y - uy * (half + 0.6) * c, r: 1.3, kind });
-    for (let k = 0; k < 3; k++) {
-      const t = half + 1.5 + k * 1.8;
-      out.push({ x: b.x + ux * t * c, y: b.y + uy * t * c, r: 1.8, kind });
-    }
-    for (const e of b.extra || []) out.push(e);
-  }
-
   // ---------- horn ----------
   // Is (x, y) on or near the road ahead of the car, within the horn's range?
   function inHornReach(car, x, y) {
@@ -640,7 +570,7 @@ export function createHazards(world, scenery, opts = {}) {
 
   // ---------- public ----------
   const hz = {
-    animals, vehicles, debris, blockers, events, list,
+    animals, vehicles, debris, fallen, events, list,
 
     update(dt, state, amb) {
       events.length = 0;
@@ -721,23 +651,25 @@ export function createHazards(world, scenery, opts = {}) {
         const offs = v.kind === 'truck' ? [-1.5, 0, 1.5] : [-1.1, 0.2, 1.4];
         for (const o of offs) out.push({ x: v.x + fx * o, y: v.y + fy * o, r: v.kind === 'truck' ? 1.0 : 1.15, kind: v.kind });
       }
-      for (const b of blockers) {
-        if (Math.hypot(b.x - x, b.y - y) > range + (b.extent || b.len)) continue;
-        blockerSolids(b, out);
+      for (const f of fallen) {
+        if (Math.hypot(f.x - x, f.y - y) > range + f.extent) continue;
+        for (const c of f.solids) out.push(c);
       }
     },
 
     // Debris near (x, y) for collider.surfaceDynamic.
     pushSurface(x, y, range, out) {
       for (const d of debris) if (Math.hypot(d.x - x, d.y - y) < range) out.push(d);
+      for (const f of fallen) {
+        if (Math.hypot(f.x - x, f.y - y) > range + f.extent) continue;
+        for (const c of f.crown) out.push(c);
+      }
     },
 
     spawn(kind, o = {}) {
       return spawn(kind, o);
     },
 
-    setBlockers,
-    blockerSolids,
     honk,
 
     startle(x, y) {

@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { DEG } from '../../src/drive/geom.js';
-import { carParts } from './car3d.js';
+import { createTraffic3D } from './traffic3d.js';
 import { box } from './shapes.js';
 import { buildSkyClouds, updateCloudUniforms } from './clouds.js';
 import { FOG_COLOR } from './world3d.js';
@@ -15,7 +15,6 @@ const BIRD_R = 260; // show birds within this range of the focus
 const CAR_R = 650;
 const ANIMAL_R = 450;
 const MAX_BIRDS = 400;
-const MAX_CARS = 80;
 const MAX_ANIMALS = 160;
 const MAX_DUST = 500;
 const MAX_SMOKE = 900;
@@ -141,14 +140,6 @@ function deerGeo(legs, flag = false) {
   parts.push(leg(-0.1, 0.4, 0.8, 0.8, 0.09, bl, C, 0x2a2522));
   parts.push(leg(0.1, 0.4, 0.8, 0.8, 0.09, br, C, 0x2a2522));
   return mergeGeometries(parts);
-}
-
-function trafficGeos() {
-  const { paint, trim } = carParts(null);
-  const wheel = new THREE.CylinderGeometry(0.34, 0.34, 0.26, 8).rotateZ(Math.PI / 2);
-  const wheels = [[-0.88, -1.42], [0.88, -1.42], [-0.88, 1.38], [0.88, 1.38]]
-    .map(([x, z]) => colored(wheel.clone().translate(x, 0.34, z), 0x1e1e1e));
-  return { paint: mergeGeometries(paint), trim: mergeGeometries([...trim, ...wheels]) };
 }
 
 // ---------- puffs (dust and smoke) ----------
@@ -290,9 +281,6 @@ export function createAmbient3D(scene, opts) {
   const birdL = instanced(bg.left, vcDouble, MAX_BIRDS, false);
   const birdR = instanced(bg.right, vcDouble, MAX_BIRDS, false);
 
-  const tg = trafficGeos();
-  const carPaint = instanced(tg.paint, vc, MAX_CARS);
-  const carTrim = instanced(tg.trim, vc, MAX_CARS);
 
   // Animals: one instanced mesh per kind and pose. Horses trot by stepping
   // through stand, diagonal pair A, stand, pair B; deer gallop between a
@@ -320,8 +308,10 @@ export function createAmbient3D(scene, opts) {
   const sky = buildSkyClouds(sunDir, 40);
 
   const group = new THREE.Group();
-  group.add(birdBody, birdL, birdR, carPaint, carTrim, ...animalMeshes, dust.points, smoke.points, sky.mesh);
+  group.add(birdBody, birdL, birdR, ...animalMeshes, dust.points, smoke.points, sky.mesh);
   scene.add(group);
+  // Traffic: five car types (traffic3d.js).
+  const traffic = createTraffic3D(group, { env: opts.carEnv || null });
 
   const m = new THREE.Matrix4();
   const mw = new THREE.Matrix4();
@@ -392,27 +382,7 @@ export function createAmbient3D(scene, opts) {
       }
 
       // Traffic.
-      n = 0;
-      for (const c of amb.cars) {
-        if (n >= MAX_CARS) break;
-        if (!near(c.x, c.y, CAR_R)) continue;
-        const h = c.heading * DEG;
-        const sx = Math.sin(h);
-        const sy = -Math.cos(h);
-        const hf = surfaceAt(c.x + sx * 1.4, c.y + sy * 1.4);
-        const hb = surfaceAt(c.x - sx * 1.4, c.y - sy * 1.4);
-        e.set(Math.atan2(hf - hb, 2.8), -h, 0);
-        q.setFromEuler(e);
-        p.set(c.x, (hf + hb) / 2, c.y);
-        m.compose(p, q, s1);
-        carPaint.setMatrixAt(n, m);
-        carTrim.setMatrixAt(n, m);
-        carPaint.setColorAt(n, col.setHex(c.color));
-        n++;
-      }
-      carPaint.count = carTrim.count = n;
-      carPaint.instanceMatrix.needsUpdate = carTrim.instanceMatrix.needsUpdate = true;
-      if (carPaint.instanceColor) carPaint.instanceColor.needsUpdate = true;
+      traffic.update(amb.cars, focus, surfaceAt, (x, y) => near(x, y, CAR_R));
 
       // Animals: graze with a slow nod; walk with a little bob. Horses trot
       // through their poses; running deer gallop with a bounding body.

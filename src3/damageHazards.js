@@ -10,10 +10,9 @@
 // Every frame: dh.render(dt, focus, carObj, camera, fog, renderer)
 //
 // Dev URL flags: ?hazard=cows|sheep|tractor|truck|deer|branch|log (spawns one
-// just ahead, again each time you press G), ?blocker=demo (a fallen tree on
-// the road near the start), ?blocker=cand1|cand2|cand3 (a mission 2
-// candidate from src3/blockerCandidates.js, car placed 100 m before it),
-// ?spot=x,y,heading (start there).
+// just ahead, again each time you press G), ?fallen=1|2|... (start on the
+// road 45 m short of that fixed fallen tree, facing it), ?spot=x,y,heading
+// (start there).
 // Keys: B horn.
 
 import { WORLD } from '../src/world/world.js';
@@ -25,23 +24,19 @@ import { currentMission } from '../src/game/missions.js';
 import { createHazards, HAZARD_KINDS } from '../src/ambient/hazards.js';
 import { createHazards3D } from './world3d/hazards3d.js';
 import { DEG } from '../src/drive/geom.js';
-import { CANDIDATES } from './blockerCandidates.js';
 
 const SOLID_R = 45; // hazards and traffic within this range are solid
 const ANIMALS = new Set(['cow', 'sheep', 'deer']);
 
-// The demo blocker: on the first road north of the start.
-const DEMO_BLOCKER = { id: 'demo_tree', near: [WORLD.start.x, WORLD.start.y - 140] };
-
-export function createDamageHazards({ scene, scenery, collider, amb, world3d, rig, sunDir, params }) {
+export function createDamageHazards({ scene, scenery, collider, amb, world3d, rig, sunDir, params, env = null }) {
   const potholes = potholesFor(WORLD);
   collider.addSurfaceEvents(potholes);
   const hz = createHazards(WORLD, scenery);
-  const hz3d = createHazards3D(scene, { terrain: world3d.terrain, surfaceAt: world3d.surfaceAt, potholes, sunDir });
+  const hz3d = createHazards3D(scene, { terrain: world3d.terrain, surfaceAt: world3d.surfaceAt, potholes, sunDir, fallen: hz.fallen, env });
   const mods = {};
   const prev = { x: 0, y: 0, heading: 0 };
   const devHazard = params.get('hazard');
-  const devBlocker = params.get('blocker');
+  const devFallen = params.has('fallen') ? hz.fallen[Number(params.get('fallen')) - 1] : null;
   let pendingSpawn = devHazard && HAZARD_KINDS.includes(devHazard) ? devHazard : null;
   let seenRestarts = state.restarts || 0;
   let seenMission = -1;
@@ -54,16 +49,6 @@ export function createDamageHazards({ scene, scenery, collider, amb, world3d, ri
       state.car.heading = Number.isFinite(h) ? h : state.car.heading;
       state.missionStart = { x, y, heading: state.car.heading };
     }
-  }
-
-  // Mission blockers (mission.blockers), plus the dev demo one.
-  function applyBlockers() {
-    const m = currentMission(state);
-    const defs = [...((m && m.blockers) || [])];
-    if (devBlocker === 'demo') defs.push(DEMO_BLOCKER);
-    if (CANDIDATES[devBlocker]) defs.push(CANDIDATES[devBlocker].def);
-    const list = hz.setBlockers(defs);
-    amb.setRoadBlocks(list.map((b) => ({ roadId: b.roadId, at: b.at })));
   }
 
   // Horn: B. One honk per press; animals and slow vehicles ahead may react.
@@ -82,11 +67,14 @@ export function createDamageHazards({ scene, scenery, collider, amb, world3d, ri
     });
   }
 
-  // Candidate preview: start on the road short of the blocker.
-  const cand = CANDIDATES[devBlocker];
-  const placeCand = () => {
-    if (!cand) return;
-    dh.placeOnRoad(cand.start.roadId, cand.start.at, cand.start.dir);
+  // Fallen tree review: start on its road 45 m short of it, facing it.
+  const placeFallen = () => {
+    if (!devFallen) return;
+    const road = WORLD.roads.find((r) => r.id === devFallen.roadId);
+    let len = 0;
+    for (let i = 0; i < road.points.length - 1; i++) len += Math.hypot(road.points[i + 1][0] - road.points[i][0], road.points[i + 1][1] - road.points[i][1]);
+    const dir = devFallen.at > 70 ? 1 : -1;
+    dh.placeOnRoad(devFallen.roadId, Math.max(0, Math.min(len, devFallen.at - dir * 45)), dir);
     state.missionStart = { x: state.car.x, y: state.car.y, heading: state.car.heading };
   };
 
@@ -124,7 +112,6 @@ export function createDamageHazards({ scene, scenery, collider, amb, world3d, ri
       if (state.missionIndex !== seenMission) {
         seenMission = state.missionIndex;
         hz.reset();
-        applyBlockers();
       }
       if ((state.restarts || 0) !== seenRestarts) {
         seenRestarts = state.restarts || 0;
@@ -194,6 +181,6 @@ export function createDamageHazards({ scene, scenery, collider, amb, world3d, ri
       hz3d.update(hz, dt, focus, state.car, carObj, smokeLevel(state.damage), amb.wind, camera, fog, renderer);
     },
   };
-  placeCand();
+  placeFallen();
   return dh;
 }

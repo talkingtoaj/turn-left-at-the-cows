@@ -98,6 +98,15 @@ async function loadModels() {
   return { pine, oakA, oakB, willow, bush, far: { pine: geo.pineFar, oakA: geo.oakAFar, oakB: geo.oakBFar, willow: geo.willowFar } };
 }
 
+// The CC0 model a tree of this kind at (x, y) uses (the same pick as
+// buildTrees), or null with ?trees=old. For the fallen trees (hazards3d).
+export function treeModelFor(t) {
+  if (!MODELS) return null;
+  if (t.kind === 'pine') return MODELS.pine;
+  if (t.kind === 'willow') return MODELS.willow;
+  return hashString(`${t.x | 0},${t.y | 0}`) % 2 ? MODELS.oakA : MODELS.oakB;
+}
+
 // One shape's instances, sorted by cell, plus its output meshes.
 function makeSet(geo, farGeo, mat, list, cellOf, nCells, casts) {
   const n = list.length;

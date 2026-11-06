@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "check:world": "node tools/check-world.mjs",
     "tune:rough": "node tools/rough-drive.mjs",
-    "check:blockers": "node --max-old-space-size=4096 tools/check-blockers.mjs"
+    "check:fallen": "node tools/check-fallen.mjs",
+    "check:blockers": "node tools/check-fallen.mjs"
   },
   "dependencies": {
     "phaser": "^3.90.0",

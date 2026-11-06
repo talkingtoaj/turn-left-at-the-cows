@@ -6,6 +6,7 @@ import {
   makeRng, localToWorld, pointInPolygon, distToPolygonEdge,
   polygonArea, bbox, circleHitsRect, SegIndex, measurePolyline, pointAlong, nearestOnPolyline,
 } from './geom.js';
+import { pickFallenTrees } from '../world/fallenTrees.js';
 
 // Gas station, in the building's local frame (w = 22, h = 14).
 export const GAS = {
@@ -449,12 +450,15 @@ export function generateScenery(world) {
     }
     return false;
   }
+  function addTreeToGrid(t) {
+    const k = key(Math.floor(t.x / CELL), Math.floor(t.y / CELL));
+    if (!grid.has(k)) grid.set(k, []);
+    grid.get(k).push(t);
+  }
   function addTree(x, y, kind, r) {
     const t = { x, y, kind, r, tint: rng() };
     trees.push(t);
-    const k = key(Math.floor(x / CELL), Math.floor(y / CELL));
-    if (!grid.has(k)) grid.set(k, []);
-    grid.get(k).push(t);
+    addTreeToGrid(t);
   }
   function tryTree(x, y, kind, r, minD = 3.5) {
     if (reject(x, y) || tooClose(x, y, minD)) return false;
@@ -554,5 +558,29 @@ export function generateScenery(world) {
     }
   }
 
-  return { trees, pads, bushes };
+  // A few roadside trees have blown down (src/world/fallenTrees.js): they
+  // leave the standing trees and lie part way across the road instead.
+  const fallen = pickFallenTrees(world, trees);
+  const down = new Set(fallen.map((f) => f.tree));
+  const standing = trees.filter((t) => !down.has(t));
+  // Where the fallen tree stood among few others, its roadside row goes on:
+  // a couple more of its kind along the road at the same distance.
+  const frng = makeRng((world.seed ^ 0x3f11a) >>> 0);
+  for (const f of fallen) {
+    const near = standing.filter((t) => Math.hypot(t.x - f.x, t.y - f.y) < 25).length;
+    if (near >= 3) continue;
+    const road = world.roads.find((r) => r.id === f.roadId);
+    const q = nearestOnPolyline(f.x, f.y, road.points);
+    for (const along of [-1, 1, -2, 2]) {
+      const d = along * (8 + frng() * 3);
+      const x = f.x + q.dx * d + (frng() - 0.5) * 2;
+      const y = f.y + q.dy * d + (frng() - 0.5) * 2;
+      if (reject(x, y) || tooClose(x, y, 4)) continue;
+      const t = { x, y, kind: f.kind, r: f.r * (0.85 + frng() * 0.3), tint: frng(), row: true };
+      standing.push(t);
+      addTreeToGrid(t);
+    }
+  }
+
+  return { trees: standing, pads, bushes, fallen };
 }

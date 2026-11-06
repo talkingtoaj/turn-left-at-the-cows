@@ -1,6 +1,6 @@
 // Draws road hazards and damage in 3D: potholes (one static mesh), fallen
-// branches and logs, tractors and farm trucks (instanced), mission fallen
-// trees across roads, and smoke from a damaged engine. Hazard animals are
+// branches and logs, tractors and farm trucks (instanced), fixed fallen
+// trees part way across roads, and smoke from a damaged engine. Hazard animals are
 // drawn by ambient3d with the herd meshes (pass hz.animals to its update).
 // About seven draw calls in all, most of them empty most of the time.
 
@@ -9,6 +9,8 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { DEG, makeRng } from '../../src/drive/geom.js';
 import { box } from './shapes.js';
 import { colored, instanced, puffs, puffTexture } from './ambient3d.js';
+import { treeModelFor } from './trees.js';
+import { vehicleMesh } from './traffic3d.js';
 
 const MAX_DEBRIS = 12;
 const MAX_VEHICLES = 6;
@@ -180,94 +182,92 @@ function tractorGeo() {
   return { paint: mergeGeometries(paint), trim: mergeGeometries(trim) };
 }
 
-// Old farm pickup with a flat bed.
-function truckGeo() {
-  const P = 0xeeeeee;
-  const paint = [
-    colored(box(1.9, 0.6, 1.6).translate(0, 0.45, -1.5), P), // bonnet
-    colored(box(1.9, 1.1, 1.3).translate(0, 0.45, -0.1), P), // cab body
-    colored(box(1.95, 0.5, 2.3).translate(0, 0.45, 1.6), P), // bed sides
-  ];
-  const trim = [
-    colored(box(1.7, 0.5, 1.1).translate(0, 1.4, -0.12), 0x2c3a44), // cab glass
-    colored(box(1.8, 0.08, 1.2).translate(0, 1.9, -0.1), 0xdddddd),
-    colored(box(1.7, 0.08, 2.1).translate(0, 0.62, 1.6), 0x6a4e34), // wooden bed floor
-    colored(box(1.95, 0.2, 0.2).translate(0, 0.35, -2.35), 0x888888), // bumper
-    colored(box(0.3, 0.16, 0.05).translate(-0.6, 0.78, -2.31), 0xfff3c4),
-    colored(box(0.3, 0.16, 0.05).translate(0.6, 0.78, -2.31), 0xfff3c4),
-    colored(box(0.6, 0.5, 0.5).translate(0.3, 0.68, 1.9), 0xc9b26a), // a hay bale in the back
-    wheelGeo(0.42, 0.3, -0.92, -1.45), wheelGeo(0.42, 0.3, 0.92, -1.45),
-    wheelGeo(0.42, 0.3, -0.92, 1.5), wheelGeo(0.42, 0.3, 0.92, 1.5),
-  ];
-  return { paint: mergeGeometries(paint), trim: mergeGeometries(trim) };
-}
-
-// A fallen tree across the road: trunk along +x from -len/2 to len/2, root
-// plate on the -x end (or +x when canopySide is -1), crown on the other.
-function fallenTreeGeo(b, rng) {
-  const len = b.len;
-  const half = len / 2;
-  const c = b.canopySide;
+// A fixed fallen tree (src/world/fallenTrees.js), built in world space:
+// the same CC0 model the standing tree used, laid on its side along the
+// line it fell, a bark trunk the size of its collision circles, the root
+// plate standing up at the base with roots and torn-up soil, and the pit it
+// came out of. Model space first: base at the origin, trunk along +x, up +y.
+function fallenGeo(f, surfaceAt, rng) {
   const BARK = 0x5a4532;
+  const SOIL = 0x5d4a33;
   const parts = [];
-  // Trunk, slightly tapering toward the crown.
-  const trunk = new THREE.CylinderGeometry(0.32, 0.46, len + 1.2, 8).rotateZ(Math.PI / 2);
-  if (c < 0) trunk.rotateY(Math.PI);
-  parts.push(colored(trunk.translate(0, 0.42, 0), BARK));
-  // Root plate: an upturned disc of earth and roots.
-  const plate = new THREE.CylinderGeometry(1.5, 1.6, 0.45, 9).rotateZ(Math.PI / 2).translate(-c * (half + 0.6), 1.2, 0);
-  parts.push(colored(plate, 0x5d4a33));
-  for (let k = 0; k < 6; k++) {
-    const a = (k / 6) * Math.PI * 2;
-    parts.push(colored(new THREE.CylinderGeometry(0.05, 0.1, 1.1, 4).rotateX(a).translate(-c * (half + 0.95), 1.2 + Math.cos(a) * 0.6, Math.sin(a) * 0.6), 0x4a3a28));
+  const model = treeModelFor(f.tree);
+  if (model) {
+    const g = model.clone();
+    g.computeBoundingBox();
+    const bb = g.boundingBox;
+    const k = f.h / Math.max(0.1, bb.max.y - bb.min.y);
+    // Lay it down (+y to +x) and flatten the crown a little where it hit the ground.
+    const flat = f.kind === 'pine' ? [0.72, 0.85] : [0.5, 0.62];
+    g.translate(0, -bb.min.y, 0).scale(k, k, k).rotateZ(-Math.PI / 2).scale(1, flat[0], flat[1]);
+    g.rotateX((rng() - 0.5) * 0.6);
+    g.translate(0, 0.35, 0);
+    if (g.attributes.uv) g.deleteAttribute('uv');
+    parts.push(g);
+  } else {
+    // ?trees=old: leafy blobs along the top half.
+    const LEAF = [0x4f7a3a, 0x5d8a42, 0x47703a];
+    const n = f.kind === 'pine' ? 6 : 7;
+    for (let i = 0; i < n; i++) {
+      const s = f.h * (0.45 + (0.55 * i) / (n - 1));
+      const r = (f.kind === 'pine' ? 1.4 : 2.0) * (1 - 0.5 * Math.abs(i / (n - 1) - 0.4)) * (0.8 + rng() * 0.4);
+      parts.push(colored(new THREE.IcosahedronGeometry(r, 0).scale(1.1, 0.7, 1).translate(s, r * 0.55, (rng() - 0.5) * 1.6), LEAF[i % 3]));
+    }
   }
-  // Broken branches along the trunk.
-  for (let k = 0; k < 5; k++) {
-    const t = (rng() - 0.3) * half;
+  // Trunk: solid part tapering 0.5 -> 0.3 m, then a thin top.
+  parts.push(colored(new THREE.CylinderGeometry(0.28, 0.46, f.solidLen, 9, 3).rotateZ(Math.PI / 2).translate(f.solidLen / 2, 0.42, 0), BARK));
+  parts.push(colored(new THREE.CylinderGeometry(0.06, 0.28, f.h * 0.92 - f.solidLen, 6).rotateZ(Math.PI / 2).translate((f.solidLen + f.h * 0.92) / 2, 0.42, 0), BARK));
+  // Broken limbs sticking up and out along the trunk.
+  for (let i = 0; i < 9; i++) {
+    const s = f.solidLen * (0.3 + rng() * 0.75);
     const side = rng() < 0.5 ? -1 : 1;
-    parts.push(colored(new THREE.CylinderGeometry(0.05, 0.1, 1.4, 4).rotateX(side * (0.6 + rng() * 0.5)).translate(c * t, 0.7, side * 0.5), BARK));
+    const L = 1 + rng() * 1.8;
+    parts.push(colored(new THREE.CylinderGeometry(0.04, 0.09, L, 4).translate(0, L / 2, 0)
+      .rotateX(side * (0.5 + rng() * 0.9)).rotateZ(-0.4 - rng() * 0.5).translate(s, 0.5, 0), BARK));
   }
-  // Crown: leafy blobs lying on their side past the road edge.
-  const LEAF = [0x4f7a3a, 0x5d8a42, 0x47703a];
-  for (let k = 0; k < 7; k++) {
-    const t = half + 0.8 + rng() * 5.5;
-    const r = 1.1 + rng() * 0.9;
-    const g = new THREE.IcosahedronGeometry(r, 0).scale(1.1, 0.75, 1).translate(c * t, r * 0.6, (rng() - 0.5) * 3.2);
-    parts.push(colored(g, LEAF[k % LEAF.length]));
+  // Root plate: an upturned disc of earth and roots, standing across the base.
+  const R = f.kind === 'pine' ? 1.6 : 1.9;
+  parts.push(colored(new THREE.CylinderGeometry(R, R * 1.08, 0.55, 11, 1).rotateZ(Math.PI / 2).translate(-0.15, R * 0.75, 0), SOIL));
+  parts.push(colored(new THREE.CylinderGeometry(R * 0.7, R * 0.9, 0.3, 9, 1).rotateZ(Math.PI / 2).translate(-0.5, R * 0.75, 0), 0x4a3a28));
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * Math.PI * 2 + rng() * 0.4;
+    const L = 0.8 + rng() * 0.9;
+    parts.push(colored(new THREE.CylinderGeometry(0.03, 0.08, L, 4).translate(0, L / 2, 0)
+      .rotateX(Math.PI / 2 + (rng() - 0.5) * 0.6).rotateY(Math.PI / 2 + (rng() - 0.5) * 0.8)
+      .translate(-0.4, R * 0.75 + Math.cos(a) * R * 0.95, Math.sin(a) * R * 0.95), 0x3e3022));
   }
-  return mergeGeometries(parts.map((g) => (g.index ? g.toNonIndexed() : g)));
-}
-
-// Windthrow brush along a blocker's line (b.extra circles): heaps of
-// broken limbs and dead leaves, built in world space on the ground.
-function brushGeo(extra, groundAt, rng) {
-  const LEAF = [0x5f6b3a, 0x6e6a3c, 0x4f6235, 0x7a6a44];
-  const parts = [];
-  for (const e of extra) {
-    const y0 = groundAt(e.x, e.y);
-    const n = 2 + Math.floor(rng() * 2);
-    for (let k = 0; k < n; k++) {
-      const r = e.r * (0.55 + rng() * 0.35);
-      const ox = (rng() - 0.5) * e.r;
-      const oz = (rng() - 0.5) * e.r;
-      const g = new THREE.IcosahedronGeometry(r, 0).scale(1, (e.h || 1) / r * 0.7, 1).rotateY(rng() * 6).translate(e.x + ox, y0 + (e.h || 1) * 0.35, e.y + oz);
-      parts.push(colored(g, LEAF[Math.floor(rng() * LEAF.length)]));
-    }
-    for (let k = 0; k < 3; k++) {
-      const len = e.r * (1.2 + rng());
-      const g = new THREE.CylinderGeometry(0.05, 0.11, len, 4)
-        .rotateZ(Math.PI / 2 - 0.3 + rng() * 0.6).rotateY(rng() * 6)
-        .translate(e.x + (rng() - 0.5) * e.r, y0 + 0.25 + rng() * (e.h || 1) * 0.6, e.y + (rng() - 0.5) * e.r);
-      parts.push(colored(g, 0x5a4532));
-    }
+  // The pit it tore out of (behind the base) and clods of soil about.
+  parts.push(colored(new THREE.CircleGeometry(R * 1.05, 10).rotateX(-Math.PI / 2).scale(0.75, 1, 1).translate(-R * 0.85, 0.03, 0), 0x3a2c1e));
+  for (let i = 0; i < 7; i++) {
+    const r = 0.18 + rng() * 0.3;
+    parts.push(colored(new THREE.IcosahedronGeometry(r, 0).scale(1, 0.6, 1).translate(-R * 0.6 + (rng() - 0.3) * 2.6, r * 0.3, (rng() - 0.5) * R * 2.4), rng() < 0.5 ? SOIL : 0x6b5637));
   }
-  return mergeGeometries(parts.map((g) => (g.index ? g.toNonIndexed() : g)));
+  const geo = mergeGeometries(parts.map((g) => (g.index ? g.toNonIndexed() : g)));
+  // Into world space: turn to the fall heading, pitch to the ground along
+  // the trunk, sit on the higher of the points under it.
+  const ux = Math.sin(f.heading * DEG);
+  const uy = -Math.cos(f.heading * DEG);
+  const y0 = surfaceAt(f.x, f.y);
+  const y1 = surfaceAt(f.x + ux * f.solidLen, f.y + uy * f.solidLen);
+  let lift = 0;
+  for (let k = 1; k < 8; k++) {
+    const t = k / 8;
+    const yt = surfaceAt(f.x + ux * f.solidLen * t, f.y + uy * f.solidLen * t);
+    lift = Math.max(lift, yt - (y0 + (y1 - y0) * t));
+  }
+  const m = new THREE.Matrix4().compose(
+    new THREE.Vector3(f.x, y0 + lift - 0.05, f.y),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -(f.heading - 90) * DEG, Math.atan2(y1 - y0, f.solidLen), 'YZX')),
+    new THREE.Vector3(1, 1, 1),
+  );
+  geo.applyMatrix4(m);
+  return geo;
 }
 
 // ---------- main ----------
 
 export function createHazards3D(scene, opts) {
-  const { terrain, surfaceAt, potholes, sunDir } = opts;
+  const { terrain, surfaceAt, potholes, sunDir, fallen, env = null } = opts;
   const groundAt = (x, y) => terrain.heightAt(x, y);
   const group = new THREE.Group();
   scene.add(group);
@@ -278,13 +278,14 @@ export function createHazards3D(scene, opts) {
   const vc = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
   const branches = instanced(branchGeo(), vc, MAX_DEBRIS);
   const logs = instanced(logGeo(), vc, MAX_DEBRIS);
+  // Tractors keep their shapes, with the cars' sky reflections when there is
+  // one; slow farm trucks are the traffic's stake-side farm truck (one mesh).
+  const vm = env ? new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.6, metalness: 0.1, envMap: env, envMapIntensity: 0.8 }) : vc;
   const tg = tractorGeo();
-  const tractorPaint = instanced(tg.paint, vc, MAX_VEHICLES);
-  const tractorTrim = instanced(tg.trim, vc, MAX_VEHICLES);
-  const kg = truckGeo();
-  const truckPaint = instanced(kg.paint, vc, MAX_VEHICLES);
-  const truckTrim = instanced(kg.trim, vc, MAX_VEHICLES);
-  const meshes = [branches, logs, tractorPaint, tractorTrim, truckPaint, truckTrim];
+  const tractorPaint = instanced(tg.paint, vm, MAX_VEHICLES);
+  const tractorTrim = instanced(tg.trim, vm, MAX_VEHICLES);
+  const truckMesh = vehicleMesh('farmtruck', MAX_VEHICLES, env);
+  const meshes = [branches, logs, tractorPaint, tractorTrim, truckMesh];
   group.add(...meshes);
 
   // Engine smoke: grey, darker as the engine gets worse.
@@ -293,10 +294,15 @@ export function createHazards3D(scene, opts) {
   const puffsLive = [];
   let smokeAcc = 0;
 
-  // Fallen trees from mission data.
-  const blockerGroup = new THREE.Group();
-  group.add(blockerGroup);
-  let blockerKey = '';
+  // Fixed fallen trees: one static mesh.
+  if (fallen && fallen.length) {
+    const geos = fallen.map((f) => fallenGeo(f, surfaceAt, makeRng(f.id.length * 977 + Math.round(f.x))));
+    const mesh = new THREE.Mesh(mergeGeometries(geos), vc);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.name = 'fallenTrees';
+    group.add(mesh);
+  }
 
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
@@ -305,42 +311,8 @@ export function createHazards3D(scene, opts) {
   const s = new THREE.Vector3();
   const col = new THREE.Color();
 
-  function setBlockers(list) {
-    const key = list.map((b) => `${b.id}:${b.x.toFixed(1)}:${b.y.toFixed(1)}`).join('|');
-    if (key === blockerKey) return;
-    blockerKey = key;
-    for (const ch of blockerGroup.children) ch.geometry.dispose();
-    blockerGroup.clear();
-    for (const b of list) {
-      const rng = makeRng(b.id.length * 977 + Math.round(b.x));
-      const mesh = new THREE.Mesh(fallenTreeGeo(b, rng), vc);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      // Trunk along +x in model space; turn it to the blocker's heading.
-      // Rest on the lower of the middle and the ends, tilted to the ground.
-      const ux = Math.sin(b.angle * DEG);
-      const uy = -Math.cos(b.angle * DEG);
-      const half = b.len / 2;
-      const h0 = surfaceAt(b.x - ux * half, b.y - uy * half);
-      const h1 = surfaceAt(b.x + ux * half, b.y + uy * half);
-      const hm = surfaceAt(b.x, b.y);
-      mesh.position.set(b.x, Math.min(hm, (h0 + h1) / 2), b.y);
-      mesh.rotation.order = 'YZX';
-      mesh.rotation.y = -(b.angle - 90) * DEG;
-      mesh.rotation.z = Math.atan2(h1 - h0, b.len);
-      blockerGroup.add(mesh);
-      if (b.extra && b.extra.length) {
-        const brush = new THREE.Mesh(brushGeo(b.extra, surfaceAt, rng), vc);
-        brush.castShadow = true;
-        brush.receiveShadow = true;
-        blockerGroup.add(brush);
-      }
-    }
-  }
-
   return {
     group,
-    setBlockers,
     // hz: createHazards state; car: state.car; carObj: the car's Object3D;
     // smokeLevel 0..1; wind: amb.wind.
     update(hz, dt, focus, car, carObj, smokeLevel, wind, camera, fog, renderer) {
@@ -382,9 +354,8 @@ export function createHazards3D(scene, opts) {
         m.compose(p, q, s);
         col.setHex(v.color);
         if (v.kind === 'truck') {
-          truckPaint.setMatrixAt(nk, m);
-          truckTrim.setMatrixAt(nk, m);
-          truckPaint.setColorAt(nk, col);
+          truckMesh.setMatrixAt(nk, m);
+          truckMesh.setColorAt(nk, col);
           nk++;
         } else {
           tractorPaint.setMatrixAt(nt, m);
@@ -394,14 +365,12 @@ export function createHazards3D(scene, opts) {
         }
       }
       tractorPaint.count = tractorTrim.count = nt;
-      truckPaint.count = truckTrim.count = nk;
+      truckMesh.count = nk;
       for (const mesh of meshes) {
         mesh.visible = mesh.count > 0;
         mesh.instanceMatrix.needsUpdate = true;
         if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
       }
-
-      setBlockers(hz.blockers);
 
       // Engine smoke from under the bonnet: more and darker as it gets worse.
       if (dt > 0 && smokeLevel > 0) {
