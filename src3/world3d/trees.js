@@ -7,8 +7,9 @@
 // So the shadow pass only sees trees near the car, and the main pass only
 // trees in front of the camera, in about a dozen draw calls.
 //
-// ?trees=new swaps the code-made shapes for CC0 Quaternius models
-// (public/look/trees.glb, made by tools/look/trees.mjs): one mesh per kind
+// By default the trees are CC0 Quaternius models
+// (?trees=old brings back the code-made shapes)
+// from public/look/trees.glb, made by tools/look/trees.mjs: one mesh per kind
 // with its own trunk (so no trunk instances), and a simpler far version.
 
 import * as THREE from 'three';
@@ -68,9 +69,9 @@ function makeParts() {
 
 const BASE = { pine: 0x2f5a33, oak: 0x41733a, willow: 0x7f9e48 };
 
-// ?trees=new: load the models before the world is built (top-level await, so
+// Load the models before the world is built (top-level await, so
 // buildTrees stays synchronous). Not in node (tools/check-world.mjs).
-const TREES_NEW = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('trees') === 'new';
+const TREES_NEW = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('trees') !== 'old';
 const MODELS = TREES_NEW ? await loadModels() : null;
 
 async function loadModels() {
