@@ -119,6 +119,7 @@ export function createAmbient(world, scenery) {
     const q = nearestOnPolyline(b.x, b.y, n.pts);
     if (q) n.blocks.push(q.along);
   }
+  for (const n of net) n.baseBlocks = n.blocks.slice();
 
   // Point on a road at distance s (cached segment index in obj.seg).
   function roadPoint(n, s, obj) {
@@ -147,6 +148,8 @@ export function createAmbient(world, scenery) {
 
   // ---------- Traffic ----------
   const cars = [];
+  // Things traffic slows and stops for, refilled by the hazards each frame: [{ x, y, r }].
+  const obstacles = [];
   const carState = []; // parallel internal data
   const totalLen = net.reduce((s, n) => s + n.len, 0);
   function pickSpawn(filter) {
@@ -242,6 +245,15 @@ export function createAmbient(world, scenery) {
       const lat = Math.abs(px * fy - py * fx);
       if (Math.hypot(px, py) < 6) target = 0;
       else if (along > 0 && along < 26 && lat < 5) target = Math.min(target, Math.max(0, (along - 9) * 0.6));
+    }
+    // Hazards on the road (livestock, a tractor, a deer): slow down and wait.
+    for (const o of obstacles) {
+      const ox = o.x - c.x;
+      const oy = o.y - c.y;
+      if (Math.abs(ox) > 30 || Math.abs(oy) > 30) continue;
+      const along = ox * fx + oy * fy;
+      const lat = Math.abs(ox * fy - oy * fx);
+      if (along > 0 && along < 26 && lat < 2.6 + (o.r || 0)) target = Math.min(target, Math.max(0, (along - 8) * 0.6));
     }
     // Don't drive into other traffic going the same way.
     for (const o of cars) {
@@ -909,7 +921,19 @@ export function createAmbient(world, scenery) {
     playerSurface: 'paved', // additive: surface under the player car ('paved'|'dirt'|'grass')
     flocks, // additive (internal-ish): bird groups
     surfaceAt, // additive: road surface lookup
+    obstacles, // additive: [{ x, y, r }] hazards traffic waits behind (the caller refills it)
     time: 0,
+
+    // Additive: extra places traffic turns around (fallen trees across a
+    // road): [{ roadId, at }] with `at` in metres along the road. Replaces
+    // the previous extra list.
+    setRoadBlocks(list) {
+      for (const n of net) n.blocks = n.baseBlocks.slice();
+      for (const b of list || []) {
+        const n = netById.get(b.roadId);
+        if (n) n.blocks.push(b.at);
+      }
+    },
 
     personPos(npcId) {
       return people.get(npcId) || null;
