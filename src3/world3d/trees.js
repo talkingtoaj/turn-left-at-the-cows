@@ -130,7 +130,7 @@ function finish(mesh) {
   }
 }
 
-export function buildTrees(scenery, terrain, sunDir) {
+export function buildTrees(scenery, terrain, sunDir, audit = null) {
   const parts = makeParts();
   const leafMat = new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true });
   const trunkMat = new THREE.MeshLambertMaterial({ color: 0x5a4030, flatShading: true });
@@ -191,11 +191,13 @@ export function buildTrees(scenery, terrain, sunDir) {
     push(t.x, t.y, part, m, col.clone(), r * 4.5);
     const tm = new THREE.Matrix4().compose(new THREE.Vector3(t.x, h - 0.3, t.y), q, new THREE.Vector3(r * 1.6, trunkH + 0.3 + r * 0.6, r * 1.6));
     push(t.x, t.y, 'trunk', tm, null, trunkH + r);
+    if (audit) audit.circle(`tree@${Math.round(t.x)},${Math.round(t.y)}`, 'tree', t.x, t.y, 0.1 * r * 1.6, h - 0.3);
   }
   for (const b of scenery.bushes) {
     const h = terrain.heightAt(b.x, b.y);
     const m = new THREE.Matrix4().compose(new THREE.Vector3(b.x, h + b.r * 0.2, b.y), q.setFromAxisAngle(up, b.tint * 6), new THREE.Vector3(b.r, b.r, b.r));
     push(b.x, b.y, 'bush', m, new THREE.Color(0x3f6b34).multiplyScalar(0.85 + b.tint * 0.3), b.r * 1.5);
+    if (audit) audit.circle(`bush@${Math.round(b.x)},${Math.round(b.y)}`, 'bush', b.x, b.y, b.r * 0.6, h + b.r * 0.2 - b.r * 0.7 * 0.9);
   }
 
   const setList = [];

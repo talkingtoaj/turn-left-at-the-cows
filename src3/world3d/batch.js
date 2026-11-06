@@ -22,22 +22,28 @@ export class Batcher {
     this.buckets = new Map(); // key -> { geos: [], cast, material }
     this.m = new THREE.Matrix4();
     this.tmpColor = new THREE.Color();
+    this.audit = null; // an Audit (audit.js) records placements for the world checker
   }
 
-  // Add a geometry with a world matrix, a colour, and options.
-  // opts: { cast: true, receive: true, material: 'lambert' | 'basic' | custom material }
+  // Add a geometry with a world matrix, a colour, and options. Returns the
+  // placed (world space) geometry.
+  // opts: { cast: true, receive: true, material: 'lambert' | 'basic' | custom material,
+  //         keepColors: true to keep the geometry's own vertex colours }
   add(geo, matrix, color, opts = {}) {
+    const keep = opts.keepColors && geo.attributes.color;
     const g = prep(geo);
     g.applyMatrix4(matrix);
     const n = g.attributes.position.count;
-    const col = new Float32Array(n * 3);
-    const c = this.tmpColor.set(color);
-    for (let i = 0; i < n; i++) {
-      col[i * 3] = c.r;
-      col[i * 3 + 1] = c.g;
-      col[i * 3 + 2] = c.b;
+    if (!keep) {
+      const col = new Float32Array(n * 3);
+      const c = this.tmpColor.set(color);
+      for (let i = 0; i < n; i++) {
+        col[i * 3] = c.r;
+        col[i * 3 + 1] = c.g;
+        col[i * 3 + 2] = c.b;
+      }
+      g.setAttribute('color', new THREE.BufferAttribute(col, 3));
     }
-    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
     // Bucket by the chunk of the piece's first vertex.
     const p = g.attributes.position;
     const cx = Math.floor(p.getX(0) / BATCH_CHUNK);
@@ -51,12 +57,13 @@ export class Batcher {
       this.buckets.set(key, b);
     }
     b.geos.push(g);
+    return g;
   }
 
   // Place a geometry at world (x, y) with ground height `base`, rotated by a
   // heading-style angle (deg), then offset in the local frame (lx right, ly back, up).
   place(geo, x, y, base, angle, lx, ly, up, color, opts) {
-    this.add(geo, objMatrix(x, y, base, angle, lx, ly, up, opts && opts.extra), color, opts);
+    return this.add(geo, objMatrix(x, y, base, angle, lx, ly, up, opts && opts.extra), color, opts);
   }
 
   build(materials) {

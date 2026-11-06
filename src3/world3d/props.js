@@ -1,7 +1,7 @@
 // Road signs (posts with blank boards, the text lives in the HUD) and locals.
 
 import * as THREE from 'three';
-import { distToSegment } from '../../src/drive/geom.js';
+import { distToSegment, localToWorld } from '../../src/drive/geom.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { box, cyl } from './shapes.js';
 
@@ -47,6 +47,12 @@ export function buildSigns(world, terrain, batch) {
     const angle = s.facing != null ? (s.facing + 180) % 360 : bearingToRoad(world, s.x, s.y);
     const base = terrain.heightAt(s.x, s.y);
     const P = (geo, lx, ly, up, color, opts) => batch.place(geo, s.x, s.y, base, angle, lx, ly, up, color, opts);
+    if (batch.audit) {
+      for (const px of bw > 2 ? [-bw * 0.32, bw * 0.32] : [0]) {
+        const c = localToWorld(s.x, s.y, angle, px, 0.08);
+        batch.audit.circle(s.id, 'sign_post', c.x, c.y, 0.06, base - 0.3);
+      }
+    }
     const top = 2.3;
     const posts = bw > 2 ? [-bw * 0.32, bw * 0.32] : [0];
     for (const px of posts) P(box(0.12, top + 0.3, 0.12), px, 0.08, -0.3, 0x4a3a28);
@@ -89,7 +95,7 @@ function mergeParts(parts) {
 
 // Each local is its own small group (body plus two swinging legs, three draw
 // calls) so it can turn to face the car.
-export function buildLocals(world, terrain) {
+export function buildLocals(world, terrain, audit = null) {
   const group = new THREE.Group();
   const people = [];
   const legGeos = new Map();
@@ -123,6 +129,7 @@ export function buildLocals(world, terrain) {
     }
     add(mergeParts(body), 0, 0, 0);
     p.position.set(l.x, terrain.heightAt(l.x, l.y), l.y);
+    if (audit) audit.circle(l.id, 'local', l.x, l.y, 0.2, terrain.heightAt(l.x, l.y), terrain.heightAt(l.x, l.y));
     group.add(p);
     people.push({ id: l.id, obj: p, x: l.x, y: l.y, yaw: 0, legs: p.children.slice(0, 2), walk: 0 });
   });

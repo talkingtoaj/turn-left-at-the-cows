@@ -106,6 +106,23 @@ function buildSky() {
   return mesh;
 }
 
+// Everything placed on the terrain: ground features, fields, props, buildings,
+// landmarks, signs, trees and locals. Static pieces go into `batch`. The world
+// checker (tools/check-world.mjs) calls this too, with batch.audit set.
+export function buildObjects(world, scenery, terrain, batch, materials = {}) {
+  buildGround(world, scenery, terrain, batch);
+  buildFields(world, terrain, batch);
+  buildProps(world, terrain, batch);
+  const wires = buildPowerLines(world, terrain, batch);
+  buildMailboxes(world, terrain, batch);
+  const chimneys = new Map();
+  const dynamic = buildStructures(world, terrain, batch, materials, { chimneys });
+  buildSigns(world, terrain, batch);
+  const trees = buildTrees(scenery, terrain, SUN_DIR, batch.audit);
+  const locals = buildLocals(world, terrain, batch.audit);
+  return { wires, chimneys, dynamic, trees, locals };
+}
+
 export function buildWorld3D(scene, world, scenery, collider) {
   const t0 = performance.now();
   scene.background = new THREE.Color(FOG_COLOR);
@@ -200,20 +217,11 @@ export function buildWorld3D(scene, world, scenery, collider) {
   const t2 = performance.now();
 
   const batch = new Batcher();
-  buildGround(world, scenery, terrain, batch);
-  buildFields(world, terrain, batch);
-  buildProps(world, terrain, batch);
-  const wires = buildPowerLines(world, terrain, batch);
+  const { wires, chimneys, dynamic, trees, locals } = buildObjects(world, scenery, terrain, batch, materials);
   if (wires) scene.add(wires);
-  buildMailboxes(world, terrain, batch);
-  const chimneys = new Map();
-  const dynamic = buildStructures(world, terrain, batch, materials, { chimneys });
-  buildSigns(world, terrain, batch);
   scene.add(batch.build(materials));
   for (const d of dynamic) scene.add(d.object);
-  const trees = buildTrees(scenery, terrain, SUN_DIR);
   scene.add(trees.object);
-  const locals = buildLocals(world, terrain);
   scene.add(locals.object);
   const t3 = performance.now();
   console.info(`[3d] terrain ${Math.round(t1 - t0)} ms, ground mesh ${Math.round(t2 - t1)} ms, objects ${Math.round(t3 - t2)} ms`);

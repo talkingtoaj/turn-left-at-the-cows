@@ -82,6 +82,7 @@ function fixWinding(g) {
 
 export function buildGround(world, scenery, terrain, batch) {
   const H = (x, y) => terrain.heightAt(x, y);
+  const A = batch.audit;
   const rng = makeRng(world.seed + 7);
   const creek = world.creeks[0];
   const water = new SegIndex(32);
@@ -90,15 +91,17 @@ export function buildGround(world, scenery, terrain, batch) {
   const roadIdx = new SegIndex(32);
   for (const r of world.roads) roadIdx.addPolyline(r.points, r.width / 2 + 3, r);
 
-  const addRibbon = (pts, width, lift, color, skip, offset = 0) => {
+  const addRibbon = (pts, width, lift, color, skip, offset = 0, id = 'road') => {
     const g = ribbon(pts, width, lift, H, skip, 3, offset);
     if (g) batch.add(g, ID, color, NO_SHADOW);
+    if (A) A.surface(id, 'road', g, lift);
   };
   // Round caps at the road ends only (junctions); the dense curve needs none in between.
   const addCaps = (pts, width, lift, color, skip) => {
     for (const [x, y] of [pts[0], pts[pts.length - 1]]) {
       if (skip && skip(x, y)) continue;
-      batch.add(disc(width / 2, 14), objMatrix(x, y, H(x, y) + lift, 0), color, NO_SHADOW);
+      const g = batch.add(disc(width / 2, 14), objMatrix(x, y, H(x, y) + lift, 0), color, NO_SHADOW);
+      if (A) A.surface('road_cap', 'road', g, lift);
     }
   };
 
@@ -131,6 +134,7 @@ export function buildGround(world, scenery, terrain, batch) {
       if (nearWater(a.x, a.y)) continue;
       const g = ribbon([[a.x, a.y], [b.x, b.y]], 0.25, 0.15, H, null, 3);
       if (g) batch.add(g, ID, 0xe6d690, NO_SHADOW);
+      if (A) A.surface(r.id, 'road_dash', g, 0.15);
     }
   }
 
@@ -139,6 +143,7 @@ export function buildGround(world, scenery, terrain, batch) {
     const flatH = () => 0;
     const g = ribbon(c.points, c.width + 3, WATER_LEVEL, flatH, null, 6);
     batch.add(g, ID, 0x467aa6, { cast: false, material: 'water' });
+    if (A) A.surface(c.id, 'creek', g, 0, { water: true });
     const g2 = ribbon(c.points, c.width * 0.4, WATER_LEVEL + 0.02, flatH, null, 6);
     batch.add(g2, ID, 0x5a8dba, { cast: false, material: 'water' });
     const cum = measurePolyline(c.points);
@@ -154,13 +159,15 @@ export function buildGround(world, scenery, terrain, batch) {
       const s = 0.6 + rng() * 0.8;
       const m = objMatrix(x, y, Math.max(H(x, y), WATER_LEVEL), rng() * 360, 0, 0, 0, new THREE.Matrix4().makeScale(s, s, s));
       batch.add(reed, m, rng() < 0.5 ? 0x3f6a33 : 0x6b8a3f, { cast: false });
+      if (A) A.circle(c.id, 'reed', x, y, 0.14 * s, Math.max(H(x, y), WATER_LEVEL), null, WATER_LEVEL);
     }
   }
 
   // Lakes: flat water with a darker middle, lily pads.
   for (const l of world.lakes) {
     const g = flatPolygon(l.polygon);
-    batch.add(g, new THREE.Matrix4().makeTranslation(0, WATER_LEVEL, 0), 0x467aa6, { cast: false, material: 'water' });
+    const lw = batch.add(g, new THREE.Matrix4().makeTranslation(0, WATER_LEVEL, 0), 0x467aa6, { cast: false, material: 'water' });
+    if (A) A.surface(l.id, 'lake', lw, 0, { water: true });
     const [mx, my] = centroid(l.polygon);
     const inner = l.polygon.map(([x, y]) => [mx + (x - mx) * 0.65, my + (y - my) * 0.65]);
     batch.add(flatPolygon(inner), new THREE.Matrix4().makeTranslation(0, WATER_LEVEL + 0.02, 0), 0x3d6e98, { cast: false, material: 'water' });
@@ -183,13 +190,19 @@ export function buildGround(world, scenery, terrain, batch) {
       const b = localToWorld(p.x, p.y, p.angle || 0, 0, p.h / 2);
       const g = ribbon([[a.x, a.y], [b.x, b.y]], p.w, 0.04, H, null, 3);
       if (g) batch.add(g, ID, PAD[p.kind] ?? PAD.gravel, NO_SHADOW);
+      if (A) A.surface(`${p.kind}@${Math.round(p.x)},${Math.round(p.y)}`, `pad_${p.kind}`, g, 0.04);
       continue;
     }
-    batch.place(flat(p.w, p.h), p.x, p.y, base, p.angle, 0, 0, 0.04, PAD[p.kind], NO_SHADOW);
+    const fp = batch.place(flat(p.w, p.h), p.x, p.y, base, p.angle, 0, 0, 0.04, PAD[p.kind], NO_SHADOW);
+    if (A) A.surface(`field@${Math.round(p.x)},${Math.round(p.y)}`, 'pad_field', fp, 0.04);
     if (p.kind === 'field') {
       // Crop rows, then a post-and-rail fence round it.
       for (let x = -p.w / 2 + 1.5; x < p.w / 2; x += 2.6) {
         batch.place(box(0.9, 0.35, p.h - 2), p.x, p.y, base, p.angle, x, 0, 0, 0x6f8a3c, { cast: false });
+        if (A) {
+          const c = localToWorld(p.x, p.y, p.angle || 0, x, 0);
+          A.rect('farm_field', 'garden_row', c.x, c.y, 0.9, p.h - 2, p.angle, base, base + 0.25);
+        }
       }
       const fw = p.w + 2;
       const fh = p.h + 2;
@@ -203,6 +216,10 @@ export function buildGround(world, scenery, terrain, batch) {
           const px = along === 'x' ? lx + t : lx;
           const py = along === 'x' ? ly : ly + t;
           batch.place(post, p.x, p.y, base, p.angle, px, py, 0, wood, { cast: false });
+          if (A) {
+            const c = localToWorld(p.x, p.y, p.angle || 0, px, py);
+            A.circle('farm_field', 'garden_post', c.x, c.y, 0.08, base);
+          }
         }
       }
     }
@@ -210,6 +227,13 @@ export function buildGround(world, scenery, terrain, batch) {
 
   const coveredDrawn = new Set(world.landmarks.filter((l) => l.kind === 'covered_bridge').map((l) => l.bridgeId));
   for (const b of world.bridges) {
+    if (A && b.kind !== 'ford') {
+      // The road meets the deck (or the stub) at both ends.
+      for (const dir of [-1, 1]) {
+        const e = localToWorld(b.x, b.y, b.angle, 0, dir * (b.length / 2 + 3));
+        A.point({ id: b.id, kind: 'bridge_end', x: e.x, y: e.y, min: DECK_TOP - 0.6, max: DECK_TOP });
+      }
+    }
     if (coveredDrawn.has(b.id)) continue; // drawn with the landmarks (landmarks3d.js)
     if (b.kind === 'ford') buildFord(world, b, batch, rng);
     else buildBridge(world, b, creek, batch, rng);

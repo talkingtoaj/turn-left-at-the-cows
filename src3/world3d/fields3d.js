@@ -2,7 +2,7 @@
 // power lines and roadside mailboxes. All static, baked into the batches.
 
 import * as THREE from 'three';
-import { centroid, DEG, hashString } from '../../src/drive/geom.js';
+import { centroid, DEG, hashString, localToWorld } from '../../src/drive/geom.js';
 import { fenceRuns } from '../../src/drive/layout.js';
 import { box, cyl } from './shapes.js';
 import { ribbon } from './ground.js';
@@ -142,7 +142,7 @@ const hash2 = (x, y) => {
 
 // A raised row from a to b (world [x, y]): trapezoid cross-section (bottom
 // width, top width, height) that follows the ground. top = 0 makes a ridge.
-function rowPrism(sides, caps, a, b, H, r) {
+function rowPrism(sides, caps, a, b, H, r, audit = null, id = 'row') {
   const dx = b[0] - a[0];
   const dy = b[1] - a[1];
   const L = Math.hypot(dx, dy);
@@ -159,7 +159,15 @@ function rowPrism(sides, caps, a, b, H, r) {
     const g = H(x, y);
     const h = r.h * (r.jitter ? 1 + hash2(x, y) * r.jitter * 2 : 1);
     const pt = (w, up) => [x + nx * w, g + up, y + ny * w];
-    S.push({ bl: pt(-r.bottom / 2, -0.05), br: pt(r.bottom / 2, -0.05), tl: pt(-r.top / 2, h), tr: pt(r.top / 2, h) });
+    S.push({ bl: pt(-r.bottom / 2, -0.05), br: pt(r.bottom / 2, -0.05), tl: pt(-r.top / 2, h), tr: pt(r.top / 2, h), h });
+  }
+  if (audit) {
+    audit.row({
+      id, kind: 'crop_row',
+      left: S.map((s) => [s.bl[0], s.bl[2], s.bl[1], 0]),
+      right: S.map((s) => [s.br[0], s.br[2], s.br[1], 0]),
+      top: S.map((s, i) => [(s.tl[0] + s.tr[0]) / 2, (s.tl[2] + s.tr[2]) / 2, s.tl[1], S[i].h]),
+    });
   }
   const left = [-nx, 0.3, -ny];
   const right = [nx, 0.3, ny];
@@ -189,6 +197,7 @@ function fieldBase(batch, f, fr, color, H, alt = color) {
   eachRow(f.polygon, fr, W, 0.3, (a, b) => {
     const g = ribbon([a, b], W + 0.06, 0.04, H, null, 5);
     if (g) batch.add(g, I, k++ % 2 ? alt : color, GROUND);
+    if (batch.audit) batch.audit.surface(f.id, 'field_base', g, 0.04);
   });
 }
 
@@ -200,13 +209,14 @@ function cropField(batch, f, H) {
     eachRow(f.polygon, fr, look.gap, 1, (a, b) => {
       const g = ribbon([a, b], look.stripe.w, 0.08, H, null, 6);
       if (g) batch.add(g, I, look.stripe.color, GROUND);
+      if (batch.audit) batch.audit.surface(f.id, 'hay_stripe', g, 0.08);
     });
     return;
   }
   const r = look.row;
   const sides = new Tris();
   const caps = new Tris();
-  eachRow(f.polygon, fr, look.gap, 1.2, (a, b) => rowPrism(sides, caps, a, b, H, r));
+  eachRow(f.polygon, fr, look.gap, 1.2, (a, b) => rowPrism(sides, caps, a, b, H, r, batch.audit, f.id));
   const opts = { cast: !!r.cast };
   const gs = sides.geometry();
   if (gs) batch.add(gs, I, r.side, opts);
@@ -225,9 +235,11 @@ function pasture(batch, f, H) {
   const ang = Math.atan2(fr.d[0], -fr.d[1]) / DEG + 90;
   const [tx, ty] = at(0.4);
   batch.add(box(3, 0.6, 0.9), objMatrix(tx, ty, H(tx, ty), ang), 0x8a8f96);
+  if (batch.audit) batch.audit.rect(f.id, 'trough', tx, ty, 3, 0.9, ang, H(tx, ty), H(tx, ty));
   batch.add(box(2.8, 0.05, 0.7), objMatrix(tx, ty, H(tx, ty) + 0.56, ang), 0x467aa6, { cast: false });
   const [fx, fy] = at(-0.5);
   batch.add(cyl(1.1, 1.0, 8), objMatrix(fx, fy, H(fx, fy), 0), 0x6a6f72);
+  if (batch.audit) batch.audit.circle(f.id, 'feeder', fx, fy, 1.1, H(fx, fy), H(fx, fy));
   batch.add(cyl(0.95, 0.5, 8), objMatrix(fx, fy, H(fx, fy) + 0.9, 0), 0xcdb46a, { cast: false });
 }
 
@@ -249,9 +261,14 @@ function fences(world, batch, H) {
         const p = pts[i];
         const h0 = hs[i];
         posts.beam([p.x, h0 - 0.25, p.y], [p.x, h0 + (rail ? 1.35 : 1.15), p.y], rail ? 0.18 : 0.14, rail ? 0.18 : 0.14);
+        if (batch.audit) batch.audit.circle(f.field.id, 'fence_post', p.x, p.y, rail ? 0.09 : 0.07, h0 - 0.25);
         const q = pts[i + 1];
         if (!q) continue;
         const h1 = hs[i + 1];
+        if (batch.audit) {
+          const low = rail ? 0.45 - 0.07 : 0.55 - 0.035;
+          batch.audit.span({ id: f.field.id, kind: 'fence_rail', a: [p.x, p.y, h0 + low], b: [q.x, q.y, h1 + low], clear: 0.2 });
+        }
         for (const up of rail ? [0.45, 0.85, 1.22] : [0.55, 1.0]) {
           if (rail) rails.beam([p.x, h0 + up, p.y], [q.x, h1 + up, q.y], 0.14, 0.05);
           else rails.beam([p.x, h0 + up, p.y], [q.x, h1 + up, q.y], 0.07, 0.07);
@@ -303,15 +320,19 @@ export function buildProps(world, terrain, batch) {
   for (const p of world.props || []) {
     const r = p.r || 1;
     const base = H(p.x, p.y);
+    const A = batch.audit;
     if (p.kind === 'bale') {
+      if (A) A.rect(p.id, 'bale', p.x, p.y, r * 0.8, 1.2, p.angle, base - 0.05 * r, base - 0.05 * r);
       // Round bale lying on its side, about 1.2 m wide.
       batch.add(BALE, objMatrix(p.x, p.y, base + r * 0.95, p.angle || 0, 0, 0, 0, new THREE.Matrix4().makeScale(r, r, 1.2)), 0xd9c27a);
     } else if (p.kind === 'haystack') {
+      if (A) A.circle(p.id, 'haystack', p.x, p.y, r, base - 0.1, base);
       const sb = new THREE.Matrix4().makeScale(r, r * 0.8, r).premultiply(new THREE.Matrix4().makeTranslation(0, r * 0.4 - 0.1, 0));
       batch.add(STACK_BASE, objMatrix(p.x, p.y, base, p.angle || 0, 0, 0, 0, sb), 0xcdb46a);
       const st = new THREE.Matrix4().makeScale(r, r * 0.95, r).premultiply(new THREE.Matrix4().makeTranslation(0, r * 0.8 - 0.1 + r * 0.47, 0));
       batch.add(STACK_TOP, objMatrix(p.x, p.y, base, p.angle || 0, 0, 0, 0, st), 0xbfa55a);
     } else if (p.kind === 'rock') {
+      if (A) A.circle(p.id, 'rock', p.x, p.y, r * 0.6, base - 0.82 * r);
       const seed = hashString(String(p.id));
       const sc = new THREE.Matrix4().makeScale(r, r, r);
       batch.add(rockGeo(seed), objMatrix(p.x, p.y, base - r * 0.2, p.angle || 0, 0, 0, 0, sc), ROCK_COLORS[seed % ROCK_COLORS.length]);
@@ -348,6 +369,7 @@ export function buildPowerLines(world, terrain, batch) {
       const ang = Math.atan2(dx, -dy) / DEG;
       const base = H(p.x, p.y);
       batch.add(pole, objMatrix(p.x, p.y, base - 0.3, ang), 0x5b4632);
+      if (batch.audit) batch.audit.circle(line.id || 'power', 'power_pole', p.x, p.y, 0.15, base - 0.3);
       batch.place(arm, p.x, p.y, base, ang, 0, 0, ARM_UP - 0.12, 0x4d3b2a);
       const pts = [];
       for (const lx of [-ARM_HALF, 0, ARM_HALF]) {
@@ -395,6 +417,10 @@ export function buildMailboxes(world, terrain, batch) {
     const base = terrain.heightAt(m.x, m.y);
     // Door faces the road: local -z is the box's front, turned to `facing`.
     const P = (geo, lx, ly, up, color, opts) => batch.place(geo, m.x, m.y, base, m.facing || 0, lx, ly, up, color, opts);
+    if (batch.audit) {
+      const c = localToWorld(m.x, m.y, m.facing || 0, 0, 0.15);
+      batch.audit.circle(m.id || `mailbox${i}`, 'mailbox', c.x, c.y, 0.06, base - 0.1);
+    }
     P(box(0.12, 1.15, 0.12), 0, 0.15, -0.1, 0x6a4c2e);
     P(box(0.28, 0.06, 0.6), 0, 0, 1.05, 0x6a4c2e, { cast: false });
     const col = MAILBOX[i % MAILBOX.length];
