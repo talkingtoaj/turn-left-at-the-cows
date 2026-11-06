@@ -82,7 +82,9 @@ export function createDamageHazards({ scene, scenery, collider, amb, world3d, ri
     hz,
     group: hz3d.group,
     mods() {
-      return damageMods(state.damage, mods);
+      damageMods(state.damage, mods);
+      mods.surfaceFeel = true; // surfaces change grip and drag, not top speed (car.js)
+      return mods;
     },
 
     beforeStep() {
@@ -119,6 +121,7 @@ export function createDamageHazards({ scene, scenery, collider, amb, world3d, ri
       const d = updateDamage(state, dt, result, collider, p);
       for (const e of d.events) {
         if (e.type === 'bump' && e.amount > 0) rig.shake(3 + 10 * e.strength);
+        if (e.type === 'rough') rig.shake(e.heavy ? 5 : 2);
       }
       if (result.hit && ANIMALS.has(result.hit.kind)) hz.startle(state.car.x, state.car.y);
       hornCool = Math.max(0, hornCool - dt);

@@ -10,6 +10,19 @@ const REVERSE_ACCEL = 5;
 const REVERSE_MAX = 6;
 const COAST = 2.5; // rolling drag with no pedal
 const OVERSPEED_DECEL = 12; // how fast you slow when leaving a faster surface
+// Surface feel (3D, mods.surfaceFeel): no per-surface top speed. One engine
+// top speed for all; each surface sets how hard the car can speed up (accel)
+// and brake (grip), how much it drags with no pedal (coast), and a rolling
+// drag that grows with speed squared (drag, per metre), so holding a high
+// speed off-road takes effort. Going too fast on rough ground does damage
+// instead (src/game/damage.js, TUNING.rough).
+export const TOP_SPEED = 25; // m/s, the engine limit
+export const SURFACE_FEEL = {
+  paved: { accel: 1, brake: 1, coast: 1, drag: 0.0004 },
+  dirt: { accel: 0.8, brake: 0.75, coast: 1.15, drag: 0.0019 },
+  grass: { accel: 0.55, brake: 0.55, coast: 1.8, drag: 0.0036 },
+};
+const ENGINE_LIMIT_DECEL = 3; // m/s^2 back down to top speed (a damaged engine's lower top)
 const TURN_RATE = 95; // deg/s at low-ish speed
 const MAX_STEP = 0.5; // metres per physics sub-step, so nothing tunnels
 
@@ -21,7 +34,9 @@ function approach(v, target, amount) {
 const NO_MODS = { vmaxMul: 1, accelMul: 1, pull: 0 };
 
 // input: { up, down, left, right, brake }.
-// mods (optional, from src/game/damage.js): { vmaxMul, accelMul, pull }.
+// mods (optional, from src/game/damage.js): { vmaxMul, accelMul, pull, surfaceFeel }.
+//   surfaceFeel: true uses SURFACE_FEEL (3D); without it each surface keeps
+//   its old hard top speed (MAX_SPEED, the Phaser version).
 //   vmaxMul scales top speed, accelMul scales engine power (0 = stalled,
 //   the car coasts), pull is a steady turn in deg/s at speed (+ = right) from
 //   a flat tyre or bent steering.
@@ -32,6 +47,7 @@ const NO_MODS = { vmaxMul: 1, accelMul: 1, pull: 0 };
 // hit (a glancing scrape is slow even when the car is fast).
 export function stepCar(car, input, dt, collider, mods = NO_MODS) {
   const surface = collider.surfaceAt(car.x, car.y);
+  if (mods.surfaceFeel) return stepCarFeel(car, input, dt, collider, mods, surface);
   const vmax = MAX_SPEED[surface] * (mods.vmaxMul ?? 1);
   const power = mods.accelMul ?? 1;
   let v = car.speed;
@@ -53,6 +69,35 @@ export function stepCar(car, input, dt, collider, mods = NO_MODS) {
   if (v > vmax) v = Math.max(vmax, v - OVERSPEED_DECEL * dt);
   if (v < -revMax) v = Math.min(-revMax, v + OVERSPEED_DECEL * dt);
 
+  return moveCar(car, input, dt, collider, mods, surface, v);
+}
+
+// Throttle, brake and drag with the surface feel (see SURFACE_FEEL).
+function stepCarFeel(car, input, dt, collider, mods, surface) {
+  const S = SURFACE_FEEL[surface] || SURFACE_FEEL.paved;
+  const vmax = TOP_SPEED * (mods.vmaxMul ?? 1);
+  const power = mods.accelMul ?? 1;
+  let v = car.speed;
+  if (input.brake) {
+    v = approach(v, 0, BRAKE * 1.2 * S.brake * dt);
+  } else if (input.up && !input.down && power > 0) {
+    v = v < -0.1 ? v + BRAKE * S.brake * dt : v + ACCEL * power * S.accel * (1 - Math.max(0, v) / (TOP_SPEED * 1.6)) * dt;
+  } else if (input.down && !input.up && (power > 0 || v > 0.1)) {
+    v = v > 0.1 ? v - BRAKE * S.brake * dt : v - REVERSE_ACCEL * power * S.accel * dt;
+  } else {
+    v = approach(v, 0, (COAST * S.coast + Math.abs(v) * 0.03) * dt);
+  }
+  // Rolling drag, rising with speed (not while braking: that already stops you).
+  if (!input.brake) v = approach(v, 0, S.drag * v * v * dt);
+  if (v > vmax) v = Math.max(vmax, v - ENGINE_LIMIT_DECEL * dt);
+  if (v < -REVERSE_MAX) v = Math.min(-REVERSE_MAX, v + ENGINE_LIMIT_DECEL * dt);
+  const res = moveCar(car, input, dt, collider, mods, surface, v);
+  res.feel = true; // tells damage.js to count rough-ground knocks
+  return res;
+}
+
+// Steering and the collision-checked move, shared by both models.
+function moveCar(car, input, dt, collider, mods, surface, v) {
   // Steering scales up with speed, eases off a bit at the top end.
   const steer = (input.right ? 1 : 0) - (input.left ? 1 : 0);
   const speedFactor = Math.min(1, Math.abs(v) / 5) * (1 - 0.35 * Math.min(1, Math.abs(v) / 25));

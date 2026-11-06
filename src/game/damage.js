@@ -36,6 +36,21 @@ export const TUNING = {
   // Curb: leaving a paved road onto grass fast.
   curbMin: 14, // m/s (50 km/h)
   curbScale: 0.04,
+  // Too fast on rough ground (3D surface feel): above a surface's safe speed,
+  // stones and ruts chip at the car. Chance of a knock per second:
+  //   chance = rate[surface] * (over / safe + 0.05)^2,  over = speed - safe > 0
+  // (safe x flatSafeMul on a flat tyre: riding a flat over stones shreds it)
+  // Each knock costs `size` (x a random 0.6..1.4), mostly to the tyres.
+  rough: {
+    safe: { paved: Infinity, dirt: 16, grass: 9 }, // m/s (dirt 58, grass 32 km/h)
+    rate: { paved: 0, dirt: 0.95, grass: 0.9 },
+    offset: 0.05,
+    flatSafeMul: 0.6, // on a flat tyre rough ground is safe only at 60% of the speed
+    size: 0.025,
+    split: { tyres: 0.7, steering: 0.2, engine: 0.1 }, // share of knocks per part
+    partMul: { tyres: 1, steering: 0.8, engine: 0.5 }, // size for that part
+    heavy: 1.15, // knocks over size x this are a heavier underbody thump
+  },
   // Effects.
   tyreWorn: 0.75, // below: a soft tyre, pulls a little
   tyreFlat: 0.45, // below: flat, flaps, pulls hard, slower
@@ -215,6 +230,42 @@ function applyBump(d, item, speed, wheel) {
 
 const _seen = new Set();
 
+// Chance per second of a rough-ground knock at `speed` on `surface`.
+export function roughChance(surface, speed, d = null) {
+  const R = TUNING.rough;
+  const safe = (R.safe[surface] ?? Infinity) * (d && d.tyres < TUNING.tyreFlat ? R.flatSafeMul : 1);
+  const over = speed - safe;
+  if (!(over > 0)) return 0;
+  return (R.rate[surface] || 0) * (over / safe + R.offset) ** 2;
+}
+
+function rough(d, surface, speed, dt) {
+  const R = TUNING.rough;
+  const chance = roughChance(surface, speed, d);
+  const safe = (R.safe[surface] ?? Infinity) * (d.tyres < TUNING.tyreFlat ? R.flatSafeMul : 1);
+  d.rough = { surface: surface || '?', safe, chance };
+  if (chance <= 0 || Math.random() >= 1 - Math.exp(-chance * dt)) return;
+  let k = Math.random();
+  let part = 'tyres';
+  for (const [p, share] of Object.entries(R.split)) {
+    if ((k -= share) <= 0) {
+      part = p;
+      break;
+    }
+  }
+  const m = 0.6 + Math.random() * 0.8;
+  const a = R.size * m * R.partMul[part];
+  const before = d.tyres;
+  hurt(d, part, a);
+  if (part === 'tyres' && before >= 0.8 && d.tyres < 0.8) d.flatWheel = Math.floor(Math.random() * 4);
+  d.jolt += (2 + 6 * m) * (Math.random() < 0.5 ? -1 : 1);
+  d.hits++;
+  d.events.push({
+    type: 'rough', part, amount: a, heavy: m > R.heavy, strength: Math.min(1, speed / 25),
+    pan: Math.random() * 1.6 - 0.8,
+  });
+}
+
 // Call after stepCar each frame (not while paused). prev = { x, y, heading }
 // where the car was before the step.
 export function updateDamage(state, dt, result, collider, prev) {
@@ -272,6 +323,9 @@ export function updateDamage(state, dt, result, collider, prev) {
         }
       }
     }
+
+    // Too fast on rough ground (only with the 3D surface feel, result.feel).
+    if (result && result.feel) rough(d, result && result.surface, speed, dt);
 
     // Curb: off a paved road onto grass, fast.
     const surface = result && result.surface;
