@@ -79,7 +79,7 @@ function eachRow(poly, fr, gap, inset, fn) {
 }
 
 // Collects triangles (three.js coords) with outward-facing winding.
-class Tris {
+export class Tris {
   constructor() {
     this.v = [];
   }

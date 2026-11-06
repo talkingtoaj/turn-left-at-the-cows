@@ -155,6 +155,8 @@ export class Terrain {
       for (const c of s.circles) disc(c.x, c.y, c.r + 10);
     }
     for (const l of world.landmarks) if (l.kind !== 'radio_mast' && l.kind !== 'lookout_tower') disc(l.x, l.y, l.r ? l.r + 10 : 30);
+    // The old railway: graded level like a paved road.
+    for (const l of world.landmarks) if (l.points) flat.addPolyline(l.points, 8 + BLEND, 8);
     for (const t of world.towns) disc(t.x, t.y, 90);
     for (const p of world.places || [world.goal]) disc(p.x, p.y, 70);
     const lakes = world.lakes.map((l) => ({ ...l, bb: bbox(l.polygon) }));

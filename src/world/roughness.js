@@ -133,6 +133,7 @@ class Roughness {
     }
     for (const l of world.landmarks) disc(l.x, l.y, l.r ? l.r + 10 : l.kind === 'radio_mast' ? 40 : (l.clearR || 20) + 4);
     for (const b of world.bridges) disc(b.x, b.y, b.length / 2 + 6);
+    for (const l of world.landmarks) if (l.points) this.flat.addPolyline(l.points, 8 + REACH, 8); // the old railway
     for (const p of world.places || []) disc(p.x, p.y, (p.r || 25) + 20);
     if (world.start) disc(world.start.x, world.start.y, 20);
     for (const p of pads) {

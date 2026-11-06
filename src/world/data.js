@@ -233,6 +233,24 @@ export const WORLD_SOURCE = {
     { id: 'covered', kind: 'covered_bridge', name: 'Covered bridge', bridgeId: 'b_covered', x: 0, y: 0, clearR: 30 },
     { id: 'quarry', kind: 'quarry', name: 'Calder Stone Co. quarry', x: 3690, y: 770, r: 90, clearR: 100 },
     { id: 'campground', kind: 'campground', name: 'Loon Pond campground', x: 5470, y: 462, clearR: 45 },
+    // Places that changed: ruins and old things locals can point you by
+    // ("past the old Voss place"). printed: false keeps them off printed maps.
+    // The Voss farm, empty since 1979; the quarry bought the land.
+    { id: 'voss_place', kind: 'farm_ruin', name: 'the old Voss place', x: 3630, y: 1005, angle: 75, clearR: 32, printed: false },
+    // Walt Pruitt's 1952 truck, left in the corner of the sheep field when the clutch went.
+    { id: 'pruitt_truck', kind: 'rusty_truck', name: "Pruitt's old truck", x: 2923, y: 1177, angle: 32, clearR: 8, printed: false },
+    // The branch line, closed 1959: a stretch of bank east of Highway 9 and
+    // Gilmore Halt's platform (x, y is the platform). Rails lifted at the highway.
+    {
+      id: 'old_railway', kind: 'railway', name: 'Gilmore Halt', x: 2530, y: 1787.4, clearR: 12, printed: false,
+      points: [[2445, 1790], [2600, 1795], [2800, 1805], [3000, 1822], [3160, 1846]],
+    },
+    // The old co-op elevator at the bottom of Ashford, empty since the railway closed.
+    { id: 'ashford_elevator', kind: 'grain_elevator', name: 'Ashford grain elevator', x: 660, y: 2592, angle: 90, clearR: 18, printed: false },
+    // Windpumps at the farms: tall, easy to take a bearing on.
+    { id: 'wp_hartley', kind: 'windpump', name: 'Hartley windpump', x: 2747, y: 452, clearR: 6, printed: false },
+    { id: 'wp_pruitt', kind: 'windpump', name: 'Pruitt windpump', x: 2900, y: 1064, clearR: 6, printed: false },
+    { id: 'wp_okafor', kind: 'windpump', name: 'Okafor windpump', x: 5012, y: 2004, clearR: 6, printed: false },
   ],
 
   // Areas to scatter trees in. Keep trees at least 12 m from any road.

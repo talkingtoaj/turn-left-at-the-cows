@@ -33,6 +33,8 @@ export function printedMapsFor(state) {
 const KINDS = ['roads', 'creeks', 'lakes', 'bridges', 'towns', 'buildings', 'landmarks', 'places', 'forests'];
 
 function pick(def, kind, list) {
+  // Landmarks marked printed: false (ruins, windpumps) never show on printed maps.
+  if (kind === 'landmarks') list = list.filter((l) => l.printed !== false);
   if (def.include === 'all' || !def.include) return list;
   const ids = def.include[kind];
   if (ids === 'all') return list;

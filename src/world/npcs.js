@@ -59,6 +59,17 @@ export const NPCS = [
       },
       ashford: {
         lines: ["Ashford? You're standing in it. Church, gas station, five houses and me."],
+        unlocks: ['ashford_elevator'],
+      },
+      ashford_elevator: {
+        lines: [
+          "The old co-op elevator, at the bottom of town past the last house. Hasn't taken a load of grain since the railway closed.",
+          "Tallest thing in Ashford bar the church spire. My dad worked the scale there.",
+        ],
+        unlocks: ['railway_halt'],
+      },
+      railway_halt: {
+        lines: ["The railway? Gone before my time. Ran from here up past the highway somewhere. Ask an old-timer."],
       },
       loon_pond: {
         lines: ["Loon Pond? That's way out past Calder, over the river. Never been. Fish don't bite for me anyway."],
@@ -97,7 +108,10 @@ export const NPCS = [
         unlocks: ['old_mill'],
       },
       old_mill: {
-        lines: ["Burned in, oh, '91? Just walls left now, down by the creek."],
+        lines: [
+          "Burned in, oh, '91? Just walls left now, down by the creek.",
+          "The big wheel came down in the fire and it's still lying there against the wall. Half the chimney too.",
+        ],
       },
       hwy9: {
         lines: ["The highway's the long way round. But it's the only way round, now."],
@@ -175,7 +189,13 @@ export const NPCS = [
       },
       quarry_rd: {
         lines: ["Quarry Road. Watch for the gravel trucks. They don't slow down for anybody."],
-        unlocks: ['quarry'],
+        unlocks: ['quarry', 'voss_place'],
+      },
+      voss_place: {
+        lines: [
+          "The Voss place is on Quarry Road, east side, a bit south of the quarry. Empty since old Anton passed in '79.",
+          "Roof's falling in and the windmill's lost half its sails. Kids dare each other to go inside.",
+        ],
       },
       ridge_rd: {
         lines: ["Ridge Road goes on east to the river. Dead end now, with the bridge out. Folks still try it."],
@@ -226,6 +246,10 @@ export const NPCS = [
       },
       quarry: {
         lines: ["Calder Stone Company. We've been digging this hole since 1962. Gets bigger every year."],
+        unlocks: ['voss_place'],
+      },
+      voss_place: {
+        lines: ["The empty farm south of us? The company owns it. Bought it years ago and never touched it. My crew won't go in there."],
       },
       grain_silos: {
         lines: ["Big grey silos on the east side of Calder. You can see them from the top of the quarry."],
@@ -293,8 +317,17 @@ export const NPCS = [
         unlocks: ['pond_rd', 'brook_ford', 'ridge_rd', 'campground', 'loon_pond'],
       },
       grain_silos: {
-        lines: ["Forty metres tall, those silos. You can see them from the lookout, and from most places with a view."],
-        unlocks: ['lookout'],
+        lines: [
+          "Forty metres tall, those silos. You can see them from the lookout, and from most places with a view.",
+          "Before the trucks, grain went out by rail. The branch line came up from Ashford past Gilmore Halt. Closed in '59, so we built these.",
+        ],
+        unlocks: ['lookout', 'railway_halt', 'ashford_elevator'],
+      },
+      railway_halt: {
+        lines: ["Gilmore Halt. Just a platform and a shed by the old line, east of Highway 9, south of Willow Creek. Bank's still there if you look."],
+      },
+      ashford_elevator: {
+        lines: ["Ashford's old wooden elevator. Went quiet when the trains stopped. Nobody's had the money to pull it down."],
       },
       rt40: {
         lines: ["Route 40 goes east to Brandt, twenty-odd kilometres. West, it meets Highway 9 below Millbrook."],
@@ -399,6 +432,26 @@ export const NPCS = [
       },
       pruitt_farm: {
         lines: ["My husband's family built this place. I keep the sheep now. They keep me."],
+        unlocks: ['pruitt_truck', 'railway_halt'],
+      },
+      pruitt_truck: {
+        lines: [
+          "That's Walt's old Ford, in the bottom corner of the sheep field. The clutch went in '74 and he just left it there.",
+          "Forty years of rain. The sheep like the shade under it.",
+        ],
+      },
+      railway_halt: {
+        lines: [
+          "There was a railway once, you know. The branch line ran past Gilmore Halt, east of the highway and south of the creek.",
+          "We took the train to Ashford for the dances. Last one ran in 1959. You can still see the bank and the old platform from Highway 9.",
+        ],
+        unlocks: ['ashford_elevator'],
+      },
+      old_mill: {
+        lines: ["The mill on Willow Creek? It ground our flour when I was a girl. Burned years ago. The wheel's lying in the nettles now."],
+      },
+      voss_place: {
+        lines: ["Anton Voss. A sad man after his wife went. The farm's on Quarry Road. Nobody wanted it but the quarry."],
       },
     },
     fallback: ["Oh, I don't get out much now, dear."],
