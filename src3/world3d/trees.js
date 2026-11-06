@@ -6,6 +6,10 @@
 //   far:  cells in view past LOD_FAR (simpler shapes, no shadow)
 // So the shadow pass only sees trees near the car, and the main pass only
 // trees in front of the camera, in about a dozen draw calls.
+//
+// ?trees=new swaps the code-made shapes for CC0 Quaternius models
+// (public/look/trees.glb, made by tools/look/trees.mjs): one mesh per kind
+// with its own trunk (so no trunk instances), and a simpler far version.
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -63,6 +67,35 @@ function makeParts() {
 }
 
 const BASE = { pine: 0x2f5a33, oak: 0x41733a, willow: 0x7f9e48 };
+
+// ?trees=new: load the models before the world is built (top-level await, so
+// buildTrees stays synchronous). Not in node (tools/check-world.mjs).
+const TREES_NEW = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('trees') === 'new';
+const MODELS = TREES_NEW ? await loadModels() : null;
+
+async function loadModels() {
+  const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
+  const gltf = await new GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}look/trees.glb`);
+  const geo = {};
+  gltf.scene.traverse((o) => {
+    if (!o.isMesh) return;
+    const g = o.geometry.toNonIndexed();
+    // Colours as plain rgb floats (the file has rgba bytes).
+    const c = g.attributes.color;
+    const rgb = new Float32Array(c.count * 3);
+    for (let i = 0; i < c.count; i++) {
+      rgb[i * 3] = c.getX(i);
+      rgb[i * 3 + 1] = c.getY(i);
+      rgb[i * 3 + 2] = c.getZ(i);
+    }
+    g.setAttribute('color', new THREE.BufferAttribute(rgb, 3));
+    g.computeVertexNormals();
+    geo[o.name] = g;
+  });
+  const { pine, oakA, oakB, willow, bush } = geo;
+  console.info(`[trees] models loaded: ${Object.keys(geo).join(', ')}`);
+  return { pine, oakA, oakB, willow, bush, far: { pine: geo.pineFar, oakA: geo.oakAFar, oakB: geo.oakBFar, willow: geo.willowFar } };
+}
 
 // One shape's instances, sorted by cell, plus its output meshes.
 function makeSet(geo, farGeo, mat, list, cellOf, nCells, casts) {
@@ -131,8 +164,10 @@ function finish(mesh) {
 }
 
 export function buildTrees(scenery, terrain, sunDir, audit = null) {
-  const parts = makeParts();
-  const leafMat = new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true });
+  const parts = MODELS || makeParts();
+  const leafMat = MODELS
+    ? new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true, flatShading: true })
+    : new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true });
   const trunkMat = new THREE.MeshLambertMaterial({ color: 0x5a4030, flatShading: true });
   const group = new THREE.Group();
 
@@ -186,6 +221,14 @@ export function buildTrees(scenery, terrain, sunDir, audit = null) {
       part = hashString(`${t.x | 0},${t.y | 0}`) % 2 ? 'oakA' : 'oakB';
       s = new THREE.Vector3(r, r * 0.95, r);
     }
+    if (MODELS) {
+      // Whole tree from the ground, a little sunk for slopes; the model has
+      // the kind's colours, the instance only brightens or darkens it.
+      const m = new THREE.Matrix4().compose(new THREE.Vector3(t.x, h - 0.15 * r, t.y), q, new THREE.Vector3(r, r, r));
+      push(t.x, t.y, part, m, new THREE.Color(f, f, f), r * 4.5);
+      if (audit) audit.circle(`tree@${Math.round(t.x)},${Math.round(t.y)}`, 'tree', t.x, t.y, 0.1 * r * 1.6, h - 0.3);
+      continue;
+    }
     // Canopy sits on top of the trunk.
     const m = new THREE.Matrix4().compose(new THREE.Vector3(t.x, h + trunkH * 0.6, t.y), q, s);
     push(t.x, t.y, part, m, col.clone(), r * 4.5);
@@ -195,8 +238,9 @@ export function buildTrees(scenery, terrain, sunDir, audit = null) {
   }
   for (const b of scenery.bushes) {
     const h = terrain.heightAt(b.x, b.y);
-    const m = new THREE.Matrix4().compose(new THREE.Vector3(b.x, h + b.r * 0.2, b.y), q.setFromAxisAngle(up, b.tint * 6), new THREE.Vector3(b.r, b.r, b.r));
-    push(b.x, b.y, 'bush', m, new THREE.Color(0x3f6b34).multiplyScalar(0.85 + b.tint * 0.3), b.r * 1.5);
+    const m = new THREE.Matrix4().compose(new THREE.Vector3(b.x, h + b.r * (MODELS ? -0.1 : 0.2), b.y), q.setFromAxisAngle(up, b.tint * 6), new THREE.Vector3(b.r, b.r, b.r));
+    const bc = MODELS ? new THREE.Color(1, 1, 1) : new THREE.Color(0x3f6b34);
+    push(b.x, b.y, 'bush', m, bc.multiplyScalar(0.85 + b.tint * 0.3), b.r * 1.5);
     if (audit) audit.circle(`bush@${Math.round(b.x)},${Math.round(b.y)}`, 'bush', b.x, b.y, b.r * 0.6, h + b.r * 0.2 - b.r * 0.7 * 0.9);
   }
 

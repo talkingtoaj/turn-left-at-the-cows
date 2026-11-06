@@ -61,7 +61,7 @@ for (const mode of which === 'both' ? ['old', 'new'] : [which]) {
     const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
     page.on('console', (m) => { if (m.type() === 'error') errors.push(`${mode} ${v.name}: ${m.text()}`); });
     page.on('pageerror', (e) => errors.push(`${mode} ${v.name}: ${e}`));
-    const q = `stats&res=1&spot=${v.spot}${mode === 'new' ? '&look=new' : ''}${extra ? `&${extra}` : ''}`;
+    const q = `stats&res=1&spot=${v.spot}${mode === 'old' ? '&look=old' : ''}${extra ? `&${extra}` : ''}`;
     await page.goto(`${base}/three.html?${q}`);
     await page.waitForSelector('button');
     await page.keyboard.press('Enter');

@@ -1,7 +1,10 @@
 """Look test: bake the Poly Haven sky HDRI into what the game loads.
 
     ffmpeg -i sky.hdr -f rawvideo -pix_fmt gbrpf32le sky.raw
-    uv run --with numpy --with pillow python -I tools/look/bake_sky.py sky.raw 2048 1024 public/look
+    uv run --with numpy --with pillow python -I tools/look/bake_sky.py sky.raw 2048 1024 public/look [name] [source]
+
+name defaults to `sky` (the cloudy sky); the clear sky is baked as `sky_sunny`:
+    ... bake_sky.py sky.raw 2048 1024 public/look sky_sunny qwantani_mid_morning_puresky
 
 Writes:
   sky.webp  upper half of the sky (horizon to zenith), turned so the sun sits
@@ -25,6 +28,8 @@ SUN_AZ = 112.0  # src3/world3d/world3d.js
 SUN_EL = 30.0
 
 raw, W, H, out = sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), sys.argv[4]
+NAME = sys.argv[5] if len(sys.argv) > 5 else 'sky'
+SOURCE = sys.argv[6] if len(sys.argv) > 6 else 'kloofendal_38d_partly_cloudy_puresky'
 g, b, r = np.fromfile(raw, dtype='<f4').reshape(3, H, W)
 img = np.stack([r, g, b], axis=-1).astype(np.float64)
 img = np.nan_to_num(np.maximum(img, 0))
@@ -89,10 +94,10 @@ top = Ls[: H // 2]
 bg_max = float(np.percentile(top @ np.array([0.2126, 0.7152, 0.0722]), 99.7))
 x = np.clip(top / bg_max, 0, 1)
 srgb = np.where(x <= 0.0031308, 12.92 * x, 1.055 * np.power(x, 1 / 2.4) - 0.055)
-Image.fromarray((srgb * 255 + 0.5).astype(np.uint8)).save(f'{out}/sky.webp', quality=88, method=6)
+Image.fromarray((srgb * 255 + 0.5).astype(np.uint8)).save(f'{out}/{NAME}.webp', quality=88, method=6)
 
 info = {
-    'source': 'kloofendal_38d_partly_cloudy_puresky (Poly Haven, CC0)',
+    'source': f'{SOURCE} (Poly Haven, CC0)',
     'sh': [[round(float(c), 5) for c in row] for row in sh],
     'sun': [round(float(c), 4) for c in sun_e],
     'horizon': [round(float(c), 5) for c in horizon],
@@ -100,6 +105,6 @@ info = {
     'sunElevationInHdri': round(math.degrees(sun_el), 1),
     'turnedBy': round(shift / W * 360, 1),
 }
-with open(f'{out}/sky.json', 'w') as f:
+with open(f'{out}/{NAME}.json', 'w') as f:
     json.dump(info, f, indent=1)
 print(json.dumps(info))

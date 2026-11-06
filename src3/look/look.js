@@ -1,5 +1,5 @@
-// Look test, only when the URL has ?look=new (SPEC 9e). Without it nothing
-// here runs and the game renders exactly as before.
+// The game's look (SPEC 9e, default since 9h). With ?look=old nothing here
+// runs and the game renders with the old light and flat colours.
 //
 // 1. Light: a real sky (Poly Haven HDRI, baked by tools/look/bake_sky.py) is
 //    the background and, as spherical harmonics, the sky light (a LightProbe
@@ -10,15 +10,19 @@
 //    colours, picked per piece by colour (surfaces.js). No mesh UVs needed:
 //    faces are mapped flat along themselves, the ground from above.
 //
-// Dev URL knobs: &exp=<exposure> &sun=<sun scale> &sky=<sky scale> &tm=agx
+// 4. Weather (weather.js): sunny, partly cloudy and overcast, drifting slowly.
+//
+// Dev URL knobs: ?weather=sunny|cloudy|overcast|cycle &exp=<exposure> &sun=<sun scale> &sky=<sky scale> &tm=agx
 // &sat=<saturation> &tex=0 (light only) &ao=0 (no ground contact shading).
 
 import * as THREE from 'three';
 import { TEXTURES, LAYERS, SURF, surfaceOf } from './surfaces.js';
 import { buildAOMap } from './aomap.js';
 import { patchObjects, patchTerrain, patchTrunks, skyMaterial } from './shaders.js';
+import { createWeatherClock, keyLooks, lookAt, emptyLook } from './weather.js';
+import { cloudCover, cloudUniforms } from '../world3d/clouds.js';
 
-export const LOOK_NEW = new URLSearchParams(window.location.search).get('look') === 'new';
+export const LOOK_NEW = new URLSearchParams(window.location.search).get('look') !== 'old';
 
 const BASE = `${import.meta.env.BASE_URL}look/`;
 const SIZE = 512;
@@ -96,9 +100,9 @@ async function loadTextures(renderer) {
   return { albedo: arrayTexture(albedo, n, renderer), normal: arrayTexture(normal, n, renderer) };
 }
 
-async function loadSky() {
-  const info = await (await fetch(`${BASE}sky.json`)).json();
-  const tex = await new THREE.TextureLoader().loadAsync(`${BASE}sky.webp`);
+async function loadSky(name) {
+  const info = await (await fetch(`${BASE}${name}.json`)).json();
+  const tex = await new THREE.TextureLoader().loadAsync(`${BASE}${name}.webp`);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.wrapS = THREE.RepeatWrapping;
   tex.minFilter = THREE.LinearFilter; // no mipmaps: they would show a seam where u wraps
@@ -117,7 +121,7 @@ export async function createLook(renderer, params) {
     ao: params.get('ao') !== '0',
   };
   const t0 = performance.now();
-  const [sky, tex] = await Promise.all([loadSky(), opts.textures ? loadTextures(renderer) : null]);
+  const [sky, sunnySky, tex] = await Promise.all([loadSky('sky'), loadSky('sky_sunny'), opts.textures ? loadTextures(renderer) : null]);
   // ACES, after taking a little saturation out (ACES alone makes the greens
   // glow) and warming it slightly. Inline in every shader, no extra pass.
   const sat = num('sat', 0.78);
@@ -133,40 +137,53 @@ export async function createLook(renderer, params) {
   renderer.toneMappingExposure = opts.exposure;
   console.info(`[look] new look on, assets ready in ${Math.round(performance.now() - t0)} ms`);
 
+  let weather = null;
   return {
     opts,
     // After buildWorld3D: swap lights and sky, add textures and contact shading.
     apply(scene, world3d, world, scenery) {
       const t1 = performance.now();
-      const { info } = sky;
-      const P = opts.sky;
       const lin = (a, s = 1) => new THREE.Color().setRGB(a[0] * s, a[1] * s, a[2] * s, THREE.LinearSRGBColorSpace);
 
       // Sky light. The hemisphere light goes; a probe holds the sky's light
-      // plus a little green light bounced up from the ground.
+      // plus a little green light bounced up from the ground. The weather
+      // (weather.js) blends its coefficients, the sun, fog and sky dome.
       world3d.hemi.intensity = 0;
       world3d.hemi.visible = false;
       const probe = new THREE.LightProbe();
-      info.sh.forEach((c, i) => probe.sh.coefficients[i].set(c[0], c[1], c[2]));
-      const bounce = lin([0.16, 0.24, 0.1]); // ground radiance, below the horizon
-      const b = new THREE.Vector3(bounce.r, bounce.g, bounce.b);
-      probe.sh.coefficients[0].addScaledVector(b, 0.282095 * 2 * Math.PI);
-      probe.sh.coefficients[1].addScaledVector(b, -0.488603 * Math.PI);
-      probe.intensity = P;
       scene.add(probe);
+      const bounce = lin([0.16, 0.24, 0.1]); // ground radiance, below the horizon
+      const keys = keyLooks(sky.info, sunnySky.info, opts, [bounce.r, bounce.g, bounce.b]);
+      const clock = createWeatherClock(world.seed || 1, params.get('weather'));
+      const cur = emptyLook();
 
-      // Sun: the HDRI's sun, a touch warmer.
-      const s = info.sun;
-      const sMax = Math.max(...s);
-      world3d.sun.color.setRGB((s[0] / sMax) * 1.0, (s[1] / sMax) * 0.97, (s[2] / sMax) * 0.9, THREE.LinearSRGBColorSpace);
-      world3d.sun.intensity = sMax * P * opts.sun;
-
-      // Fog and background take the sky's horizon colour.
-      const fog = lin(info.horizon, P);
-      scene.fog.color.copy(fog);
-      scene.background = fog.clone();
+      scene.background = scene.fog.color.clone();
       world3d.sky.material.dispose();
-      world3d.sky.material = skyMaterial(sky.tex, info.bgMax * P, scene.fog.color);
+      const skyMat = skyMaterial(sunnySky.tex, sky.tex, sunnySky.info.bgMax, sky.info.bgMax, scene.fog.color);
+      world3d.sky.material = skyMat;
+      const sunLight = world3d.sun;
+      let lastW = -1;
+      weather = {
+        clock,
+        update(state) {
+          const w = clock.update(state);
+          if (Math.abs(w - lastW) < 1e-4) return;
+          lastW = w;
+          lookAt(keys, w, cur);
+          cur.sh.forEach((c, i) => probe.sh.coefficients[i].set(c[0], c[1], c[2]));
+          sunLight.color.setRGB(cur.sunColor[0], cur.sunColor[1], cur.sunColor[2], THREE.LinearSRGBColorSpace);
+          sunLight.intensity = cur.sun;
+          sunLight.shadow.intensity = cur.shadow;
+          scene.fog.color.setRGB(cur.fog[0], cur.fog[1], cur.fog[2], THREE.LinearSRGBColorSpace);
+          scene.background.copy(scene.fog.color);
+          skyMat.uniforms.gain.value = cur.gain;
+          skyMat.uniforms.skyMix.value = cur.skyMix;
+          skyMat.uniforms.grey.value = cur.grey;
+          cloudCover.value = cur.cover;
+          cloudUniforms.uCloudDark.value = cur.dark;
+        },
+      };
+      weather.update({ missionIndex: 0, clockMinutes: 0 });
 
       const ao = opts.ao ? buildAOMap(world, scenery) : null;
       const shared = {
@@ -200,6 +217,11 @@ export async function createLook(renderer, params) {
       }
       console.info(`[look] applied in ${Math.round(performance.now() - t1)} ms`);
     },
+    // Every frame: weather drift (cheap: uniforms only, and only on change).
+    update(state) {
+      if (weather) weather.update(state);
+    },
+    get weather() { return weather ? weather.clock.w : null; },
     // After the ambient life is built: the low-poly sky clouds would sit in
     // front of the photo sky, which has its own clouds. Move them to a layer
     // the camera does not draw (their ground shadows stay).

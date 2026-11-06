@@ -42,8 +42,8 @@ app.appendChild(renderer.domElement);
 const params = new URLSearchParams(window.location.search);
 const stats = createStats(renderer, params.has('stats'));
 const res = createResScale(renderer, params);
-// Look test: ?look=new swaps in the new light and textures (src3/look).
-const look = params.get('look') === 'new' ? await (await import('./look/look.js')).createLook(renderer, params) : null;
+// New light, sky, weather and textures (src3/look); ?look=old for the old look.
+const look = params.get('look') !== 'old' ? await (await import('./look/look.js')).createLook(renderer, params) : null;
 const statsExtra = () => `res ${res.ratio.toFixed(2)} (dpr ${window.devicePixelRatio})`;
 
 // Dev: ?spot=<name> starts the car at a review spot (src3/spots.js).
@@ -205,6 +205,7 @@ function frame(now) {
     camera.far = far;
     camera.updateProjectionMatrix();
   }
+  if (look) look.update(state); // weather drift
   world3d.update(now / 1000, dt, car, rig.focus, rig.shadowRadius, camera, amb);
   amb3d.update(amb, runtime.paused ? 0 : dt, camera, rig.focus, scene.fog, e, renderer, dh.hz.animals);
   dh.render(runtime.paused ? 0 : dt, rig.focus, car3d.object, camera, scene.fog, renderer);
@@ -233,5 +234,6 @@ window.__amb = amb;
 window.__dh = dh;
 window.__audio = audio;
 window.__cloudUniforms = cloudUniforms;
+window.__look = look;
 
 requestAnimationFrame(frame);

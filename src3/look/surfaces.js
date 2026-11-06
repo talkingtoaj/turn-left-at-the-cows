@@ -1,4 +1,4 @@
-// Look test (?look=new): which texture each part of the world gets.
+// Look test (default look): which texture each part of the world gets.
 // Static world pieces are merged into big vertex-coloured meshes, so a piece's
 // surface is found from its colour (and whether it lies on the ground). The
 // texture only adds detail: the piece keeps its own colour.
