@@ -70,7 +70,7 @@ export const TUNING = {
     grass: { accel: 0.8, brake: 0.66, turn: 0.9, drag: 1.2 },
     // Mud (src/world/mud.js: Willow Bottoms, creek low ground), on top of
     // the above on dirt and off-road, scaled by how muddy (0..1) and how wet.
-    mud: { accel: 0.72, brake: 0.75, turn: 0.86, drag: 1.5 },
+    mud: { accel: 0.75, brake: 0.8, turn: 0.88, drag: 1.45 },
     // Puddles (src3/world3d/puddles3d.js): each one you drive through keeps
     // this much of your speed (a big one a little less) and splashes.
     puddleSlow: 0.95,
