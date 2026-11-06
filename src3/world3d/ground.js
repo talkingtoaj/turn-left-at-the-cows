@@ -108,6 +108,110 @@ export function ribbon(pts, width, lift, heightAt, skip = null, step = 3, offset
   return g;
 }
 
+const DIRT = { shoulder: 0x9a8157, road: 0xbda275, rut: 0xa98f63 };
+const DIRT_LIFT = 0.04;
+
+// A dirt road as one mesh: a cross-section of points (shoulder, road edge,
+// either side of each rut, centre) every metre along it, each on heightAt(),
+// which includes the road's bumps and ruts. Vertex colours: darker shoulder
+// and ruts. Pieces where skip(x, y) is true are left out. Returns geometries.
+function dirtRoad(r, heightAt, skip) {
+  const pts = r.points;
+  const half = r.width / 2;
+  const rut = r.width * 0.22;
+  // Offsets across (right to left) and their colours.
+  const across = [-(half + 0.8), -(half + 0.4), -half, -(half - 0.8), -(rut + 0.45), -rut, -(rut - 0.45), 0, rut - 0.45, rut, rut + 0.45, half - 0.8, half, half + 0.4, half + 0.8];
+  const C = (hex) => new THREE.Color(hex);
+  const cols = across.map((o) => {
+    const a = Math.abs(o);
+    if (a > half + 0.01) return C(DIRT.shoulder);
+    if (a > half - 0.01) return C(DIRT.shoulder).lerp(C(DIRT.road), 0.5);
+    if (Math.abs(a - rut) < 0.01) return C(DIRT.rut).multiplyScalar(0.96);
+    if (Math.abs(a - rut) < 0.5) return C(DIRT.rut).lerp(C(DIRT.road), 0.35);
+    return C(DIRT.road);
+  });
+  const cum = measurePolyline(pts);
+  const total = cum[cum.length - 1];
+  const n = Math.max(2, Math.ceil(total / 1.4) + 1);
+  const rowAt = (d) => {
+    const p = pointAlong(pts, cum, d);
+    const a = pointAlong(pts, cum, Math.max(0, d - 1.5));
+    const b = pointAlong(pts, cum, Math.min(total, d + 1.5));
+    let dx = b.x - a.x;
+    let dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    dx /= len;
+    dy /= len;
+    const nx = -dy;
+    const ny = dx;
+    return {
+      d,
+      skip: skip(p.x, p.y),
+      v: across.map((o) => {
+        const x = p.x + nx * o;
+        const y = p.y + ny * o;
+        return [x, heightAt(x, y) + DIRT_LIFT, y];
+      }),
+    };
+  };
+  // Extra rows where the ground bends between two (creek banks).
+  const rows = [];
+  const refine = (r0, r1, depth) => {
+    if (depth >= 3) return;
+    const m = rowAt((r0.d + r1.d) / 2);
+    if (!m.v.some((q, k) => Math.abs(q[1] - (r0.v[k][1] + r1.v[k][1]) / 2) > 0.05)) return;
+    refine(r0, m, depth + 1);
+    rows.push(m);
+    refine(m, r1, depth + 1);
+  };
+  let prev = rowAt(0);
+  rows.push(prev);
+  for (let i = 1; i < n; i++) {
+    const cur = rowAt((total * i) / (n - 1));
+    refine(prev, cur, 0);
+    rows.push(cur);
+    prev = cur;
+  }
+  // Pieces of about 80 m, so each lands in its own map chunk and gets culled.
+  const out = [];
+  let pos = [];
+  let col = [];
+  const flush = () => {
+    if (!pos.length) return;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    fixWinding(g, true);
+    out.push(g);
+    pos = [];
+    col = [];
+  };
+  const push = (q, c) => {
+    pos.push(q[0], q[1], q[2]);
+    col.push(c.r, c.g, c.b);
+  };
+  let start = 0;
+  for (let i = 0; i < rows.length - 1; i++) {
+    const r0 = rows[i];
+    const r1 = rows[i + 1];
+    if (r0.d - start > 80) {
+      flush();
+      start = r0.d;
+    }
+    if (r0.skip || r1.skip) continue;
+    for (let k = 0; k < across.length - 1; k++) {
+      push(r0.v[k], cols[k]);
+      push(r0.v[k + 1], cols[k + 1]);
+      push(r1.v[k + 1], cols[k + 1]);
+      push(r0.v[k], cols[k]);
+      push(r1.v[k + 1], cols[k + 1]);
+      push(r1.v[k], cols[k]);
+    }
+  }
+  flush();
+  return out;
+}
+
 // For the world checker: is (x, y) inside some other water body (where one
 // water sheet meets another, its edge may hang over the other's bed; past
 // the map edge nobody sees it)?
@@ -118,8 +222,10 @@ function inOtherWater(world, self) {
 }
 
 // Make every triangle face up (cheap insurance against winding mistakes).
-function fixWinding(g) {
+// withColors: swap the colour attribute along with the positions.
+function fixWinding(g, withColors = false) {
   const p = g.attributes.position.array;
+  const c = withColors ? g.attributes.color.array : null;
   for (let i = 0; i < p.length; i += 9) {
     const ax = p[i + 3] - p[i];
     const az = p[i + 5] - p[i + 2];
@@ -131,6 +237,11 @@ function fixWinding(g) {
         const t = p[i + 3 + k];
         p[i + 3 + k] = p[i + 6 + k];
         p[i + 6 + k] = t;
+        if (c) {
+          const u = c[i + 3 + k];
+          c[i + 3 + k] = c[i + 6 + k];
+          c[i + 6 + k] = u;
+        }
       }
     }
   }
@@ -165,12 +276,19 @@ export function buildGround(world, scenery, terrain, batch) {
   const dirt = world.roads.filter((r) => r.type !== 'paved');
   const paved = world.roads.filter((r) => r.type === 'paved');
   for (const r of dirt) {
-    addRibbon(r.points, r.width + 1.6, 0.03, 0x9a8157, nearWater);
-    addCaps(r.points, r.width + 1.6, 0.03, 0x9a8157, nearWater);
-    addRibbon(r.points, r.width, 0.05, 0xbda275, nearWater);
-    addCaps(r.points, r.width, 0.05, 0xbda275, nearWater);
-    addRibbon(r.points, 0.6, 0.07, 0xa98f63, nearWater, r.width * 0.22);
-    addRibbon(r.points, 0.6, 0.07, 0xa98f63, nearWater, -r.width * 0.22);
+    // One mesh with the bumps and ruts in it (roadbumps.js), shoulder to
+    // shoulder. Round ends are painted on the ground.
+    for (const g of dirtRoad(r, H, nearWater)) {
+      batch.add(g, ID, 0xffffff, { ...NO_SHADOW, keepColors: true });
+      if (A) A.surface(r.id, 'dirt_road', g, DIRT_LIFT);
+    }
+    if (batch.paint) {
+      for (const [x, y] of [r.points[0], r.points[r.points.length - 1]]) {
+        if (nearWater(x, y)) continue;
+        batch.paint.disc(x, y, r.width / 2 + 0.8, DIRT.shoulder);
+        batch.paint.disc(x, y, r.width / 2, DIRT.road);
+      }
+    }
   }
   for (const r of paved) {
     addRibbon(r.points, r.width + 1.8, 0.09, 0x8c8a82, nearWater);

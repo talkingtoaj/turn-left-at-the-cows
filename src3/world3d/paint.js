@@ -8,7 +8,7 @@
 // drawn in the shader instead. No DOM needed (plain typed arrays).
 
 import * as THREE from 'three';
-import { bbox, pointInPolygon, distToPolygonEdge, distToSegment } from '../../src/drive/geom.js';
+import { bbox, distToSegment } from '../../src/drive/geom.js';
 import { CHUNK } from './terrain.js';
 
 export const PAINT_RES = 1; // metres per texel
@@ -77,6 +77,8 @@ export class GroundPaint {
   }
 
   // Polygon (world [x, y] points). color: hex, or fn(x, y) -> hex.
+  // Inside is found per texel row by scanline; only texels near an edge get
+  // the exact distance for their anti-aliased coverage.
   polygon(poly, color, stripe = null) {
     const bb = bbox(poly);
     const cache = new Map();
@@ -86,13 +88,53 @@ export class GroundPaint {
       if (!v) cache.set(hex, (v = rgb(hex)));
       return v;
     };
-    this.each(bb.minX - 1, bb.minY - 1, bb.maxX + 1, bb.maxY + 1, (x, y, i, j) => {
-      const d = distToPolygonEdge(x, y, poly);
-      const inside = pointInPolygon(x, y, poly);
-      const sd = inside ? -d : d; // signed distance, negative inside
-      const a = Math.max(0, Math.min(1, 0.5 - sd / PAINT_RES));
-      this.blend(i, j, colOf(x, y), a, stripe);
-    });
+    const R = PAINT_RES;
+    const i0 = Math.max(0, Math.floor(bb.minX / R) - 1);
+    const j0 = Math.max(0, Math.floor(bb.minY / R) - 1);
+    const i1 = Math.min(Math.ceil(this.world.size.w / R), Math.ceil(bb.maxX / R) + 1);
+    const j1 = Math.min(Math.ceil(this.world.size.h / R), Math.ceil(bb.maxY / R) + 1);
+    const W = i1 - i0;
+    const Hh = j1 - j0;
+    if (W <= 0 || Hh <= 0) return;
+    // Distance to the nearest edge for texels within 1.5 texels of one.
+    const near = new Float32Array(W * Hh).fill(Infinity);
+    for (let e = 0; e < poly.length; e++) {
+      const [ax, ay] = poly[e];
+      const [bx, by] = poly[(e + 1) % poly.length];
+      const x0 = Math.max(i0, Math.floor(Math.min(ax, bx) / R - 1.5));
+      const x1 = Math.min(i1 - 1, Math.ceil(Math.max(ax, bx) / R + 1.5));
+      const y0 = Math.max(j0, Math.floor(Math.min(ay, by) / R - 1.5));
+      const y1 = Math.min(j1 - 1, Math.ceil(Math.max(ay, by) / R + 1.5));
+      for (let j = y0; j <= y1; j++) {
+        for (let i = x0; i <= x1; i++) {
+          const d = distToSegment((i + 0.5) * R, (j + 0.5) * R, ax, ay, bx, by);
+          const k = (j - j0) * W + (i - i0);
+          if (d < near[k]) near[k] = d;
+        }
+      }
+    }
+    for (let j = j0; j < j1; j++) {
+      const y = (j + 0.5) * R;
+      // Scanline crossings of this row.
+      const xs = [];
+      for (let e = 0; e < poly.length; e++) {
+        const [ax, ay] = poly[e];
+        const [bx, by] = poly[(e + 1) % poly.length];
+        if ((ay <= y && by > y) || (by <= y && ay > y)) xs.push(ax + ((y - ay) / (by - ay)) * (bx - ax));
+      }
+      xs.sort((p, q) => p - q);
+      let c = 0;
+      for (let i = i0; i < i1; i++) {
+        const x = (i + 0.5) * R;
+        while (c < xs.length && xs[c] <= x) c++;
+        const inside = c % 2 === 1;
+        const d = near[(j - j0) * W + (i - i0)];
+        let a;
+        if (d < 1.5 * R) a = Math.max(0, Math.min(1, 0.5 + (inside ? d : -d) / R));
+        else a = inside ? 1 : 0;
+        if (a > 0 || d < 1.5 * R) this.blend(i, j, colOf(x, y), a, stripe);
+      }
+    }
   }
 
   // Band along a polyline of the given width.
@@ -122,8 +164,9 @@ export class GroundPaint {
     if (!c.tex) {
       const color = new THREE.DataTexture(c.color, N, N, THREE.RGBAFormat);
       color.colorSpace = THREE.SRGBColorSpace;
-      const stripe = new THREE.DataTexture(c.stripe, N, N, THREE.RGFormat);
-      for (const t of [color, stripe]) {
+      const hasStripe = c.stripe.some((v, k) => k % 2 === 1 && v > 0);
+      const stripe = hasStripe ? new THREE.DataTexture(c.stripe, N, N, THREE.RGFormat) : noStripe();
+      for (const t of hasStripe ? [color, stripe] : [color]) {
         t.magFilter = THREE.LinearFilter;
         t.minFilter = THREE.LinearMipmapLinearFilter;
         t.generateMipmaps = true;
@@ -133,10 +176,20 @@ export class GroundPaint {
       // Stripe angles must not be blended across mip levels into nonsense.
       stripe.minFilter = THREE.LinearFilter;
       stripe.generateMipmaps = false;
+      if (!hasStripe) c.stripe = null;
       c.tex = { color, stripe, origin: new THREE.Vector2(ci * CHUNK, cj * CHUNK) };
     }
     return c.tex;
   }
+}
+
+let _noStripe = null;
+function noStripe() {
+  if (!_noStripe) {
+    _noStripe = new THREE.DataTexture(new Uint8Array(2), 1, 1, THREE.RGFormat);
+    _noStripe.needsUpdate = true;
+  }
+  return _noStripe;
 }
 
 // Hay windrow stripes: gap between rows and the stripe colour relative to the

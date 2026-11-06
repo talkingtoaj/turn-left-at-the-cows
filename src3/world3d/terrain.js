@@ -10,11 +10,16 @@ import {
   makeRng, distToSegment, pointInPolygon, distToPolygonEdge, SegIndex, bbox,
 } from '../../src/drive/geom.js';
 import { buildingSolids, quarryOpening, QUARRY } from '../../src/drive/layout.js';
+import { RoadBumps } from './roadbumps.js';
 
 export const CELL = 4; // metres between height samples
 export const CHUNK = 250; // metres per ground mesh chunk
 export const WATER_LEVEL = -0.6;
 const BED = -1.7; // creek and lake bed
+
+// Dirt roads keep this much of the hills under them (paved roads keep none),
+// so they roll with the land.
+export const DIRT_KEEP = 0.3;
 
 // ---------- seeded value noise ----------
 
@@ -129,6 +134,7 @@ export class Terrain {
     this.rows = Math.round(world.size.h / CELL) + 1;
     this.h = new Float32Array(this.cols * this.rows);
     this.build();
+    this.bumps = new RoadBumps(world);
   }
 
   build() {
@@ -163,7 +169,11 @@ export class Terrain {
     // width, plus flat discs (as zero-length segments). Indexed by grid cell
     // so each height sample only checks nearby features.
     const flat = new SegIndex(64);
-    for (const r of world.roads) flat.addPolyline(r.points, r.width / 2 + 4 + BLEND, r.width / 2 + 4);
+    for (const r of world.roads) if (r.type === 'paved') flat.addPolyline(r.points, r.width / 2 + 4 + BLEND, r.width / 2 + 4);
+    // Dirt roads only flatten part way (DIRT_KEEP).
+    const dirtFlat = new SegIndex(64);
+    for (const r of world.roads) if (r.type !== 'paved') dirtFlat.addPolyline(r.points, r.width / 2 + 4 + BLEND, r.width / 2 + 4);
+    const keep = (x, y) => THREE.MathUtils.lerp(DIRT_KEEP, 1, smoothstep(0, BLEND, dirtFlat.minDist(x, y, (s) => s.data)));
     for (const c of world.creeks) flat.addPolyline(c.points, c.width / 2 + 8 + BLEND, c.width / 2 + 8);
     const disc = (x, y, r) => flat.add(x, y, x, y, r + BLEND, r);
     for (const b of world.buildings) {
@@ -191,13 +201,14 @@ export class Terrain {
       return best;
     };
 
-    const mastH = mast ? raw(mast.x, mast.y) * smoothstep(0, BLEND, flatDist(mast.x, mast.y)) : 0;
+    const flatK = (x, y) => Math.min(smoothstep(0, BLEND, flatDist(x, y)), keep(x, y));
+    const mastH = mast ? raw(mast.x, mast.y) * flatK(mast.x, mast.y) : 0;
 
     for (let j = 0; j < this.rows; j++) {
       const y = j * CELL;
       for (let i = 0; i < this.cols; i++) {
         const x = i * CELL;
-        let h = raw(x, y) * smoothstep(0, BLEND, flatDist(x, y));
+        let h = raw(x, y) * flatK(x, y);
         if (mast) {
           const dm = Math.hypot(x - mast.x, y - mast.y);
           if (dm < 55) h = THREE.MathUtils.lerp(mastH, h, smoothstep(32, 55, dm));
@@ -222,8 +233,14 @@ export class Terrain {
     }
   }
 
-  // Height at any world point, matching the mesh triangles exactly.
+  // Height at any world point: the ground mesh, plus the bumps and ruts of
+  // dirt roads (drawn by the road mesh, see roadbumps.js).
   heightAt(x, y) {
+    return this.gridHeightAt(x, y) + this.bumps.at(x, y);
+  }
+
+  // Height of the ground mesh itself, matching its triangles exactly.
+  gridHeightAt(x, y) {
     const gx = Math.max(0, Math.min(this.cols - 1.001, x / CELL));
     const gy = Math.max(0, Math.min(this.rows - 1.001, y / CELL));
     const i = Math.floor(gx);

@@ -87,8 +87,11 @@ class Tris {
     const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
     const vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
     const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
-    if (nx * out[0] + ny * out[1] + nz * out[2] < 0) this.v.push(...a, ...c, ...b);
-    else this.v.push(...a, ...b, ...c);
+    const v = this.v;
+    const flip = nx * out[0] + ny * out[1] + nz * out[2] < 0;
+    const p = flip ? c : b;
+    const q = flip ? b : c;
+    v.push(a[0], a[1], a[2], p[0], p[1], p[2], q[0], q[1], q[2]);
   }
   quad(a, b, c, d, out) {
     this.tri(a, b, c, out);
@@ -153,6 +156,8 @@ function groundBends(a, b, maxStep = 2) {
   family(a[0] - a[1], dx - dy); // diagonals: gx - gy = integer
   const n = Math.ceil(L / maxStep);
   for (let i = 1; i < n; i++) ts.push(i / n);
+  const lattice = new Set();
+  for (let i = 1; i < n; i++) lattice.add(i / n);
   ts.sort((p, q) => p - q);
   const out = [];
   const minGap = 0.25 / Math.max(L, 1e-6);
@@ -164,7 +169,8 @@ function groundBends(a, b, maxStep = 2) {
     }
     out.push(t);
   }
-  return out;
+  // Which samples are the regular steps (kept for rows whose height wobbles).
+  return out.map((t) => ({ t, step: lattice.has(t) }));
 }
 
 // Smooth height wobble along rows (-1..1), continuous so dense samples do not
@@ -172,6 +178,45 @@ function groundBends(a, b, maxStep = 2) {
 const rowWobble = (x, y) => 0.6 * Math.sin(x * 0.9 + y * 1.7) + 0.4 * Math.sin(x * 2.3 - y * 0.8 + 1.3);
 
 const ROW_SINK = 0.3; // row bottoms sink this far into the ground
+const ROW_TOL = 0.03; // drop bend samples that change the shape by less than this
+
+// Keeps the samples that matter: where dropping one would move the row's
+// ground line or bottom edges by more than ROW_TOL (Douglas-Peucker on
+// heights), plus forced ones (regular steps on rows whose height wobbles).
+function simplifyRow(S) {
+  if (S.length <= 2) return S;
+  const keep = new Uint8Array(S.length);
+  keep[0] = keep[S.length - 1] = 1;
+  const err = (i, j, k) => {
+    const u = (S[k].t - S[i].t) / (S[j].t - S[i].t);
+    let e = 0;
+    if (S[k].force) return Infinity;
+    e = Math.abs(S[k].g - (S[i].g + (S[j].g - S[i].g) * u));
+    for (const key of ['bl', 'br']) {
+      const lin = S[i][key][1] + (S[j][key][1] - S[i][key][1]) * u;
+      e = Math.max(e, Math.abs(S[k][key][1] - lin));
+    }
+    return e;
+  };
+  const stack = [[0, S.length - 1]];
+  while (stack.length) {
+    const [i, j] = stack.pop();
+    let worst = -1;
+    let wk = -1;
+    for (let k = i + 1; k < j; k++) {
+      const e = err(i, j, k);
+      if (e > worst) {
+        worst = e;
+        wk = k;
+      }
+    }
+    if (wk >= 0 && worst > ROW_TOL) {
+      keep[wk] = 1;
+      stack.push([i, wk], [wk, j]);
+    }
+  }
+  return S.filter((_, k) => keep[k]);
+}
 
 // A raised row from a to b (world [x, y]): trapezoid cross-section (bottom
 // width, top width, height) that follows the ground, bending wherever the
@@ -186,8 +231,8 @@ export function rowPrism(sides, caps, a, b, H, r, audit = null, id = 'row') {
   const ty = dy / L;
   const nx = -ty;
   const ny = tx;
-  const S = [];
-  for (const t of groundBends(a, b)) {
+  let S = [];
+  for (const { t, step } of groundBends(a, b, r.jitter ? 4 : 2)) {
     const x = a[0] + dx * t;
     const y = a[1] + dy * t;
     const g = H(x, y);
@@ -198,8 +243,9 @@ export function rowPrism(sides, caps, a, b, H, r, audit = null, id = 'row') {
       const py = y + ny * w;
       return [px, Math.min(H(px, py), g) - ROW_SINK, py];
     };
-    S.push({ bl: bot(-r.bottom / 2), br: bot(r.bottom / 2), tl: pt(-r.top / 2, h), tr: pt(r.top / 2, h), h });
+    S.push({ t, g, force: step && !!r.jitter, bl: bot(-r.bottom / 2), br: bot(r.bottom / 2), tl: pt(-r.top / 2, h), tr: pt(r.top / 2, h), h });
   }
+  S = simplifyRow(S);
   if (audit) {
     audit.row({
       id, kind: 'crop_row',
