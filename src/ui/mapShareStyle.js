@@ -35,6 +35,7 @@ export const MAP_SHARE_CSS = `
 .ms-head h2 { margin: 0; font: 600 22px Oswald, "Arial Narrow", sans-serif; letter-spacing: 0.06em; text-transform: uppercase; color: #e6b450; }
 .ms-head .ms-sub { font: 22px/1 Caveat, cursive; color: #d9d4c5; }
 .ms-sorts { display: flex; gap: 6px; margin-left: auto; }
+.ms-sorts[hidden] { display: none; }
 .ms-close { position: absolute; top: 12px; right: 12px; width: 36px; height: 36px; padding: 0; justify-content: center;
   font: 22px/1 Georgia, serif; text-transform: none; }
 
@@ -54,7 +55,7 @@ export const MAP_SHARE_CSS = `
 .ms-more { display: flex; justify-content: center; margin-top: 16px; }
 
 .ms-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: start; }
-.ms-sheet h3 { margin: 0 0 8px; font: 500 14px Oswald, "Arial Narrow", sans-serif; letter-spacing: 0.12em; text-transform: uppercase; color: #b9b6ac; }
+.ms-sheet h3 { display: flex; align-items: flex-end; min-height: 30px; margin: 0 0 8px; font: 500 14px Oswald, "Arial Narrow", sans-serif; letter-spacing: 0.12em; text-transform: uppercase; color: #b9b6ac; }
 .ms-sheet h3 b { font: 26px/1 Caveat, cursive; letter-spacing: 0; text-transform: none; color: #f1ead6; font-weight: normal; }
 .ms-sheet .ms-pad { padding: 8px; background: #f1ead6; border-radius: 2px; box-shadow: 0 10px 22px rgba(0,0,0,0.5); }
 .ms-sheet canvas { display: block; width: 100%; height: auto; }
