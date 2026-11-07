@@ -7,13 +7,18 @@ Read this before touching world data or game rules. No em dashes in code or text
 
 | File | What |
 |---|---|
-| `src/world/data.js` | AUTHORED world (`WORLD_SOURCE`): control points, road-relative signs, everything below. Edit this. |
+| `src/world/data.js` | AUTHORED world of region 1 (`WORLD_SOURCE`): control points, road-relative signs, everything below. Edit this. |
 | `src/world/npcs.js` | People: position, topic-based dialogue, hidden profile. |
+| `src/world/data_brandt.js`, `npcs_brandt.js` | Region 2 (Brandt, the airfield), same format. |
+| `src/world/regions.js` | `REGIONS` (id: { name, source }), `REGION_IDS`. One entry per region. |
+| `src/world/airfield.js` | Airfield layout (`AIRFIELD`, `airfieldFrame`), seeded wind, `planesFor(world)`: plane circuits by time. |
 | `src/world/topics.js` | Topic registry (`TOPICS`, `TOPIC_BY_ID`). |
 | `src/world/spline.js` | Centripetal Catmull-Rom smoothing (`smoothPolyline`). |
 | `src/world/build.js` | Build step: `buildWorld(source)` and `defaultSignFacing(world, x, y)`. |
-| `src/world/world.js` | `export const WORLD = buildWorld(WORLD_SOURCE)`. Import WORLD from here, never from data.js. |
-| `src/game/missions.js` | `MISSIONS`, `currentMission(state)`, `nextMission(state)`, `currentGoal(state)`. |
+| `src/world/world.js` | `WORLD` (live binding: the current region), `setRegion(id)`, `regionWorld(id)`. Import WORLD from here, never from a data file. |
+| `src/game/missionList.js` | `MISSION_LIST`: id, title, region of each mission (no world data; the start screen reads it). |
+| `src/game/missions.js` | `MISSIONS`, `currentMission(state)`, `nextMission(state)`, `currentGoal(state)`. Details are built lazily against each mission's region. |
+| `src/game/progress.js` | Saved progress in localStorage (`askalocal.progress.v1`): `loadProgress`, `recordFinish`, `nextUnfinishedIndex`, `clearProgress`. |
 | `src/game/dialogue.js` | `listTopics`, `greet`, `ask`, `knowsAbout`, `quickTalk`, `getNpc`, `topicLabel`. |
 | `src/game/update.js` | `updateGame(state, dt)`, `startMission(state, i)`, `finishMission(state)`. |
 | `src/game/snapshots.js` | `takeSnapshot(state, label, extra)`, `copySketch`. |
@@ -24,7 +29,7 @@ All of `src/world` and `src/game` is plain JS (no Phaser, no three). Node can im
 ## Units and axes
 
 1 unit = 1 m. x grows east, y grows SOUTH. Headings in degrees, 0 = north, 90 = east, clockwise.
-World size is 6500 x 3200. Mission 1 country is x 0..3000 (Fenwick County). Mission 2 country runs east to x 6500.
+Each region has its own size and origin. Region 1 (`fenwick`) is 6500 x 3200: mission 1 country is x 0..3000 (Fenwick County), mission 2 country runs east to x 6500. Region 2 (`brandt`) is 4800 x 3000, entered by Route 40 at its west edge (22 km east of Calder in fiction).
 
 ## Built WORLD (what consumers read)
 

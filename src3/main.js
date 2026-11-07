@@ -111,7 +111,8 @@ let wetness = null;
 let ownWeather = null; // without the new look there is no weather clock of its own: keep one here
 let groundAt = null;
 let gpuSet = null; // GPU resources this region uploaded (src3/gpuTracker.js)
-let loading = false;
+let loading = 0; // region loads queued or running (the main loop waits)
+let loadChain = Promise.resolve();
 let firstLoad = true;
 
 const nextPaint = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
@@ -133,8 +134,18 @@ function disposeRegion() {
 
 // Builds region `id` behind a load screen. `title`: the mission's title.
 // Dev URL flags that place the car (?spot, ?fallen) only act on the first load.
-async function loadRegion(id, title) {
-  loading = true;
+// Loads run one after another; the main loop waits until none is left.
+function loadRegion(id, title) {
+  loading++;
+  const run = () => buildRegion(id, title).finally(() => {
+    loading--;
+    last = performance.now();
+  });
+  loadChain = loadChain.then(run, run);
+  return loadChain;
+}
+
+async function buildRegion(id, title) {
   const t0 = performance.now();
   const ls = showLoadScreen({ title, region: REGIONS[id] ? REGIONS[id].name : id });
   const step = async (f, text) => {
@@ -203,8 +214,6 @@ async function loadRegion(id, title) {
   } finally {
     ls.close();
     firstLoad = false;
-    loading = false;
-    last = performance.now();
   }
 }
 
@@ -303,7 +312,7 @@ const fps = { frames: 0, acc: 0, value: 0 };
 
 function frame(now) {
   requestAnimationFrame(frame);
-  if (loading || !scene) return;
+  if (loading > 0 || !scene) return;
   // A finished mission handed over to one in another region: load it.
   const cm = currentMission(state);
   if (cm && cm.region !== regionId && !state.won) {
@@ -451,14 +460,16 @@ function exposeDebug() {
   window.__wet = wetness;
   window.__rain3d = rain3d;
   window.__planes = planes;
-  // Dev: load a region now (memory checks): await __loadRegion('fenwick').
-  window.__loadRegion = (id) => loadRegion(id, `Region ${id}`);
+  // Dev: play a mission now, building its region if need be (memory checks):
+  // await __playMission('m3_airfield').
+  window.__playMission = playMission;
 }
 
 // Called by the start screen (src3/boot.js) with the mission to play:
 // Continue (the first unfinished one) or any finished one to replay.
 // Dev: ?spot=<name> starts the car at a review spot (src3/spots.js); a
 // spot in another region plays that region's first mission instead.
+let started = false;
 export async function startGame(index = 0) {
   const spotName = params.get('spot');
   const sr = spotName ? spotRegion(spotName) : null;
@@ -475,5 +486,14 @@ export async function startGame(index = 0) {
     state.missionStart = { x: spot.x, y: spot.y, heading: spot.heading };
   }
   last = performance.now();
-  requestAnimationFrame(frame);
+  if (!started) requestAnimationFrame(frame);
+  started = true;
+}
+
+// Plays mission `idOrIndex` from its own start (dev and checks).
+async function playMission(idOrIndex) {
+  const i = typeof idOrIndex === 'number' ? idOrIndex : MISSIONS.findIndex((m) => m.id === idOrIndex);
+  if (i < 0) return;
+  jumpToMission(state, i);
+  if (MISSIONS[i].region !== regionId) await loadRegion(MISSIONS[i].region, MISSIONS[i].title);
 }
