@@ -141,7 +141,12 @@ export function mountShareStrip(parent, ctx) {
       el('b', null, p, done.nickname);
     } else {
       const b = button(strip, 'Share my map', 'ms-main');
-      b.addEventListener('click', () => openShareForm(ctx, config));
+      const onShared = (m) => {
+        const p = el('p', 'ms-done', null, 'Shared as ');
+        el('b', null, p, m.nickname);
+        b.replaceWith(p);
+      };
+      b.addEventListener('click', () => openShareForm({ ...ctx, onShared }, config));
     }
     const see = button(strip, 'See other drivers’ maps');
     see.addEventListener('click', () => openMapsBrowser({
