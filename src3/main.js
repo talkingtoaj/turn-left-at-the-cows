@@ -272,9 +272,11 @@ async function followMission() {
   runtime.paused = true;
   try {
     const crossed = m.approach && state.leg !== 'approach';
+    // Over the county line you keep the speed you crossed it at.
+    const speed = crossed ? state.car.speed : 0;
     await loadRegion(want, crossed ? m.approach.crossing : m.title);
     const at = state.leg === 'approach' ? m.approach.start : m.start;
-    Object.assign(state.car, at, { speed: 0 });
+    Object.assign(state.car, at, { speed });
     state.missionStart = { ...at };
   } finally {
     following = false;
