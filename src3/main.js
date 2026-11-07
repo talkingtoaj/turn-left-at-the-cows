@@ -18,7 +18,7 @@ import { generateScenery } from '../src/drive/layout.js';
 import { Collider } from '../src/drive/collider.js';
 import { stepCar } from '../src/drive/car.js';
 import { runtime } from './runtime.js';
-import { updateGame, jumpToMission } from '../src/game/update.js';
+import { updateGame, jumpToMission, missionRegion } from '../src/game/update.js';
 import { MISSIONS, currentMission } from '../src/game/missions.js';
 import { showLoadScreen } from '../src/ui/loadScreen.js';
 import { createHUD } from './hud/hud.js';
@@ -261,15 +261,25 @@ function memoryNow() {
 }
 
 // The mission now playing is in another region (the one before it ended
-// there): build that region and put the car at the mission's start.
+// there, or you just drove over the county line from its approach leg):
+// build that region and put the car at the mission's start.
+let following = false;
 async function followMission() {
   const m = currentMission(state);
-  if (!m || m.region === regionId) return;
+  const want = missionRegion(state, m);
+  if (!m || want === regionId || following) return;
+  following = true;
   runtime.paused = true;
-  await loadRegion(m.region, m.title);
-  Object.assign(state.car, m.start, { speed: 0 });
-  state.missionStart = { ...m.start };
-  runtime.paused = false;
+  try {
+    const crossed = m.approach && state.leg !== 'approach';
+    await loadRegion(want, crossed ? m.approach.crossing : m.title);
+    const at = state.leg === 'approach' ? m.approach.start : m.start;
+    Object.assign(state.car, at, { speed: 0 });
+    state.missionStart = { ...at };
+  } finally {
+    following = false;
+    runtime.paused = false;
+  }
 }
 
 // ---------- UI wiring (see CONTRACT3.md) ----------
@@ -407,7 +417,7 @@ function frame(now) {
   }
   // A finished mission handed over to one in another region: load it.
   const cm = currentMission(state);
-  if (cm && cm.region !== regionId && !state.won) {
+  if (cm && missionRegion(state, cm) !== regionId && !state.won) {
     followMission();
     return;
   }
@@ -522,6 +532,12 @@ function frame(now) {
       ? repairNear(WORLD, viewer.x, viewer.y, foot.active) : null;
     state.nearRepair = shop && needsRepair(state.damage) ? shop : null;
 
+    // Driving over the county line on a mission's approach leg: the next
+    // frame loads the mission's own region (followMission).
+    const cmNow = currentMission(state);
+    if (state.leg === 'approach' && !foot.active && cmNow && cmNow.approach && cmNow.approach.exit(car.x, car.y)) {
+      state.leg = null;
+    }
     // Waypoint snapshots and arrival at the current mission's goal (sets state.won),
     // by car or on foot.
     state.footPos = foot.active ? viewer : null;
@@ -788,11 +804,14 @@ function startLoop() {
 export async function preloadMenu(index = 0, { live = true, still = false, rect = null, onReady = null } = {}) {
   index = resolveIndex(index);
   const m = MISSIONS[index];
-  await loadRegion(m.region, m.title, { quiet: true });
-  if (started || !live || regionId !== m.region) return;
+  // A mission with an approach leg starts in that leg's region.
+  const region0 = m.approach ? m.approach.region : m.region;
+  const start0 = m.approach ? m.approach.start : m.start;
+  await loadRegion(region0, m.title, { quiet: true });
+  if (started || !live || regionId !== region0) return;
   // The weather follows this mission's timeline (startGame sets it properly).
   state.missionIndex = index;
-  menu = { at: { x: m.start.x, y: m.start.y }, yaw0: (m.start.heading || 0) * (Math.PI / 180), t: 0, frames: 0, still, rect, onReady };
+  menu = { at: { x: start0.x, y: start0.y }, yaw0: (start0.heading || 0) * (Math.PI / 180), t: 0, frames: 0, still, rect, onReady };
   car3d.object.visible = false;
   exposeDebug();
   startLoop();
@@ -840,8 +859,13 @@ export async function startGame(index = 0) {
   const spotName = params.get('spot');
   jumpToMission(state, index);
   const m = MISSIONS[index];
+  // A review spot in the mission's own region skips its approach leg.
+  if (m.approach && spotName && spotRegion(spotName) === m.region) {
+    state.leg = null;
+    Object.assign(state.car, m.start, { speed: 0 });
+  }
   await loadChain;
-  if (m.region !== regionId) await loadRegion(m.region, m.title);
+  if (missionRegion(state, m) !== regionId) await loadRegion(missionRegion(state, m), m.title);
   exitMenu();
   foot.reset();
   state.onFoot = false;
@@ -862,5 +886,6 @@ async function playMission(idOrIndex) {
   const i = typeof idOrIndex === 'number' ? idOrIndex : MISSIONS.findIndex((m) => m.id === idOrIndex);
   if (i < 0) return;
   jumpToMission(state, i);
-  if (MISSIONS[i].region !== regionId) await loadRegion(MISSIONS[i].region, MISSIONS[i].title);
+  const want = missionRegion(state, MISSIONS[i]);
+  if (want !== regionId) await loadRegion(want, MISSIONS[i].title);
 }

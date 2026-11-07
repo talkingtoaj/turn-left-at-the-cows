@@ -11,7 +11,8 @@ import { state } from '../../src/state.js';
 import { buildOldMap } from '../../src/map/oldMap.js';
 import { printedMapsFor } from '../../src/game/printedMaps.js';
 import { topicLabel } from '../../src/game/dialogue.js';
-import { MISSIONS } from '../../src/game/missions.js';
+import { MISSIONS, currentMission } from '../../src/game/missions.js';
+import { myMap } from '../../src/game/myMaps.js';
 import {
   drawStamp, seedFrom, smoothPoints, distToSegment,
   STAMP_KINDS, STAMP_NAMES,
@@ -33,21 +34,50 @@ const INKS = [
   { id: 'red', color: 0xc0392b, name: 'Red (notes)' },
 ];
 
-// Tabs: "My sketch" plus one per printed map the current mission gives.
-// Rebuilt on every open (the mission may have changed).
+// Your finished maps from earlier missions, to look at (not draw on): this
+// run's archive, else the copy kept in the browser when you finished it
+// (src/game/myMaps.js), so a mission played on its own still has them.
+function earlierSketches() {
+  const m = currentMission(state);
+  const at = m ? MISSIONS.findIndex((q) => q.id === m.id) : -1;
+  const out = [];
+  for (let i = 0; i < at; i++) {
+    const id = MISSIONS[i].id;
+    const run = [...state.sketchArchive].reverse().find((a) => a.missionId === id);
+    const sketch = run ? run.sketch : myMap(id)?.sketch;
+    const empty = !sketch || !((sketch.strokes || []).length + (sketch.stamps || []).length + (sketch.labels || []).length);
+    if (!empty) out.push({ n: i + 1, missionId: id, sketch });
+  }
+  return out;
+}
+
+// Tabs: "My sketch", one per printed map the current mission gives, then your
+// maps from earlier missions. Rebuilt on every open (the mission may have
+// changed). The tabs share the room left of the Notebook button.
 let TABS = [];
 function buildTabs() {
-  TABS = [
-    { id: 'sketch', text: 'My sketch', x: PAPER.x + 20, w: 140, fill: SKETCH_PAPER, font: HAND },
-    ...printedMapsFor(state).map((def, i) => ({
+  const extra = [
+    ...printedMapsFor(state).map((def) => ({
       id: 'map:' + def.id,
       def,
       text: def.tabLabel || def.title,
-      x: PAPER.x + 168 + i * 214,
-      w: 206,
       fill: def.style === 'hand' ? 0xf6f0dc : OLD_PAPER,
       font: def.style === 'hand' ? HAND : SERIF,
     })),
+    ...earlierSketches().map((e) => ({
+      id: 'old:' + e.missionId,
+      sketch: e.sketch,
+      text: `My map ${e.n}`,
+      fill: SKETCH_PAPER,
+      font: HAND,
+    })),
+  ];
+  const x0 = PAPER.x + 168;
+  const room = NOTE_BTN.x - 8 - x0;
+  const w = extra.length ? Math.min(206, Math.floor(room / extra.length) - 8) : 0;
+  TABS = [
+    { id: 'sketch', text: 'My sketch', x: PAPER.x + 20, w: 140, fill: SKETCH_PAPER, font: HAND },
+    ...extra.map((t, i) => ({ ...t, x: x0 + i * (w + 8), w })),
   ];
 }
 
@@ -419,6 +449,10 @@ export function createMapOverlay(root, { onClose } = {}) {
 
     if (tab === 'sketch') {
       drawSketch();
+    } else if (tab.startsWith('old:')) {
+      // An earlier mission's map: look only.
+      paintSketchPaper(g, ctx);
+      drawSketchItems(g, ctx, TABS.find((t) => t.id === tab).sketch);
     } else {
       const tabDef = TABS.find((t) => t.id === tab);
       const cache = mapCache.get(tab) || buildMapCache(tabDef);

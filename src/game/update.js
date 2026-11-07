@@ -12,6 +12,8 @@ import { recordFinish } from './progress.js';
 export function updateGame(state, _dt) {
   const m = currentMission(state);
   if (!m) return;
+  // On the drive over from another region the goal is not here yet.
+  if (state.leg === 'approach') return;
   const at = state.footPos || state.car;
   const { x, y } = at;
   for (const wp of m.waypoints) {
@@ -38,6 +40,7 @@ export function startMission(state, index) {
   if (!m) return null;
   state.missionIndex = index;
   state.won = false;
+  state.leg = m.approach ? 'approach' : null;
   // Each mission starts with a fresh car, and no tows yet (src/game/tow.js).
   state.missionStart = { x: state.car.x, y: state.car.y, heading: state.car.heading };
   resetDamage(state);
@@ -100,9 +103,15 @@ export function jumpToMission(state, index) {
   state.elapsedMs = 0;
   state.allMissionsDone = false;
   state.inputLocked = false;
-  Object.assign(state.car, m.start, { speed: 0 });
+  Object.assign(state.car, m.approach ? m.approach.start : m.start, { speed: 0 });
   return startMission(state, index);
 }
 
 // A breakdown no longer restarts the mission: the car is towed to the
 // nearest town's garage and the trip goes on (src/game/tow.js, src3/tow3d.js).
+
+// The region the current mission is in right now: its approach leg's region
+// while driving over, else its own.
+export function missionRegion(state, m) {
+  return m && m.approach && state.leg === 'approach' ? m.approach.region : m && m.region;
+}

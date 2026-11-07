@@ -15,6 +15,11 @@
 //   arrivalLabel: snapshot label taken when the car reaches the goal
 //   finalLabel: snapshot label taken when the player closes the win screen
 //   printedMaps: ids into WORLD.printedMaps the player has during this mission
+//   approach: optional first leg in another region, driven before the
+//     mission's own region: { region, start: { x, y, heading }, exit(x, y) }.
+//     exit says when the car has left that region (the load screen then
+//     builds the mission's region and puts the car at `start`). While on
+//     the approach (state.leg === 'approach') the goal and waypoints wait.
 //   No mission closes a road: the fixed fallen trees (src/world/fallenTrees.js)
 //   always leave a way past, so they never change a route.
 
@@ -100,8 +105,16 @@ const DETAILS = {
     brief: [
       "Pills and a pie. Mum thinks of everything. Since you've got the car and I've got this knee, could you run one more errand?",
       "This magneto belongs to Ray Kessler. He flies out of a little grass airfield over Brandt way, east along Route 40. His plane won't start without it.",
-      "I've only ever flown over the place, years ago, never driven there. Ask in Brandt. And keep your ears open.",
+      "I've only ever flown over the place, years ago, never driven there. Take Route 40 east out of Calder, over the county line, and ask in Brandt. And keep your ears open.",
     ],
+    // You set off from Tom's cabin on Loon Pond and drive over the county
+    // line on Route 40 (Fenwick's east edge is Harlan's west edge).
+    approach: {
+      region: 'fenwick',
+      start: { x: 5828, y: 427, heading: 260 }, // on Pond Road by the cabin, facing out
+      exit: (x, y) => x > 6470 && y > 1240 && y < 1360,
+      crossing: 'Over the county line: Harlan County',
+    },
     goalTopic: 'kestrel_field',
     startTopics: ['kestrel_field', 'brandt', 'rt40'],
     goal: place('kestrel_field'),

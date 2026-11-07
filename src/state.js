@@ -20,6 +20,7 @@ export const state = {
   nearSignId: null, // id of a sign within reading range (25 m), set by Drive each frame
   talkedTo: new Set(), // ids of locals talked to this mission (cleared per mission)
   // On foot (round 12, src3/onfoot.js and src/game/onfoot.js).
+  leg: null, // 'approach' while driving over from another region (missions.js)
   onFoot: false, // out of the car, walking
   footPos: null, // { x, y } where you stand while on foot (null in the car)
   lookYaw: null, // degrees, where you look on foot (the dash compass follows it)
