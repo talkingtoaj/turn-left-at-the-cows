@@ -108,8 +108,8 @@ export function createLightning3D(scene, { reducedMotion = false } = {}) {
         branch.push([bx, pts[j][1] - i * 0.06]);
       }
       const arr = [];
-      ribbon(pts, 0.012, arr);
-      ribbon(branch, 0.007, arr);
+      ribbon(pts, 0.02, arr);
+      ribbon(branch, 0.011, arr);
       pos.fill(0);
       pos.set(arr.slice(0, pos.length));
       geo.attributes.position.needsUpdate = true;
