@@ -1,5 +1,5 @@
 // Load screen while a region is built (src3/main.js), in the "paper on the
-// dash" look (SPEC 9k): dash black, a pencil doodle (never the region's
+// dash" look (SPEC 9l): dash black, a pencil doodle (never the region's
 // real map) sketched in as it loads (stroke progress follows load
 // progress), the trip odometer rolling as the progress number, and one
 // line from a local.

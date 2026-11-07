@@ -1,6 +1,6 @@
 # Orienteering Driving Game: Spec
 
-Title: **Turn Left at the Cows** (LOCKED, Nov 2026; see 9k). World: Ashford County. "Ask a local" stays as the in-game verb.
+Title: **Turn Left at the Cows** (LOCKED, Nov 2026; see 9l). World: Ashford County. "Ask a local" stays as the in-game verb.
 
 Status key: **LOCKED** = decided. **TRIAL** = trying, not decided. **OPEN** = still to decide.
 
@@ -130,7 +130,7 @@ Best ambient things also give clues.
 
 ## 6h. Onboarding (LOCKED)
 
-- **Start screen** before the game: the map on the passenger seat (see 9k). How it works and the controls sit in a "How to play" fold-out, not up front.
+- **Start screen** before the game: the map on the passenger seat (see 9l). How it works and the controls sit in a "How to play" fold-out, not up front.
 - **Mission card** at the start of every mission: title, who gave it, the brief, and the goal's name. Never a distance or a direction.
 - Small "Goal: <name>" line on the HUD. **H** reopens the help.
 
@@ -218,8 +218,8 @@ Middle path between low-poly and realistic, no 3D artist needed:
 - Hit direction and speed come from the existing collider.
 - **Shown through** dash warning lights, the car's look (dents, smoke), feel and sound. No health bar or numbers.
 - **Forgiving:** careful drivers never break down. About 3 or 4 hard crashes or lots of fast pothole hits breaks the car. Small low-speed bumps do nothing. Tune by playing.
-- **Breakdown:** the mission fails and restarts. Each mission starts with a fresh car.
-- LATER: repairs (spare tyre, town garages, helpful locals). Tow truck to the nearest garage as an easy mode.
+- **Breakdown:** ~~the mission fails and restarts~~ replaced by a tow (9k): the mission is never lost. Each mission starts with a fresh car.
+- LATER: repairs (spare tyre, helpful locals).
 
 ### 9g. Hazards (LOCKED)
 - Livestock crossing near farms, slow tractors or farm trucks on dirt roads, deer on forest roads (rare), random fallen branches and small logs.
@@ -252,11 +252,24 @@ Middle path between low-poly and realistic, no 3D artist needed:
 - **Region 2 and mission 3: the airfield.** Harlan County round Brandt (4.8 x 3 km), 22 km east along Route 40. Mission 3 (from Tom Hartley): take a magneto to Kestrel Field, a grass strip north of Route 40 that no highway sign points to. The town only knows the planes; Peg sends you down Field Lane, fenced off since 1984; Dagny at its end says go round, or watch the planes.
 - **Planes as a clue.** Light singles fly circuits (take-off into the wind, crosswind, downwind 800 m to the side along Route 40, base, final, landing, touch-and-goes), sometimes depart and curve away, and come back later. One is up most of the time, sometimes two. Wind (and so the landing direction, shown by the windsock) comes from the seed. Deterministic from the seed and the game clock. The drone is positional with distance, Doppler and throttle: near the field, never exactly on it.
 
-### 9k. Name, look and start screen (LOCKED, 7 Nov 2026, after critic round 1)
+### 9k. Breakdowns end in a tow (round 11, Nov 2026)
+A critic worried that getting lost and then breaking down feels stressful. Breakdowns are now gentle and a bit funny, but still cost something.
+- **Before the breakdown nothing changes:** handling, warning lights, smoke and stalls build up as in 9f.
+- **The tow scene** (`src3/tow3d.js`, rules and words in `src/game/tow.js`): once the broken car has rolled to a stop, a banner says what went ("Broken down. The engine coughs, rattles and dies. Someone's bound to come along."). After about 2 s a low-poly tow truck (red cab, yellow boom, amber light bar flashing) drives in from behind along the nearest road, passes on the left, swings in ahead and backs up to the car. The driver, a local with a gibberish voice, says one line with a subtitle (Enter goes on). A chain rattle, the winch lifts the car's front, fade to black, a card ("Towed to Ashford. Earl at the garage patched her up..."), fade back in. About 22 s in all; Enter skips each part.
+- **Drivers:** Wade (Fenwick County), Junie (round Brandt). Ten short country lines, picked from the region seed, the mission and how many tows so far (so a second tow says something new).
+- **Where you end up:** the nearest town (not a hamlet) in the current region. A town with a gas station (Ashford, Brandt) parks you by the pumps; the others (Millbrook, Calder) at the roadside in town. Mechanics: Earl (Ashford), Lou (Brandt), Nell (Millbrook), Sid (Calder).
+- **The car:** fixed (all parts 1, dust washed off), but the worst dent stays as a small scuff.
+- **What it costs:** the game clock and the trip timer move on 30 minutes plus 6 per km towed, in 5 minute steps, at most 60. The odometer stays (you did not drive it). The mission, notes, map and talk all carry on.
+- **Counted:** `state.tows` per mission (reset when a mission starts). Saved with each finish as `tows` in the progress record (`src/game/progress.js`, same key, old saves read as 0) and on the result object `state.lastRecord`, for the share postcard ("towed twice": `towedText(n)` in `src/game/tow.js`). The win screen shows a "Towed" row when it is not 0.
+- **Sound:** the truck's diesel idle (positional, louder as it comes, pitched up while it drives), a chain rattle as it hooks up and a winch ratchet. All CC0 from Freesound (see `public/sounds/SOURCES.md`).
+- **Dev:** `?breakdown=1` breaks the car down at once (skips the mission card). `window.__tow`: `phase`, `hold = true` freezes the scene, `skip()`, `breakdown()`.
+
+### 9l. Name, look and start screen (LOCKED, 7 Nov 2026, after critic round 1)
 - **Name: Turn Left at the Cows.** Chosen knowing there is a children's book called "Turn Left at the Cow". World name: **Ashford County.** "Ask a local" stays as the in-game verb and wording. Code names and the save key `askalocal.progress.v1` stay as they are.
 - **Taglines.** Main: "There was a time before GPS, when finding your way required you to ask a local." Pitch (meta description, landing copy): "GeoGuessr, but you drive, and the locals might be unreliable." Short, used sparingly: "Get directions. Get lost. Find it anyway."
 - **Look: "paper on the dash".** Dash #1c1d1f / #3a3c40, amber #e6b450, paper #f1ead6 / #d8ccb4, graphite #4a4a48, ink #3a3128, barn red #b3261e, sky #6f9fb8, straw #d9b45a. Fonts (Google Fonts): Caveat for pencil writing (also the in-game map's handwriting, which fell back to Comic Sans on Linux and Android), Oswald for dash labels and the title, Georgia or Libre Baskerville for printed map labels. Logo: the title on a cream road sign with a pencilled arrow; icon: a turn-left arrow on the sign with a red map pin (`public/favicon.svg`, PNGs beside it).
 - **Start screen: the map on the passenger seat** (`src/ui/splash.js`). The top is a windshield; below it the dash, a notepad with the jobs and the big button, and a hand-drawn paper map with a coffee ring, a pencil and a compass. Finished jobs are ticked on the map with the best time pencilled beside them; the next job is circled where it starts; unfinished jobs are only ever marked where they start, so the menu never gives a place away. The map is a loose sketch: it names only Ashford (where you start), the two counties and places already found; no real roads, rivers or other towns. Continue (Play for a new player) is the biggest thing and is focused. The ignition key beside it only plays an engine sound. New players get one short, skippable moment of a local at a fence saying "Oh, you can't miss it" (silent, never blocks Play, once). Returning players go straight to the map with Continue.
 - **Live world behind the windshield.** The menu shows at once as plain DOM. Right after its first paint the game code, textures and the first job's region start loading (the old screen only loaded after Start); sounds are fetched after that. When the region is built, the world fades in behind the glass: the camera stands above the job's start and turns about 1 degree a second, about 30 frames a second, drawn only into the windshield. No car, no sound, no game clock (so no weather change); ambient life, the mast light and planes go on. Reduced motion: a still frame. A weak device (2 cores or less, 2 GB or less, Save-Data) or no WebGL keeps the painted scene; a device that draws the menu too slowly drops to a still frame. Continue then only places the car; if the region is still building, its load screen shows.
-- **Load screen** between regions: dash black, a generic pencil doodle (compass rose, road sign, the car, a cow, a coffee ring) sketched in as it loads, strokes following progress. Never the region's real map: that would give away what the player is working out, the trip odometer rolling as the progress number, one line from a local in Caveat. No spinner.
+- **Load screen** between regions: dash black, a generic pencil doodle (compass rose, road sign, the car, a cow, a coffee ring) sketched in as it loads (strokes follow progress), the trip odometer rolling as the progress number, one line from a local in Caveat. No spinner. Never the region's real map: that would give away what the player is working out.
 - **Must-haves.** Real buttons with focus rings and a sensible Tab order; the title is the page's h1; text over the moving world sits on paper. Sound starts only inside a real click (one shared AudioContext, `src/audio/context.js`); mute (K or the dash button) is remembered. Touch-only devices (no mouse or trackpad) get the map and "Made for keyboard on a laptop or desktop" with a share / copy link button instead of Play, and load no game code. Page title, meta description, Open Graph and Twitter tags with a 1200x630 image (`public/og.jpg`), favicon, apple-touch-icon, canonical (set `SITE_URL` at build time for absolute links). If progress cannot be written, the menu and the mission-complete screen say so; after the first finished job the game asks the browser to keep its storage (`navigator.storage.persist()`).
+

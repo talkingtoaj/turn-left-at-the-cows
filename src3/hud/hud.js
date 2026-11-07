@@ -4,12 +4,13 @@ import { runtime } from '../runtime.js';
 import { headingText, clockText, timerText } from '../../src/hud/format.js';
 import { greet, ask, listTopics } from '../../src/game/dialogue.js';
 import { currentMission, currentGoal, nextMission, MISSIONS } from '../../src/game/missions.js';
-import { finishMission, restartMission } from '../../src/game/update.js';
+import { finishMission } from '../../src/game/update.js';
 import { compassHeading, warningLights, PARTS } from '../../src/game/damage.js';
 import { renderSketchCanvas, renderPrintedMapCanvas, trueMapDef } from '../map/sketchRender.js';
 import { openMissionCard } from '../../src/ui/missionCard.js';
 import { openHelp } from '../../src/ui/help.js';
 import { speak } from '../../src/audio/voice.js';
+import { towedText } from '../../src/game/tow.js';
 
 // The HUD (a DOM/CSS port of the old 2D HUD). Shows the dash (compass, odometer,
 // clock, speed, trip timer), road signs, mailboxes, the talk prompt, the
@@ -22,7 +23,6 @@ import { speak } from '../../src/audio/voice.js';
 // closed it does not open it again.
 const MAP_REOPEN_GUARD_MS = 150;
 const DASH_W = 1080; // design width of the dash; scaled down on small screens
-const BREAKDOWN_AUTO_S = 7; // the breakdown card tows you back on its own after this
 const ODO_CELL_H = 30;
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -141,8 +141,6 @@ const CSS = `
 @keyframes hud-blink { to { visibility: hidden; } }
 .hud-dev-dmg { position: absolute; top: 44px; right: 12px; padding: 6px 9px; background: rgba(0,0,0,0.65); color: #d8f0d8;
   font: 12px/1.4 "Courier New", Courier, monospace; white-space: pre; pointer-events: none; }
-.hud-broke .hud-win-sub { margin-bottom: 8px; }
-.hud-broke p { color: #ece7d8; font-size: 16px; line-height: 1.45; margin: 8px 6px; }
 @media (max-width: 480px) { .hud-win-row { padding: 0 16px; } .hud-thumb { width: 140px; } }
 `;
 
@@ -308,7 +306,6 @@ export function createHUD(root, { openMap } = {}) {
   let promptText = null;
   let card = null; // mission card while it shows
   let help = null; // how-to-play panel while it shows
-  let broke = null; // breakdown card while it shows: { at }
   const last = {}; // last text written per element, to skip DOM writes
   let lastScaleW = -1;
 
@@ -553,10 +550,8 @@ export function createHUD(root, { openMap } = {}) {
       if (!runtime.paused) markMapClosed();
       return;
     }
-    if (broke) {
-      if (!e.repeat && (e.key === 'Enter' || e.key === 'Escape')) endBreakdown();
-      return;
-    }
+    // A breakdown's tow scene (src3/tow3d.js) has the keys while it plays.
+    if (state.towing) return;
     if (runtime.paused || card || help) return;
     if (zoomBox) {
       if (!e.repeat && (e.key === 'Escape' || e.key === 'Enter' || e.key.toLowerCase() === 'e')) closeZoom();
@@ -635,43 +630,8 @@ export function createHUD(root, { openMap } = {}) {
     }
   }
 
-  // Breakdown: once the car has rolled to a stop, a short card, then the
-  // mission starts again from where it began (Enter, click, or on its own).
-  const BREAK_TEXT = {
-    engine: 'The engine coughs, rattles and dies. Smoke pours out from under the bonnet.',
-    tyres: 'The tyre is in shreds. You are going nowhere on that.',
-    steering: 'Something in the steering snapped. The wheel just spins.',
-  };
-  function showBreakdown() {
-    if (dialogue) closeDialogue();
-    state.inputLocked = true;
-    runtime.paused = true;
-    winShade.textContent = '';
-    const panel = el('div', 'hud-win hud-win-small hud-broke', winShade);
-    el('h2', null, panel, 'Your car broke down');
-    const m = currentMission(state);
-    if (m) el('div', 'hud-win-sub', panel, m.title);
-    if (state.lastRecord && state.lastRecord.saved === false) {
-      el('div', 'hud-win-sub hud-win-nosave', panel, 'Progress can\u2019t be saved in this window (storage is blocked).');
-    }
-    el('p', null, panel, BREAK_TEXT[state.damage.cause] || BREAK_TEXT.engine);
-    el('p', null, panel, 'A farmer tows you back to where this trip began, and the garage patches the car up. Your notes and map are still with you.');
-    el('div', 'hud-win-foot hud-mono', panel, 'Enter: try again');
-    panel.addEventListener('click', endBreakdown);
-    winShade.style.display = 'block';
-    broke = { timer: setTimeout(endBreakdown, BREAKDOWN_AUTO_S * 1000) };
-  }
-  function endBreakdown() {
-    if (!broke) return;
-    clearTimeout(broke.timer);
-    broke = null;
-    winShade.style.display = 'none';
-    winShade.textContent = '';
-    restartMission(state);
-    currentSignId = undefined;
-    runtime.paused = false;
-    state.inputLocked = false;
-  }
+  // Breakdowns: the tow scene (src3/tow3d.js) takes over from here; the
+  // HUD just stands aside while state.towing.
 
   function updateSign() {
     const id = state.won ? null : state.nearSignId;
@@ -770,6 +730,7 @@ export function createHUD(root, { openMap } = {}) {
       ['Clock', clockText(state.clockMinutes)],
       ['Locals asked', String(state.talkedTo.size)],
     ];
+    if (state.tows) rows.push(['Towed', towedText(state.tows)]);
     for (const [k, v] of rows) {
       const r = el('span', null, stats);
       el('span', null, r, k);
@@ -840,14 +801,20 @@ export function createHUD(root, { openMap } = {}) {
     }
     updateDash();
     updateLights();
-    if (broke) return;
+    if (state.towing) {
+      if (dialogue) closeDialogue();
+      if (promptText) {
+        promptText = null;
+        promptBox.style.display = 'none';
+      }
+      return;
+    }
     updateSign();
     updateMailbox();
     updatePrompt();
     updateGoalLine();
     if (dialogue || winShown || card || help) state.inputLocked = true;
     if (state.won && !winShown) showWin();
-    if (!state.won && !broke && !card && !help && state.damage && state.damage.brokenDown && state.damage.stopT > 1.2) showBreakdown();
     if (state.briefPending && !dialogue && !state.won && !card && !help) showCard();
   }
 

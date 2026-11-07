@@ -92,6 +92,10 @@ RECIPES = [
     # Round 10: the light plane's propeller drone (a seamless field loop). The
     # game pitches it with throttle and Doppler and filters it with distance.
     ('aircraft/prop', f'{FS}/789390.ogg', 0, None, 'loop', 'highpass=f=50', -18),
+    # Round 11: the tow truck (src3/tow3d.js).
+    ('tow/engine', f'{FS}/453415.ogg', 4, 8, 'loop', 'highpass=f=40,lowpass=f=5000', -18),
+    ('tow/chain', f'{FS}/387240.ogg', 1.3, 1.8, 'oneshot', 'highpass=f=150', -3),
+    ('tow/winch', f'{FS}/454148.ogg', 0, None, 'oneshot', 'highpass=f=100', -3),
 ]
 
 

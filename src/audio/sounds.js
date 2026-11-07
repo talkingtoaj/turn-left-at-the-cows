@@ -126,6 +126,15 @@ export const SOUND_GROUPS = [
       { id: 'aircraft/prop', kind: 'loop', label: 'Light plane propeller drone (pitched with throttle and Doppler in the game)' },
     ],
   },
+  // Round 11: the tow truck after a breakdown (src3/tow3d.js).
+  {
+    group: 'Tow truck',
+    items: [
+      { id: 'tow/engine', kind: 'loop', label: 'Tow truck diesel idle (pitched up as it drives in)' },
+      { id: 'tow/chain', kind: 'oneshot', label: 'Tow chain rattle (hooking the car up)' },
+      { id: 'tow/winch', kind: 'oneshot', label: 'Tow winch ratchet (pulling the car up)' },
+    ],
+  },
   // Round 8, 3D only (createAudio(world, { weather: true }) loads them).
   {
     group: 'Rain',

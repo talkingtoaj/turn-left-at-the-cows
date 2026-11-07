@@ -24,7 +24,8 @@ export function updateGame(state, _dt) {
     takeSnapshot(state, m.arrivalLabel, { kind: 'arrival' });
     state.won = true;
     // Saved progress (src/game/progress.js): ticks it on the start screen.
-    state.lastRecord = recordFinish(m.id, { elapsedMs: state.elapsedMs, odometer: state.odometer });
+    // The result (state.lastRecord) also says how often the car was towed.
+    state.lastRecord = recordFinish(m.id, { elapsedMs: state.elapsedMs, odometer: state.odometer, tows: state.tows || 0 });
   }
 }
 
@@ -35,9 +36,10 @@ export function startMission(state, index) {
   if (!m) return null;
   state.missionIndex = index;
   state.won = false;
-  // Each mission starts with a fresh car, here (a breakdown brings you back).
+  // Each mission starts with a fresh car, and no tows yet (src/game/tow.js).
   state.missionStart = { x: state.car.x, y: state.car.y, heading: state.car.heading };
   resetDamage(state);
+  state.tows = 0;
   for (const t of m.startTopics) state.knownTopics.add(t);
   const giver = m.giverNpcId ? getNpc(m.giverNpcId) : null;
   for (const text of m.brief) {
@@ -100,23 +102,5 @@ export function jumpToMission(state, index) {
   return startMission(state, index);
 }
 
-// After a breakdown: the car is towed back to where this mission started,
-// fresh, and the trip meter and timer start again. What you have heard and
-// drawn stays (you remember it). Bumps state.restarts so renderers can clear
-// things that belong to the old run (hazards).
-export function restartMission(state) {
-  const m = currentMission(state);
-  if (!m) return null;
-  const s = state.missionStart || { x: state.car.x, y: state.car.y, heading: state.car.heading };
-  state.car.x = s.x;
-  state.car.y = s.y;
-  state.car.heading = s.heading;
-  state.car.speed = 0;
-  state.odometer = 0;
-  state.elapsedMs = 0;
-  state.won = false;
-  state.inputLocked = false;
-  state.restarts = (state.restarts || 0) + 1;
-  resetDamage(state);
-  return m;
-}
+// A breakdown no longer restarts the mission: the car is towed to the
+// nearest town's garage and the trip goes on (src/game/tow.js, src3/tow3d.js).
