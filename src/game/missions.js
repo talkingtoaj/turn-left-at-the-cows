@@ -39,7 +39,7 @@ const DETAILS = {
     start: { x: W.start.x, y: W.start.y, heading: W.start.heading },
     brief: [
       "There's a parcel for Hartley Farm on the seat beside you. No address, just the name.",
-      "The old county map is in the glovebox. Earl at the gas station knows everybody. Ask him.",
+      "No map in the glovebox, just a pencil and a blank notepad. Earl at the gas station knows everybody. Ask him.",
     ],
     goalTopic: 'hartley_farm',
     startTopics: ['hartley_farm'],
@@ -53,7 +53,8 @@ const DETAILS = {
     ],
     arrivalLabel: 'Map on arrival at Hartley Farm',
     finalLabel: 'Final map: Hartley Farm',
-    printedMaps: ['county1987'],
+    // No map at all: you draw the county from scratch.
+    printedMaps: [],
   }),
   m2_cabin: ({ place, bridge, town }) => ({
     giverNpcId: 'hartley',

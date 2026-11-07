@@ -9,6 +9,7 @@
 // Gameplay (physics, collisions, state updates) is shared engine-free code in src/.
 
 import * as THREE from 'three';
+import { learnMentions, learnNearby } from '../src/game/dialogue.js';
 import { trackRegion, collectKeep, disposeTracked } from './gpuTracker.js';
 import { WORLD, setRegion, REGIONS } from '../src/world/world.js';
 import { state } from '../src/state.js';
@@ -341,16 +342,35 @@ function readInput() {
   };
 }
 
-function nearestId(list, car, range, posOf = null) {
+// The nearest sign ahead of you within range, and which side of it you see.
+// A sign's `facing` is the heading of the car meant to read it: you read the
+// front when you face roughly that way, and see the blank back when you face
+// the other way. Signs side-on or behind you are not shown. Signs with no
+// facing can be read from anywhere.
+const SIGN_FRONT = Math.cos(70 * Math.PI / 180);
+function signInView(signs, v, range) {
+  const hx = Math.sin(v.heading * Math.PI / 180);
+  const hy = -Math.cos(v.heading * Math.PI / 180);
   let best = null;
   let bestD = range;
-  for (const item of list) {
-    const p = (posOf && posOf(item.id)) || item;
-    const d = Math.hypot(p.x - car.x, p.y - car.y);
-    if (d <= bestD) {
-      bestD = d;
-      best = item.id;
+  for (const s of signs) {
+    const dx = s.x - v.x;
+    const dy = s.y - v.y;
+    const d = Math.hypot(dx, dy);
+    if (d > bestD) continue;
+    let back = false;
+    if (s.facing != null) {
+      // Ahead of you (or right beside you, within a few metres).
+      if (d > 4 && (dx * hx + dy * hy) / d < 0) continue;
+      const fx = Math.sin(s.facing * Math.PI / 180);
+      const fy = -Math.cos(s.facing * Math.PI / 180);
+      const along = hx * fx + hy * fy;
+      if (along >= SIGN_FRONT) back = false;
+      else if (along <= -SIGN_FRONT) back = true;
+      else continue;
     }
+    bestD = d;
+    best = { id: s.id, back };
   }
   return best;
 }
@@ -372,6 +392,8 @@ footState.car = viewer;
 let footTime = 0; // seconds since you got out
 let driveTime = 0; // seconds driven this mission
 let lookFrame = 0;
+let learnFrame = 0;
+let lastSignRead = null;
 let thunderForced = params.get('thunder') !== 'now';
 const ear = { x: 0, y: 0, heading: 0 };
 
@@ -484,7 +506,16 @@ function frame(now) {
       state.nearCar = false;
       state.lookAt = null;
     }
-    state.nearSignId = nearestId(WORLD.signs, viewer, READ_RANGE);
+    const seen = signInView(WORLD.signs, viewer, READ_RANGE);
+    state.nearSignId = seen && !seen.back ? seen.id : null;
+    state.nearSignBack = seen && seen.back ? seen.id : null;
+    // Names you read on a sign, or are close to, can be asked about.
+    if (state.nearSignId && state.nearSignId !== lastSignRead) {
+      const sign = WORLD.signs.find((s) => s.id === state.nearSignId);
+      if (sign) learnMentions(sign.lines.join('\n'), state, WORLD);
+    }
+    lastSignRead = state.nearSignId;
+    if ((learnFrame++ & 7) === 0) learnNearby(state, viewer.x, viewer.y, WORLD);
 
     // Waypoint snapshots and arrival at the current mission's goal (sets state.won).
     updateGame(state, dt);

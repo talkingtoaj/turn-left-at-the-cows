@@ -33,8 +33,9 @@ export function greet(npcId, state) {
   return npc.greeting ? [...npc.greeting] : [];
 }
 
-// Lines the NPC says about a topic. Adds the topics they mention to
-// state.knownTopics and every line to state.notebook.
+// Lines the NPC says about a topic. Adds every line to state.notebook. The
+// names in the lines are learned as each page is shown (learnMentions), so
+// you only learn what you have read.
 export function ask(npcId, topicId, state) {
   const npc = getNpc(npcId);
   if (!npc) return [];
@@ -44,7 +45,6 @@ export function ask(npcId, topicId, state) {
   let lines;
   if (entry) {
     lines = [...entry.lines];
-    for (const t of entry.unlocks || []) state.knownTopics.add(t);
   } else {
     // Same fallback line every time for the same topic.
     const fb = npc.fallback && npc.fallback.length ? npc.fallback : ["Never heard of it."];
@@ -203,4 +203,55 @@ export function noteLandmark(topicId, where, state) {
   const dup = state.notebook.some((n) => n.self && n.text === text);
   if (!dup) state.notebook.push(entry);
   return { text, known: !!known, topicId: known ? topicId : null, fresh: !dup };
+}
+
+// ---------------------------------------------------------------- learning names
+// You can only ask about a name you have come across: read in what a local
+// said, read on a sign, or been close to the thing itself.
+
+// Learns every topic named in `text` (a page of dialogue, a sign). Returns
+// the ids that were new.
+export function learnMentions(text, state, W = WORLD) {
+  const fresh = [];
+  for (const m of topicMentions(text, W)) {
+    if (state.knownTopics.has(m.id)) continue;
+    state.knownTopics.add(m.id);
+    fresh.push(m.id);
+  }
+  return fresh;
+}
+
+// How close you must be to learn a thing's name by being there (metres).
+const NEAR_LIST = { place: 'places', town: 'towns', landmark: 'landmarks', bridge: 'bridges', building: 'buildings', outcrop: 'outcrops' };
+const nearCache = new WeakMap();
+function nearTargets(W) {
+  if (nearCache.has(W)) return nearCache.get(W);
+  const out = [];
+  const seenRef = new Set();
+  for (const t of TOPICS) {
+    const ref = t.ref;
+    const list = ref && NEAR_LIST[ref.type] && W[NEAR_LIST[ref.type]];
+    const q = list && list.find((o) => o.id === ref.id);
+    // One topic per thing (Kestrel Field, not also "the planes" and "the wind").
+    const key = ref && `${ref.type}:${ref.id}`;
+    if (!q || q.x == null || seenRef.has(key)) continue;
+    seenRef.add(key);
+    const reach = ref.type === 'town' ? Math.min(150, (q.ambienceR || 200) * 0.6)
+      : ref.type === 'bridge' ? 30 : Math.max(60, (q.r || 0) + 30);
+    out.push({ id: t.id, x: q.x, y: q.y, reach });
+  }
+  nearCache.set(W, out);
+  return out;
+}
+
+// Learns the names of things within reach of (x, y). Returns the new ids.
+export function learnNearby(state, x, y, W = WORLD) {
+  const fresh = [];
+  for (const n of nearTargets(W)) {
+    if (state.knownTopics.has(n.id)) continue;
+    if (Math.hypot(n.x - x, n.y - y) > n.reach) continue;
+    state.knownTopics.add(n.id);
+    fresh.push(n.id);
+  }
+  return fresh;
 }

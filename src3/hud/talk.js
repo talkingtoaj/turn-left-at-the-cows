@@ -18,7 +18,7 @@
 import { WORLD } from '../../src/world/world.js';
 import { state } from '../../src/state.js';
 import {
-  openTalk, ask, askWhatsThat, topicChoices, topicLabel, listTopics, getNpc,
+  openTalk, ask, askWhatsThat, topicChoices, topicLabel, listTopics, getNpc, learnMentions,
 } from '../../src/game/dialogue.js';
 import { speak } from '../../src/audio/voice.js';
 
@@ -145,6 +145,9 @@ export function createTalk(root) {
       at = c.end;
     });
     if (at < p.text.length) textEl.append(p.text.slice(at));
+    // Every name on the page is learned now you have read it (asked later
+    // through "Ask about..."), not only the 4 underlined.
+    learnMentions(p.text, state, WORLD);
     // Later mentions of a chosen name, beyond the first, stay plain text.
     if (d.choices.length) state.namesShown = true;
     speak(d.npcId, p.text);

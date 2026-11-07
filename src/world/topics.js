@@ -18,7 +18,7 @@ export const TOPICS = [
   { id: 'ashford', label: 'Ashford', kind: 'town', fame: 0.8, ref: { type: 'town', id: 'ashford' } },
   { id: 'millbrook', label: 'Millbrook', kind: 'town', fame: 0.9, ref: { type: 'town', id: 'millbrook' } },
   { id: 'creek_rd', label: 'Creek Road', kind: 'road', fame: 0.6, ref: { type: 'road', id: 'creek_rd' } },
-  { id: 'hwy9', label: 'Highway 9', kind: 'road', fame: 0.95, ref: { type: 'road', id: 'hwy9' } },
+  { id: 'hwy9', label: 'Highway 9', kind: 'road', fame: 0.95, ref: { type: 'road', id: 'hwy9' }, aliases: ['Hwy 9', 'the highway'] },
   { id: 'mill_lane', label: 'Mill Lane', kind: 'road', fame: 0.3, ref: { type: 'road', id: 'mill_lane' } },
   { id: 'willow_creek', label: 'Willow Creek', kind: 'water', fame: 0.8, ref: { type: 'creek', id: 'willow' } },
   { id: 'old_bridge', label: 'the old bridge', kind: 'crossing', fame: 0.5, ref: { type: 'bridge', id: 'b_old' } },

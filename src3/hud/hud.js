@@ -72,6 +72,8 @@ const CSS = `
   padding: 16px 24px; border-radius: 10px; text-align: center; font-weight: bold; font-size: 20px; line-height: 1.3;
   white-space: pre; box-shadow: 3px 3px 0 rgba(0,0,0,0.3); display: none; }
 .hud-sign.hud-green { background: #2e6a47; color: #f2f2ea; outline: 2px solid #f2f2ea; outline-offset: -6px; }
+.hud-sign.hud-back { background: #8c9096; color: #5d6166; outline: 2px solid #a3a7ac; outline-offset: -6px;
+  font-size: 13px; font-weight: normal; font-style: italic; }
 .hud-sign.hud-warn { background: #f4f1ea; color: #b3261e; outline: 6px solid #b3261e; outline-offset: -8px; }
 
 .hud-prompt { position: absolute; left: 50%; bottom: calc(var(--hud-dash-h) + 22px); transform: translate(-50%, 50%); padding: 6px 12px;
@@ -498,9 +500,17 @@ export function createHUD(root, { openMap } = {}) {
   // HUD just stands aside while state.towing.
 
   function updateSign() {
-    const id = state.won ? null : state.nearSignId;
+    const backId = state.won ? null : state.nearSignBack;
+    const id = state.won ? null : state.nearSignId || (backId && 'back:' + backId);
     if (id === currentSignId) return;
     currentSignId = id;
+    if (backId && id === 'back:' + backId) {
+      // The back of a sign: you know it is there, but it is for the other way.
+      signBox.className = 'hud-sign hud-back';
+      signBox.textContent = 'back of a sign\n(it faces the other way)';
+      signBox.style.display = 'block';
+      return;
+    }
     const sign = id && WORLD.signs.find((s) => s.id === id);
     if (!sign) {
       signBox.style.display = 'none';
