@@ -322,6 +322,10 @@ export function showSplash({ version = '3d', load, preferred = null, phone = fal
     const share = el('button', 'sp-play', box);
     share.type = 'button';
     el('b', null, share, 'Share link');
+    // In case this is a computer after all (a keyboard on a tablet).
+    const anyway = el('button', 'sp-chip', box, 'I have a keyboard: play');
+    anyway.type = 'button';
+    anyway.addEventListener('click', () => start(first));
     const msg = el('span', 'sp-hint', box);
     msg.setAttribute('role', 'status');
     share.addEventListener('click', async () => {
@@ -419,7 +423,7 @@ export function showSplash({ version = '3d', load, preferred = null, phone = fal
   });
   let going = false;
   start = async (index) => {
-    if (going || phone) return;
+    if (going) return;
     going = true;
     // Inside the click or key handler: the only place Safari lets sound start.
     unlockAudio();

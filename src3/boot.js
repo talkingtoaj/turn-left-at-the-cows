@@ -20,8 +20,11 @@ if (params.get('reset') === 'progress') clearProgress();
 const asked = params.has('mission') ? missionIndexById(params.get('mission')) : -1;
 
 const media = (q) => !!(window.matchMedia && window.matchMedia(q).matches);
-// A phone or tablet with no mouse or trackpad.
-const touchOnly = media('(pointer: coarse)') && !media('(any-pointer: fine)');
+// A phone: touch only, no mouse or trackpad, and a small screen. Touchscreen
+// laptops and 2-in-1s can report touch only too (Windows tablet mode), so a
+// bigger screen always gets the normal menu.
+const smallScreen = Math.min(window.screen?.width || 9999, window.screen?.height || 9999) < 600;
+const touchOnly = media('(pointer: coarse)') && !media('(any-pointer: fine)') && smallScreen;
 const reducedMotion = media('(prefers-reduced-motion: reduce)');
 const conn = navigator.connection || {};
 const weak = params.get('menu') === 'painted'
