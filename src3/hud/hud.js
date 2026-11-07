@@ -2,21 +2,21 @@ import { WORLD } from '../../src/world/world.js';
 import { state } from '../../src/state.js';
 import { runtime } from '../runtime.js';
 import { headingText, clockText, timerText } from '../../src/hud/format.js';
-import { greet, ask, listTopics } from '../../src/game/dialogue.js';
+import { noteLandmark } from '../../src/game/dialogue.js';
+import { createTalk } from './talk.js';
 import { currentMission, currentGoal, nextMission, MISSIONS } from '../../src/game/missions.js';
 import { finishMission } from '../../src/game/update.js';
 import { compassHeading, warningLights, PARTS } from '../../src/game/damage.js';
 import { renderSketchCanvas, renderPrintedMapCanvas, trueMapDef } from '../map/sketchRender.js';
 import { openMissionCard } from '../../src/ui/missionCard.js';
 import { openHelp } from '../../src/ui/help.js';
-import { speak } from '../../src/audio/voice.js';
 import { towedText } from '../../src/game/tow.js';
 import { mountShareStrip } from '../../src/ui/mapShare.js';
 import { rememberMyMap } from '../../src/game/myMaps.js';
 
 // The HUD (a DOM/CSS port of the old 2D HUD). Shows the dash (compass, odometer,
 // clock, speed, trip timer), road signs, mailboxes, the talk prompt, the
-// topic menu dialogue, the goal line, the mission complete screen, and owns
+// conversation (./talk.js), the goal line, the mission complete screen, and owns
 // the E / M / R / Enter / H / 1-9 keys. The mission card and the help panel
 // are shared DOM screens (src/ui) that take every key while open.
 // Core rule: never show the player's position, a minimap or coordinates.
@@ -29,7 +29,7 @@ const ODO_CELL_H = 30;
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 const CSS = `
-.hud-root { --hud-dash-h: 92px; position: absolute; inset: 0; pointer-events: none; font-family: Arial, Helvetica, sans-serif; }
+#ui > .hud-root, .hud-root { --hud-dash-h: 92px; position: absolute; inset: 0; pointer-events: none; font-family: Arial, Helvetica, sans-serif; }
 .hud-root * { box-sizing: border-box; }
 .hud-mono { font-family: "Courier New", Courier, monospace; }
 
@@ -63,6 +63,10 @@ const CSS = `
 .hud-goal-line { position: absolute; top: 10px; right: 12px; padding: 4px 8px; background: rgba(20,21,23,0.7);
   color: #efe6cf; font-size: 13px; white-space: nowrap; display: none; }
 .hud-hint { position: absolute; left: 0; right: 0; bottom: 2px; text-align: center; font-size: 12px; color: #8a8d92; }
+.hud-dash { transition: transform 0.4s ease; }
+.hud-dash.hud-foot { transform: translateY(18px); background: rgba(28,29,31,0.55); border-top-color: rgba(58,60,64,0.5); }
+.hud-dash.hud-foot .hud-bezel, .hud-dash.hud-foot .hud-hint { opacity: 0.35; }
+.hud-dash.hud-foot .hud-compass { filter: drop-shadow(0 0 6px rgba(0,0,0,0.6)); }
 
 .hud-sign { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); min-width: 160px;
   padding: 16px 24px; border-radius: 10px; text-align: center; font-weight: bold; font-size: 20px; line-height: 1.3;
@@ -72,27 +76,6 @@ const CSS = `
 
 .hud-prompt { position: absolute; left: 50%; bottom: calc(var(--hud-dash-h) + 22px); transform: translate(-50%, 50%); padding: 6px 12px;
   background: rgba(20,21,23,0.82); color: #f0ead8; font-size: 15px; white-space: nowrap; display: none; }
-
-.hud-dlg { position: absolute; left: 50%; bottom: calc(var(--hud-dash-h) + 14px); transform: translateX(-50%); width: min(760px, calc(100% - 32px));
-  min-height: 150px; padding: 14px 20px 32px; background: rgba(35,37,42,0.96); border: 2px solid #6b6e74;
-  border-radius: 10px; box-shadow: 4px 4px 0 rgba(0,0,0,0.3); display: none; }
-.hud-dlg-name { color: #e6b450; font-weight: bold; font-size: 16px; margin-bottom: 10px; }
-.hud-dlg-text { color: #ece7d8; font-size: 17px; line-height: 1.45; }
-.hud-dlg-more { position: absolute; right: 16px; bottom: 10px; font-size: 12px; color: #8a8d92; }
-.hud-dlg { pointer-events: auto; }
-.hud-dlg.hud-paging { cursor: pointer; }
-.hud-menu { list-style: none; margin: 8px 0 0; padding: 0; max-height: min(260px, 40vh); overflow-y: auto; }
-.hud-menu::-webkit-scrollbar { width: 8px; }
-.hud-menu::-webkit-scrollbar-thumb { background: #55585e; border-radius: 4px; }
-.hud-menu li { display: flex; align-items: center; gap: 10px; padding: 4px 8px; border-radius: 5px; cursor: pointer;
-  color: #ece7d8; font-size: 16px; line-height: 1.35; border: 1px solid transparent; }
-.hud-menu li.hud-sel { background: rgba(230,180,80,0.14); border-color: rgba(230,180,80,0.55); }
-.hud-menu .hud-key { flex: none; width: 22px; height: 22px; border-radius: 4px; background: #3a3c40; color: #e6b450;
-  font: bold 13px "Courier New", Courier, monospace; text-align: center; line-height: 22px; }
-.hud-menu .hud-key.hud-nokey { background: transparent; }
-.hud-menu .hud-goal { color: #e6b450; }
-.hud-menu .hud-bye { color: #a9acb2; font-style: italic; }
-.hud-menu .hud-new { width: 6px; height: 6px; border-radius: 50%; background: #7fc29b; flex: none; margin-left: -4px; }
 
 .hud-mailbox { position: absolute; top: 18px; left: 18px; display: none; text-align: center; }
 .hud-mailbox-box { padding: 7px 14px 6px; background: #ece4cf; color: #2c2620; border: 2px solid #5b4630; border-radius: 10px 10px 3px 3px;
@@ -278,28 +261,20 @@ export function createHUD(root, { openMap } = {}) {
   const lights = buildLights(bezel(958, 104, 'WARNING'));
   const devDmg = new URLSearchParams(window.location.search).has('damage') ? el('div', 'hud-dev-dmg', hud) : null;
   el('div', 'hud-hint', inner,
-    'Arrows/WASD drive · Space handbrake · E talk · M map · C camera · B horn · N north/heading-up · K mute · H help');
+    'Arrows/WASD drive · F get out / in · E talk · M map · C camera · B horn · N north/heading-up · K mute · H help');
 
   // ---------------------------------------------------------------- overlays
   const goalLine = el('div', 'hud-goal-line hud-mono', hud);
   const signBox = el('div', 'hud-sign', hud);
   const promptBox = el('div', 'hud-prompt hud-mono', hud);
-  const dlgBox = el('div', 'hud-dlg', hud);
-  const dlgName = el('div', 'hud-dlg-name', dlgBox);
-  const dlgText = el('div', 'hud-dlg-text', dlgBox);
-  const dlgMore = el('div', 'hud-dlg-more hud-mono', dlgBox);
-  const dlgMenu = el('ul', 'hud-menu', dlgBox);
+  // Talking to locals (round 12): ./talk.js.
+  const talk = createTalk(hud);
   const winShade = el('div', 'hud-win-shade', hud);
   const mailbox = el('div', 'hud-mailbox', hud);
   const mailboxBox = el('div', 'hud-mailbox-box', mailbox);
   el('div', 'hud-mailbox-post', mailbox);
   let zoomBox = null; // enlarged map on the complete screen
 
-  // While a dialogue is open:
-  // { npcId, title, mode: 'pages'|'menu', pages, page, after: 'menu'|'close', items, sel, newIds }
-  let dialogue = null;
-  // Topics already offered in a menu; the others are marked as new.
-  const seenTopics = new Set(state.knownTopics);
   let currentMailboxId; // undefined forces the first render
   let mapOpen = false;
   let mapClosedAt = -Infinity;
@@ -318,108 +293,8 @@ export function createHUD(root, { openMap } = {}) {
   };
 
   // ---------------------------------------------------------------- talking
-  function showPage() {
-    const { pages, page, after } = dialogue;
-    const end = page === pages.length - 1;
-    dlgBox.classList.add('hud-paging');
-    dlgMenu.style.display = 'none';
-    dlgText.textContent = pages[page];
-    speak(dialogue.npcId, pages[page]);
-    const next = end ? (after === 'menu' ? 'back' : 'close') : 'next';
-    dlgMore.textContent = `${page + 1}/${pages.length}   E: ${next}   M: map`;
-  }
-
-  // Shows lines one page at a time. after: 'menu' returns to the topic menu.
-  function openPages(npcId, title, pages, after) {
-    if (!pages.length) {
-      if (after === 'menu' && npcId) {
-        dialogue = { npcId, title, mode: 'menu', pages: [], page: 0, after, sel: 0 };
-        openBox();
-        showMenu();
-      } else closeDialogue();
-      return;
-    }
-    dialogue = { npcId, title, mode: 'pages', pages, page: 0, after, sel: dialogue ? dialogue.sel : 0 };
-    openBox();
-    showPage();
-  }
-
-  function openBox() {
-    state.inputLocked = true;
-    dlgName.textContent = dialogue.title;
-    dlgBox.style.display = 'block';
-  }
-
-  function menuItems() {
-    const items = listTopics(dialogue.npcId, state).map((t) => ({ ...t }));
-    items.push({ id: null, label: 'Goodbye', bye: true });
-    return items;
-  }
-
-  function showMenu() {
-    const d = dialogue;
-    d.mode = 'menu';
-    d.items = menuItems();
-    d.newIds = new Set(d.items.filter((t) => t.id && !seenTopics.has(t.id)).map((t) => t.id));
-    for (const t of d.items) if (t.id) seenTopics.add(t.id);
-    d.sel = Math.min(d.sel || 0, d.items.length - 1);
-    dlgBox.classList.remove('hud-paging');
-    dlgText.textContent = 'Ask about...';
-    dlgMenu.innerHTML = '';
-    d.items.forEach((t, i) => {
-      const li = el('li', null, dlgMenu);
-      const key = i < 9 ? String(i + 1) : t.bye ? 'Esc' : '';
-      const k = el('span', 'hud-key' + (key ? '' : ' hud-nokey'), li, key);
-      if (key === 'Esc') k.style.width = '34px';
-      const label = el('span', t.bye ? 'hud-bye' : t.isGoal ? 'hud-goal' : null, li, t.label);
-      if (d.newIds.has(t.id)) {
-        el('span', 'hud-new', li).title = 'new';
-        label.title = 'New topic';
-      }
-      li.addEventListener('click', (e) => { e.stopPropagation(); pick(i); });
-      li.addEventListener('mousemove', () => { if (d.sel !== i) { d.sel = i; markSel(false); } });
-    });
-    dlgMenu.style.display = 'block';
-    dlgMore.textContent = '1-9 or Up/Down + E: ask   M: map';
-    markSel(true);
-  }
-
-  function markSel(scroll) {
-    const lis = dlgMenu.children;
-    for (let i = 0; i < lis.length; i++) lis[i].classList.toggle('hud-sel', i === dialogue.sel);
-    const li = lis[dialogue.sel];
-    if (scroll && li && li.scrollIntoView) li.scrollIntoView({ block: 'nearest' });
-  }
-
-  function pick(i) {
-    const d = dialogue;
-    if (!d || d.mode !== 'menu') return;
-    const t = d.items[i];
-    if (!t) return;
-    d.sel = i;
-    if (t.bye) {
-      closeDialogue();
-      return;
-    }
-    openPages(d.npcId, d.title, ask(d.npcId, t.id, state), 'menu');
-  }
-
-  function advance() {
-    const d = dialogue;
-    if (!d) return;
-    if (d.mode === 'menu') {
-      pick(d.sel);
-      return;
-    }
-    d.page++;
-    if (d.page < d.pages.length) showPage();
-    else if (d.after === 'menu') showMenu();
-    else closeDialogue();
-  }
-
-  dlgBox.addEventListener('click', () => {
-    if (dialogue && dialogue.mode === 'pages') advance();
-  });
+  // A conversation is open (./talk.js has the keys while it is).
+  const inDialogue = () => talk.active;
 
   // A new mission's card (title, giver, brief, goal name). The brief is
   // already in the notebook (startMission). The game is paused until it
@@ -441,7 +316,7 @@ export function createHUD(root, { openMap } = {}) {
   // H: how-to-play as a pause overlay. Not over the map, a dialogue, the
   // mission card or the end screens.
   function onHelpKey() {
-    if (help || card || mapOpen || dialogue || zoomBox || state.won) return;
+    if (help || card || mapOpen || inDialogue() || zoomBox || state.won) return;
     if (performance.now() - mapClosedAt < MAP_REOPEN_GUARD_MS) return;
     state.inputLocked = true;
     runtime.paused = true;
@@ -456,50 +331,28 @@ export function createHUD(root, { openMap } = {}) {
   }
 
   function closeDialogue() {
-    dialogue = null;
-    speak(null);
-    dlgBox.style.display = 'none';
-    dlgMenu.innerHTML = '';
-    state.inputLocked = false;
+    talk.close();
   }
 
+  // E on foot (round 12): facing a local, talk. Looking at a landmark with
+  // a local beside you, ask them "What's that?". Looking at one alone, note
+  // it in the notebook (its name if someone told you, else "Hm, what's that?").
   function onTalkKey() {
-    if (state.won) return;
-    if (dialogue) {
-      advance();
+    if (state.won || !state.onFoot) return;
+    const local = state.nearLocalId && WORLD.locals.find((l) => l.id === state.nearLocalId);
+    const look = state.lookAt;
+    const beside = state.nearLocalAny && WORLD.locals.find((l) => l.id === state.nearLocalAny);
+    if (local && !(look && look.topicId === 'planes' && beside)) {
+      talk.open(local.id);
       return;
     }
-    const local = state.nearLocalId && WORLD.locals.find((l) => l.id === state.nearLocalId);
-    if (!local) return;
-    // Greeting, then the topic menu.
-    dialogue = null;
-    openPages(local.id, `${local.name}, ${local.role}`, greet(local.id, state), 'menu');
-  }
-
-  // Keys while a dialogue is open. Returns true if the key was used.
-  function onDialogueKey(e) {
-    const d = dialogue;
-    const k = e.key;
-    if (k === 'Escape') {
-      closeDialogue();
-      return true;
+    if (!look) return;
+    if (beside) {
+      talk.whatsThat(beside.id, look.topicId, look.dir);
+      return;
     }
-    if (d.mode !== 'menu') return false;
-    if (/^[1-9]$/.test(k)) {
-      const i = Number(k) - 1;
-      if (i < d.items.length) pick(i);
-      return true;
-    }
-    const up = k === 'ArrowUp' || k === 'w' || k === 'W';
-    const down = k === 'ArrowDown' || k === 's' || k === 'S';
-    if (up || down) {
-      const n = d.items.length;
-      d.sel = (d.sel + (up ? n - 1 : 1)) % n;
-      markSel(true);
-      e.preventDefault();
-      return true;
-    }
-    return false;
+    const n = noteLandmark(look.topicId, look, state);
+    talk.note(n.text, n.fresh ? 'noted in your notebook' : 'already in your notebook');
   }
 
   // Enter on the complete screen: final snapshot, then the next mission (or
@@ -528,7 +381,7 @@ export function createHUD(root, { openMap } = {}) {
     currentMailboxId = undefined;
     // The map screen unlocks input on close; a dialogue or the complete
     // screen underneath still needs it locked.
-    if (dialogue || winShown) state.inputLocked = true;
+    if (inDialogue() || winShown) state.inputLocked = true;
     // The player may have finished their map from the complete screen.
     if (winShown && !state.allMissionsDone) buildWin();
   }
@@ -559,7 +412,7 @@ export function createHUD(root, { openMap } = {}) {
       if (!e.repeat && (e.key === 'Escape' || e.key === 'Enter' || e.key.toLowerCase() === 'e')) closeZoom();
       return;
     }
-    if (dialogue && onDialogueKey(e)) return;
+    if (talk.onKey(e)) return;
     if (e.repeat) return;
     const k = e.key.toLowerCase();
     if (k === 'e') onTalkKey();
@@ -572,8 +425,17 @@ export function createHUD(root, { openMap } = {}) {
 
   // ---------------------------------------------------------------- per frame
   function updateDash() {
+    // On foot (round 12) the dash dims and sinks a little; the compass stays
+    // bright and turns with where you look (keeping the car compass's
+    // fault, if it has one), so you can still take a bearing.
+    const foot = !!state.onFoot;
+    if (last.foot !== foot) {
+      last.foot = foot;
+      dash.classList.toggle('hud-foot', foot);
+    }
     // The compass shows what the (maybe damaged) needle reads, not the truth.
-    const shown = compassHeading(state);
+    const err = compassHeading(state) - state.car.heading;
+    const shown = foot && state.lookYaw != null ? (((state.lookYaw + err) % 360) + 360) % 360 : compassHeading(state);
     const ck = Math.round(shown * 4);
     if (last.compass !== ck) {
       last.compass = ck;
@@ -662,9 +524,16 @@ export function createHUD(root, { openMap } = {}) {
   }
 
   function updatePrompt() {
-    const local =
-      !dialogue && !card && !help && !state.won && state.nearLocalId ? WORLD.locals.find((l) => l.id === state.nearLocalId) : null;
-    const text = local ? `E: talk to ${local.name} (${local.role})` : null;
+    let text = null;
+    if (!inDialogue() && !card && !help && !state.won && state.onFoot) {
+      const local = state.nearLocalId && WORLD.locals.find((l) => l.id === state.nearLocalId);
+      const beside = state.nearLocalAny && WORLD.locals.find((l) => l.id === state.nearLocalAny);
+      const look = state.lookAt;
+      if (local && !(look && look.topicId === 'planes' && beside)) text = `E: talk to ${local.name} (${local.role})`;
+      else if (look && beside) text = `E: ask ${beside.name} "What's that?"`;
+      else if (look) text = "E: what's that?";
+      else if (state.nearCar) text = 'F: get back in';
+    }
     if (text === promptText) return;
     promptText = text;
     promptBox.textContent = text || '';
@@ -783,7 +652,7 @@ export function createHUD(root, { openMap } = {}) {
 
   function showWin() {
     winShown = true;
-    if (dialogue) closeDialogue();
+    if (inDialogue()) closeDialogue();
     state.inputLocked = true;
     buildWin();
   }
@@ -817,7 +686,7 @@ export function createHUD(root, { openMap } = {}) {
     updateDash();
     updateLights();
     if (state.towing) {
-      if (dialogue) closeDialogue();
+      if (inDialogue()) closeDialogue();
       if (promptText) {
         promptText = null;
         promptBox.style.display = 'none';
@@ -828,9 +697,9 @@ export function createHUD(root, { openMap } = {}) {
     updateMailbox();
     updatePrompt();
     updateGoalLine();
-    if (dialogue || winShown || card || help) state.inputLocked = true;
+    if (inDialogue() || winShown || card || help) state.inputLocked = true;
     if (state.won && !winShown) showWin();
-    if (state.briefPending && !dialogue && !state.won && !card && !help) showCard();
+    if (state.briefPending && !inDialogue() && !state.won && !card && !help) showCard();
   }
 
   return { update };

@@ -514,7 +514,7 @@ export function createMapOverlay(root, { onClose } = {}) {
       for (const n of gr.entries) {
         const e = document.createElement('div');
         e.className = 'map-notes-entry';
-        if (n.topicId !== lastTopic && !n.brief) {
+        if (n.topicId && n.topicId !== lastTopic && !n.brief) {
           const t = document.createElement('div');
           t.className = 'map-notes-topic';
           t.textContent = 'about ' + topicLabel(n.topicId);

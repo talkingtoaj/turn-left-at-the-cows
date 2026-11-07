@@ -43,6 +43,8 @@ const CSS = `
 .ui-keys { width: 100%; border-collapse: collapse; font-size: 14.5px; }
 .ui-keys td { padding: 3px 4px; border-bottom: 1px dotted rgba(90,70,45,0.35); vertical-align: middle; }
 .ui-keys td:first-child { white-space: nowrap; width: 1%; padding-right: 12px; }
+.ui-tips { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 14.5px; cursor: pointer; }
+.ui-tips input { width: 16px; height: 16px; accent-color: #b3261e; margin: 0; }
 .ui-keys tr.ui-off td { opacity: 0.5; }
 .ui-kbd { display: inline-block; min-width: 22px; padding: 1px 6px; margin: 1px 2px 1px 0; border: 1px solid #6b5a42;
   border-bottom-width: 2px; border-radius: 4px; background: #f8f2e2; text-align: center;

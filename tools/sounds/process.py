@@ -96,6 +96,23 @@ RECIPES = [
     ('tow/engine', f'{FS}/453415.ogg', 4, 8, 'loop', 'highpass=f=40,lowpass=f=5000', -18),
     ('tow/chain', f'{FS}/387240.ogg', 1.3, 1.8, 'oneshot', 'highpass=f=150', -3),
     ('tow/winch', f'{FS}/454148.ogg', 0, None, 'oneshot', 'highpass=f=100', -3),
+    # Round 12: footsteps on foot (one step each; the game picks one per
+    # step by the ground under you and varies pitch and level a little).
+    ('steps/grass1', f'{FS}/384869.ogg', 0, None, 'oneshot', 'highpass=f=80', -1),
+    ('steps/grass2', f'{FS}/384864.ogg', 0, None, 'oneshot', 'highpass=f=80', -1),
+    ('steps/grass3', f'{FS}/421129.ogg', 0, None, 'oneshot', 'highpass=f=80', -1),
+    ('steps/gravel1', f'{FS}/384880.ogg', 0, None, 'oneshot', 'highpass=f=80', -1),
+    ('steps/gravel2', f'{FS}/384871.ogg', 0, None, 'oneshot', 'highpass=f=80', -1),
+    ('steps/gravel3', f'{FS}/384875.ogg', 0, None, 'oneshot', 'highpass=f=80', -1),
+    ('steps/road1', f'{FS}/166509.ogg', 0, None, 'oneshot', 'highpass=f=80', -1),
+    ('steps/road2', f'{FS}/166507.ogg', 0, None, 'oneshot', 'highpass=f=80', -1),
+    ('steps/road3', f'{FS}/166506.ogg', 0, None, 'oneshot', 'highpass=f=80', -1),
+    # Round 12: thunder after lightning in heavy rain. Close cracks and far
+    # rolling rumbles; the game lowpasses and delays them by distance.
+    ('thunder/close1', f'{FS}/840628.ogg', 0.35, 9.5, 'oneshot', 'highpass=f=30', -1),
+    ('thunder/close2', f'{FS}/534023.ogg', 0.4, 7.5, 'oneshot', 'highpass=f=30', -1),
+    ('thunder/far1', f'{FS}/581123.ogg', 2.6, 14, 'oneshot', 'highpass=f=30', -1),
+    ('thunder/far2', f'{FS}/581124.ogg', 0.4, 7.2, 'oneshot', 'highpass=f=30', -1),
 ]
 
 
@@ -171,7 +188,8 @@ def main():
             if name == 'tyres/shrub':
                 a = fades(a, fin=0.03, fout=0.22)  # noisy floor: no silence to trim
             else:
-                a = fades(trim_silence(a), fout=0.4 if name == 'bell/bell' else 0.5 if name == 'weather/splash1' else 0.06)
+                fout = 0.4 if name == 'bell/bell' else 0.5 if name == 'weather/splash1' else 1.6 if name.startswith('thunder/') else 0.06
+                a = fades(trim_silence(a), fout=fout)
             g = 10 ** (target / 20) / (max(abs(x) for x in a) or 1)
             a = [x * g for x in a]
         dst = os.path.join(OUT, name + '.mp3')
