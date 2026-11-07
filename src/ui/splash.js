@@ -26,7 +26,8 @@ const SEEN_KEY = 'askalocal.seenIntro';
 // [bold start, rest]
 export const STEPS = [
   ['You have a job to do.', ' Take something to a place you have never been.'],
-  ['Ask the locals.', ' Pick a topic, like a place name, and they tell you the way. New names give you new things to ask.'],
+  ['Ask the locals.', ' Stop, get out (F) and walk up to someone. Press E and they tell you the way. Click a name they say, or press its number, to ask about it. New names give you new things to ask.'],
+  ['Look around.', ' On foot, look at a tower or a hill and press E: a local beside you will tell you what it is. Listen too: planes, bells and creeks all point somewhere.'],
   ['Draw your own map.', ' Press M and sketch what you heard. Your notebook keeps every word they said.'],
   ['Printed maps can lie.', ' Roads close, bridges wash out and names change. Trust what you see.'],
   ['Read the clues.', ' Road signs, the compass, the trip meter and the clock tell you where you are.'],
@@ -34,10 +35,14 @@ export const STEPS = [
 
 // [keys, what it does, optional version it only applies to (unused since the 2D drop)]
 export const CONTROLS = [
-  [['Arrows', 'WASD'], 'Drive'],
+  [['Arrows', 'WASD'], 'Drive / walk'],
   [['Space'], 'Handbrake'],
-  [['E'], 'Talk / next'],
-  [['1-9'], 'Pick a topic'],
+  [['F'], 'Get out of the car / back in'],
+  [['Mouse'], 'Look around on foot (click; Esc lets go)'],
+  [['Shift'], 'Jog'],
+  [['Right mouse'], 'Turn your head in the car (hold)'],
+  [['E'], 'Talk / next / "What\u2019s that?"'],
+  [['1-4'], 'Ask about an underlined name'],
   [['M'], 'Map'],
   [['N'], 'North-up / heading-up'],
   [['K'], 'Mute'],

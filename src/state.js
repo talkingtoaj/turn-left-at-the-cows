@@ -14,9 +14,16 @@ export const state = {
   elapsedMs: 0, // real time since this mission started (for the timer); reset per mission
 
   inputLocked: false, // true while dialogue or map is open; Drive ignores input
-  nearLocalId: null, // id of a local within talk range (25 m), set by Drive each frame
+  nearLocalId: null, // id of the local you can talk to: on foot, within 3 m and facing them (round 12)
   nearSignId: null, // id of a sign within reading range (25 m), set by Drive each frame
   talkedTo: new Set(), // ids of locals talked to this mission (cleared per mission)
+  // On foot (round 12, src3/onfoot.js and src/game/onfoot.js).
+  onFoot: false, // out of the car, walking
+  lookYaw: null, // degrees, where you look on foot (the dash compass follows it)
+  nearLocalAny: null, // id of a local within 3 m on foot, facing them or not
+  nearCar: false, // on foot and close enough to the car to get back in (F)
+  lookAt: null, // { topicId, d, dir } the named thing in the middle of your view, on foot
+  namesShown: false, // a conversation shows underlined names (for the tips)
   won: false, // set by updateGame when the car reaches the current mission's goal
 
   // Missions (src/game/missions.js).

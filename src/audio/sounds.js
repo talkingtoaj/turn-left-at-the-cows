@@ -135,6 +135,21 @@ export const SOUND_GROUPS = [
       { id: 'tow/winch', kind: 'oneshot', label: 'Tow winch ratchet (pulling the car up)' },
     ],
   },
+  // Round 12: walking on foot (src3/onfoot.js), one step per file.
+  {
+    group: 'Footsteps',
+    items: [
+      { id: 'steps/grass1', kind: 'oneshot', label: 'Step on grass 1' },
+      { id: 'steps/grass2', kind: 'oneshot', label: 'Step on grass 2' },
+      { id: 'steps/grass3', kind: 'oneshot', label: 'Step on grass 3' },
+      { id: 'steps/gravel1', kind: 'oneshot', label: 'Step on gravel / dirt 1' },
+      { id: 'steps/gravel2', kind: 'oneshot', label: 'Step on gravel / dirt 2' },
+      { id: 'steps/gravel3', kind: 'oneshot', label: 'Step on gravel / dirt 3' },
+      { id: 'steps/road1', kind: 'oneshot', label: 'Step on a paved road 1' },
+      { id: 'steps/road2', kind: 'oneshot', label: 'Step on a paved road 2' },
+      { id: 'steps/road3', kind: 'oneshot', label: 'Step on a paved road 3' },
+    ],
+  },
   // Round 8, 3D only (createAudio(world, { weather: true }) loads them).
   {
     group: 'Rain',

@@ -7,6 +7,10 @@
 //   now (src3/world3d/planes3d.js works out where each one was when the
 //   sound left it), or null where there is no airfield.
 //   tow: { x, y, throttle } where the tow truck is (src3/tow3d.js), or null.
+//   listener: { x, y, heading } where you hear from (round 12: your ears
+//   when on foot); default the car. onFoot: you are out of the car (the
+//   engine idles where the car is parked, no rain on the roof).
+//   audio.step(surface, jog)   one footstep ('paved' | 'dirt' | 'grass')
 //   audio.cue(id, vol)   one-shot now, centre (the tow chain and winch)
 //   audio.toggleMute(); audio.muted
 // The AudioContext is the page's shared one (./context.js): the start
@@ -42,6 +46,11 @@ const DOGS = ['animals/dog1', 'animals/dog2'];
 const CHIPS = ['damage/chip1', 'damage/chip2', 'damage/chip3'];
 const THUMPS = ['damage/thump1', 'damage/thump2'];
 const HORSES = ['animals/horse1', 'animals/horse2'];
+const STEPS = {
+  grass: ['steps/grass1', 'steps/grass2', 'steps/grass3'],
+  gravel: ['steps/gravel1', 'steps/gravel2', 'steps/gravel3'],
+  road: ['steps/road1', 'steps/road2', 'steps/road3'],
+};
 
 // Background chatter: locals within this range talk to each other when you
 // roll slowly past them in a town.
@@ -164,8 +173,12 @@ export function createAudio(world, opts = {}) {
     comp.connect(master);
     const bus = gain(1, comp);
 
-    // Engine: three RPM loops crossfaded, through a lowpass that opens with load.
-    const engGain = gain(0, bus);
+    // Engine: three RPM loops crossfaded, through a lowpass that opens with
+    // load. On foot it is panned toward the parked car and quieter with
+    // distance (engPos).
+    const engPan = panner(bus);
+    const engPos = gain(1, engPan);
+    const engGain = gain(0, engPos);
     const engLp = filter('lowpass', 1200, 0.7, engGain);
     const engLayers = ENGINE_LAYERS.map(() => ({ g: gain(0, engLp), src: null }));
     const revG = gain(0, bus);
@@ -208,7 +221,7 @@ export function createAudio(world, opts = {}) {
     const towG = gain(0, towPan);
 
     nodes = {
-      master, bus, engGain, engLp, engLayers, revG, revSrc: null, gravelG, grassG, pavedG, surfSrc: {},
+      master, bus, engPan, engPos, engGain, engLp, engLayers, revG, revSrc: null, gravelG, grassG, pavedG, surfSrc: {},
       waterPan, creekG, riverG, townPan, townG, birdPan, birdG, voiceBus, started: new Set(), flatG, flatSrc: null,
       roofG, rainG, wetG, wetSrc: null, planeBus, planeVoices: [], towPan, towG, towSrc: null,
     };
@@ -610,12 +623,13 @@ export function createAudio(world, opts = {}) {
 
   // Rain (3D only): loops follow how hard it rains; wet tyres hiss on a wet
   // road with speed (most on asphalt).
-  function updateRain(r, s, surface) {
+  function updateRain(r, s, surface, onFoot) {
     const n = nodes;
     const rain = r ? r.rain : 0;
     const wet = r ? r.wet : 0;
-    ramp(n.roofG.gain, 0.5 * Math.min(1, rain * 1.2), 0.6);
-    ramp(n.rainG.gain, 0.32 * Math.sqrt(rain), 0.6);
+    // Out of the car: no roof over you, and the rain all round is louder.
+    ramp(n.roofG.gain, onFoot ? 0 : 0.5 * Math.min(1, rain * 1.2), 0.6);
+    ramp(n.rainG.gain, (onFoot ? 0.5 : 0.32) * Math.sqrt(rain), 0.6);
     const k = Math.min(1, s / 18) * wet * (surface === 'paved' ? 1 : surface === 'dirt' ? 0.55 : 0.3);
     ramp(n.wetG.gain, 0.42 * k, 0.15);
     if (n.wetSrc) ramp(n.wetSrc.playbackRate, 0.8 + 0.35 * Math.min(1, s / 22), 0.1);
@@ -721,22 +735,36 @@ export function createAudio(world, opts = {}) {
       nodes.master.gain.setTargetAtTime(target, ctx.currentTime, paused || muted ? 0.25 : 0.4);
       const car = state && state.car;
       if (!car) return;
+      // Where you hear from: the car, or your ears when you are out of it.
+      const ear = (opts && opts.listener) || car;
+      const onFoot = !!(opts && opts.onFoot);
       const dmg = state.damage || null;
       const s = updateEngine(dt, car, dmg);
+      // The parked car's engine, idling where it stands.
+      const er = rel(ear, car.x, car.y);
+      ramp(nodes.engPos.gain, onFoot ? 0.9 / (1 + er.d / 5) : 1, 0.1);
+      setPan(nodes.engPan, onFoot ? er.pan * Math.min(1, er.d / 3) : 0);
       updateDamage(dmg, s);
       const surface = (amb && amb.playerSurface) || 'paved';
       updateSurface(dt, s, surface);
-      if (withWeather) updateRain(opts && opts.rain, s, surface);
-      updateWater(dt, car);
-      updateTown(dt, car);
+      if (withWeather) updateRain(opts && opts.rain, s, surface, onFoot);
+      updateWater(dt, ear);
+      updateTown(dt, ear);
       updateTalk();
-      updateChatter(dt, car, amb, s);
-      updatePlanes(car, opts && opts.planes);
-      updateTow(car, opts && opts.tow);
+      updateChatter(dt, ear, amb, s);
+      updatePlanes(ear, opts && opts.planes);
+      updateTow(ear, opts && opts.tow);
       if (!paused && !muted) {
-        updateBirds(dt, car, amb);
-        handleEvents(car, amb);
+        updateBirds(dt, ear, amb);
+        handleEvents(ear, amb);
       }
+    },
+    // One footstep on foot: the ground's own sound, a little different each time.
+    step(surface, jog = false) {
+      if (!ctx || !nodes || ctx.state !== 'running' || paused) return;
+      const set = surface === 'paved' ? STEPS.road : surface === 'dirt' ? STEPS.gravel : STEPS.grass;
+      const vol = (jog ? 0.3 : 0.22) * (0.85 + Math.random() * 0.3) * (surface === 'paved' ? 0.8 : 1);
+      oneShot(pick(set), ctx.currentTime, (Math.random() - 0.5) * 0.2, vol, 0.92 + Math.random() * 0.16, surface === 'grass' ? 5000 : 0);
     },
     // A one-shot now, centred (the tow chain and winch).
     cue(id, vol = 0.5) {

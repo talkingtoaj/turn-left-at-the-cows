@@ -42,8 +42,10 @@ import { createWeatherClock } from './look/weather.js';
 import { createRain3D } from './world3d/rain3d.js';
 import { createPlanes3D } from './world3d/planes3d.js';
 import { createTow } from './tow3d.js';
+import { createOnFoot } from './onfoot.js';
+import { WALK, localsAround, carGap } from '../src/game/onfoot.js';
+import { lookablesFor, pickLookable, compassWord } from '../src/game/lookables.js';
 
-const TALK_RANGE = 25;
 const READ_RANGE = 25;
 const MAX_DT_MS = 50;
 
@@ -210,6 +212,7 @@ async function buildRegion(id, title, quiet = false) {
     planes = createPlanes3D(scene, WORLD, world3d.terrain);
     // The tow truck that comes after a breakdown (src3/tow3d.js).
     tow.attach(scene, world3d);
+    foot.reset();
     await step(0.9, 'Warming up the engine');
     // One frame with everything in, so the shaders compile behind the card.
     car3d.update(state.car, 0, world3d.surfaceAt, 0, state.damage || null, null);
@@ -256,10 +259,15 @@ async function followMission() {
 
 const ui = document.getElementById('ui');
 const map = createMapOverlay(ui, { onClose: () => { runtime.paused = false; state.inputLocked = false; } });
-const hud = createHUD(ui, { openMap: () => { runtime.paused = true; state.inputLocked = true; map.open(); } });
+const hud = createHUD(ui, { openMap: () => { runtime.paused = true; state.inputLocked = true; foot.release(); map.open(); } });
 // Breakdowns end in a tow to the nearest garage, not a lost mission.
 // Dev: ?breakdown=1 breaks the car down at once.
 const tow = createTow(ui, { audio, rig, params });
+// Getting out of the car and walking; turning your head in the car (round 12).
+const foot = createOnFoot({
+  canvas: renderer.domElement, camera, rig,
+  canLook: () => !menu && started && !runtime.paused && !state.inputLocked,
+});
 
 // ---------- input ----------
 
@@ -268,7 +276,7 @@ const isTyping = (e) => {
   const t = e.target;
   return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
 };
-const DRIVE_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space']);
+const DRIVE_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'ShiftLeft', 'ShiftRight']);
 window.addEventListener('keydown', (e) => {
   if (isTyping(e)) return;
   const plain = !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey;
@@ -280,7 +288,9 @@ window.addEventListener('keydown', (e) => {
   if (DRIVE_KEYS.has(e.code)) {
     keys.add(e.code);
     e.preventDefault();
-  } else if (e.code === 'KeyC' && plain) {
+  } else if (e.code === 'KeyF' && plain) {
+    toggleFoot();
+  } else if (e.code === 'KeyC' && plain && !foot.active) {
     runtime.cameraMode = runtime.cameraMode === 'top' ? 'chase' : 'top';
   } else if (e.code === 'KeyN' && plain) {
     state.view.northUp = !state.view.northUp;
@@ -289,7 +299,18 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('keyup', (e) => keys.delete(e.code));
 window.addEventListener('blur', () => keys.clear());
 
+// F: out of the car (stopped or nearly) or back in (next to it).
+const isClear = (x, y, r) => !!collider && collider.circleHit(x, y, r) === null;
+function toggleFoot() {
+  if (!collider || state.inputLocked || state.won || state.towing || (state.damage && state.damage.brokenDown)) return;
+  if (foot.toggle(state.car, isClear)) {
+    state.onFoot = foot.active;
+    footTime = 0;
+  }
+}
+
 function readInput() {
+  if (foot.active) return { brake: true };
   if (state.inputLocked || state.won || state.towing || (state.damage && state.damage.brokenDown)) return { brake: true };
   return {
     up: keys.has('KeyW') || keys.has('ArrowUp'),
@@ -323,6 +344,14 @@ let last = performance.now();
 let steer = 0;
 const ground = { type: 'paved', rough: 0, plow: 0, plowAngle: 0, offRoad: false };
 const fps = { frames: 0, acc: 0, value: 0 };
+// On foot, the world sees you (not the car) as the player: ambient life,
+// traffic, birds and the locals react to where you stand.
+const viewer = { x: 0, y: 0, heading: 0, speed: 0 };
+const footState = Object.create(state);
+footState.car = viewer;
+let footTime = 0; // seconds since you got out
+let lookFrame = 0;
+const ear = { x: 0, y: 0, heading: 0 };
 
 function frame(now) {
   requestAnimationFrame(frame);
@@ -369,9 +398,25 @@ function frame(now) {
     state.clockMinutes = (state.clockMinutes + dtMs / 6000) % 1440;
     if (!state.won) state.elapsedMs += dtMs;
 
+    // On foot: walk (the car stays parked with the handbrake on).
+    if (foot.active) {
+      if (state.towing) foot.reset();
+      foot.step(dt, keys, isClear, car);
+      footTime += dt;
+      if (foot.walker.stepped) audio.step(amb.surfaceAt(foot.walker.x, foot.walker.y), foot.walker.jogging);
+    }
+    state.onFoot = foot.active;
+    state.lookYaw = foot.active ? foot.walker.yaw : null;
+    viewer.x = foot.active ? foot.walker.x : car.x;
+    viewer.y = foot.active ? foot.walker.y : car.y;
+    viewer.heading = foot.active ? foot.walker.yaw : car.heading;
+    viewer.speed = foot.active ? 0 : car.speed;
+
     // Ambient life moves after the car (dust, birds scatter, traffic stops).
-    amb.update(dt, state);
+    amb.update(dt, foot.active ? footState : state);
     dh.afterStep(dt, result, prev);
+    // Traffic waits behind the parked car while you are out of it.
+    if (foot.active && amb.obstacles) amb.obstacles.push({ x: car.x, y: car.y, r: 2 });
     // Through a shrub: a little bounce of the body and the camera. Through a
     // puddle: a splash at the wheel and a small jolt.
     for (const ev of (state.damage && state.damage.events) || []) {
@@ -403,32 +448,59 @@ function frame(now) {
       }
     }
     // Locals wander a few metres; talk range follows where they are now.
-    state.nearLocalId = nearestId(WORLD.locals, car, TALK_RANGE, personPos);
-    state.nearSignId = nearestId(WORLD.signs, car, READ_RANGE);
+    // You talk on foot only: within 3 m, facing them (round 12).
+    if (foot.active) {
+      const around = localsAround(foot.walker, WORLD.locals, personPos);
+      state.nearLocalId = around.talk ? around.talk.id : null;
+      state.nearLocalAny = around.near ? around.near.id : null;
+      state.nearCar = carGap(car, foot.walker.x, foot.walker.y) <= WALK.carReach;
+      // What you are looking at (a few times a second).
+      if ((lookFrame++ & 3) === 0) updateLookAt();
+    } else {
+      state.nearLocalId = null;
+      state.nearLocalAny = null;
+      state.nearCar = false;
+      state.lookAt = null;
+    }
+    state.nearSignId = nearestId(WORLD.signs, viewer, READ_RANGE);
 
     // Waypoint snapshots and arrival at the current mission's goal (sets state.won).
     updateGame(state, dt);
   }
 
-  car3d.update(car, runtime.paused ? 0 : dt, world3d.surfaceAt, steer, state.damage || null, ground.offRoad ? ground : null);
+  car3d.update(car, runtime.paused ? 0 : dt, world3d.surfaceAt, foot.active ? 0 : steer, state.damage || null, ground.offRoad ? ground : null);
   // The tow scene: the truck, and the winch lifting the car's front.
   tow.update(dt, car3d.object);
   carPos.copy(car3d.object.position);
   // Camera rumble: dirt road bumps, or the ground's own small bumps off-road.
   const roadRumble = world3d.terrain.bumps.roughness(car.x, car.y) * Math.min(1, Math.abs(car.speed) / 20);
   const groundRumble = ground.offRoad ? ground.rough * 0.85 * Math.min(1, Math.abs(car.speed) / 14) : 0;
-  rig.rumble(Math.max(roadRumble, groundRumble) * (runtime.paused ? 0 : 1));
-  const e = rig.update(carPos, car.heading, dt, runtime.cameraMode, groundAt, state.view.northUp);
+  rig.rumble(Math.max(roadRumble, groundRumble) * (runtime.paused || foot.active ? 0 : 1));
+  let e = 0;
+  if (foot.active) {
+    foot.camera(dt, world3d.surfaceAt);
+  } else {
+    e = rig.update(carPos, car.heading, dt, runtime.cameraMode, groundAt, state.view.northUp);
+    foot.glance(dt, e);
+  }
+  foot.blend(dt);
+  // Where you hear from: your ears on foot, the driver's seat in the car.
+  ear.x = foot.active ? foot.walker.x : car.x;
+  ear.y = foot.active ? foot.walker.y : car.y;
+  ear.heading = foot.active ? foot.walker.yaw : car.heading;
   // Planes by the game clock (seconds), so the same time shows the same sky.
   if (planes) {
     camera.updateMatrixWorld();
-    listener.x = car.x;
-    listener.y = car.y;
-    listener.z = groundAt(car.x, car.y) + 1.2;
+    listener.x = ear.x;
+    listener.y = ear.y;
+    listener.z = groundAt(ear.x, ear.y) + (foot.active ? WALK.eye : 1.2);
     planes.update(state.clockMinutes * 6, camera, scene.fog.color, wetness.rain, listener);
   }
   // Sound every frame, even paused (it ducks while the map is open).
-  audio.update(dt, state, amb, { paused: runtime.paused, rain: wetness, planes: planes ? planes.sound : null, tow: tow.sound });
+  audio.update(dt, state, amb, {
+    paused: runtime.paused, rain: wetness, planes: planes ? planes.sound : null, tow: tow.sound,
+    listener: ear, onFoot: foot.active,
+  });
 
   // Fog and draw distance: driver's view is hazy; top view sees its patch
   // clearly. Rain closes it in.
@@ -444,7 +516,7 @@ function frame(now) {
   if (look) look.update(state, wetness.rain, wetness.wet); // weather drift, rain
   world3d.puddles.update(wetness.puddle, wetness.rain, now / 1000, scene.fog.color);
   rain3d.update(runtime.paused ? 0 : dt, now / 1000, camera, wetness.rain, scene.fog.color);
-  world3d.update(now / 1000, dt, car, rig.focus, rig.shadowRadius, camera, amb);
+  world3d.update(now / 1000, dt, foot.active ? viewer : car, rig.focus, rig.shadowRadius, camera, amb);
   amb3d.wet = wetness.wet;
   amb3d.update(amb, runtime.paused ? 0 : dt, camera, rig.focus, scene.fog, e, renderer, dh.hz.animals);
   dh.render(runtime.paused ? 0 : dt, rig.focus, car3d.object, camera, scene.fog, renderer);
@@ -464,6 +536,25 @@ function frame(now) {
     fps.frames = 0;
     fps.acc = 0;
   }
+}
+
+// On foot: the thing in the middle of your view that has a name (a tower,
+// the mast, a windpump, an outcrop, a plane...), or null. state.lookAt =
+// { topicId, d, dir } for the HUD (E: "What's that?").
+const planeSpots = [];
+function updateLookAt() {
+  const w = foot.walker;
+  const eye = { x: w.x, y: w.y, z: world3d.surfaceAt(w.x, w.y) + WALK.eye };
+  planeSpots.length = 0;
+  if (planes) {
+    for (const p of planes.states) {
+      if (!p || !p.visible || p.ground) continue;
+      const ref = groundAt(planes.info.landmark.x, planes.info.landmark.y);
+      planeSpots.push({ id: 'plane', topicId: 'planes', x: p.x, y: p.y, z: ref + p.alt, h: 3, r: 12 });
+    }
+  }
+  const hit = pickLookable(lookablesFor(WORLD), eye, w.yaw, w.pitch, groundAt, planeSpots);
+  state.lookAt = hit ? { topicId: hit.item.topicId, d: hit.d, dir: compassWord(hit.bearing) } : null;
 }
 
 // ---------- start screen backdrop ----------
@@ -608,6 +699,8 @@ function exposeDebug() {
   window.__rain3d = rain3d;
   window.__planes = planes;
   window.__towScene = tow;
+  window.__foot = foot;
+  window.__collider = collider;
   // Dev: play a mission now, building its region if need be (memory checks):
   // await __playMission('m3_airfield').
   window.__playMission = playMission;
@@ -633,6 +726,8 @@ export async function startGame(index = 0) {
   await loadChain;
   if (m.region !== regionId) await loadRegion(m.region, m.title);
   exitMenu();
+  foot.reset();
+  state.onFoot = false;
   const spot = spotName ? spotFor(spotName, WORLD) : null;
   if (spot) {
     Object.assign(state.car, spot, { speed: 0 });

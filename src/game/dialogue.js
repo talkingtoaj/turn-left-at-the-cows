@@ -2,7 +2,7 @@
 // No UI here: the HUDs call these and show the returned lines.
 
 import { WORLD } from '../world/world.js';
-import { TOPIC_BY_ID } from '../world/topics.js';
+import { TOPIC_BY_ID, TOPICS } from '../world/topics.js';
 import { currentMission } from './missions.js';
 
 export function getNpc(npcId) {
@@ -76,4 +76,131 @@ export function quickTalk(npcId, state) {
   const lines = greet(npcId, state);
   if (m) lines.push(...ask(npcId, m.goalTopic, state));
   return lines;
+}
+
+// ---------------------------------------------------------------- round 12
+// Talking on foot: no topic list first. Walk up, press E, and the local
+// greets you and answers about the current mission's goal at once. Names
+// of topics in what they say are underlined; you ask about one by clicking
+// it or pressing its number (src3/hud/talk.js).
+
+const REF_LISTS = {
+  place: 'places', town: 'towns', road: 'roads', creek: 'creeks', lake: 'lakes',
+  landmark: 'landmarks', bridge: 'bridges', building: 'buildings', outcrop: 'outcrops',
+};
+
+// Does topic t point at something in world W (or beyond its edge)? Two
+// regions can each have a "the diner"; only the one here counts.
+export function topicHere(t, W) {
+  const ref = t && t.ref;
+  if (!ref || ref.type === 'offmap') return true;
+  const list = W[REF_LISTS[ref.type]];
+  return !!(list && list.some((q) => q.id === ref.id));
+}
+
+const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const patterns = new WeakMap();
+
+// Every way each topic here is said, longest first: [{ id, re }].
+function patternsFor(W) {
+  if (patterns.has(W)) return patterns.get(W);
+  const out = [];
+  for (const t of TOPICS) {
+    if (!topicHere(t, W)) continue;
+    const names = new Set([t.label.replace(/^the\s+/i, ''), ...(t.aliases || [])]);
+    for (const n of names) out.push({ id: t.id, n });
+  }
+  out.sort((a, b) => b.n.length - a.n.length);
+  const list = out.map(({ id, n }) => ({ id, re: new RegExp(`(?<![\\w'])${esc(n)}(?![\\w'])`, 'gi') }));
+  patterns.set(W, list);
+  return list;
+}
+
+// Topic names in a line, in the order they come: [{ id, start, end }],
+// never overlapping (the longest name wins). `W`: the world (WORLD).
+export function topicMentions(text, W = WORLD) {
+  const taken = [];
+  for (const { id, re } of patternsFor(W)) {
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(text))) {
+      const start = m.index;
+      const end = start + m[0].length;
+      if (taken.some((q) => start < q.end && end > q.start)) continue;
+      taken.push({ id, start, end });
+    }
+  }
+  return taken.sort((a, b) => a.start - b.start);
+}
+
+// The names to offer on a page: the first `max` different topics mentioned,
+// in order, leaving out `skip` (the topic being answered).
+export function topicChoices(text, skip = null, max = 4, W = WORLD) {
+  const out = [];
+  for (const m of topicMentions(text, W)) {
+    if (m.id === skip || out.some((q) => q.id === m.id)) continue;
+    if (out.length >= max) break;
+    out.push(m);
+  }
+  return out;
+}
+
+// Walking up and pressing E: the greeting, then straight away the answer
+// about the current mission's goal (or their "never heard of it").
+// Returns [{ text, topicId }] pages.
+export function openTalk(npcId, state) {
+  const m = currentMission(state);
+  const pages = greet(npcId, state).map((text) => ({ text, topicId: null }));
+  if (m) for (const text of ask(npcId, m.goalTopic, state)) pages.push({ text, topicId: m.goalTopic });
+  return pages;
+}
+
+function hash01(s) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+  return (h >>> 0) / 4294967296;
+}
+
+// "What's that?" about something you are looking at, asked of a local
+// standing with you. Someone with lines about it says them (and you learn
+// the name); otherwise a well-known thing gets its name ("That? That's the
+// Grey Stones."), depending on how famous it is; else they don't know.
+// Everything goes in the notebook. Returns lines.
+export function askWhatsThat(npcId, topicId, state) {
+  const npc = getNpc(npcId);
+  const t = TOPIC_BY_ID[topicId];
+  if (!npc || !t) return [];
+  if (npc.topics && npc.topics[topicId]) return ask(npcId, topicId, state);
+  state.talkedTo.add(npcId);
+  const knows = hash01(`${npcId}:${topicId}`) < t.fame;
+  const name = t.label.charAt(0).toUpperCase() + t.label.slice(1);
+  const text = knows
+    ? (t.kind === 'farm' ? `That? That's ${t.label}.` : `That? ${name}. Been there as long as I can remember.`)
+    : "That? Couldn't tell you, sorry. Never paid it much mind.";
+  if (knows) state.knownTopics.add(topicId);
+  const m = currentMission(state);
+  if (!state.notebook.some((n) => n.npcId === npcId && n.topicId === topicId && n.text === text)) {
+    state.notebook.push({ npcId, name: npc.name, topicId: knows ? topicId : null, text, missionId: m ? m.id : null, clockMinutes: state.clockMinutes });
+  }
+  return [text];
+}
+
+// No one to ask: a note to yourself. If someone has named it to you, it is
+// that ("St. Anne's Church, to the north-east. Something to ask about.");
+// else just what you see ("Hm, what's that? Something to the north-east,
+// a few hundred metres off."). Returns the note's text (null if the same
+// note is already in the notebook).
+export function noteLandmark(topicId, where, state) {
+  const t = TOPIC_BY_ID[topicId];
+  const known = t && state.knownTopics.has(topicId);
+  const far = where.d < 150 ? 'close by' : where.d < 400 ? 'a few hundred metres off' : 'a long way off';
+  const name = known ? t.label.charAt(0).toUpperCase() + t.label.slice(1) : null;
+  const text = known
+    ? `${name}, to the ${where.dir}. Something to ask about.`
+    : `Hm, what's that? Something to the ${where.dir}, ${far}.`;
+  const m = currentMission(state);
+  const entry = { npcId: null, name: 'My notes', self: true, topicId: known ? topicId : null, text, missionId: m ? m.id : null, clockMinutes: state.clockMinutes };
+  const dup = state.notebook.some((n) => n.self && n.text === text);
+  if (!dup) state.notebook.push(entry);
+  return { text, known: !!known, topicId: known ? topicId : null, fresh: !dup };
 }

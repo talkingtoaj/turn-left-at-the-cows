@@ -44,7 +44,7 @@ const LANE = 3.2; // the truck passes this far to the left of the car
 const STOP_F = 7.4; // where the truck stops, metres ahead of the car (centre to centre)
 
 const CSS = `
-.tow-root { position: absolute; inset: 0; pointer-events: none; font-family: Arial, Helvetica, sans-serif; }
+#ui > .tow-root, .tow-root { position: absolute; inset: 0; pointer-events: none; font-family: Arial, Helvetica, sans-serif; }
 .tow-banner { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 32px);
   padding: 10px 18px; background: rgba(35,37,42,0.92); border: 2px solid #e6a23a; border-radius: 10px;
   color: #ece7d8; font-size: 16px; line-height: 1.4; text-align: center; box-shadow: 3px 3px 0 rgba(0,0,0,0.3);
