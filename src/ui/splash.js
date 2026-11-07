@@ -14,6 +14,7 @@ import { loadProgress, nextUnfinishedIndex, canSaveProgress } from '../game/prog
 import { timerText } from '../hud/format.js';
 import { unlockAudio, isMuted, setMuted, onMuteChange } from '../audio/context.js';
 import { soundBytes } from '../audio/sounds.js';
+import { tipsEnabled, setTipsEnabled } from '../game/tips.js';
 
 export const TITLE = 'Turn Left at the Cows';
 export const TAGLINE = 'There was a time before GPS, when finding your way required you to ask a local.';
@@ -72,6 +73,13 @@ export function renderHowTo(parent, version) {
     keys.forEach((key) => el('kbd', 'ui-kbd', k, key));
     el('td', null, tr, what);
   }
+  // Tips on or off (src/game/tips.js), remembered in this browser.
+  const tipRow = el('label', 'ui-tips', right);
+  const box = el('input', null, tipRow);
+  box.type = 'checkbox';
+  box.checked = tipsEnabled();
+  tipRow.append(' Show tips while I play');
+  box.addEventListener('change', () => setTipsEnabled(box.checked));
   return cols;
 }
 

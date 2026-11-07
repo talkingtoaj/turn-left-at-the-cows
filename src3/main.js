@@ -45,6 +45,9 @@ import { createTow } from './tow3d.js';
 import { createOnFoot } from './onfoot.js';
 import { WALK, localsAround, carGap } from '../src/game/onfoot.js';
 import { lookablesFor, pickLookable, compassWord } from '../src/game/lookables.js';
+import { createTips, TIP_CONTEXT, setTipsEnabled, resetTips } from '../src/game/tips.js';
+import { createTipsView } from './hud/tips.js';
+import { warningLights } from '../src/game/damage.js';
 
 const READ_RANGE = 25;
 const MAX_DT_MS = 50;
@@ -60,6 +63,10 @@ renderer.shadowMap.type = THREE.PCFShadowMap;
 app.appendChild(renderer.domElement);
 
 const params = new URLSearchParams(window.location.search);
+// Tips (src/game/tips.js): ?tips=off turns them off for good, ?tips=reset
+// forgets which were shown and turns them back on.
+if (params.get('tips') === 'off') setTipsEnabled(false);
+else if (params.get('tips') === 'reset') resetTips();
 // Dev: ?rain=on rains now (on an overcast day unless ?weather says otherwise).
 if (params.get('rain') === 'on' && !params.has('weather')) params.set('weather', 'overcast');
 const stats = createStats(renderer, params.has('stats'));
@@ -268,6 +275,10 @@ const foot = createOnFoot({
   canvas: renderer.domElement, camera, rig,
   canLook: () => !menu && started && !runtime.paused && !state.inputLocked,
 });
+// Context tips (src/game/tips.js), drawn on a paper tag (src3/hud/tips.js).
+const tips = createTips();
+const tipsView = createTipsView(ui);
+const tipCtx = { ...TIP_CONTEXT };
 
 // ---------- input ----------
 
@@ -350,6 +361,7 @@ const viewer = { x: 0, y: 0, heading: 0, speed: 0 };
 const footState = Object.create(state);
 footState.car = viewer;
 let footTime = 0; // seconds since you got out
+let driveTime = 0; // seconds driven this mission
 let lookFrame = 0;
 const ear = { x: 0, y: 0, heading: 0 };
 
@@ -404,7 +416,7 @@ function frame(now) {
       foot.step(dt, keys, isClear, car);
       footTime += dt;
       if (foot.walker.stepped) audio.step(amb.surfaceAt(foot.walker.x, foot.walker.y), foot.walker.jogging);
-    }
+    } else if (Math.abs(car.speed) > 1) driveTime += dt;
     state.onFoot = foot.active;
     state.lookYaw = foot.active ? foot.walker.yaw : null;
     viewer.x = foot.active ? foot.walker.x : car.x;
@@ -525,6 +537,7 @@ function frame(now) {
   renderer.shadowMap.autoUpdate = !runtime.paused;
   renderer.render(scene, camera);
   hud.update(dt);
+  updateTips(dt);
   stats.end(statsExtra);
   if (districtEl && (fps.frames & 15) === 0) districtEl.textContent = districtLabel();
 
@@ -555,6 +568,44 @@ function updateLookAt() {
   }
   const hit = pickLookable(lookablesFor(WORLD), eye, w.yaw, w.pitch, groundAt, planeSpots);
   state.lookAt = hit ? { topicId: hit.item.topicId, d: hit.d, dir: compassWord(hit.bearing) } : null;
+}
+
+// Tips: fill the context, let the engine pick, show it.
+function updateTips(dt) {
+  const car = state.car;
+  const c = tipCtx;
+  c.onFoot = foot.active;
+  c.speed = Math.abs(car.speed);
+  c.busy = runtime.paused || state.inputLocked || state.won || !!state.towing;
+  c.canTalk = !!state.nearLocalId;
+  c.locked = foot.locked;
+  c.footTime = footTime;
+  c.driveTime = driveTime;
+  c.rain = wetness.rain;
+  c.damaged = Object.values(warningLights(state.damage)).some((v) => v > 0);
+  c.namesShown = !!state.namesShown;
+  c.talkedTo = state.talkedTo.size;
+  c.sketchEmpty = !state.sketch.strokes.length && !state.sketch.stamps.length && !state.sketch.labels.length;
+  const m = currentMission(state);
+  c.planeClue = !!(planes && m && (m.goalTopic === 'kestrel_field' || state.knownTopics.has('planes')));
+  c.planeD = Infinity;
+  if (planes) {
+    for (const p of planes.sound) if (p.engine) c.planeD = Math.min(c.planeD, Math.hypot(p.x - ear.x, p.y - ear.y, p.dz));
+  }
+  c.driveLocalD = Infinity;
+  c.footLocalD = Infinity;
+  if (amb) {
+    const vx = foot.active ? foot.walker.x : car.x;
+    const vy = foot.active ? foot.walker.y : car.y;
+    for (const l of WORLD.locals) {
+      const p = amb.personPos(l.id) || l;
+      const d = Math.hypot(p.x - vx, p.y - vy);
+      if (foot.active) c.footLocalD = Math.min(c.footLocalD, d);
+      else c.driveLocalD = Math.min(c.driveLocalD, d);
+    }
+  }
+  c.carD = foot.active ? carGap(car, foot.walker.x, foot.walker.y) : Infinity;
+  tipsView.show(tips.update(c, performance.now() / 1000));
 }
 
 // ---------- start screen backdrop ----------
@@ -701,6 +752,7 @@ function exposeDebug() {
   window.__towScene = tow;
   window.__foot = foot;
   window.__collider = collider;
+  window.__tips = tips;
   // Dev: play a mission now, building its region if need be (memory checks):
   // await __playMission('m3_airfield').
   window.__playMission = playMission;
