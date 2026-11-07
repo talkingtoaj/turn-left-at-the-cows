@@ -119,6 +119,13 @@ export const SOUND_GROUPS = [
       { id: 'car/horn', kind: 'oneshot', label: 'Horn (B key), one friendly honk' },
     ],
   },
+  // Round 10: light planes at the airfield (src3/world3d/planes3d.js).
+  {
+    group: 'Aircraft',
+    items: [
+      { id: 'aircraft/prop', kind: 'loop', label: 'Light plane propeller drone (pitched with throttle and Doppler in the game)' },
+    ],
+  },
   // Round 8, 3D only (createAudio(world, { weather: true }) loads them).
   {
     group: 'Rain',

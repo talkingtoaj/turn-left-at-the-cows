@@ -37,6 +37,7 @@ import { districtsFor } from '../src/world/districts.js';
 import { createWetness } from '../src/game/wetness.js';
 import { createWeatherClock } from './look/weather.js';
 import { createRain3D } from './world3d/rain3d.js';
+import { createPlanes3D } from './world3d/planes3d.js';
 
 const TALK_RANGE = 25;
 const READ_RANGE = 25;
@@ -105,6 +106,7 @@ let amb = null;
 let amb3d = null;
 let dh = null;
 let rain3d = null;
+let planes = null; // light planes, in a region with an airfield
 let wetness = null;
 let ownWeather = null; // without the new look there is no weather clock of its own: keep one here
 let groundAt = null;
@@ -124,7 +126,7 @@ function disposeRegion() {
   const n = gpuSet ? disposeTracked(gpuSet, keep) : 0;
   scene.clear();
   renderer.renderLists.dispose();
-  scene = scenery = collider = world3d = amb = amb3d = dh = rain3d = null;
+  scene = scenery = collider = world3d = amb = amb3d = dh = rain3d = planes = null;
   gpuSet = null;
   return n;
 }
@@ -185,6 +187,8 @@ async function loadRegion(id, title) {
     dh = createDamageHazards({ scene, scenery, collider, amb, world3d, rig, sunDir: SUN_DIR, params: devParams, env: look ? look.carEnv() : null });
     // Rain streaks and wheel spray.
     rain3d = createRain3D(scene);
+    // Light planes flying circuits from the airfield (src/world/airfield.js).
+    planes = createPlanes3D(scene, WORLD, world3d.terrain);
     await step(0.9, 'Warming up the engine');
     // One frame with everything in, so the shaders compile behind the card.
     car3d.update(state.car, 0, world3d.surfaceAt, 0, state.damage || null, null);
@@ -290,6 +294,7 @@ function nearestId(list, car, range, posOf = null) {
 // ---------- main loop ----------
 
 const carPos = new THREE.Vector3();
+const listener = { x: 0, y: 0, z: 0 };
 const personPos = (id) => amb.personPos(id);
 let last = performance.now();
 let steer = 0;
@@ -385,8 +390,16 @@ function frame(now) {
   const groundRumble = ground.offRoad ? ground.rough * 0.85 * Math.min(1, Math.abs(car.speed) / 14) : 0;
   rig.rumble(Math.max(roadRumble, groundRumble) * (runtime.paused ? 0 : 1));
   const e = rig.update(carPos, car.heading, dt, runtime.cameraMode, groundAt, state.view.northUp);
+  // Planes by the game clock (seconds), so the same time shows the same sky.
+  if (planes) {
+    camera.updateMatrixWorld();
+    listener.x = car.x;
+    listener.y = car.y;
+    listener.z = groundAt(car.x, car.y) + 1.2;
+    planes.update(state.clockMinutes * 6, camera, scene.fog.color, wetness.rain, listener);
+  }
   // Sound every frame, even paused (it ducks while the map is open).
-  audio.update(dt, state, amb, { paused: runtime.paused, rain: wetness });
+  audio.update(dt, state, amb, { paused: runtime.paused, rain: wetness, planes: planes ? planes.sound : null });
 
   // Fog and draw distance: driver's view is hazy; top view sees its patch
   // clearly. Rain closes it in.
@@ -437,6 +450,7 @@ function exposeDebug() {
   window.__car3d = car3d;
   window.__wet = wetness;
   window.__rain3d = rain3d;
+  window.__planes = planes;
   // Dev: load a region now (memory checks): await __loadRegion('fenwick').
   window.__loadRegion = (id) => loadRegion(id, `Region ${id}`);
 }

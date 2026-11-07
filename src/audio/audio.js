@@ -2,7 +2,10 @@
 // SOURCES.md there). Gentle and quiet.
 // API (CONTRACT_P2.md):
 //   const audio = createAudio(WORLD);
-//   audio.update(dt, state, amb, { paused });   // every frame, even when paused
+//   audio.update(dt, state, amb, { paused, rain, planes });   // every frame, even when paused
+//   planes: [{ engine, x, y, dz, vx, vy, vz, throttle, ground }] as heard
+//   now (src3/world3d/planes3d.js works out where each one was when the
+//   sound left it), or null where there is no airfield.
 //   audio.toggleMute(); audio.muted
 // The AudioContext is created on the first keydown / pointerdown (browsers
 // need a user gesture) and resumed on later gestures if it was suspended.
@@ -193,10 +196,13 @@ export function createAudio(world, opts = {}) {
     // Voices: dialogue (centre) and chatter (each panned on its own).
     const voiceBus = gain(1, bus);
 
+    // Light planes: one voice each, made when the prop loop arrives.
+    const planeBus = gain(1, bus);
+
     nodes = {
       master, bus, engGain, engLp, engLayers, revG, revSrc: null, gravelG, grassG, pavedG, surfSrc: {},
       waterPan, creekG, riverG, townPan, townG, birdPan, birdG, voiceBus, started: new Set(), flatG, flatSrc: null,
-      roofG, rainG, wetG, wetSrc: null,
+      roofG, rainG, wetG, wetSrc: null, planeBus, planeVoices: [],
     };
 
     loadSounds(ctx, ALL_SOUNDS.filter((s) => withWeather || !s.weather).map((s) => s.id), (id, buf) => {
@@ -521,6 +527,72 @@ export function createAudio(world, opts = {}) {
     }
   }
 
+  // Light planes (round 10). Each one: the prop loop at a rate set by its
+  // throttle (RPM) and Doppler shift, through a lowpass that closes with
+  // distance (air soaks up the highs), a rough, driven copy mixed in at
+  // climb power, an inverse-distance level and a pan toward it. A plane on
+  // the ground with the engine off is silent.
+  const SOUND_C = 343;
+  const PLANE_REF = 90; // metres at which a plane at full power is at full level
+  function planeVoice(i) {
+    const n = nodes;
+    if (n.planeVoices[i]) return n.planeVoices[i];
+    if (!bufs.get('aircraft/prop')) return null;
+    const pan = panner(n.planeBus);
+    const g = gain(0, pan);
+    const lp = filter('lowpass', 2000, 0.6, g);
+    const clean = gain(1, lp);
+    const roughG = gain(0, lp);
+    const shaper = ctx.createWaveShaper();
+    const curve = new Float32Array(1024);
+    for (let k = 0; k < 1024; k++) {
+      const x = (k / 1023) * 2 - 1;
+      curve[k] = Math.tanh(3.2 * x);
+    }
+    shaper.curve = curve;
+    shaper.connect(roughG);
+    const src = loopSource('aircraft/prop', clean);
+    if (!src) return null;
+    src.connect(shaper);
+    const v = { src, g, lp, roughG, pan, on: false };
+    n.planeVoices[i] = v;
+    return v;
+  }
+  function updatePlanes(car, planes) {
+    const n = nodes;
+    const list = planes || [];
+    for (let i = 0; i < Math.max(list.length, n.planeVoices.length); i++) {
+      const p = list[i];
+      const v = p && p.engine ? planeVoice(i) : n.planeVoices[i];
+      if (!v) continue;
+      if (!p || !p.engine) {
+        ramp(v.g.gain, 0, 0.4);
+        continue;
+      }
+      const dx = p.x - car.x;
+      const dy = p.y - car.y;
+      const d = Math.max(3, Math.hypot(dx, dy, p.dz));
+      const th = Math.max(0, Math.min(1, p.throttle));
+      // Level: louder with power; inverse distance; a little extra quiet on
+      // the ground behind hangars and hedges.
+      const level = 0.75 * Math.min(1, PLANE_REF / d) * (0.35 + 0.65 * th) * (p.ground ? 0.7 : 1);
+      ramp(v.g.gain, level, 0.15);
+      ramp(v.lp.frequency, 650 + 7500 * Math.exp(-d / 650) + 900 * th, 0.2);
+      ramp(v.roughG.gain, 0.22 * Math.max(0, (th - 0.6) / 0.4), 0.3);
+      // Doppler from the speed toward the listener (gentle).
+      const ux = -dx / d;
+      const uy = -dy / d;
+      const uz = -p.dz / d;
+      const toward = p.vx * ux + p.vy * uy + p.vz * uz;
+      const dop = 1 + (SOUND_C / (SOUND_C - Math.max(-120, Math.min(120, toward))) - 1) * 0.75;
+      ramp(v.src.playbackRate, (0.78 + 0.32 * th) * dop, 0.12);
+      const r = rel(car, p.x, p.y);
+      const flat = Math.hypot(dx, dy);
+      // Straight overhead it is everywhere at once.
+      setPan(v.pan, r.pan * Math.min(1, flat / Math.max(30, Math.abs(p.dz))));
+    }
+  }
+
   // Damage sounds: crash thud on hard hits (quieter thuds for potholes and
   // branches), and the flat tyre flapping while a flat tyre rolls.
   let dmgFrame = -1;
@@ -636,6 +708,7 @@ export function createAudio(world, opts = {}) {
       updateTown(dt, car);
       updateTalk();
       updateChatter(dt, car, amb, s);
+      updatePlanes(car, opts && opts.planes);
       if (!paused && !muted) {
         updateBirds(dt, car, amb);
         handleEvents(car, amb);
@@ -650,6 +723,7 @@ export function createAudio(world, opts = {}) {
     setWorld(w) {
       world = w;
       water = waterOf(w);
+      if (nodes) for (const v of nodes.planeVoices) if (v) v.g.gain.value = 0;
       for (const c of chatter.values()) stopVoice(c, 0.1);
       chatter.clear();
     },
@@ -671,6 +745,10 @@ export function createAudio(world, opts = {}) {
     },
     get chatter() {
       return [...chatter.keys()];
+    },
+    // For checks: each plane voice's level, playback rate and lowpass now.
+    get planes() {
+      return nodes ? nodes.planeVoices.map((v) => v && { gain: +v.g.gain.value.toFixed(4), rate: +v.src.playbackRate.value.toFixed(3), lowpass: Math.round(v.lp.frequency.value) }) : [];
     },
   };
 }

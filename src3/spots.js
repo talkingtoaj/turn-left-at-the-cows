@@ -17,6 +17,13 @@ export const SPOTS = {
   hay: { at: [610, 1975], road: 'creek_rd', toward: [600, 2200] }, // smooth mown hay west of Creek Road (pf_11)
   scrub: { at: [610, 1920], road: 'creek_rd', toward: [600, 2200] }, // rough scrub east of Creek Road
   plowed: { at: [2400, 1255], road: 'hwy9', toward: [2400, 1100] }, // plowed field by Highway 9 (pf_5)
+  // Region 2, Brandt country (mission 3, the airfield).
+  airfield: { region: 'brandt', at: [3318, 1100], road: 'pike_ln', toward: [3326, 1052] }, // top of Pike Lane at the club's gate
+  airfield_far: { region: 'brandt', at: [2700, 1700], road: 'rt40', toward: [3300, 1712] }, // Route 40 east of Sandy Creek, the downwind leg overhead, field ~1 km north
+  pike_lane: { region: 'brandt', at: [3292, 1600], road: 'pike_ln', toward: [3245, 1420] }, // Pike Lane by the sheep, heading up to the field
+  brandt: { region: 'brandt', at: [1500, 1600], road: 'rt40', toward: [1700, 1600] }, // Route 40 into Brandt from the west
+  field_lane: { region: 'brandt', at: [2200, 948], road: 'field_lane', toward: [2478, 930] }, // Field Lane near the ford, Peg's dead end ahead
+  oakham: { region: 'brandt', at: [3900, 2150], road: 'oakham_rd', toward: [3902, 2330] }, // Oakham Road into the hamlet
 };
 
 // Region id of a named spot, or null (unknown name, or x,y,heading).
