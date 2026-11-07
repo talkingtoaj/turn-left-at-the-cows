@@ -9,14 +9,18 @@
 //   tow: { x, y, throttle } where the tow truck is (src3/tow3d.js), or null.
 //   audio.cue(id, vol)   one-shot now, centre (the tow chain and winch)
 //   audio.toggleMute(); audio.muted
-// The AudioContext is created on the first keydown / pointerdown (browsers
-// need a user gesture) and resumed on later gestures if it was suspended.
+// The AudioContext is the page's shared one (./context.js): the start
+// screen makes it inside the Continue click; otherwise it is made on the
+// first keydown / pointerdown here. audio.wake() builds the sound graph
+// once that context exists (called when the game starts). Mute is
+// remembered between visits (./context.js).
 // The sound files start loading at that moment too; each sound joins in as
 // soon as its file has arrived, and is silent until then.
 // Voices: the dialogue UI calls speak(npcId, text) from ./voice.js.
 
 import { ALL_SOUNDS, ENGINE_LAYERS, engineMix, loadSounds, loopBounds } from './sounds.js';
 import { takeSpeech, voiceFor } from './voice.js';
+import { sharedAudioContext, unlockAudio, isMuted, setMuted } from './context.js';
 
 const DEG = Math.PI / 180;
 const MASTER = 0.5;
@@ -53,7 +57,6 @@ export function createAudio(world, opts = {}) {
   // world is swapped by setWorld() when the game moves to another region.
   const withWeather = !!opts.weather;
   let ctx = null;
-  let muted = false;
   let nodes = null;
   let paused = false;
   let bufs = new Map();
@@ -79,7 +82,7 @@ export function createAudio(world, opts = {}) {
 
   function gesture() {
     try {
-      if (!ctx) init();
+      if (!ctx) init(unlockAudio());
       else if (ctx.state === 'suspended') ctx.resume();
     } catch (e) {
       // No Web Audio: stay silent.
@@ -148,10 +151,9 @@ export function createAudio(world, opts = {}) {
     return s;
   }
 
-  function init() {
-    const AC = typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext);
-    if (!AC) return;
-    ctx = new AC();
+  function init(shared) {
+    if (!shared) return;
+    ctx = shared;
     if (ctx.state === 'suspended') ctx.resume();
 
     const master = gain(0, ctx.destination);
@@ -714,6 +716,7 @@ export function createAudio(world, opts = {}) {
       paused = !!(opts && opts.paused);
       if (!ctx || !nodes) return;
       if (ctx.state !== 'running') return;
+      const muted = isMuted();
       const target = muted ? 0 : MASTER * (paused ? PAUSE_DUCK : 1);
       nodes.master.gain.setTargetAtTime(target, ctx.currentTime, paused || muted ? 0.25 : 0.4);
       const car = state && state.car;
@@ -741,8 +744,17 @@ export function createAudio(world, opts = {}) {
       oneShot(id, ctx.currentTime, 0, vol, 0.97 + Math.random() * 0.06);
     },
     toggleMute() {
-      muted = !muted;
-      return muted;
+      return setMuted(!isMuted());
+    },
+    // The start screen already made and resumed the shared context inside
+    // its click: build the sound graph now, without waiting for a gesture.
+    wake() {
+      try {
+        if (!ctx && sharedAudioContext()) init(sharedAudioContext());
+        else if (ctx && ctx.state === 'suspended') ctx.resume();
+      } catch (e) {
+        // No Web Audio: stay silent.
+      }
     },
     // The game moved to another region (src/world/regions.js): its creeks
     // and towns are the water and town sounds from now on.
@@ -754,7 +766,7 @@ export function createAudio(world, opts = {}) {
       chatter.clear();
     },
     get muted() {
-      return muted;
+      return isMuted();
     },
     get context() {
       return ctx;

@@ -106,6 +106,7 @@ const CSS = `
 .hud-win.hud-win-small { width: min(460px, calc(100% - 32px)); padding: 26px 22px 22px; }
 .hud-win h2 { margin: 0 16px 4px; color: #e6b450; font-size: 24px; }
 .hud-win-sub { color: #a9acb2; font-size: 14px; margin-bottom: 14px; }
+.hud-win-nosave { color: #e6b450; font-style: italic; }
 .hud-win-stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 28px; margin-bottom: 16px; font-size: 16px; }
 .hud-win-stats span span:first-child { color: #8a8d92; margin-right: 8px; }
 .hud-win-stats span span:last-child { color: #d9d4c5; font-weight: bold; }
@@ -719,6 +720,9 @@ export function createHUD(root, { openMap } = {}) {
     const goal = currentGoal(state);
     el('h2', null, panel, `You made it to ${goal ? goal.name : 'the end'}`);
     if (m) el('div', 'hud-win-sub', panel, m.title);
+    if (state.lastRecord && state.lastRecord.saved === false) {
+      el('div', 'hud-win-sub hud-win-nosave', panel, 'Progress can\u2019t be saved in this window (storage is blocked).');
+    }
     const stats = el('div', 'hud-win-stats hud-mono', panel);
     const rows = [
       ['Trip time', timerText(state.elapsedMs)],

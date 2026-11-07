@@ -8,7 +8,9 @@
 //
 // API:
 //   loadProgress()                      -> { version, missions: { [id]: Record } }
-//   recordFinish(id, { elapsedMs, odometer, tows })  -> the updated Record
+//   recordFinish(id, { elapsedMs, odometer, tows })  -> the updated Record, plus
+//                                       saved: false when it could not be written
+//   canSaveProgress()                   -> false when storage is blocked or full
 //   isFinished(id) / finishedIds()
 //   nextUnfinishedIndex(list = MISSION_LIST)   -> index of the first unfinished
 //                                               mission (0 when all are done)
@@ -50,7 +52,8 @@ export function loadProgress() {
 function save(p) {
   try {
     const s = storage();
-    if (s) s.setItem(PROGRESS_KEY, JSON.stringify(p));
+    if (!s) return false;
+    s.setItem(PROGRESS_KEY, JSON.stringify(p));
     return true;
   } catch (e) {
     return false;
@@ -73,8 +76,32 @@ export function recordFinish(id, { elapsedMs = 0, odometer = 0, tows = 0 } = {})
     tows: Math.max(0, Math.round(tows) || 0),
   };
   p.missions[id] = rec;
-  save(p);
-  return rec;
+  const saved = save(p);
+  // The first finished job: ask the browser to keep this site's storage
+  // (it may otherwise clear it under storage pressure). Fine if refused.
+  if (saved && Object.keys(p.missions).length === 1 && !old) {
+    try {
+      globalThis.navigator?.storage?.persist?.().catch(() => {});
+    } catch (e) {
+      // not available
+    }
+  }
+  return { ...rec, saved };
+}
+
+// Whether progress can be written in this window (private modes and
+// blocked storage cannot).
+export function canSaveProgress() {
+  try {
+    const s = storage();
+    if (!s) return false;
+    const k = `${PROGRESS_KEY}.probe`;
+    s.setItem(k, '1');
+    s.removeItem(k);
+    return true;
+  } catch (e) {
+    return false;
+  }
 }
 
 export function isFinished(id) {

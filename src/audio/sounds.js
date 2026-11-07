@@ -161,15 +161,36 @@ export function loopBounds(buf) {
   return { start: s / buf.sampleRate, end: e / buf.sampleRate };
 }
 
+// Sound files fetched early (no AudioContext needed): id -> Promise<ArrayBuffer>.
+// The start screen calls prefetchSounds() while the player reads the menu;
+// loadSounds() then only has to decode.
+const prefetched = new Map();
+const fetchBytes = (id) => fetch(soundUrl(id)).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(r.status))));
+
+export function prefetchSounds(ids = ALL_SOUNDS.map((s) => s.id)) {
+  for (const id of ids) {
+    if (prefetched.has(id)) continue;
+    const p = fetchBytes(id);
+    p.catch(() => prefetched.delete(id)); // try again at load time
+    prefetched.set(id, p);
+  }
+}
+
+// The raw bytes of one sound (fetched once, shared with loadSounds).
+export function soundBytes(id) {
+  prefetchSounds([id]);
+  return prefetched.get(id);
+}
+
 // Fetch and decode a set of sound ids into ctx. Resolves to Map id -> AudioBuffer
 // (ids that fail to load are left out). onEach(id, buf) fires as each arrives.
 export function loadSounds(ctx, ids, onEach) {
   const out = new Map();
   return Promise.all(
     ids.map((id) =>
-      fetch(soundUrl(id))
-        .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(r.status))))
-        .then((ab) => new Promise((res, rej) => ctx.decodeAudioData(ab, res, rej)))
+      (prefetched.get(id) || fetchBytes(id))
+        // decodeAudioData takes the bytes over, so decode a copy.
+        .then((ab) => new Promise((res, rej) => ctx.decodeAudioData(ab.slice(0), res, rej)))
         .then((buf) => {
           out.set(id, buf);
           if (onEach) onEach(id, buf);
