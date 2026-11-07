@@ -178,7 +178,9 @@ export const WORLD_SOURCE = {
   // Their districts are always stony (src/world/districts.js).
   outcrops: [
     { id: 'oc_grey', name: 'the Grey Stones', x: 2540, y: 1160 },
-    { id: 'oc_raven', name: 'Raven Crag', x: 5400, y: 1060 },
+    // Raven Crag sits on the road-facing brow of its hill, not the top: from
+    // the road below (?spot=5366,1263,12) the top hid all but its stone tips.
+    { id: 'oc_raven', name: 'Raven Crag', x: 5400, y: 1100 },
     { id: 'oc_oldmen', name: 'the Old Men', x: 3300, y: 1100 },
     { id: 'oc_teeth', name: "the Giant's Teeth", x: 3060, y: 420 },
     { id: 'oc_cairn', name: "Shepherd's Cairn", x: 3500, y: 2120 },

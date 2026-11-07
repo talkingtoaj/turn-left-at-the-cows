@@ -40,7 +40,7 @@ export const VIEWS = [
   // Part A: scatter fixes.
   { name: 'stony_rocks', q: 'spot=3000,238,90', cam: [2996, 1.8, 238], look: [3012, 1.0, 231] },
   { name: 'gorse_close', q: 'spot=3000,238,90', cam: [2998, 1.6, 236], look: [3004, 0.6, 230] },
-  { name: 'raven_crag', q: 'spot=5366,1263,10' },
+  { name: 'raven_crag', q: 'spot=5366,1263,12' },
   { name: 'tinkers_rocks', q: 'spot=1500,1525,334' },
   { name: 'the_anvil', q: 'spot=636,1473,280' },
   // Part B: dry / wet pairs.
