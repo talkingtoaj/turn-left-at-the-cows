@@ -20,6 +20,9 @@ export const VOICE_GENDER = {
   frank: 'm',
   ade: 'm',
   mabel: 'f',
+  // Tow truck drivers (src/game/tow.js).
+  tow_wade: 'm',
+  tow_junie: 'f',
 };
 
 function hash(s) {
