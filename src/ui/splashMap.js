@@ -7,6 +7,8 @@
 //
 // Plain SVG text, no world data (positions below were read off the regions'
 // data once, in map units, and are only roughly to scale, like a sketch).
+// It names nothing the player hasn't been told: Ashford, the two counties,
+// and places they have already found (the ticks).
 //   mapSVG({ missions, done, next }) -> svg markup
 // done: { [missionId]: progress Record }, next: index of the circled one.
 
@@ -26,16 +28,12 @@ export const MAP_SPOTS = {
   m3_airfield: { start: B(250, 1690), end: B(3320, 1042), next: [40, 42, 'middle'], best: [-14, 4, 'end'] },
 };
 
-const HWY9 = [[600, 2400], [911, 2323], [1207, 2241], [1515, 2249], [1823, 2196], [2142, 2117], [2408, 1987], [2411, 1661], [2392, 1363], [2372, 1065], [2317, 761], [2300, 700]];
-const RT40_F = [[2399, 1420], [2801, 1332], [3219, 1291], [3633, 1222], [4049, 1188], [4451, 1170], [4855, 1168], [5251, 1239], [5664, 1298], [6082, 1285], [6495, 1300]];
-const RT40_B = [[0, 1700], [480, 1684], [963, 1635], [1443, 1601], [1907, 1606], [2390, 1652], [2870, 1715], [3344, 1710], [3821, 1669], [4297, 1608], [4795, 1565]];
-const WILLOW = [[0, 1290], [555, 1356], [1087, 1395], [1630, 1506], [2170, 1507], [2716, 1592], [3248, 1524], [3792, 1659], [4392, 1610]];
-const COLDWATER = [[4060, 0], [4184, 392], [4200, 785], [4262, 1189], [4383, 1574], [4406, 1978], [4302, 2373], [4365, 2775], [4450, 3200]];
-const SANDY = [[2150, 0], [2194, 374], [2311, 735], [2380, 1100], [2433, 1470], [2495, 1836], [2536, 2211], [2598, 2583], [2650, 3000]];
-const TOWNS = [
-  ['Ashford', F(600, 2420)], ['Millbrook', F(2280, 690)], ['Dunmore Corners', F(3350, 285), true],
-  ['Calder', F(4700, 1160)], ['Brandt', B(1715, 1555)], ['Oakham', B(3915, 2340), true],
-];
+// Only Ashford, where you start, is named. No real roads, rivers or other
+// towns: finding those is the game (the printed 1987 map in the glovebox
+// covers only the country round Ashford, and it lies). The pencilled line
+// east is a hint of direction, not a road.
+const ASHFORD = F(600, 2420);
+const EAST = [ASHFORD, [190, 318], [320, 280], [450, 250], [560, 232], [680, 222], [800, 214]];
 
 function rng(seed) {
   let s = seed >>> 0 || 1;
@@ -75,32 +73,17 @@ const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
 export function mapSVG({ missions, done, next }) {
   const r = rng(7);
   const out = [];
-  // Water.
-  for (const [pts, w] of [[WILLOW.map((p) => F(...p)), 1.6], [COLDWATER.map((p) => F(...p)), 2.4], [SANDY.map((p) => B(...p)), 1.6]]) {
-    out.push(`<path d="${pencil(pts, r)}" class="mp-water" stroke-width="${w}"/>`);
+  // A loose pencil line east from Ashford toward the next county.
+  out.push(`<path d="${pencil(EAST, r, 3)}" class="mp-road mp-gap"/>`);
+  out.push('<text class="mp-hand mp-faint" x="610" y="208" transform="rotate(-3 610 208)">east, 22 km or so \u2192</text>');
+  // Ashford: a few pencil squares and a printed name.
+  const [ax, ay] = ASHFORD;
+  for (let k = 0; k < 4; k++) {
+    const bx = ax - 6 + (k % 2) * 8 + (r() - 0.5) * 2;
+    const by = ay - 6 + Math.floor(k / 2) * 7 + (r() - 0.5) * 2;
+    out.push(`<rect class="mp-house" x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="5" height="5"/>`);
   }
-  // Roads: Route 40 (with the long stretch between the counties squeezed),
-  // Highway 9 up from Ashford.
-  const rtF = RT40_F.map((p) => F(...p));
-  const rtB = RT40_B.map((p) => B(...p));
-  const gap = [rtF[rtF.length - 1], [548, 222], [570, 214], rtB[0]];
-  out.push(`<path d="${pencil(rtF, r)}" class="mp-road"/>`);
-  out.push(`<path d="${pencil(gap, r)}" class="mp-road mp-gap"/>`);
-  out.push(`<path d="${pencil(rtB, r)}" class="mp-road"/>`);
-  out.push(`<path d="${pencil(HWY9.map((p) => F(...p)), r)}" class="mp-road"/>`);
-  out.push(`<text class="mp-roadname" x="438" y="212" transform="rotate(-2 438 212)">ROUTE 40</text>`);
-  out.push(`<text class="mp-roadname" x="196" y="250" transform="rotate(-90 196 250)">HWY 9</text>`);
-  out.push(`<text class="mp-hand mp-faint" x="528" y="204">22 km</text>`);
-  // Towns: a few pencil squares and a printed name.
-  for (const [name, [x, y], small] of TOWNS) {
-    const n = small ? 2 : 4;
-    for (let k = 0; k < n; k++) {
-      const bx = x - 6 + (k % 2) * 8 + (r() - 0.5) * 2;
-      const by = y - 6 + Math.floor(k / 2) * 7 + (r() - 0.5) * 2;
-      out.push(`<rect class="mp-house" x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="5" height="5"/>`);
-    }
-    out.push(`<text class="mp-town${small ? ' mp-small' : ''}" x="${x + 10}" y="${y + 18}">${esc(name)}</text>`);
-  }
+  out.push(`<text class="mp-town" x="${ax + 10}" y="${ay + 18}">Ashford</text>`);
   // County names, printed.
   out.push('<text class="mp-county" x="150" y="440">FENWICK COUNTY</text>');
   out.push('<text class="mp-county" x="612" y="440">HARLAN COUNTY</text>');

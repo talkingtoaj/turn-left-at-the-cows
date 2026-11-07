@@ -1,7 +1,8 @@
 // Load screen while a region is built (src3/main.js), in the "paper on the
-// dash" look (SPEC 6h): dash black, the next region's map sheet being drawn
-// in pencil as it loads (stroke progress follows load progress), the trip
-// odometer rolling as the progress number, and one line from a local.
+// dash" look (SPEC 9k): dash black, a pencil doodle (never the region's
+// real map) sketched in as it loads (stroke progress follows load
+// progress), the trip odometer rolling as the progress number, and one
+// line from a local.
 // No spinner. Plain DOM and SVG.
 //
 //   const ls = showLoadScreen({ title, region, kicker, hidden })
@@ -54,59 +55,46 @@ const LINES = [
 
 let styled = false;
 
-function rng(seed) {
-  let s = seed >>> 0 || 1;
-  return () => {
-    s = (s * 1664525 + 1013904223) >>> 0;
-    return s / 4294967296;
-  };
-}
-const hash = (str) => [...str].reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0, 2166136261);
+// A pencil doodle in a notebook margin, sketched in as the load goes on:
+// a compass rose, a road sign with a bent arrow, the car, a cow and a
+// coffee ring. Never the region's real layout: that is what the player is
+// trying to work out. Every mark has pathLength 1 so progress can draw it.
+const G = '#4a4a48';
+const R = '#b3261e';
+const DOODLE = [
+  // Compass rose.
+  ['circle', 'cx="70" cy="96" r="38"', G, 1.6],
+  ['path', 'd="M70,48 L78,96 L70,144 L62,96 Z"', G, 1.6],
+  ['path', 'd="M22,96 L70,88 L118,96 L70,104 Z"', G, 1.2],
+  ['path', 'd="M66,40 L66,30 L74,40 L74,30"', G, 1.6],
+  // Road sign on a post, with a bent turn-left arrow.
+  ['path', 'd="M190,200 L190,118"', G, 2.2],
+  ['path', 'd="M156,58 L224,54 L226,118 L158,122 Z"', G, 2],
+  ['path', 'd="M200,108 L200,88 C200,80 196,76 188,76 L172,76 M180,66 L170,76 L180,86"', G, 2.4],
+  // Road.
+  ['path', 'd="M250,206 C300,180 330,170 400,168 C440,167 470,160 496,150"', G, 2],
+  ['path', 'd="M262,214 C312,196 350,188 410,186 C450,185 476,178 498,170"', G, 1.2],
+  // The car.
+  ['path', 'd="M300,150 L306,132 L322,124 L356,124 L370,134 L384,138 L386,150 Z"', R, 2],
+  ['path', 'd="M318,132 L326,128 L338,128 L338,134 Z M344,128 L356,128 L364,134 L344,134 Z"', R, 1.2],
+  ['circle', 'cx="318" cy="152" r="7"', G, 2],
+  ['circle', 'cx="370" cy="152" r="7"', G, 2],
+  // A cow.
+  ['path', 'd="M410,90 C410,76 420,72 440,72 C462,72 470,76 470,90 C470,100 462,102 440,102 C420,102 410,100 410,90 Z"', G, 1.8],
+  ['path', 'd="M414,100 L414,118 M426,102 L426,118 M454,102 L454,118 M466,100 L466,118"', G, 1.8],
+  ['path', 'd="M410,82 L398,76 C392,76 390,88 396,92 L410,92 M396,76 L392,70 M402,76 L404,70"', G, 1.8],
+  ['path', 'd="M432,78 C438,80 438,88 446,86 M452,92 C456,96 462,94 462,90"', G, 1.2],
+  ['path', 'd="M470,84 C478,86 480,96 476,104"', G, 1.2],
+  // Coffee ring.
+  ['circle', 'cx="270" cy="62" r="30"', '#8a6a4a', 3],
+  ['circle', 'cx="272" cy="64" r="25"', '#8a6a4a', 1],
+];
 
-// A pencil map of the region: the same sheet each time for a region (seeded
-// by its name). Every mark has pathLength 1 so progress can draw it in.
-function mapSVG(region) {
-  const r = rng(hash(region || 'map'));
-  const wob = (pts) => pts.map(([x, y], i) => `${i ? 'L' : 'M'}${(x + (r() - 0.5) * 7).toFixed(1)},${(y + (r() - 0.5) * 7).toFixed(1)}`).join(' ');
-  const line = (x0, y0, x1, y1, n) => Array.from({ length: n + 1 }, (_, i) => [x0 + ((x1 - x0) * i) / n + (r() - 0.5) * 30 * (i && i < n), y0 + ((y1 - y0) * i) / n + (r() - 0.5) * 30 * (i && i < n)]);
-  const marks = [];
-  // Main road across, a creek, two or three side roads, a couple of towns.
-  const yMain = 100 + r() * 40;
-  marks.push({ d: wob(line(0, yMain, 500, yMain - 30 + r() * 60, 7)), k: 'road', w: 3 });
-  marks.push({ d: wob(line(0, 30 + r() * 30, 500, 10 + r() * 50, 8)), k: 'water', w: 2 });
-  const sides = 2 + Math.floor(r() * 2);
-  for (let i = 0; i < sides; i++) {
-    const x = 80 + (i + r() * 0.6) * (340 / sides);
-    marks.push({ d: wob(line(x, yMain, x + (r() - 0.5) * 140, r() < 0.5 ? 210 : 15, 4)), k: 'road', w: 2, dash: r() < 0.5 });
-  }
-  const towns = [];
-  for (let i = 0; i < 2; i++) {
-    const tx = 90 + i * 260 + r() * 60;
-    const ty = yMain - 8 + (r() - 0.5) * 30;
-    towns.push([tx, ty]);
-  }
-  const out = [];
-  for (const m of marks) {
-    const stroke = m.k === 'water' ? '#6f9fb8' : '#4a4a48';
-    out.push(`<path d="${m.d}" pathLength="1" stroke="${stroke}" stroke-width="${m.w}"${m.dash ? ' data-dash="1"' : ''}/>`);
-  }
-  for (const [tx, ty] of towns) {
-    for (let k = 0; k < 4; k++) {
-      const x = tx + (k % 2) * 11 + (r() - 0.5) * 4;
-      const y = ty + Math.floor(k / 2) * 10 + (r() - 0.5) * 4;
-      out.push(`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="7" height="7" pathLength="1" stroke="#4a4a48" stroke-width="1.6"/>`);
-    }
-  }
-  // A pencil circle with a question mark where the job is, somewhere.
-  const gx = 330 + r() * 120;
-  const gy = 150 + r() * 40;
-  out.push(`<circle cx="${gx.toFixed(1)}" cy="${gy.toFixed(1)}" r="13" pathLength="1" stroke="#b3261e" stroke-width="2"/>`);
-  out.push(`<path d="M${gx + 6},${gy + 20} q4,6 10,0" pathLength="1" stroke="#b3261e" stroke-width="2"/>`);
-  // North arrow.
-  out.push('<path d="M470,200 L470,160 M462,172 L470,160 L478,172" pathLength="1" stroke="#4a4a48" stroke-width="1.8"/>');
+function doodleSVG() {
+  const marks = DOODLE.map(([tag, attrs, stroke, w]) => `<${tag} ${attrs} pathLength="1" stroke="${stroke}" stroke-width="${w}"${stroke === '#8a6a4a' ? ' opacity="0.35"' : ''}/>`);
   return `<svg class="ls-map" viewBox="0 0 500 220" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-  <g fill="none" stroke-linecap="round" stroke-linejoin="round">${out.join('')}</g>
-  <text x="463" y="152" font-family="Caveat, cursive" font-size="18" fill="#4a4a48">N</text>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">${marks.join('')}</g>
+  <text x="404" y="208" font-family="Caveat, cursive" font-size="20" fill="${G}">moo?</text>
 </svg>`;
 }
 
@@ -150,7 +138,7 @@ export function showLoadScreen({ title = '', region = '', kicker = 'On the road 
   el('div', 'ls-kicker', sheet, kicker);
   if (region) el('div', 'ls-region', sheet, region);
   if (title) el('div', 'ls-title', sheet, title);
-  sheet.insertAdjacentHTML('beforeend', mapSVG(region || title));
+  sheet.insertAdjacentHTML('beforeend', doodleSVG());
   const marks = [...sheet.querySelectorAll('.ls-map path, .ls-map circle, .ls-map rect')];
   for (const m of marks) {
     m.style.strokeDasharray = '1 1';
