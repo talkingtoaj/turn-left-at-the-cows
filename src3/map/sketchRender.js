@@ -14,8 +14,10 @@ export const MAP_H = 640;
 export const PAPER = { x: 100, y: 52, w: 840, h: 576 };
 export const STAMP_SCALE = 1.3;
 export const SKETCH_PAPER = 0xf3eee0;
-export const HAND = '"Segoe Print", "Bradley Hand", "Comic Sans MS", cursive';
-export const LABEL_SIZE = 18;
+// Pencil handwriting: Caveat (Google Fonts, loaded by the page); the old
+// stack fell back to Comic Sans on Linux and Android.
+export const HAND = 'Caveat, "Segoe Print", "Bradley Hand", cursive';
+export const LABEL_SIZE = 22;
 
 // Pencil widths: shared with the Phaser map screen.
 export const THIN_W = STROKE_WIDTH;
@@ -37,10 +39,10 @@ export function drawSketchPaper(g, ctx) {
   const rnd = makeRng(42);
   wobbly(g, [[nx, ny + 18], [nx, ny - 14]], rnd);
   wobbly(g, [[nx - 6, ny - 6], [nx, ny - 14], [nx + 6, ny - 6]], rnd);
-  drawText(ctx, nx - 22, ny + 4, 'N', { fontFamily: HAND, fontSize: '20px', color: '#555555' }, [0.5, 0.5]);
+  drawText(ctx, nx - 22, ny + 4, 'N', { fontFamily: HAND, fontSize: '24px', color: '#555555' }, [0.5, 0.5]);
   drawText(ctx, PAPER.x + PAPER.w / 2, PAPER.y + PAPER.h - 14,
     'Draw what you were told. This sheet never shows where you are.',
-    { fontFamily: HAND, fontSize: '12px', color: '#9a9184' }, [0.5, 0.5]);
+    { fontFamily: HAND, fontSize: '16px', color: '#9a9184' }, [0.5, 0.5]);
 }
 
 // One pencil stroke. Optional fields: width (default thin) and dash: true.

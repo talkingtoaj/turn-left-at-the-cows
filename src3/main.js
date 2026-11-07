@@ -1,4 +1,7 @@
-// The game's entry point (loaded by src3/boot.js after the start screen).
+// The game's entry point. src3/boot.js imports it while the start screen is
+// up, builds the first region quietly (preloadMenu) and shows it drifting
+// slowly behind the menu's windshield; startGame() then only has to place
+// the car.
 // Renderer, car, camera, HUD and the main loop live for the whole session;
 // the world is built one region at a time (src/world/regions.js): starting
 // a mission builds its region behind a load screen, and leaving a region
@@ -114,6 +117,7 @@ let gpuSet = null; // GPU resources this region uploaded (src3/gpuTracker.js)
 let loading = 0; // region loads queued or running (the main loop waits)
 let loadChain = Promise.resolve();
 let firstLoad = true;
+let currentLs = null; // the load screen of the region being built
 
 const nextPaint = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
@@ -135,9 +139,11 @@ function disposeRegion() {
 // Builds region `id` behind a load screen. `title`: the mission's title.
 // Dev URL flags that place the car (?spot, ?fallen) only act on the first load.
 // Loads run one after another; the main loop waits until none is left.
-function loadRegion(id, title) {
+// quiet: build behind the start screen with the load screen hidden (it is
+// revealed if the player starts while it is still going).
+function loadRegion(id, title, { quiet = false } = {}) {
   loading++;
-  const run = () => buildRegion(id, title).finally(() => {
+  const run = () => buildRegion(id, title, quiet).finally(() => {
     loading--;
     last = performance.now();
   });
@@ -145,9 +151,10 @@ function loadRegion(id, title) {
   return loadChain;
 }
 
-async function buildRegion(id, title) {
+async function buildRegion(id, title, quiet = false) {
   const t0 = performance.now();
-  const ls = showLoadScreen({ title, region: REGIONS[id] ? REGIONS[id].name : id });
+  const ls = showLoadScreen({ title, region: REGIONS[id] ? REGIONS[id].name : id, hidden: quiet && !started });
+  currentLs = ls;
   const step = async (f, text) => {
     ls.progress(f, text);
     await nextPaint();
@@ -213,6 +220,7 @@ async function buildRegion(id, title) {
     exposeDebug();
   } finally {
     ls.close();
+    currentLs = null;
     firstLoad = false;
   }
 }
@@ -313,6 +321,10 @@ const fps = { frames: 0, acc: 0, value: 0 };
 function frame(now) {
   requestAnimationFrame(frame);
   if (loading > 0 || !scene) return;
+  if (menu) {
+    menuFrame(now);
+    return;
+  }
   // A finished mission handed over to one in another region: load it.
   const cm = currentMission(state);
   if (cm && cm.region !== regionId && !state.won) {
@@ -446,6 +458,129 @@ function frame(now) {
   }
 }
 
+// ---------- start screen backdrop ----------
+// While the start screen is up the world drifts slowly behind its
+// windshield: the camera stands above the mission's start and turns about
+// 1 degree a second. No car, no sound, no clock (so no weather change);
+// ambient life, the mast light and planes keep going. About 30 frames a
+// second, drawn only into the windshield's rectangle. `still` (reduced
+// motion, or a device too slow for it) draws a few frames and stops.
+const MENU_UP = 13; // metres above the ground
+const MENU_PITCH = -5 * (Math.PI / 180);
+const MENU_TURN = Math.PI / 180; // radians a second
+let menu = null;
+const menuFocus = new THREE.Vector3();
+const menuLook = new THREE.Vector3();
+
+function menuFrame(now) {
+  const rawMs = now - last;
+  if (menu.done || rawMs < 30) return;
+  last = now;
+  const dt = Math.min(rawMs, 100) / 1000;
+  const t0 = performance.now();
+  if (!menu.still) menu.t += dt;
+  const yaw = menu.yaw0 + menu.t * MENU_TURN;
+  const { x, y } = menu.at;
+  const gy = groundAt(x, y);
+  const fx = Math.sin(yaw);
+  const fz = -Math.cos(yaw);
+  camera.position.set(x, gy + MENU_UP, y);
+  menuLook.set(x + fx * 100, gy + MENU_UP + Math.tan(MENU_PITCH) * 100, y + fz * 100);
+  camera.up.set(0, 1, 0);
+  camera.lookAt(menuLook);
+  menuFocus.set(x + fx * 45, gy, y + fz * 45);
+  // Draw only where the windshield is.
+  const r = menu.rect ? menu.rect() : null;
+  const W = window.innerWidth;
+  const H = window.innerHeight;
+  const vx = r ? r.x : 0;
+  const vw = r ? Math.max(1, r.w) : W;
+  const vh = r ? Math.max(1, r.h) : H;
+  const vy = r ? H - r.y - vh : 0; // WebGL counts from the bottom
+  const aspect = vw / vh;
+  if (camera.aspect !== aspect || camera.fov !== 55) {
+    camera.aspect = aspect;
+    camera.fov = 55;
+    camera.updateProjectionMatrix();
+  }
+  camera.far = 640;
+  camera.updateProjectionMatrix();
+  camera.updateMatrixWorld();
+  scene.fog.near = 220;
+  scene.fog.far = 620;
+
+  amb.update(dt, state);
+  if (planes) planes.update(state.clockMinutes * 6 + menu.t, camera, scene.fog.color, wetness.rain, listener);
+  if (look) look.update(state, wetness.rain, wetness.wet);
+  world3d.puddles.update(wetness.puddle, wetness.rain, now / 1000, scene.fog.color);
+  world3d.update(now / 1000, dt, state.car, menuFocus, 110, camera, amb);
+  amb3d.update(amb, dt, camera, menuFocus, scene.fog, 1, renderer, dh.hz.animals);
+  // The sun never moves and the camera barely does: the shadow map needs
+  // only an occasional refresh.
+  renderer.shadowMap.autoUpdate = menu.frames < 3 || menu.frames % 20 === 0;
+  renderer.setViewport(vx, vy, vw, vh);
+  renderer.setScissor(vx, vy, vw, vh);
+  renderer.setScissorTest(true);
+  renderer.render(scene, camera);
+  menu.frames++;
+  // A device that takes too long per frame gets a still picture instead.
+  const cost = performance.now() - t0;
+  menu.cost = menu.cost === undefined ? cost : menu.cost * 0.9 + cost * 0.1;
+  if (menu.frames > 15 && menu.cost > 45 && !menu.still) {
+    menu.still = true;
+    console.info(`[menu] ${menu.cost.toFixed(0)} ms a frame: holding a still picture`);
+  }
+  if (menu.frames === 3 && menu.onReady) menu.onReady();
+  if (menu.still && menu.frames >= 4) menu.done = true;
+}
+
+function exitMenu() {
+  if (!menu) return;
+  menu = null;
+  renderer.setScissorTest(false);
+  renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
+  camera.fov = 62;
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.shadowMap.autoUpdate = true;
+  car3d.object.visible = true;
+  rig.first = true;
+}
+
+// The mission startGame(index) will really play (?spot can move it to
+// another region's first mission).
+function resolveIndex(index) {
+  const spotName = params.get('spot');
+  const sr = spotName ? spotRegion(spotName) : null;
+  if (sr && MISSIONS[index].region !== sr) {
+    const i = MISSIONS.findIndex((m) => m.region === sr);
+    if (i >= 0) return i;
+  }
+  return index;
+}
+
+let looping = false;
+function startLoop() {
+  if (looping) return;
+  looping = true;
+  requestAnimationFrame(frame);
+}
+
+// Called by the start screen as soon as it shows: builds mission `index`'s
+// region quietly, then (live) drifts the camera over it, drawn into
+// rect() = { x, y, w, h } (CSS px, from the top left). onReady() runs once
+// the first frames are on screen. live false: build only, draw nothing.
+export async function preloadMenu(index = 0, { live = true, still = false, rect = null, onReady = null } = {}) {
+  index = resolveIndex(index);
+  const m = MISSIONS[index];
+  await loadRegion(m.region, m.title, { quiet: true });
+  if (started || !live || regionId !== m.region) return;
+  menu = { at: { x: m.start.x, y: m.start.y }, yaw0: (m.start.heading || 0) * (Math.PI / 180), t: 0, frames: 0, still, rect, onReady };
+  car3d.object.visible = false;
+  exposeDebug();
+  startLoop();
+}
+
 // Debug handles (refreshed after every region load).
 function exposeDebug() {
   window.__state = state;
@@ -469,25 +604,28 @@ function exposeDebug() {
 // Continue (the first unfinished one) or any finished one to replay.
 // Dev: ?spot=<name> starts the car at a review spot (src3/spots.js); a
 // spot in another region plays that region's first mission instead.
+// The region may already be built (preloadMenu): then this only places the
+// car. If that build is still going, its load screen shows now.
 let started = false;
 export async function startGame(index = 0) {
+  started = true;
+  // The start screen made and resumed the AudioContext in its click.
+  audio.wake();
+  if (currentLs) currentLs.reveal();
+  index = resolveIndex(index);
   const spotName = params.get('spot');
-  const sr = spotName ? spotRegion(spotName) : null;
-  if (sr && MISSIONS[index].region !== sr) {
-    const i = MISSIONS.findIndex((m) => m.region === sr);
-    if (i >= 0) index = i;
-  }
   jumpToMission(state, index);
   const m = MISSIONS[index];
-  await loadRegion(m.region, m.title);
+  await loadChain;
+  if (m.region !== regionId) await loadRegion(m.region, m.title);
+  exitMenu();
   const spot = spotName ? spotFor(spotName, WORLD) : null;
   if (spot) {
     Object.assign(state.car, spot, { speed: 0 });
     state.missionStart = { x: spot.x, y: spot.y, heading: spot.heading };
   }
   last = performance.now();
-  if (!started) requestAnimationFrame(frame);
-  started = true;
+  startLoop();
 }
 
 // Plays mission `idOrIndex` from its own start (dev and checks).

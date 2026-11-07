@@ -3,19 +3,44 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Ask a Local 3D</title>
-  <link rel="icon" href="data:," />
+  <title>Turn Left at the Cows: a driving game with no GPS</title>
+  <meta name="description" content="GeoGuessr, but you drive, and the locals might be unreliable. There was a time before GPS, when finding your way required you to ask a local. Free in your browser." />
+  <meta name="theme-color" content="#1c1d1f" />
+  <link rel="canonical" href="%SITE_URL%/" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Turn Left at the Cows" />
+  <meta property="og:title" content="Turn Left at the Cows" />
+  <meta property="og:description" content="GeoGuessr, but you drive, and the locals might be unreliable. Get directions. Get lost. Find it anyway." />
+  <meta property="og:url" content="%SITE_URL%/" />
+  <meta property="og:image" content="%SITE_URL%/og.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="A country road under a big sky, with the title Turn Left at the Cows on a road sign" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Turn Left at the Cows" />
+  <meta name="twitter:description" content="GeoGuessr, but you drive, and the locals might be unreliable." />
+  <meta name="twitter:image" content="%SITE_URL%/og.jpg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <!-- /three.html is an old alias of /: same page. Fonts load without blocking the first paint (the menu shows at once, then the fonts swap in). -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@400..700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Oswald:wght@400..600&display=swap" media="print" onload="this.media='all'" />
   <style>
-    html, body { margin: 0; height: 100%; overflow: hidden; background: #1b1b1b; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #1c1d1f; }
     #app { position: fixed; inset: 0; }
     #app canvas { display: block; }
     #ui { position: fixed; inset: 0; pointer-events: none; }
     #ui > * { pointer-events: auto; }
+    /* The HUD waits under the start screen until the game starts. */
+    body.menu-open #ui { visibility: hidden; }
   </style>
 </head>
 <body>
   <div id="app"></div>
   <div id="ui"></div>
+  <noscript><p style="color:#f1ead6;font:18px Georgia,serif;padding:24px">Turn Left at the Cows is a driving game that runs in your browser. It needs JavaScript and a keyboard.</p></noscript>
   <script type="module" src="/src3/boot.js"></script>
 </body>
 </html>

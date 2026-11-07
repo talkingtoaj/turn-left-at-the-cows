@@ -411,7 +411,7 @@ function buildLegend(scene, c, g, box, s) {
 
 // ---------------------------------------------------------------- hand sketch
 
-const HAND = '"Segoe Print", "Bradley Hand", "Comic Sans MS", cursive';
+const HAND = 'Caveat, "Segoe Print", "Bradley Hand", cursive'; // Caveat: loaded by the page
 const PENCIL = 0x4a4540;
 const BLUE = 0x2f62b3;
 
@@ -423,7 +423,7 @@ function buildHandMap(scene, container, paper, data) {
   const g = scene.add.graphics();
   container.add(g);
   const hand = (x, y, text, size = 15, color = '#4a4540', origin = [0.5, 0.5], rot = 0) =>
-    label(scene, container, x, y, text, { fontFamily: HAND, fontSize: size + 'px', color }, origin, rot);
+    label(scene, container, x, y, text, { fontFamily: HAND, fontSize: Math.round(size * 1.25) + 'px', color }, origin, rot); // Caveat runs small
 
   // Notepad page: cream, faint ruled lines, red margin.
   g.fillStyle(0xf6f0dc, 1);
