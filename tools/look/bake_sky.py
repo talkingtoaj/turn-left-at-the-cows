@@ -6,6 +6,12 @@
 name defaults to `sky` (the cloudy sky); the clear sky is baked as `sky_sunny`:
     ... bake_sky.py sky.raw 2048 1024 public/look sky_sunny qwantani_mid_morning_puresky
 
+The sharp sky (SPEC 9n, swapped in once the game runs): the same HDRI at 4k,
+baked with `sharp` last. It keeps the small sky's turn and brightness (read
+from its .json, which it leaves alone) and writes only `<name>_4k.webp`:
+    ffmpeg -i sky_4k.hdr -f rawvideo -pix_fmt gbrpf32le sky4.raw
+    ... bake_sky.py sky4.raw 4096 2048 public/look sky kloofendal_38d_partly_cloudy_puresky sharp
+
 Writes:
   sky.webp  upper half of the sky (horizon to zenith), turned so the sun sits
             where the game's sun is, sRGB, scaled by `bgMax`.
@@ -26,10 +32,13 @@ from PIL import Image
 
 SUN_AZ = 112.0  # src3/world3d/world3d.js
 SUN_EL = 30.0
+SHARP_QUALITY = 95  # webp quality of the sharp sky
 
 raw, W, H, out = sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), sys.argv[4]
 NAME = sys.argv[5] if len(sys.argv) > 5 else 'sky'
 SOURCE = sys.argv[6] if len(sys.argv) > 6 else 'kloofendal_38d_partly_cloudy_puresky'
+SHARP = len(sys.argv) > 7 and sys.argv[7] == 'sharp'
+small = json.load(open(f'{out}/{NAME}.json')) if SHARP else None
 g, b, r = np.fromfile(raw, dtype='<f4').reshape(3, H, W)
 img = np.stack([r, g, b], axis=-1).astype(np.float64)
 img = np.nan_to_num(np.maximum(img, 0))
@@ -61,6 +70,8 @@ az = math.radians(SUN_AZ)
 tx, tz = math.sin(az), -math.cos(az)
 target_phi = math.atan2(tz, tx)
 shift = int(round((target_phi - sun_phi) / (2 * math.pi) * W)) % W
+if SHARP:  # line up exactly with the small sky
+    shift = int(round(small['turnedBy'] / 360 * W)) % W
 clamped = np.roll(clamped, shift, axis=1)
 
 # Spherical harmonics (three.js SphericalHarmonics3 basis and order) of the sky
@@ -92,9 +103,16 @@ horizon = Ls[band].mean(axis=0)
 # Background: the upper half, scaled so the bright sky (not the sun) is near 1.
 top = Ls[: H // 2]
 bg_max = float(np.percentile(top @ np.array([0.2126, 0.7152, 0.0722]), 99.7))
+if SHARP:
+    bg_max = small['bgMax']
 x = np.clip(top / bg_max, 0, 1)
 srgb = np.where(x <= 0.0031308, 12.92 * x, 1.055 * np.power(x, 1 / 2.4) - 0.055)
-Image.fromarray((srgb * 255 + 0.5).astype(np.uint8)).save(f'{out}/{NAME}.webp', quality=88, method=6)
+img8 = Image.fromarray((srgb * 255 + 0.5).astype(np.uint8))
+if SHARP:
+    img8.save(f'{out}/{NAME}_4k.webp', quality=SHARP_QUALITY, method=6)
+    print(json.dumps({'sharp': f'{NAME}_4k.webp', 'size': [W, H // 2]}))
+    sys.exit(0)
+img8.save(f'{out}/{NAME}.webp', quality=88, method=6)
 
 info = {
     'source': f'{SOURCE} (Poly Haven, CC0)',

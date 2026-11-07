@@ -813,6 +813,8 @@ export async function startGame(index = 0) {
   }
   last = performance.now();
   startLoop();
+  // The sharp sky downloads now and swaps in when it is here (SPEC 9n).
+  if (look) look.sharpenSky();
   console.info(`[start] driving ${Math.round(performance.now() - t0)} ms after Start`);
 }
 

@@ -1,9 +1,11 @@
 // Look test: downloads the CC0 textures from ambientCG and the sky HDRI from
 // Poly Haven into a cache folder, then writes small tileable copies into
 // public/look/tex (512 px webp: colour, plus a normal map where listed).
-// The sky is baked by tools/look/bake_sky.py from the cached HDRI.
+// The skies are baked by tools/look/bake_sky.py from the cached HDRIs: the
+// small one from the 2k file, the sharp one (`sharp`) from the 4k file.
 //
 //   node tools/look/fetch.mjs <cacheDir> [ph [name]]
+//   node tools/look/fetch.mjs <cacheDir> sky   (only the sky HDRIs)
 //
 // With `ph` only the Poly Haven textures (the ruins and grain elevator set,
 // the rocks) are fetched; `ph <name>` only that one.
@@ -54,7 +56,14 @@ export const POLYHAVEN = [
 const onlyPH = process.argv[3] === 'ph';
 const onlyName = process.argv[4]; // with ph: just this one (e.g. rock)
 
-const HDRI = { id: 'kloofendal_38d_partly_cloudy_puresky', res: '2k' };
+// name in the game -> Poly Haven HDRI id. Each at 2k (sky.webp, sky.json) and
+// 4k (sky_4k.webp, the sharp sky swapped in once the game runs).
+const HDRIS = [
+  { name: 'sky', id: 'kloofendal_38d_partly_cloudy_puresky' },
+  { name: 'sky_sunny', id: 'qwantani_mid_morning_puresky' },
+];
+const HDRI_RES = ['2k', '4k'];
+const onlySky = process.argv[3] === 'sky';
 
 async function download(url, file) {
   if (fs.existsSync(file)) return;
@@ -69,7 +78,7 @@ function ffmpeg(src, dst, turn) {
   execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-i', src, '-vf', vf.join(','), '-quality', '82', dst]);
 }
 
-for (const t of POLYHAVEN.filter((p) => !onlyName || p.name === onlyName)) {
+for (const t of POLYHAVEN.filter((p) => !onlySky && (!onlyName || p.name === onlyName))) {
   const files = await (await fetch(`https://api.polyhaven.com/files/${t.id}`)).json();
   for (const [key, suffix] of [['Diffuse', ''], ['nor_gl', '_n']]) {
     const url = files[key]['1k'].jpg.url;
@@ -81,7 +90,7 @@ for (const t of POLYHAVEN.filter((p) => !onlyName || p.name === onlyName)) {
 }
 if (onlyPH) process.exit(0);
 
-for (const t of TEXTURES) {
+for (const t of onlySky ? [] : TEXTURES) {
   const zip = path.join(cache, `${t.id}_1K-JPG.zip`);
   await download(`https://ambientcg.com/get?file=${t.id}_1K-JPG.zip`, zip);
   const dir = path.join(cache, t.id);
@@ -97,6 +106,10 @@ for (const t of TEXTURES) {
   console.log(t.name, t.id, color, normal || '-');
 }
 
-const hdr = path.join(cache, `${HDRI.id}_${HDRI.res}.hdr`);
-await download(`https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/${HDRI.res}/${HDRI.id}_${HDRI.res}.hdr`, hdr);
-console.log('hdri', hdr);
+for (const h of HDRIS) {
+  for (const res of HDRI_RES) {
+    const hdr = path.join(cache, `${h.id}_${res}.hdr`);
+    await download(`https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/${res}/${h.id}_${res}.hdr`, hdr);
+    console.log('hdri', h.name, res, hdr);
+  }
+}

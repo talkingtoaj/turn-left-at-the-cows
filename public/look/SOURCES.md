@@ -1,8 +1,8 @@
 # Look assets
 
 Loaded by the default look (not with `?look=old`). All CC0 (public domain) or made by us with AI.
-Fetched and converted by `tools/look/fetch.mjs` (textures, 512 px webp) and
-`tools/look/bake_sky.py` (sky). AI calls are logged in `tools/look/ai_log.jsonl`.
+Fetched and converted by `tools/look/fetch.mjs` (textures, 512 px webp; the sky
+HDRIs at 2k and 4k) and `tools/look/bake_sky.py` (sky). AI calls are logged in `tools/look/ai_log.jsonl`.
 
 ## Sky
 
@@ -11,7 +11,15 @@ Fetched and converted by `tools/look/fetch.mjs` (textures, 512 px webp) and
 | `sky.webp`, `sky.json` (cloudy) | Poly Haven, Kloofendal 38d Partly Cloudy (Pure Sky), 2k HDR: https://polyhaven.com/a/kloofendal_38d_partly_cloudy_puresky | CC0 |
 | `sky_sunny.webp`, `sky_sunny.json` (clear) | Poly Haven, Qwantani Mid Morning (Pure Sky), 2k HDR: https://polyhaven.com/a/qwantani_mid_morning_puresky | CC0 |
 
+| `sky_4k.webp` (cloudy, sharp) | the same Kloofendal 38d Partly Cloudy (Pure Sky), 4k HDR | CC0 |
+| `sky_sunny_4k.webp` (clear, sharp) | the same Qwantani Mid Morning (Pure Sky), 4k HDR | CC0 |
+
 Each sky `.webp` is the upper half of the HDRI, turned so its sun sits at the game's sun.
+The small skies (2048 x 512, 61 KB for both) paint the first frames; the sharp ones
+(4096 x 1024, webp quality 95, 340 KB for both, mipmapped) download once the game runs
+and swap in when both are here (`look.sharpenSky()`, skipped on phones and low-memory
+devices, `?sharpsky=0|1`). Baked with `bake_sky.py ... sharp`, which keeps the small
+sky's turn and brightness so the swap does not shift or flash.
 Each `.json` holds the sky light as spherical harmonics, the sun's strength and the horizon colour.
 The weather (`src3/look/weather.js`) blends the two; overcast is the cloudy sky greyed in the shader.
 

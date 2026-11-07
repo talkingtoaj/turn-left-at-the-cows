@@ -103,6 +103,35 @@ async function loadTextures(renderer) {
   return { albedo: arrayTexture(albedo, n, renderer), normal: arrayTexture(normal, n, renderer) };
 }
 
+// The sharp sky (SPEC 9n): the same photo at 4096 x 1024, fetched once the
+// game runs and swapped in when it has arrived. Decoded off the main thread
+// (createImageBitmap) and uploaded at once, with mipmaps: the sky shader
+// picks the mip level itself so the seam where u wraps does not show.
+async function loadSharpSky(name, renderer) {
+  const res = await fetch(`${BASE}${name}_4k.webp`);
+  if (!res.ok) throw new Error(`look: ${name}_4k.webp ${res.status}`);
+  const bmp = await createImageBitmap(await res.blob(), { imageOrientation: 'flipY' });
+  const tex = new THREE.Texture(bmp);
+  tex.flipY = false; // flipped while decoding
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.generateMipmaps = true;
+  tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  tex.needsUpdate = true;
+  renderer.initTexture(tex);
+  return tex;
+}
+
+// Phones and low-memory devices keep the small sky (and cannot squint with
+// the right mouse button anyway). ?sharpsky=0 / 1 forces it.
+function wantSharpSky(params) {
+  if (params.has('sharpsky')) return params.get('sharpsky') !== '0';
+  const mem = navigator.deviceMemory;
+  if (mem !== undefined && mem < 4) return false;
+  return !window.matchMedia('(pointer: coarse)').matches || window.matchMedia('(any-pointer: fine)').matches;
+}
+
 async function loadSky(name) {
   const info = await (await fetch(`${BASE}${name}.json`)).json();
   const tex = await new THREE.TextureLoader().loadAsync(`${BASE}${name}.webp`);
@@ -142,6 +171,9 @@ export async function createLook(renderer, params) {
 
   let weather = null;
   let carEnv = null;
+  let skyMat = null; // the sky dome's material (one per region)
+  let sharp = null; // the sharp sky's loading, once started
+  const envImg = sunnySky.tex.image; // the small clear sky, for the car reflections
   // Rain (round 8, src/game/wetness.js): how hard it rains darkens the sky,
   // the light and the haze; the wetness goes to every patched material.
   const rainNow = { rain: 0, wet: 0 };
@@ -151,7 +183,7 @@ export async function createLook(renderer, params) {
     // a soft green-brown ground, as a PMREM map (made once, on first use).
     carEnv() {
       if (carEnv) return carEnv;
-      const img = sunnySky.tex.image;
+      const img = envImg;
       const W = 1024;
       const c = document.createElement('canvas');
       c.width = W;
@@ -193,7 +225,7 @@ export async function createLook(renderer, params) {
 
       scene.background = scene.fog.color.clone();
       world3d.sky.material.dispose();
-      const skyMat = skyMaterial(sunnySky.tex, sky.tex, sunnySky.info.bgMax, sky.info.bgMax, scene.fog.color);
+      skyMat = skyMaterial(sunnySky.tex, sky.tex, sunnySky.info.bgMax, sky.info.bgMax, scene.fog.color);
       world3d.sky.material = skyMat;
       const sunLight = world3d.sun;
       let lastW = -1;
@@ -272,6 +304,27 @@ export async function createLook(renderer, params) {
       if (weather) weather.update(state);
     },
     get weather() { return weather ? weather.clock.w : null; },
+    // Once the game runs (src3/main.js startGame): fetch the sharp skies and
+    // swap both in together when they have arrived, so the weather keeps
+    // blending a matching pair. The small ones are freed. Safe to call again.
+    sharpenSky() {
+      if (sharp || !wantSharpSky(params)) return sharp;
+      const t2 = performance.now();
+      sharp = Promise.all([loadSharpSky('sky', renderer), loadSharpSky('sky_sunny', renderer)])
+        .then(([c, s]) => {
+          const old = [sky.tex, sunnySky.tex];
+          sky.tex = c;
+          sunnySky.tex = s;
+          if (skyMat) {
+            skyMat.uniforms.skyC.value = c;
+            skyMat.uniforms.skyS.value = s;
+          }
+          old.forEach((t) => t.dispose());
+          console.info(`[look] sharp sky in after ${Math.round(performance.now() - t2)} ms`);
+        })
+        .catch((e) => console.warn('[look] sharp sky not loaded, keeping the small one', e));
+      return sharp;
+    },
     // Textures that outlive a region (src3/main.js keeps them when it
     // disposes one): the texture arrays, the skies and the car reflections.
     keepTextures() {
