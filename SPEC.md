@@ -218,8 +218,8 @@ Middle path between low-poly and realistic, no 3D artist needed:
 - Hit direction and speed come from the existing collider.
 - **Shown through** dash warning lights, the car's look (dents, smoke), feel and sound. No health bar or numbers.
 - **Forgiving:** careful drivers never break down. About 3 or 4 hard crashes or lots of fast pothole hits breaks the car. Small low-speed bumps do nothing. Tune by playing.
-- **Breakdown:** the mission fails and restarts. Each mission starts with a fresh car.
-- LATER: repairs (spare tyre, town garages, helpful locals). Tow truck to the nearest garage as an easy mode.
+- **Breakdown:** ~~the mission fails and restarts~~ replaced by a tow (9k): the mission is never lost. Each mission starts with a fresh car.
+- LATER: repairs (spare tyre, helpful locals).
 
 ### 9g. Hazards (LOCKED)
 - Livestock crossing near farms, slow tractors or farm trucks on dirt roads, deer on forest roads (rare), random fallen branches and small logs.
@@ -251,3 +251,16 @@ Middle path between low-poly and realistic, no 3D artist needed:
 - **Regions.** The world is a set of regions joined in fiction by road (`src/world/regions.js`), each with its own data and seed. Every mission names its region; starting it builds only that region behind a short load screen, and leaving a region frees everything it put on the GPU, so memory stays flat. Region 1 is the old 6.5 x 3.2 km map, unchanged.
 - **Region 2 and mission 3: the airfield.** Harlan County round Brandt (4.8 x 3 km), 22 km east along Route 40. Mission 3 (from Tom Hartley): take a magneto to Kestrel Field, a grass strip north of Route 40 that no highway sign points to. The town only knows the planes; Peg sends you down Field Lane, fenced off since 1984; Dagny at its end says go round, or watch the planes.
 - **Planes as a clue.** Light singles fly circuits (take-off into the wind, crosswind, downwind 800 m to the side along Route 40, base, final, landing, touch-and-goes), sometimes depart and curve away, and come back later. One is up most of the time, sometimes two. Wind (and so the landing direction, shown by the windsock) comes from the seed. Deterministic from the seed and the game clock. The drone is positional with distance, Doppler and throttle: near the field, never exactly on it.
+
+### 9k. Breakdowns end in a tow (round 11, Nov 2026)
+A critic worried that getting lost and then breaking down feels stressful. Breakdowns are now gentle and a bit funny, but still cost something.
+- **Before the breakdown nothing changes:** handling, warning lights, smoke and stalls build up as in 9f.
+- **The tow scene** (`src3/tow3d.js`, rules and words in `src/game/tow.js`): once the broken car has rolled to a stop, a banner says what went ("Broken down. The engine coughs, rattles and dies. Someone's bound to come along."). After about 2 s a low-poly tow truck (red cab, yellow boom, amber light bar flashing) drives in from behind along the nearest road, passes on the left, swings in ahead and backs up to the car. The driver, a local with a gibberish voice, says one line with a subtitle (Enter goes on). A chain rattle, the winch lifts the car's front, fade to black, a card ("Towed to Ashford. Earl at the garage patched her up..."), fade back in. About 22 s in all; Enter skips each part.
+- **Drivers:** Wade (Fenwick County), Junie (round Brandt). Ten short country lines, picked from the region seed, the mission and how many tows so far (so a second tow says something new).
+- **Where you end up:** the nearest town (not a hamlet) in the current region. A town with a gas station (Ashford, Brandt) parks you by the pumps; the others (Millbrook, Calder) at the roadside in town. Mechanics: Earl (Ashford), Lou (Brandt), Nell (Millbrook), Sid (Calder).
+- **The car:** fixed (all parts 1, dust washed off), but the worst dent stays as a small scuff.
+- **What it costs:** the game clock and the trip timer move on 30 minutes plus 6 per km towed, in 5 minute steps, at most 60. The odometer stays (you did not drive it). The mission, notes, map and talk all carry on.
+- **Counted:** `state.tows` per mission (reset when a mission starts). Saved with each finish as `tows` in the progress record (`src/game/progress.js`, same key, old saves read as 0) and on the result object `state.lastRecord`, for the share postcard ("towed twice": `towedText(n)` in `src/game/tow.js`). The win screen shows a "Towed" row when it is not 0.
+- **Sound:** the truck's diesel idle (positional, louder as it comes, pitched up while it drives), a chain rattle as it hooks up and a winch ratchet. All CC0 from Freesound (see `public/sounds/SOURCES.md`).
+- **Dev:** `?breakdown=1` breaks the car down at once (skips the mission card). `window.__tow`: `phase`, `hold = true` freezes the scene, `skip()`, `breakdown()`.
+

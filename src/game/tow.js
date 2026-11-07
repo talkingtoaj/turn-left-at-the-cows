@@ -63,14 +63,15 @@ export function nearestRoad(W, x, y) {
   return best;
 }
 
-// Where the car is taken in town `t`: by the pumps at the town's gas
+// Where the car is taken in town `t`: in front of the pumps at the town's gas
 // station when it has one (`garage: true`), else at the side of the road
 // nearest the town centre. { x, y, heading, garage }.
 function spotIn(W, t) {
   const gas = (W.buildings || []).find((b) => b.kind === 'gas' && Math.hypot(b.x - t.x, b.y - t.y) < (t.ambienceR || 200) + 80);
   if (gas) {
-    // Between the two pump islands, under the canopy, along the forecourt.
-    const p = localToWorld(gas.x, gas.y, gas.angle || 0, GAS.canopy.lx, GAS.canopy.ly);
+    // On the forecourt just in front of the canopy (clear of the pumps and
+    // their pillars, so the chase camera has a free view), along the front.
+    const p = localToWorld(gas.x, gas.y, gas.angle || 0, GAS.canopy.lx - 2, GAS.canopy.ly - GAS.canopy.h / 2 - 3);
     return { x: p.x, y: p.y, heading: ((gas.angle || 0) + 90) % 360, garage: true };
   }
   const n = nearestRoad(W, t.x, t.y);
