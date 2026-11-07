@@ -176,7 +176,7 @@ export async function createLook(renderer, params) {
   const envImg = sunnySky.tex.image; // the small clear sky, for the car reflections
   // Rain (round 8, src/game/wetness.js): how hard it rains darkens the sky,
   // the light and the haze; the wetness goes to every patched material.
-  const rainNow = { rain: 0, wet: 0 };
+  const rainNow = { rain: 0, wet: 0, storm: 0 };
   return {
     opts,
     // Reflections for the cars' paint, glass and chrome: the sunny sky above
@@ -230,26 +230,31 @@ export async function createLook(renderer, params) {
       const sunLight = world3d.sun;
       let lastW = -1;
       let lastRain = -1;
+      let lastStorm = -1;
       WET.lookSkyCol.value = scene.fog.color; // wet surfaces reflect the haze
       weather = {
         clock,
         update(state) {
           const w = clock.update(state);
           const rk = rainNow.rain;
-          if (Math.abs(w - lastW) < 1e-4 && Math.abs(rk - lastRain) < 1e-3) return;
+          const st = rainNow.storm;
+          if (Math.abs(w - lastW) < 1e-4 && Math.abs(rk - lastRain) < 1e-3 && Math.abs(st - lastStorm) < 1e-3) return;
           lastW = w;
           lastRain = rk;
+          lastStorm = st;
           lookAt(keys, w, cur);
           // Rain: a darker, bluer-grey day; the sun all but gone.
-          const dim = 1 - 0.28 * rk;
+          // A thunder spell (SPEC 9n, src3/world3d/lightning3d.js storm):
+          // darker still, so a bolt stands out; never black.
+          const dim = (1 - 0.28 * rk) * (1 - 0.3 * st);
           cur.sh.forEach((c, i) => probe.sh.coefficients[i].set(c[0] * dim, c[1] * dim, c[2] * dim * (1 + 0.03 * rk)));
           sunLight.color.setRGB(cur.sunColor[0], cur.sunColor[1], cur.sunColor[2], THREE.LinearSRGBColorSpace);
           sunLight.intensity = cur.sun * (1 - 0.6 * rk);
           sunLight.shadow.intensity = cur.shadow * (1 - 0.5 * rk);
-          const fd = 1 - 0.38 * rk;
+          const fd = (1 - 0.38 * rk) * (1 - 0.5 * st);
           scene.fog.color.setRGB(cur.fog[0] * fd * (1 - 0.03 * rk), cur.fog[1] * fd, cur.fog[2] * fd * (1 + 0.03 * rk), THREE.LinearSRGBColorSpace);
           scene.background.copy(scene.fog.color);
-          skyMat.uniforms.gain.value = cur.gain * (1 - 0.42 * rk);
+          skyMat.uniforms.gain.value = cur.gain * (1 - 0.42 * rk) * (1 - 0.55 * st);
           skyMat.uniforms.skyMix.value = cur.skyMix;
           skyMat.uniforms.grey.value = cur.grey;
           cloudCover.value = cur.cover;
@@ -296,9 +301,10 @@ export async function createLook(renderer, params) {
       console.info(`[look] applied in ${Math.round(performance.now() - t1)} ms`);
     },
     // Every frame: weather drift (cheap: uniforms only, and only on change).
-    // rain, wet: src/game/wetness.js.
-    update(state, rain = 0, wet = 0) {
+    // rain, wet: src/game/wetness.js; storm: src3/world3d/lightning3d.js.
+    update(state, rain = 0, wet = 0, storm = 0) {
       rainNow.rain = rain;
+      rainNow.storm = storm;
       rainNow.wet = wet;
       WET.lookWet.value = wet;
       if (weather) weather.update(state);

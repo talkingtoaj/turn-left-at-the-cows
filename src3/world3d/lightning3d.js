@@ -9,17 +9,29 @@
 // cloud base to the ground, far off. Past the camera's far plane it is
 // drawn closer along the same line of sight and scaled down by the same
 // factor (as the planes are), so it looks the right size in the right place.
-// Reduced motion (prefers-reduced-motion): a single, much dimmer flash.
+// Round 13 (SPEC 9n): the bolt is a white-hot core in a soft blue glow, and
+// the cloud base around its top lights up; all one additive mesh, one draw,
+// drawn only during a strike. Far bolts are drawn a little wider so they
+// still read. `storm` (0..1) eases up in heavy rain and after a strike, and
+// the look (src3/look/look.js) darkens the sky and haze by it, so the bolt
+// shows against a dark storm sky instead of a pale one.
+// Reduced motion (prefers-reduced-motion): a single, much dimmer flash, no bolt.
 //
 //   const L = createLightning3D(scene, { reducedMotion })
-//   L.strike(strike, ear)   strike = { km, bearing, power }, ear = { x, y }
-//   L.update(dt, camera)    every frame
-//   L.flash                 0..1 now (for checks)
+//   L.strike(strike, ear)        strike = { km, bearing, power }, ear = { x, y }
+//   L.update(dt, camera, rain)   every frame (rain: src/game/wetness.js)
+//   L.flash                      0..1 now (for checks)
+//   L.storm                      0..1, how dark the storm sky is now
 
 import * as THREE from 'three';
+import { THUNDER } from '../../src/game/thunder.js';
 
 const DEG = Math.PI / 180;
 const CLOUD_BASE = 1400; // metres above the ground
+const CORE = 0.012; // the bolt's half-width (unit frame: 1 = cloud base)
+const GLOW = 0.075; // the glow's half-width
+const STORM_AFTER = 40; // s a storm stays dark after a strike
+const STORM_EASE = 5; // s to ease the storm darkness in or out
 
 // Flash brightness over time (s) after the strike: a few flickers.
 function envelope(t, reduced) {
@@ -40,14 +52,71 @@ function boltPoints(rng) {
   return pts;
 }
 
-function ribbon(points, w, out) {
-  // Two triangles per segment, as positions (x, y, 0).
+// Two triangles per segment. position: the bolt's centre line (x, y, 0);
+// shape: [side (-1..1, scaled by the width in the shader), across, 0, kind 0].
+// `taper` thins it towards the end (k = 1 at the start).
+function ribbon(points, taper, pos, shape) {
+  const k = (i) => taper * (1 - 0.5 * (i / points.length));
   for (let i = 0; i < points.length - 1; i++) {
     const [ax, ay] = points[i];
     const [bx, by] = points[i + 1];
-    const k = w * (1 - 0.5 * (i / points.length));
-    out.push(ax - k, ay, 0, ax + k, ay, 0, bx + k, by, 0, ax - k, ay, 0, bx + k, by, 0, bx - k, by, 0);
+    const ka = k(i);
+    const kb = k(i + 1);
+    const v = [[ax, ay, -ka], [ax, ay, ka], [bx, by, kb], [ax, ay, -ka], [bx, by, kb], [bx, by, -kb]];
+    for (const [x, y, s] of v) {
+      pos.push(x, y, 0);
+      shape.push(s, Math.sign(s), 0, 0);
+    }
   }
+}
+
+// The lit cloud base around the bolt's top: one quad, kind 1.
+function cloudGlow(x, y, w, h, pos, shape) {
+  const c = [[-1, -1], [1, -1], [1, 1], [-1, -1], [1, 1], [-1, 1]];
+  for (const [a, b] of c) {
+    pos.push(x + a * w, y + b * h, 0);
+    shape.push(0, a, b, 1);
+  }
+}
+
+function boltMaterial() {
+  return new THREE.ShaderMaterial({
+    uniforms: { uFlash: { value: 0 }, uWidth: { value: 1 } },
+    vertexShader: /* glsl */`
+attribute vec4 shape;
+uniform float uWidth;
+varying vec4 vShape;
+void main() {
+  vShape = shape;
+  vec3 p = position;
+  p.x += shape.x * ${GLOW.toFixed(4)} * uWidth;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+}`,
+    fragmentShader: /* glsl */`
+uniform float uFlash;
+varying vec4 vShape;
+void main() {
+  vec3 c;
+  if (vShape.w < 0.5) {
+    // Across the ribbon: a white-hot core, then a soft blue glow.
+    float a = abs(vShape.y);
+    float core = 1.0 - smoothstep(${(CORE / GLOW * 0.5).toFixed(4)}, ${(CORE / GLOW).toFixed(4)}, a);
+    float b = 1.0 - a;
+    float glow = 0.3 * b + 0.8 * b * b * b;
+    c = vec3(1.0) * core * min(1.0, uFlash * 1.6) + vec3(0.5, 0.6, 1.0) * glow * uFlash;
+  } else {
+    // The cloud base lit from inside, brightest just above the bolt's top.
+    float r2 = dot(vShape.yz, vShape.yz);
+    c = vec3(0.55, 0.6, 0.8) * exp(-3.5 * r2) * (1.0 - smoothstep(0.7, 1.0, r2)) * uFlash * 0.7;
+  }
+  gl_FragColor = vec4(c, 1.0);
+}`,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    fog: false,
+    side: THREE.DoubleSide,
+  });
 }
 
 export function createLightning3D(scene, { reducedMotion = false } = {}) {
@@ -60,15 +129,14 @@ export function createLightning3D(scene, { reducedMotion = false } = {}) {
   const app = document.getElementById('app');
   (app || document.body).appendChild(veil);
 
-  // The bolt: a ribbon mesh, rebuilt per strike (a few dozen triangles).
-  const maxTris = 2 * 30;
+  // The bolt and its lit cloud: one mesh, rebuilt per strike (a few dozen triangles).
+  const maxTris = 2 * 32;
   const pos = new Float32Array(maxTris * 9);
+  const shp = new Float32Array(maxTris * 12);
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const mat = new THREE.MeshBasicMaterial({
-    color: 0xf6f8ff, transparent: true, opacity: 0, fog: false, depthWrite: false, toneMapped: false,
-    side: THREE.DoubleSide,
-  });
+  geo.setAttribute('shape', new THREE.BufferAttribute(shp, 4));
+  const mat = boltMaterial();
   const bolt = new THREE.Mesh(geo, mat);
   bolt.frustumCulled = false;
   // Visible (one empty triangle) until the first frame, so the region's warm-up
@@ -90,6 +158,7 @@ export function createLightning3D(scene, { reducedMotion = false } = {}) {
 
   const api = {
     flash: 0,
+    storm: 0,
     strike(s, ear) {
       t = 0;
       // Close strikes light everything; far ones only glow.
@@ -107,23 +176,34 @@ export function createLightning3D(scene, { reducedMotion = false } = {}) {
         bx += (rng() < 0.5 ? -1 : 1) * 0.05 + (rng() - 0.5) * 0.03;
         branch.push([bx, pts[j][1] - i * 0.06]);
       }
-      const arr = [];
-      ribbon(pts, 0.02, arr);
-      ribbon(branch, 0.011, arr);
+      const p = [];
+      const q = [];
+      cloudGlow(0, 1.03, 0.55, 0.2, p, q);
+      ribbon(pts, 1, p, q);
+      ribbon(branch, 0.55, p, q);
+      const n = Math.min(p.length / 3, maxTris * 3);
       pos.fill(0);
-      pos.set(arr.slice(0, pos.length));
+      shp.fill(0);
+      pos.set(p.slice(0, n * 3));
+      shp.set(q.slice(0, n * 4));
       geo.attributes.position.needsUpdate = true;
-      geo.setDrawRange(0, Math.min(arr.length, pos.length) / 3);
-      geo.computeBoundingSphere();
+      geo.attributes.shape.needsUpdate = true;
+      geo.setDrawRange(0, n);
+      // Far bolts a little wider, so they still read (about 1 at 2.5 km).
+      mat.uniforms.uWidth.value = Math.max(1, Math.min(2.2, s.km / 2.5));
       boltOn = !reducedMotion;
     },
-    update(dt, camera) {
+    update(dt, camera, rain = 0) {
       t += dt;
       const f = t < 1 ? envelope(t, reducedMotion) * power : 0;
       api.flash = f;
+      // The storm sky: dark in heavy rain and for a while after a strike.
+      const heavy = THREE.MathUtils.smoothstep(rain, THUNDER.HEAVY - 0.1, THUNDER.HEAVY + 0.1);
+      const target = Math.max(heavy, t < STORM_AFTER ? 1 : 0);
+      api.storm += (target - api.storm) * (1 - Math.exp(-dt / STORM_EASE));
       const dim = reducedMotion ? 0.3 : 1;
       light.intensity = f * 2.2 * dim;
-      veil.style.opacity = f > 0.005 ? String(Math.min(0.55, f * 0.45 * dim)) : '0';
+      veil.style.opacity = f > 0.005 ? String(Math.min(0.35, f * 0.3 * dim)) : '0';
       bolt.visible = boltOn && f > 0.02;
       if (!bolt.visible) return;
       // Place the bolt along the line of sight, inside the far plane.
@@ -138,7 +218,7 @@ export function createLightning3D(scene, { reducedMotion = false } = {}) {
       // Unit frame -> metres: y up to the cloud base, x the same scale.
       bolt.scale.set(h * 0.9, h, 1);
       bolt.rotation.set(0, Math.atan2(dx, dz), 0);
-      mat.opacity = Math.min(1, f * 1.6);
+      mat.uniforms.uFlash.value = f;
     },
     dispose() {
       veil.remove();
