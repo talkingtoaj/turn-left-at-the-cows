@@ -87,7 +87,7 @@ export function mapSVG({ missions, done, next }) {
   out.push(`<path d="${pencil(rtB, r)}" class="mp-road"/>`);
   out.push(`<path d="${pencil(HWY9.map((p) => F(...p)), r)}" class="mp-road"/>`);
   out.push(`<text class="mp-roadname" x="438" y="212" transform="rotate(-2 438 212)">ROUTE 40</text>`);
-  out.push(`<text class="mp-roadname" x="128" y="320" transform="rotate(-13 128 320)">HWY 9</text>`);
+  out.push(`<text class="mp-roadname" x="196" y="250" transform="rotate(-90 196 250)">HWY 9</text>`);
   out.push(`<text class="mp-hand mp-faint" x="531" y="246">22 km</text>`);
   // Towns: a few pencil squares and a printed name.
   for (const [name, [x, y], small] of TOWNS) {
@@ -116,8 +116,9 @@ export function mapSVG({ missions, done, next }) {
     } else if (i === next) {
       const [x, y] = spot.start;
       g.push(`<path class="mp-circle" d="${ring(x, y, 22, 16, r)}"/>`);
-      const lx = Math.min(x + 26, 560);
-      g.push(`<text class="mp-hand mp-next" x="${lx}" y="${y - 20}">${i + 1}. ${esc(m.title)}?</text>`);
+      // Label to the right of the circle, or to its left near the sheet's edge.
+      const right = x < 560;
+      g.push(`<text class="mp-hand mp-next" x="${right ? x + 28 : x - 28}" y="${y + 6}" text-anchor="${right ? 'start' : 'end'}">${i + 1}. ${esc(m.title)}?</text>`);
     } else {
       const [x, y] = spot.start;
       g.push(`<circle class="mp-dot" cx="${x}" cy="${y}" r="2.5"/>`);

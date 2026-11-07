@@ -136,7 +136,7 @@ body[data-world="live"] .sp-paint { opacity: 0; }
 .mp-north text { font: 18px Caveat, cursive; fill: #4a4a48; }
 .mp-m.is-hot .mp-circle, .mp-m.is-hot .mp-tick { stroke-width: 4.5; }
 .mp-m.is-hot text { text-decoration: underline; }
-.sp-ring { position: absolute; right: 26%; bottom: 6%; width: 22%; aspect-ratio: 1; border-radius: 50%; pointer-events: none;
+.sp-ring { position: absolute; right: 24%; bottom: 7%; width: 17%; aspect-ratio: 1; border-radius: 50%; pointer-events: none;
   box-shadow: inset 0 0 0 5px rgba(120,78,38,0.22), inset 0 0 0 9px rgba(120,78,38,0.07), 0 0 0 2px rgba(120,78,38,0.08);
   transform: rotate(20deg) scaleY(0.97); }
 .sp-pencil { position: absolute; left: 4%; bottom: -16px; width: 52%; height: 22px; pointer-events: none; transform: rotate(-8deg); filter: drop-shadow(0 4px 3px rgba(0,0,0,0.45)); }

@@ -523,10 +523,12 @@ function menuFrame(now) {
   renderer.setScissorTest(true);
   renderer.render(scene, camera);
   menu.frames++;
-  // A device that takes too long per frame gets a still picture instead.
-  const cost = performance.now() - t0;
-  menu.cost = menu.cost === undefined ? cost : menu.cost * 0.9 + cost * 0.1;
-  if (menu.frames > 15 && menu.cost > 45 && !menu.still) {
+  // A device that takes too long per frame gets a still picture instead:
+  // the time between drawn frames (it includes waiting on the GPU) or the
+  // CPU time of one, smoothed.
+  const cost = Math.max(performance.now() - t0, menu.frames > 1 ? rawMs - 33 : 0);
+  menu.cost = menu.cost === undefined ? cost : menu.cost * 0.85 + cost * 0.15;
+  if (menu.frames > 12 && menu.cost > 70 && !menu.still) {
     menu.still = true;
     console.info(`[menu] ${menu.cost.toFixed(0)} ms a frame: holding a still picture`);
   }
@@ -609,6 +611,7 @@ function exposeDebug() {
 let started = false;
 export async function startGame(index = 0) {
   started = true;
+  const t0 = performance.now();
   // The start screen made and resumed the AudioContext in its click.
   audio.wake();
   if (currentLs) currentLs.reveal();
@@ -626,6 +629,7 @@ export async function startGame(index = 0) {
   }
   last = performance.now();
   startLoop();
+  console.info(`[start] driving ${Math.round(performance.now() - t0)} ms after Start`);
 }
 
 // Plays mission `idOrIndex` from its own start (dev and checks).
