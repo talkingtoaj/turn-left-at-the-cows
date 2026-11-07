@@ -11,6 +11,8 @@ import { openMissionCard } from '../../src/ui/missionCard.js';
 import { openHelp } from '../../src/ui/help.js';
 import { speak } from '../../src/audio/voice.js';
 import { towedText } from '../../src/game/tow.js';
+import { mountShareStrip } from '../../src/ui/mapShare.js';
+import { rememberMyMap } from '../../src/game/myMaps.js';
 
 // The HUD (a DOM/CSS port of the old 2D HUD). Shows the dash (compass, odometer,
 // clock, speed, trip timer), road signs, mailboxes, the talk prompt, the
@@ -758,6 +760,19 @@ export function createHUD(root, { openMap } = {}) {
       const t = el('div', 'hud-truth', right);
       t.appendChild(c);
       t.addEventListener('click', () => zoomCanvas((w) => renderPrintedMapCanvas(def, w), 'The real map'));
+
+      // Shared maps (src/ui/mapShare.js): share yours, see other drivers'.
+      // Your map is also kept in the browser for the start screen's Maps page.
+      rememberMyMap(m.id, state.sketch);
+      mountShareStrip(panel, {
+        missionId: m.id,
+        missionTitle: m.title,
+        region: m.region,
+        seed: WORLD.seed,
+        shareKey: `${m.id}:${state.sketchEpoch}`,
+        getSketch: () => state.sketch,
+        stats: { timeMs: state.elapsedMs, km: state.odometer / 1000, tows: state.tows || 0 },
+      });
     }
     el('div', 'hud-win-foot hud-mono', panel,
       nextMission(state)

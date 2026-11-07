@@ -12,8 +12,13 @@ const siteUrl = () => ({
   transformIndexHtml: (html) => html.replaceAll('%SITE_URL%', (process.env.SITE_URL || '').replace(/\/$/, '')),
 });
 
+// API_PROXY=http://localhost:8799 npm run dev: send /api to a local map
+// server (server/README.md). Unset, there is no API and sharing hides itself.
+const apiProxy = process.env.API_PROXY;
+
 export default defineConfig({
   plugins: [siteUrl()],
+  server: apiProxy ? { proxy: { '/api': apiProxy } } : {},
   build: {
     rollupOptions: {
       input: {
