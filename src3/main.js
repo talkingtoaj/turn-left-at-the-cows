@@ -45,6 +45,8 @@ import { createTow } from './tow3d.js';
 import { createOnFoot } from './onfoot.js';
 import { WALK, localsAround, carGap } from '../src/game/onfoot.js';
 import { lookablesFor, pickLookable, compassWord } from '../src/game/lookables.js';
+import { createThunder } from '../src/game/thunder.js';
+import { createLightning3D } from './world3d/lightning3d.js';
 import { createTips, TIP_CONTEXT, setTipsEnabled, resetTips } from '../src/game/tips.js';
 import { createTipsView } from './hud/tips.js';
 import { warningLights } from '../src/game/damage.js';
@@ -120,6 +122,8 @@ let amb3d = null;
 let dh = null;
 let rain3d = null;
 let planes = null; // light planes, in a region with an airfield
+let lightning = null; // lightning flashes in heavy rain (round 12)
+let thunder = null; // when and where they strike (src/game/thunder.js)
 let wetness = null;
 let ownWeather = null; // without the new look there is no weather clock of its own: keep one here
 let groundAt = null;
@@ -136,12 +140,13 @@ const nextPaint = () => new Promise((r) => requestAnimationFrame(() => setTimeou
 function disposeRegion() {
   if (!scene) return 0;
   if (dh && dh.dispose) dh.dispose();
+  if (lightning) lightning.dispose();
   scene.remove(car3d.object);
   const keep = collectKeep([car3d.object], look ? look.keepTextures() : []);
   const n = gpuSet ? disposeTracked(gpuSet, keep) : 0;
   scene.clear();
   renderer.renderLists.dispose();
-  scene = scenery = collider = world3d = amb = amb3d = dh = rain3d = planes = null;
+  scene = scenery = collider = world3d = amb = amb3d = dh = rain3d = planes = lightning = thunder = null;
   gpuSet = null;
   return n;
 }
@@ -219,6 +224,9 @@ async function buildRegion(id, title, quiet = false) {
     planes = createPlanes3D(scene, WORLD, world3d.terrain);
     // The tow truck that comes after a breakdown (src3/tow3d.js).
     tow.attach(scene, world3d);
+    // Lightning in heavy rain; its thunder is played by the audio.
+    lightning = createLightning3D(scene, { reducedMotion: reducedMotion() });
+    thunder = createThunder((WORLD.seed || 1) ^ 0x7a11);
     foot.reset();
     await step(0.9, 'Warming up the engine');
     // One frame with everything in, so the shaders compile behind the card.
@@ -279,6 +287,7 @@ const foot = createOnFoot({
 const tips = createTips();
 const tipsView = createTipsView(ui);
 const tipCtx = { ...TIP_CONTEXT };
+const reducedMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
 // ---------- input ----------
 
@@ -363,6 +372,7 @@ footState.car = viewer;
 let footTime = 0; // seconds since you got out
 let driveTime = 0; // seconds driven this mission
 let lookFrame = 0;
+let thunderForced = params.get('thunder') !== 'now';
 const ear = { x: 0, y: 0, heading: 0 };
 
 function frame(now) {
@@ -508,6 +518,18 @@ function frame(now) {
     listener.z = groundAt(ear.x, ear.y) + (foot.active ? WALK.eye : 1.2);
     planes.update(state.clockMinutes * 6, camera, scene.fog.color, wetness.rain, listener);
   }
+  // Lightning in heavy rain, and its thunder 3 s per km later.
+  if (!runtime.paused && thunder) {
+    if (!thunderForced) {
+      thunderForced = true;
+      thunder.force((ear.heading + 25) % 360, 1.2);
+    }
+    for (const s of thunder.update(wetness.t * 6, wetness.rain)) {
+      lightning.strike(s, ear);
+      audio.thunder(s, ear);
+    }
+  }
+  lightning.update(runtime.paused ? 0 : dt, camera);
   // Sound every frame, even paused (it ducks while the map is open).
   audio.update(dt, state, amb, {
     paused: runtime.paused, rain: wetness, planes: planes ? planes.sound : null, tow: tow.sound,
@@ -753,6 +775,8 @@ function exposeDebug() {
   window.__foot = foot;
   window.__collider = collider;
   window.__tips = tips;
+  window.__lightning = lightning;
+  window.__thunder = thunder;
   // Dev: play a mission now, building its region if need be (memory checks):
   // await __playMission('m3_airfield').
   window.__playMission = playMission;

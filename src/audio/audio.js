@@ -11,6 +11,8 @@
 //   when on foot); default the car. onFoot: you are out of the car (the
 //   engine idles where the car is parked, no rain on the roof).
 //   audio.step(surface, jog)   one footstep ('paved' | 'dirt' | 'grass')
+//   audio.thunder(strike, ear) thunder for a lightning strike, arriving
+//   3 s per km later (src/game/thunder.js)
 //   audio.cue(id, vol)   one-shot now, centre (the tow chain and winch)
 //   audio.toggleMute(); audio.muted
 // The AudioContext is the page's shared one (./context.js): the start
@@ -25,6 +27,7 @@
 import { ALL_SOUNDS, ENGINE_LAYERS, engineMix, loadSounds, loopBounds } from './sounds.js';
 import { takeSpeech, voiceFor } from './voice.js';
 import { sharedAudioContext, unlockAudio, isMuted, setMuted } from './context.js';
+import { thunderDelay } from '../game/thunder.js';
 
 const DEG = Math.PI / 180;
 const MASTER = 0.5;
@@ -765,6 +768,20 @@ export function createAudio(world, opts = {}) {
       const set = surface === 'paved' ? STEPS.road : surface === 'dirt' ? STEPS.gravel : STEPS.grass;
       const vol = (jog ? 0.3 : 0.22) * (0.85 + Math.random() * 0.3) * (surface === 'paved' ? 0.8 : 1);
       oneShot(pick(set), ctx.currentTime, (Math.random() - 0.5) * 0.2, vol, 0.92 + Math.random() * 0.16, surface === 'grass' ? 5000 : 0);
+    },
+    // Thunder for a lightning strike (src/game/thunder.js): it arrives 3 s
+    // per km after the flash; close ones crack, far ones only rumble
+    // (quieter, the highs soaked up by the air, played a little slower).
+    thunder(strike, ear) {
+      if (!ctx || !nodes || ctx.state !== 'running') return;
+      const km = strike.km;
+      const close = km < 1.8;
+      const id = close ? (km < 1 || Math.random() < 0.5 ? 'thunder/close1' : 'thunder/close2') : pick(['thunder/far1', 'thunder/far2']);
+      const vol = (strike.power || 1) * Math.min(1, 1.1 / (1 + (km - 0.5) * 0.45));
+      const lp = 300 + 11000 * Math.exp(-km / 1.4);
+      const rate = close ? 0.95 + Math.random() * 0.08 : 0.82 + Math.random() * 0.1;
+      const pan = Math.sin(((strike.bearing - (ear ? ear.heading : 0)) * Math.PI) / 180) * 0.7;
+      oneShot(id, ctx.currentTime + thunderDelay(km), pan, vol, rate, lp);
     },
     // A one-shot now, centred (the tow chain and winch).
     cue(id, vol = 0.5) {

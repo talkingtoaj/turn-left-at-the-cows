@@ -107,6 +107,12 @@ RECIPES = [
     ('steps/road1', f'{FS}/166509.ogg', 0, None, 'oneshot', 'highpass=f=80', -1),
     ('steps/road2', f'{FS}/166507.ogg', 0, None, 'oneshot', 'highpass=f=80', -1),
     ('steps/road3', f'{FS}/166506.ogg', 0, None, 'oneshot', 'highpass=f=80', -1),
+    # Round 12: thunder after lightning in heavy rain. Close cracks and far
+    # rolling rumbles; the game lowpasses and delays them by distance.
+    ('thunder/close1', f'{FS}/840628.ogg', 0.35, 9.5, 'oneshot', 'highpass=f=30', -1),
+    ('thunder/close2', f'{FS}/534023.ogg', 0.4, 7.5, 'oneshot', 'highpass=f=30', -1),
+    ('thunder/far1', f'{FS}/581123.ogg', 2.6, 14, 'oneshot', 'highpass=f=30', -1),
+    ('thunder/far2', f'{FS}/581124.ogg', 0.4, 7.2, 'oneshot', 'highpass=f=30', -1),
 ]
 
 
@@ -182,7 +188,7 @@ def main():
             if name == 'tyres/shrub':
                 a = fades(a, fin=0.03, fout=0.22)  # noisy floor: no silence to trim
             else:
-                fout = 0.4 if name == 'bell/bell' else 0.5 if name == 'weather/splash1' else 0.06
+                fout = 0.4 if name == 'bell/bell' else 0.5 if name == 'weather/splash1' else 1.6 if name.startswith('thunder/') else 0.06
                 a = fades(trim_silence(a), fout=fout)
             g = 10 ** (target / 20) / (max(abs(x) for x in a) or 1)
             a = [x * g for x in a]
