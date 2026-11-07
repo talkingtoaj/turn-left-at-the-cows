@@ -867,7 +867,9 @@ export function createAmbient(world, scenery) {
 
   // ---------- Wind, clouds, smoke, dust ----------
   const wind = { dir: 290, speed: 3 };
-  const windBase = 260 + rng() * 60;
+  const windRoll = 260 + rng() * 60;
+  // Regions with an airfield set their prevailing wind (src/world/airfield.js).
+  const windBase = world.windBase ?? windRoll;
   const clouds = [];
   const CM = 400; // margin outside the world for wrapping
   const W = world.size.w;

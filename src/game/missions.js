@@ -88,6 +88,36 @@ const DETAILS = {
     finalLabel: "Final map: Tom's cabin",
     printedMaps: ['hartley_sketch', 'county1987'],
   }),
+  // Region 2 (Brandt). Tom is not a local you can talk to: his name is on the card.
+  m3_airfield: ({ W, place, town }) => ({
+    giverNpcId: null,
+    giverName: 'Tom Hartley',
+    // Route 40 at the county line, driving east from Fenwick County.
+    start: { x: W.start.x, y: W.start.y, heading: W.start.heading },
+    brief: [
+      "Pills and a pie. Mum thinks of everything. Since you've got the car and I've got this knee, could you run one more errand?",
+      "This magneto belongs to Ray Kessler. He flies out of a little grass airfield over Brandt way, east along Route 40. His plane won't start without it.",
+      "I've only ever flown over the place, years ago, never driven there. Ask in Brandt. And keep your ears open.",
+    ],
+    goalTopic: 'kestrel_field',
+    startTopics: ['kestrel_field', 'brandt', 'rt40'],
+    goal: place('kestrel_field'),
+    waypoints: [
+      {
+        id: 'wp_brandt', x: town('brandt').x, y: town('brandt').y, r: 110,
+        label: 'Brandt',
+        snapshotLabel: 'Map on reaching Brandt',
+      },
+      {
+        id: 'wp_field_lane_end', x: 2470, y: 935, r: 60,
+        label: 'the end of Field Lane',
+        snapshotLabel: "Map at the end of Field Lane (Peg's way)",
+      },
+    ],
+    arrivalLabel: 'Map on arrival at Kestrel Field',
+    finalLabel: 'Final map: Kestrel Field',
+    printedMaps: ['harlan1979'],
+  }),
 };
 
 // Lists a mission's detail keys without building its region.

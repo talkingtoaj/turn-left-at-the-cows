@@ -6,6 +6,7 @@
 export const MISSION_LIST = [
   { id: 'm1_parcel', title: 'A Parcel for Hartley Farm', region: 'fenwick' },
   { id: 'm2_cabin', title: "Tom's Pills", region: 'fenwick' },
+  { id: 'm3_airfield', title: "A Part for Ray's Plane", region: 'brandt' },
 ];
 
 export function missionIndexById(id) {

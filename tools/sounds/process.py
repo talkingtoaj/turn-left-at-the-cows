@@ -89,6 +89,9 @@ RECIPES = [
     ('weather/splash1', f'{FS}/563021.ogg', 0.3, 1.9, 'oneshot', 'highpass=f=120', -1),
     ('weather/splash2', f'{FS}/207139.ogg', 3.6, 0.85, 'oneshot', 'highpass=f=150', -1),
     ('tyres/wet', f'{FS}/846301.ogg', 4.5, 4.0, 'loop', 'highpass=f=500,lowpass=f=9000', -22),
+    # Round 10: the light plane's propeller drone (a seamless field loop). The
+    # game pitches it with throttle and Doppler and filters it with distance.
+    ('aircraft/prop', f'{FS}/789390.ogg', 0, None, 'loop', 'highpass=f=50', -18),
 ]
 
 

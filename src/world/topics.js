@@ -55,6 +55,28 @@ export const TOPICS = [
   { id: 'pruitt_truck', label: "Pruitt's old truck", kind: 'landmark', fame: 0.15, ref: { type: 'landmark', id: 'pruitt_truck' } },
   { id: 'railway_halt', label: 'the old railway halt', kind: 'landmark', fame: 0.35, ref: { type: 'landmark', id: 'old_railway' } },
   { id: 'ashford_elevator', label: 'the old grain elevator', kind: 'landmark', fame: 0.5, ref: { type: 'landmark', id: 'ashford_elevator' } },
+
+  // Region 2, Brandt country (mission 3). 'brandt' above is this region's town.
+  { id: 'kestrel_field', label: 'Kestrel Field', kind: 'place', fame: 0.4, ref: { type: 'place', id: 'kestrel_field' } },
+  { id: 'planes', label: 'the planes', kind: 'landmark', fame: 0.8, ref: { type: 'landmark', id: 'kestrel' } },
+  { id: 'windsock', label: 'the windsock', kind: 'landmark', fame: 0.3, ref: { type: 'landmark', id: 'kestrel' } },
+  { id: 'wind', label: 'the wind', kind: 'landmark', fame: 0.9, ref: { type: 'landmark', id: 'kestrel' } },
+  { id: 'ray', label: 'Ray Kessler', kind: 'business', fame: 0.5, ref: { type: 'place', id: 'kestrel_field' } },
+  { id: 'station_rd', label: 'Station Road', kind: 'road', fame: 0.7, ref: { type: 'road', id: 'station_rd' } },
+  { id: 'north_rd', label: 'North Road', kind: 'road', fame: 0.6, ref: { type: 'road', id: 'north_rd' } },
+  { id: 'field_lane', label: 'Field Lane', kind: 'road', fame: 0.3, ref: { type: 'road', id: 'field_lane' } },
+  { id: 'pike_lane', label: 'Pike Lane', kind: 'road', fame: 0.3, ref: { type: 'road', id: 'pike_ln' } },
+  { id: 'hal_pike', label: 'Hal Pike', kind: 'farm', fame: 0.4, ref: { type: 'building', id: 'pk_house' } },
+  { id: 'dagny_farm', label: "Dagny's farm", kind: 'farm', fame: 0.4, ref: { type: 'building', id: 'dg_house' } },
+  { id: 'brandt_elevator', label: 'the Brandt elevator', kind: 'landmark', fame: 0.8, ref: { type: 'landmark', id: 'br_elevator' } },
+  { id: 'diner_b', label: 'the diner', kind: 'business', fame: 0.7, ref: { type: 'building', id: 'br_diner' } },
+  { id: 'sandy_creek', label: 'Sandy Creek', kind: 'water', fame: 0.6, ref: { type: 'creek', id: 'sandy' } },
+  { id: 'oakham', label: 'Oakham', kind: 'town', fame: 0.6, ref: { type: 'town', id: 'oakham' } },
+  { id: 'oakham_rd', label: 'Oakham Road', kind: 'road', fame: 0.5, ref: { type: 'road', id: 'oakham_rd' } },
+  { id: 'south_rd', label: 'South Road', kind: 'road', fame: 0.4, ref: { type: 'road', id: 'south_rd' } },
+  { id: 'oakham_tower', label: 'the Oakham water tower', kind: 'landmark', fame: 0.5, ref: { type: 'landmark', id: 'oak_tower' } },
+  { id: 'mallard_pond', label: 'Mallard Pond', kind: 'water', fame: 0.4, ref: { type: 'lake', id: 'mallard' } },
+  { id: 'corley', label: 'Corley', kind: 'town', fame: 0.7, ref: { type: 'offmap', id: 'corley' } },
 ];
 
 export const TOPIC_BY_ID = Object.fromEntries(TOPICS.map((t) => [t.id, t]));

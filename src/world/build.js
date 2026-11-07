@@ -6,6 +6,7 @@ import { smoothPolyline, polylineLength } from './spline.js';
 import { nearestOnPolyline, headingOf, polylineCrossings, DEG } from '../drive/geom.js';
 import { TOPICS } from './topics.js';
 import { generateFill, fieldDefaults } from './fill.js';
+import { airfieldOf, seededWindFrom } from './airfield.js';
 
 const STEP = 9; // metres per polyline piece after smoothing
 
@@ -215,6 +216,14 @@ export function buildWorld(source) {
   w.fields = w.fields.concat(fill.fields);
   w.props = fill.props;
   w.powerLines = fill.powerLines;
+
+  // A region with an airfield gets a prevailing wind from its seed: the
+  // planes land into it, and the ambient wind (smoke, the windsock) blows
+  // the same way (src/world/airfield.js). Other regions keep their own.
+  if (airfieldOf(w)) {
+    w.windFrom = seededWindFrom(w.seed);
+    w.windBase = (w.windFrom + 180) % 360;
+  }
 
   w.topics = TOPICS;
   return w;
