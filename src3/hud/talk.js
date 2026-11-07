@@ -38,6 +38,11 @@ const CSS = `
 .talk-btn { font: 14px Arial, Helvetica, sans-serif; color: #ece7d8; background: #3a3c40; border: 1px solid #55585e;
   border-radius: 5px; padding: 5px 12px; cursor: pointer; }
 .talk-btn:hover, .talk-btn:focus-visible { border-color: #e6b450; outline: none; }
+.talk-next { font: bold 15px Arial, Helvetica, sans-serif; color: #23252a; background: #e6b450; border: 1px solid #e6b450;
+  border-radius: 5px; padding: 5px 14px; cursor: pointer; animation: talk-pulse 1.4s ease-in-out infinite; }
+.talk-next:hover, .talk-next:focus-visible { background: #f3d58c; outline: none; }
+@keyframes talk-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(230,180,80,0.7); } 50% { box-shadow: 0 0 0 7px rgba(230,180,80,0); } }
+@media (prefers-reduced-motion: reduce) { .talk-next { animation: none; } }
 .talk-hint { margin-left: auto; font: 12px "Courier New", Courier, monospace; color: #8a8d92; }
 .talk-ask { position: absolute; left: 0; right: 0; bottom: calc(100% + 8px); padding: 12px 14px 10px; background: #f1ead6; color: #3a3128;
   border-radius: 4px; box-shadow: 0 6px 18px rgba(0,0,0,0.35); display: none; }
@@ -80,6 +85,10 @@ export function createTalk(root) {
   const textEl = el('div', 'talk-text', box);
   textEl.setAttribute('aria-live', 'polite');
   const foot = el('div', 'talk-foot', box);
+  // Shown while there is more to say, so new players know to keep going.
+  const nextBtn = el('button', 'talk-next', foot, 'Next \u25B8');
+  nextBtn.type = 'button';
+  nextBtn.title = 'More to come (E)';
   const askBtn = el('button', 'talk-btn', foot, 'Ask about...');
   askBtn.type = 'button';
   const byeBtn = el('button', 'talk-btn', foot, 'Goodbye');
@@ -140,6 +149,8 @@ export function createTalk(root) {
     if (d.choices.length) state.namesShown = true;
     speak(d.npcId, p.text);
     const last = d.page === d.pages.length - 1;
+    nextBtn.style.display = last ? 'none' : '';
+    nextBtn.textContent = `Next (${d.page + 1}/${d.pages.length}) \u25B8`;
     const pages = d.pages.length > 1 ? `${d.page + 1}/${d.pages.length}   ` : '';
     hint.textContent = `${pages}E: ${last ? 'goodbye' : 'next'}${d.choices.length ? `   ${d.choices.length > 1 ? `1-${d.choices.length}` : '1'}: ask` : ''}   M: map`;
   }
@@ -257,6 +268,10 @@ export function createTalk(root) {
     e.stopPropagation();
     if (askOpen) closeAsk();
     else openAsk();
+  });
+  nextBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    advance();
   });
   byeBtn.addEventListener('click', (e) => {
     e.stopPropagation();
