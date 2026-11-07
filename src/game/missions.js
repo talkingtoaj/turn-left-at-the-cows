@@ -53,8 +53,8 @@ const DETAILS = {
     ],
     arrivalLabel: 'Map on arrival at Hartley Farm',
     finalLabel: 'Final map: Hartley Farm',
-    // No mission gives a map: you draw your own and compare it with the
-    // real one at the end.
+    // No printed map: you draw your own and compare it with the real one at
+    // the end. (Mission 2 has only Mrs Hartley's hand-drawn sketch.)
     printedMaps: [],
   }),
   m2_cabin: ({ place, bridge, town }) => ({
@@ -64,7 +64,7 @@ const DETAILS = {
     brief: [
       "Thank you for bringing that parcel, dear. Now, could I trouble you for one more?",
       "My son Tom is up at his cabin on Loon Pond, and there's no phone up there. These are his pills, and a pie. He'll have run out by now.",
-      "I'd draw you a map, but my hands shake so these days. I haven't been up that way in a few years, mind. Ask me if you need the directions again.",
+      "I've drawn you a little map. I haven't been up that way in a few years, mind. Ask me if you need the directions again.",
     ],
     goalTopic: 'toms_cabin',
     startTopics: ['toms_cabin', 'loon_pond'],
@@ -88,7 +88,8 @@ const DETAILS = {
     ],
     arrivalLabel: "Map on arrival at Tom's cabin",
     finalLabel: "Final map: Tom's cabin",
-    printedMaps: [],
+    // Only Mrs Hartley's own sketch: a few years out of date.
+    printedMaps: ['hartley_sketch'],
   }),
   // Region 2 (Brandt). Tom is not a local you can talk to: his name is on the card.
   m3_airfield: ({ W, place, town }) => ({
