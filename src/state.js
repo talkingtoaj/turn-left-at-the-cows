@@ -21,6 +21,7 @@ export const state = {
   talkedTo: new Set(), // ids of locals talked to this mission (cleared per mission)
   // On foot (round 12, src3/onfoot.js and src/game/onfoot.js).
   onFoot: false, // out of the car, walking
+  footPos: null, // { x, y } where you stand while on foot (null in the car)
   lookYaw: null, // degrees, where you look on foot (the dash compass follows it)
   nearLocalAny: null, // id of a local within 3 m on foot, facing them or not
   nearCar: false, // on foot and close enough to the car to get back in (F)

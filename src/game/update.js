@@ -7,11 +7,13 @@ import { getNpc } from './dialogue.js';
 import { resetDamage } from './damage.js';
 import { recordFinish } from './progress.js';
 
-// Waypoint snapshots and goal arrival. Sets state.won on arrival.
+// Waypoint snapshots and goal arrival. Sets state.won on arrival. Arriving
+// counts in the car or on foot (state.footPos, set while you walk).
 export function updateGame(state, _dt) {
   const m = currentMission(state);
   if (!m) return;
-  const { x, y } = state.car;
+  const at = state.footPos || state.car;
+  const { x, y } = at;
   for (const wp of m.waypoints) {
     const key = `${m.id}:${wp.id}`;
     if (state.waypointsReached.has(key)) continue;

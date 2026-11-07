@@ -522,7 +522,9 @@ function frame(now) {
       ? repairNear(WORLD, viewer.x, viewer.y, foot.active) : null;
     state.nearRepair = shop && needsRepair(state.damage) ? shop : null;
 
-    // Waypoint snapshots and arrival at the current mission's goal (sets state.won).
+    // Waypoint snapshots and arrival at the current mission's goal (sets state.won),
+    // by car or on foot.
+    state.footPos = foot.active ? viewer : null;
     updateGame(state, dt);
   }
 
