@@ -12,7 +12,7 @@ substitutions:
   _MAPS_BUCKET: turn-left-at-the-cows-maps
   _MAPS_PREFIX: maps/
   _TURNSTILE_SITE_KEY: ""
-  _SITE_URL: ""
+  _SITE_URL: "https://cows.talkingtoaj.info"
 
 options:
   logging: CLOUD_LOGGING_ONLY
