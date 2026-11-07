@@ -36,6 +36,7 @@ jobs:
         run: |
           set -eu
           id=$(gcloud builds submit --project lifebalance-nuxt --config cloudbuild.yaml \
+            --gcs-source-staging-dir=gs://lifebalance-nuxt_cloudbuild/source \
             --substitutions=COMMIT_SHA=${GITHUB_SHA},_TURNSTILE_SITE_KEY=${SITE_KEY} \
             --async --format='value(id)' .)
           echo "Build $id: https://console.cloud.google.com/cloud-build/builds/$id?project=493602269932"
