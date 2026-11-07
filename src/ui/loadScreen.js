@@ -94,7 +94,7 @@ function doodleSVG() {
   const marks = DOODLE.map(([tag, attrs, stroke, w]) => `<${tag} ${attrs} pathLength="1" stroke="${stroke}" stroke-width="${w}"${stroke === '#8a6a4a' ? ' opacity="0.35"' : ''}/>`);
   return `<svg class="ls-map" viewBox="0 0 500 220" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
   <g fill="none" stroke-linecap="round" stroke-linejoin="round">${marks.join('')}</g>
-  <text x="404" y="208" font-family="Caveat, cursive" font-size="20" fill="${G}">moo?</text>
+  <text class="ls-moo" opacity="0" x="404" y="208" font-family="Caveat, cursive" font-size="20" fill="${G}">moo?</text>
 </svg>`;
 }
 
@@ -163,6 +163,8 @@ export function showLoadScreen({ title = '', region = '', kicker = 'On the road 
     progress(f, text) {
       const p = Math.max(0, Math.min(1, f));
       draw(p);
+      const moo = sheet.querySelector('.ls-moo');
+      if (moo) moo.setAttribute('opacity', p > 0.9 ? '1' : '0');
       setOdo(p * 100);
       if (text !== undefined) note.textContent = text;
     },

@@ -75,7 +75,7 @@ export function mapSVG({ missions, done, next }) {
   const out = [];
   // A loose pencil line east from Ashford toward the next county.
   out.push(`<path d="${pencil(EAST, r, 3)}" class="mp-road mp-gap"/>`);
-  out.push('<text class="mp-hand mp-faint" x="610" y="208" transform="rotate(-3 610 208)">east, 22 km or so \u2192</text>');
+  out.push('<text class="mp-hand mp-faint" x="712" y="196" transform="rotate(-3 712 196)">east \u2192</text>');
   // Ashford: a few pencil squares and a printed name.
   const [ax, ay] = ASHFORD;
   for (let k = 0; k < 4; k++) {
