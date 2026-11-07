@@ -40,7 +40,7 @@ export const VIEWS = [
   // Part A: scatter fixes.
   { name: 'stony_rocks', q: 'spot=3000,238,90', cam: [2996, 1.8, 238], look: [3012, 1.0, 231] },
   { name: 'gorse_close', q: 'spot=3000,238,90', cam: [2998, 1.6, 236], look: [3004, 0.6, 230] },
-  { name: 'raven_crag', q: 'spot=5366,1263,10' },
+  { name: 'raven_crag', q: 'spot=5366,1263,12' },
   { name: 'tinkers_rocks', q: 'spot=1500,1525,334' },
   { name: 'the_anvil', q: 'spot=636,1473,280' },
   // Part B: dry / wet pairs.
@@ -52,8 +52,8 @@ export const VIEWS = [
   { name: 'willow_mud', q: 'spot=2420.4,1416.9,79.1', cam: [2438, 2.2, 1404], look: [2452, 0.3, 1436] },
   { name: 'town_ashford', q: 'spot=ashford', cam: [600, 2.2, 2440], look: [640, 1.5, 2400] },
   // The car through the Mill Lane puddle at 45 km/h (chase camera).
-  { name: 'splash', q: 'spot=1464.4,2121.9,356.8', drive: { speed: 12.5 }, until: 'window.__state.car.y < 2098.2', wait: 900 },
-  { name: 'splash_side', q: 'spot=1464.4,2121.9,356.8', cam: [1472, 1.3, 2090], look: [1463, 0.5, 2097], drive: { speed: 12.5 }, until: 'window.__state.car.y < 2097.6', wait: 600 },
+  { name: 'splash', q: 'spot=1464.4,2121.9,356.8', drive: { speed: 12.5 }, until: 'window.__state.car.y < 2098.2', wait: 300 },
+  { name: 'splash_side', q: 'spot=1464.4,2121.9,356.8', cam: [1472, 1.3, 2090], look: [1463, 0.5, 2097], drive: { speed: 12.5 }, until: 'window.__state.car.y < 2099.5', wait: 0 },
   // Mid-rain: looking along the road at streaks (run with rain=on&wet=0.4).
   { name: 'mid_rain_streaks', q: 'spot=dirtroad' },
 ];

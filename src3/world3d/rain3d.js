@@ -5,7 +5,8 @@
 // Streaks: one LineSegments of STREAKS short lines. Each has a fixed spot in
 // a BOX m cube; the vertex shader drops it with time and wraps it round the
 // camera, so nothing is updated on the CPU. How many draw follows the rain.
-// Spray: a small pool of points thrown up and falling back, one Points draw.
+// Spray: a small pool of drops thrown up and falling back, one Points draw;
+// each drop is drawn as a short smear along its motion, dark and see-through.
 //
 //   const R = createRain3D(scene)
 //   R.update(dt, time, camera, rain, fog)
@@ -19,6 +20,7 @@ const BOX = 44; // m: the streaks fill a cube this size round the camera
 const FALL = 9.5; // m/s
 const LEN = 0.55; // m, streak length (motion blur)
 const SPRAY = 600;
+const GRAV = 15; // m/s2 on spray: water sheets break up and drop fast
 
 function streakMaterial() {
   return new THREE.ShaderMaterial({
@@ -62,21 +64,6 @@ void main() {
   });
 }
 
-function sprayTexture() {
-  const c = document.createElement('canvas');
-  c.width = c.height = 32;
-  const g = c.getContext('2d');
-  const grad = g.createRadialGradient(16, 16, 0, 16, 16, 16);
-  grad.addColorStop(0, 'rgba(255,255,255,1)');
-  grad.addColorStop(0.4, 'rgba(255,255,255,0.55)');
-  grad.addColorStop(1, 'rgba(255,255,255,0)');
-  g.fillStyle = grad;
-  g.fillRect(0, 0, 32, 32);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-
 export function createRain3D(scene) {
   // Streaks.
   const pos = new Float32Array(STREAKS * 2 * 3); // unused by the shader, but three needs a position
@@ -117,29 +104,61 @@ export function createRain3D(scene) {
   };
   const sgeo = new THREE.BufferGeometry();
   sgeo.setAttribute('position', new THREE.BufferAttribute(sp.pos, 3).setUsage(THREE.DynamicDrawUsage));
+  sgeo.setAttribute('aVel', new THREE.BufferAttribute(sp.vel, 3).setUsage(THREE.DynamicDrawUsage));
   sgeo.setAttribute('aLife', new THREE.BufferAttribute(sp.life, 1).setUsage(THREE.DynamicDrawUsage));
   sgeo.setAttribute('aSize', new THREE.BufferAttribute(sp.size, 1).setUsage(THREE.DynamicDrawUsage));
+  // Each point is a drop smeared along its motion on screen (motion blur):
+  // the sprite square is as long as the smear, and the fragment shader cuts
+  // a thin capsule out of it along the screen velocity. Water, so dark and
+  // see-through (it takes the colour of what is behind) with a pale rim.
   const smat = new THREE.ShaderMaterial({
-    uniforms: { uTex: { value: sprayTexture() }, uColor: { value: new THREE.Color(0.72, 0.71, 0.66) }, uScale: { value: 400 } },
+    uniforms: {
+      uColor: { value: new THREE.Color(0.42, 0.44, 0.45) },
+      uScale: { value: 400 },
+      uAspect: { value: 16 / 9 },
+      uBlur: { value: 1 / 30 },
+    },
     vertexShader: /* glsl */`
+attribute vec3 aVel;
 attribute float aLife;
 attribute float aSize;
 uniform float uScale;
+uniform float uAspect;
+uniform float uBlur;
 varying float vLife;
+varying vec2 vDir;
+varying float vThin;
 void main() {
   vLife = aLife;
   vec4 mv = modelViewMatrix * vec4(position, 1.0);
-  gl_PointSize = aLife > 0.0 ? min(26.0, aSize * uScale / max(0.5, -mv.z)) : 0.0;
-  gl_Position = projectionMatrix * mv;
+  vec4 c0 = projectionMatrix * mv;
+  vec4 c1 = projectionMatrix * (modelViewMatrix * vec4(position + aVel * uBlur, 1.0));
+  // Smear on screen in pixels (NDC half-units x scale), y up.
+  vec2 d = (c1.xy / max(0.05, c1.w) - c0.xy / max(0.05, c0.w)) * vec2(uAspect, 1.0) * uScale * 0.9;
+  float w = aSize * uScale / max(0.5, -mv.z); // drop width in px
+  float len = clamp(max(length(d), w * 2.5), 2.0, 22.0); // always a little streak, never a round flake
+  vDir = length(d) > 0.001 ? normalize(d) * vec2(1.0, -1.0) : vec2(0.0, 1.0); // point coords run y down
+  vThin = clamp(w / len, 0.12, 1.0);
+  gl_PointSize = aLife > 0.0 ? max(1.5, len) : 0.0;
+  gl_Position = c0;
 }`,
     fragmentShader: /* glsl */`
-uniform sampler2D uTex;
 uniform vec3 uColor;
 varying float vLife;
+varying vec2 vDir;
+varying float vThin;
 void main() {
   if (vLife <= 0.0) discard;
-  float a = texture2D(uTex, gl_PointCoord).a * clamp(vLife * 2.5, 0.0, 1.0) * 0.6;
-  gl_FragColor = vec4(uColor, a);
+  vec2 p = gl_PointCoord - 0.5;
+  float along = dot(p, vDir) * 2.0;
+  float across = dot(p, vec2(-vDir.y, vDir.x)) * 2.0 / vThin;
+  float r = along * along + across * across;
+  if (r > 1.0) discard;
+  float edge = 1.0 - r;
+  float a = smoothstep(0.0, 0.5, edge) * clamp(vLife * 5.0, 0.0, 1.0) * (0.6 + 0.2 * vThin);
+  // A pale highlight along one side, the rest darker water.
+  vec3 col = mix(uColor, uColor * 1.7 + 0.05, smoothstep(0.1, 0.9, -across) * 0.7);
+  gl_FragColor = vec4(col, a);
   #include <colorspace_fragment>
 }`,
     transparent: true,
@@ -189,7 +208,7 @@ void main() {
             continue;
           }
           live++;
-          sp.vel[i * 3 + 1] -= 9.8 * dt;
+          sp.vel[i * 3 + 1] -= GRAV * dt;
           const drag = Math.exp(-1.8 * dt);
           sp.vel[i * 3] *= drag;
           sp.vel[i * 3 + 2] *= drag;
@@ -200,23 +219,27 @@ void main() {
         sgeo.attributes.position.needsUpdate = true;
         sgeo.attributes.aLife.needsUpdate = true;
         sgeo.attributes.aSize.needsUpdate = true;
+        sgeo.attributes.aVel.needsUpdate = true;
       }
       sp.live = live;
       spray.visible = live > 0;
       smat.uniforms.uScale.value = window.innerHeight * 0.55;
+      smat.uniforms.uAspect.value = camera.aspect || window.innerWidth / Math.max(1, window.innerHeight);
+      // Water darker than the grey day it shows, never brighter.
+      if (fog) smat.uniforms.uColor.value.setRGB(fog.r * 0.5, fog.g * 0.52, fog.b * 0.55);
     },
     // A splash: a sheet of water thrown out sideways and forward.
     splash(x, y, z, speed, heading, big = false) {
       const [fx, fy] = fwd(heading);
-      const n = Math.round((big ? 90 : 60) * Math.min(1.3, 0.4 + speed / 14));
+      const n = Math.round((big ? 160 : 110) * Math.min(1.3, 0.4 + speed / 14));
       const k1 = Math.min(1.5, 0.4 + speed / 12);
       for (let k = 0; k < n; k++) {
         const side = Math.random() < 0.5 ? -1 : 1;
-        const out = (1.5 + Math.random() * 3) * k1;
+        const out = (1.2 + Math.random() * 2.6) * k1;
         const fwdV = speed * (0.2 + Math.random() * 0.4);
         const vx = fx * fwdV - fy * out * side;
         const vz = fy * fwdV + fx * out * side;
-        emit(x + (Math.random() - 0.5) * 0.6, y + 0.1, z + (Math.random() - 0.5) * 0.6, vx, (1.8 + Math.random() * 3) * k1, vz, 0.5 + Math.random() * 0.6, 0.1 + Math.random() * 0.18);
+        emit(x + (Math.random() - 0.5) * 0.6, y + 0.1, z + (Math.random() - 0.5) * 0.6, vx, (1.0 + Math.random() * 2.2) * k1, vz, 0.4 + Math.random() * 0.35, 0.045 + Math.random() * 0.05);
       }
       sp.live = Math.max(sp.live, 1);
     },
@@ -230,7 +253,7 @@ void main() {
         if (n < 1 && Math.random() > n) break;
         n -= 1;
         const sideJ = (Math.random() - 0.5) * 0.8;
-        emit(x - fy * sideJ, y + 0.1, z + fx * sideJ, -fx * speed * 0.12 + (Math.random() - 0.5) * 0.8, 0.6 + Math.random() * 1.2, -fy * speed * 0.12 + (Math.random() - 0.5) * 0.8, 0.35 + Math.random() * 0.35, 0.08 + Math.random() * 0.08);
+        emit(x - fy * sideJ, y + 0.1, z + fx * sideJ, -fx * speed * 0.12 + (Math.random() - 0.5) * 0.8, 0.5 + Math.random() * 1.0, -fy * speed * 0.12 + (Math.random() - 0.5) * 0.8, 0.25 + Math.random() * 0.25, 0.03 + Math.random() * 0.03);
       }
       sp.live = Math.max(sp.live, 1);
     },

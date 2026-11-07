@@ -434,17 +434,40 @@ void main() {
   float margin = smoothstep(-0.06, 0.0, d);
   if (margin <= 0.002) discard;
   vec3 V = normalize(cameraPosition - vW);
-  // Rain: drops ring the surface (soft moving speckle, dims the reflection a little).
+  // Rain: drops ring the surface. Two offset grids of cells, each with one
+  // ring growing and fading from a seeded spot; the ring tilts the normal.
+  vec3 N = vec3(0.0, 1.0, 0.0);
+  if (uRain > 0.01) {
+    vec2 tilt = vec2(0.0);
+    for (int k = 0; k < 2; k++) {
+      vec2 g = vW.xz * 1.6 + float(k) * vec2(0.5, 0.37);
+      vec2 cell = floor(g);
+      float h = fract(sin(dot(cell, vec2(127.1, 311.7))) * 43758.5);
+      vec2 o = g - cell - (0.25 + 0.5 * vec2(h, fract(h * 13.7)));
+      float age = fract(uTime * (0.9 + 0.5 * h) + h * 7.0);
+      float r = length(o);
+      float x = (r - age * 0.45) * 28.0;
+      float ring = x * exp(-x * x) * (1.0 - age) * step(0.001, r);
+      tilt += o / max(r, 0.001) * ring;
+    }
+    N = normalize(vec3(tilt.x * 0.35 * uRain, 1.0, tilt.y * 0.35 * uRain));
+  }
+  // Reflection: the overcast sky is brighter than the haze it fades into
+  // (brightest overhead), so water shows a bright sky, not the grey haze.
+  vec3 R = reflect(-V, N);
+  float fr = 0.16 + 0.8 * pow(1.0 - clamp(dot(V, N), 0.0, 1.0), 3.0);
+  // Soft moving speckle from the drops, dimming the reflection a little.
   vec2 p = vW.xz * 3.0;
   float rip = sin(p.x + sin(p.y * 1.7 + uTime * 3.1) * 2.0) * sin(p.y * 1.3 + sin(p.x * 1.1 - uTime * 2.7) * 2.0);
-  float fr = 0.12 + 0.6 * pow(1.0 - clamp(V.y, 0.0, 1.0), 3.0);
-  fr = clamp(fr * (1.0 - 0.18 * uRain + 0.12 * rip * uRain), 0.0, 1.0);
-  vec3 col = mix(uDeep, uSky * 0.62, fr);
+  fr = clamp(fr * (1.0 - 0.12 * uRain + 0.1 * rip * uRain), 0.0, 1.0);
+  vec3 refl = uSky * vec3(0.95, 1.0, 1.06) * mix(0.98, 1.45, smoothstep(0.05, 0.6, R.y));
+  vec3 col = mix(uDeep, refl, fr);
   // Shallow edge: you see the mud through it.
   float shallow = smoothstep(0.0, 0.05, d);
   vec3 mud = uDeep * vec3(0.9, 0.82, 0.7);
   col = mix(mud, col, 0.55 + 0.45 * shallow);
-  float a = max(water * (0.78 + 0.18 * shallow), margin * (1.0 - water) * 0.38);
+  // The wet edge around the water, soaked darker.
+  float a = max(water * (0.8 + 0.18 * shallow), margin * (1.0 - water) * 0.6);
   vec3 c = mix(mud * 0.8, col, water);
   gl_FragColor = vec4(c, a);
   #include <tonemapping_fragment>
