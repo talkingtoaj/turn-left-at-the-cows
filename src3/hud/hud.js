@@ -1,5 +1,6 @@
 import { WORLD } from '../../src/world/world.js';
 import { state } from '../../src/state.js';
+import { repairCar } from '../../src/game/repair.js';
 import { runtime } from '../runtime.js';
 import { headingText, clockText, timerText } from '../../src/hud/format.js';
 import { noteLandmark } from '../../src/game/dialogue.js';
@@ -339,7 +340,23 @@ export function createHUD(root, { openMap } = {}) {
   // E on foot (round 12): facing a local, talk. Looking at a landmark with
   // a local beside you, ask them "What's that?". Looking at one alone, note
   // it in the notebook (its name if someone told you, else "Hm, what's that?").
+  // On foot facing a local, E talks to them even beside a garage.
+  function talkFirst() {
+    return !!(state.onFoot && state.nearLocalId);
+  }
+
+  function onRepairKey() {
+    const shop = state.nearRepair;
+    if (!shop || state.won || talkFirst()) return false;
+    const { minutes, line } = repairCar(state, shop);
+    state.nearRepair = null;
+    const who = shop.mechanic.charAt(0).toUpperCase() + shop.mechanic.slice(1);
+    talk.note(`${who}: "${line}"`, `${minutes} minutes later`);
+    return true;
+  }
+
   function onTalkKey() {
+    if (onRepairKey()) return;
     if (state.won || !state.onFoot) return;
     const local = state.nearLocalId && WORLD.locals.find((l) => l.id === state.nearLocalId);
     const look = state.lookAt;
@@ -535,7 +552,9 @@ export function createHUD(root, { openMap } = {}) {
 
   function updatePrompt() {
     let text = null;
-    if (!inDialogue() && !card && !help && !state.won && state.onFoot) {
+    const shop = !inDialogue() && !card && !help && !state.won && !talkFirst() ? state.nearRepair : null;
+    if (shop) text = `E: get the car fixed at ${shop.name} (${shop.kind === 'farm' ? 20 : 30} min)`;
+    else if (!inDialogue() && !card && !help && !state.won && state.onFoot) {
       const local = state.nearLocalId && WORLD.locals.find((l) => l.id === state.nearLocalId);
       const beside = state.nearLocalAny && WORLD.locals.find((l) => l.id === state.nearLocalAny);
       const look = state.lookAt;

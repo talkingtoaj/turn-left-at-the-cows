@@ -10,6 +10,7 @@
 
 import * as THREE from 'three';
 import { learnMentions, learnNearby } from '../src/game/dialogue.js';
+import { repairNear, needsRepair } from '../src/game/repair.js';
 import { trackRegion, collectKeep, disposeTracked } from './gpuTracker.js';
 import { WORLD, setRegion, REGIONS } from '../src/world/world.js';
 import { state } from '../src/state.js';
@@ -516,6 +517,10 @@ function frame(now) {
     }
     lastSignRead = state.nearSignId;
     if ((learnFrame++ & 7) === 0) learnNearby(state, viewer.x, viewer.y, WORLD);
+    // A garage (or farm workshop) in reach, the car stopped and needing work.
+    const shop = !state.won && !state.towing && (foot.active || Math.abs(car.speed) < 0.6)
+      ? repairNear(WORLD, viewer.x, viewer.y, foot.active) : null;
+    state.nearRepair = shop && needsRepair(state.damage) ? shop : null;
 
     // Waypoint snapshots and arrival at the current mission's goal (sets state.won).
     updateGame(state, dt);
@@ -638,6 +643,7 @@ function updateTips(dt) {
   c.driveTime = driveTime;
   c.rain = wetness.rain;
   c.damaged = Object.values(warningLights(state.damage)).some((v) => v > 0);
+  c.repairNear = !!state.nearRepair;
   c.namesShown = !!state.namesShown;
   c.talkedTo = state.talkedTo.size;
   c.sketchEmpty = !state.sketch.strokes.length && !state.sketch.stamps.length && !state.sketch.labels.length;

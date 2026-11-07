@@ -27,6 +27,7 @@ export const TIP_CONTEXT = {
   planeClue: false, // the planes are a clue in this mission
   rain: 0, // 0..1 how hard it rains
   damaged: false, // a warning light is on
+  repairNear: false, // stopped at a garage while the car needs work
   namesShown: false, // a conversation has underlined names on screen
   talkedTo: 0, // locals talked to this mission
   sketchEmpty: true, // nothing drawn on the map yet
@@ -53,6 +54,8 @@ export const TIPS = [
     when: (c) => !c.onFoot && !c.busy && c.rain > 0.3 && c.speed > 5 },
   { id: 'damage', max: 2, text: 'A warning light: amber means worn, red and blinking means bad. Go gently.',
     when: (c) => !c.busy && c.damaged },
+  { id: 'repair', max: 3, text: 'Warning light on? Stop at a gas station or garage in town and press E to get the car fixed.',
+    when: (c) => !c.busy && c.damaged && !c.onFoot && c.driveTime > 20 && !c.repairNear },
   { id: 'names', max: 3, text: 'Click a name or press 1-4 to ask about it.',
     when: (c) => c.namesShown },
   { id: 'sketch', max: 2, text: 'Press M to sketch what you heard.',
