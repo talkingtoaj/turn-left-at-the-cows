@@ -86,6 +86,7 @@ body[data-world="live"] .sp-paint { opacity: 0; }
 .sp-play b { font: 600 30px/1 Oswald, "Arial Narrow", Impact, sans-serif; letter-spacing: 0.06em; text-transform: uppercase; }
 .sp-play small { font: 15px/1.2 Georgia, serif; font-style: italic; max-width: 260px; }
 .sp-play:hover { background: #f0c463; }
+.sp-play:focus-visible { outline: 3px solid #f1ead6; outline-offset: 4px; }
 .sp-play:active { transform: translateY(3px); box-shadow: 0 1px 0 #9c7426, 0 4px 10px rgba(0,0,0,0.45); }
 .sp-play:disabled { cursor: progress; opacity: 0.85; }
 .sp-key { width: 48px; height: 48px; padding: 0; border-radius: 50%; border: 2px solid #4a4c51; cursor: pointer;
@@ -179,6 +180,7 @@ body[data-world="live"] .sp-paint { opacity: 0; }
   .sp-map { max-width: 100%; transform: none; }
   .sp-compass { width: 64px; height: 64px; right: -6px; bottom: -18px; }
   .sp-howto { position: fixed; inset: 10px; }
+  .sp-note { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .sp, .sp-paint, .sp-key svg, .sp-local, .sp-howto { transition: none !important; animation: none !important; }

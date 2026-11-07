@@ -17,11 +17,13 @@ import { timerText } from '../hud/format.js';
 const F = (x, y) => [30 + x * (480 / 6500), 70 + y * (360 / 3200)];
 const B = (x, y) => [592 + x * (210 / 4800), 216 + (y - 1700) * 0.1];
 
-// Where each job starts and where it ends, on the sheet.
+// Where each job starts and where it ends, on the sheet, and where its
+// pencilled label goes (next: beside the circle; best: beside the tick)
+// so labels keep clear of the printed names: [dx, dy, text-anchor].
 export const MAP_SPOTS = {
-  m1_parcel: { start: F(600, 2420), end: F(2670, 445), startName: 'Ashford' },
-  m2_cabin: { start: F(2670, 445), end: F(5880, 415), startName: 'Hartley Farm' },
-  m3_airfield: { start: B(250, 1690), end: B(3320, 1042), startName: 'Route 40' },
+  m1_parcel: { start: F(600, 2420), end: F(2670, 445), next: [26, -10, 'start'], best: [-14, 4, 'end'] },
+  m2_cabin: { start: F(2670, 445), end: F(5880, 415), next: [0, -28, 'middle'], best: [14, 4, 'start'] },
+  m3_airfield: { start: B(250, 1690), end: B(3320, 1042), next: [40, 42, 'middle'], best: [-14, 4, 'end'] },
 };
 
 const HWY9 = [[600, 2400], [911, 2323], [1207, 2241], [1515, 2249], [1823, 2196], [2142, 2117], [2408, 1987], [2411, 1661], [2392, 1363], [2372, 1065], [2317, 761], [2300, 700]];
@@ -88,7 +90,7 @@ export function mapSVG({ missions, done, next }) {
   out.push(`<path d="${pencil(HWY9.map((p) => F(...p)), r)}" class="mp-road"/>`);
   out.push(`<text class="mp-roadname" x="438" y="212" transform="rotate(-2 438 212)">ROUTE 40</text>`);
   out.push(`<text class="mp-roadname" x="196" y="250" transform="rotate(-90 196 250)">HWY 9</text>`);
-  out.push(`<text class="mp-hand mp-faint" x="531" y="246">22 km</text>`);
+  out.push(`<text class="mp-hand mp-faint" x="528" y="204">22 km</text>`);
   // Towns: a few pencil squares and a printed name.
   for (const [name, [x, y], small] of TOWNS) {
     const n = small ? 2 : 4;
@@ -112,13 +114,13 @@ export function mapSVG({ missions, done, next }) {
     if (rec) {
       const [x, y] = spot.end;
       g.push(`<path class="mp-tick" d="${pencil([[x - 9, y - 1], [x - 3, y + 7], [x + 11, y - 12]], r, 0.8)}"/>`);
-      g.push(`<text class="mp-hand mp-best" x="${x + 14}" y="${y + 4}">${i + 1}. ${esc(timerText(rec.bestMs))}</text>`);
+      const [dx, dy, anchor] = spot.best;
+      g.push(`<text class="mp-hand mp-best" x="${x + dx}" y="${y + dy}" text-anchor="${anchor}">${i + 1}. ${esc(timerText(rec.bestMs))}</text>`);
     } else if (i === next) {
       const [x, y] = spot.start;
       g.push(`<path class="mp-circle" d="${ring(x, y, 22, 16, r)}"/>`);
-      // Label to the right of the circle, or to its left near the sheet's edge.
-      const right = x < 560;
-      g.push(`<text class="mp-hand mp-next" x="${right ? x + 28 : x - 28}" y="${y + 6}" text-anchor="${right ? 'start' : 'end'}">${i + 1}. ${esc(m.title)}?</text>`);
+      const [dx, dy, anchor] = spot.next;
+      g.push(`<text class="mp-hand mp-next" x="${x + dx}" y="${y + dy}" text-anchor="${anchor}">${i + 1}. ${esc(m.title)}?</text>`);
     } else {
       const [x, y] = spot.start;
       g.push(`<circle class="mp-dot" cx="${x}" cy="${y}" r="2.5"/>`);

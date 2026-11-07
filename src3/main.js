@@ -577,6 +577,8 @@ export async function preloadMenu(index = 0, { live = true, still = false, rect 
   const m = MISSIONS[index];
   await loadRegion(m.region, m.title, { quiet: true });
   if (started || !live || regionId !== m.region) return;
+  // The weather follows this mission's timeline (startGame sets it properly).
+  state.missionIndex = index;
   menu = { at: { x: m.start.x, y: m.start.y }, yaw0: (m.start.heading || 0) * (Math.PI / 180), t: 0, frames: 0, still, rect, onReady };
   car3d.object.visible = false;
   exposeDebug();

@@ -80,7 +80,7 @@ const PAINTED = `<svg viewBox="0 0 1200 300" preserveAspectRatio="xMidYMax slice
   <g fill="#5e7350"><circle cx="210" cy="150" r="16"/><circle cx="232" cy="146" r="20"/><circle cx="256" cy="152" r="14"/>
     <circle cx="880" cy="128" r="14"/><circle cx="900" cy="124" r="18"/></g>
   <g transform="translate(700 150)"><rect x="0" y="-26" width="38" height="26" fill="#b3261e"/><path d="M-4,-26 L19,-44 L42,-26 Z" fill="#7c1812"/></g>
-  <g stroke="#4a4a48" stroke-width="2"><path d="M1040,150 L1052,40 L1064,150 M1044,120 L1060,120 M1047,90 L1057,90 M1050,62 L1055,62"/></g>
+  <g stroke="#4a4a48" stroke-width="2" fill="none"><path d="M1040,150 L1052,40 L1064,150 M1044,120 L1060,120 M1047,90 L1057,90 M1050,62 L1055,62"/></g>
   <circle cx="1052" cy="38" r="4" fill="#e04a3a"/>
   <g stroke="#6b5a42" stroke-width="3"><path d="M0,262 L1200,250"/><path d="M0,276 L1200,264"/>
     <path d="M60,250 v34 M200,248 v34 M340,246 v34 M480,245 v34 M620,244 v34 M760,242 v34 M900,240 v34 M1040,238 v34 M1180,236 v34"/></g>
