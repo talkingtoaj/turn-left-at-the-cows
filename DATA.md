@@ -1,6 +1,6 @@
 # World data, missions, dialogue and state
 
-Shared by both versions: Phaser 2D (`index.html`, `src/scenes/*`) and three.js 3D (`three.html`, `src3/*`).
+Used by the game (three.js, `index.html` and its alias `three.html`, `src3/*`). The old Phaser 2D version was dropped in Nov 2026.
 Read this before touching world data or game rules. No em dashes in code or text.
 
 ## Files

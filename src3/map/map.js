@@ -1,5 +1,5 @@
 // Map overlay for the three.js version: a DOM layer with one Canvas2D canvas.
-// It is a port of src/scenes/MapScene.js (Phaser) and looks and works the same:
+// It is a port of the old 2D map screen (removed Nov 2026) and works the same:
 //  - "My sketch": the player draws their own map from what locals said.
 //  - "Old county map": the printed 1987 map built from WORLD, with its lies.
 // Everything is laid out on a 960x640 logical surface that is scaled to fit

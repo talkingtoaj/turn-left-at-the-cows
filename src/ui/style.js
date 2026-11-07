@@ -1,4 +1,4 @@
-// Shared CSS for the DOM screens both versions use: splash, how-to-play
+// Shared CSS for the DOM screens: splash, how-to-play
 // panel and mission card. Paper map look: cream paper, dark ink, red marks.
 
 const CSS = `

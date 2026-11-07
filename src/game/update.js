@@ -1,5 +1,5 @@
-// Per-frame game rules shared by both versions (Phaser DriveScene and the
-// three.js main loop). Call updateGame(state, dt) every frame while not paused.
+// Per-frame game rules, engine-free. The three.js main loop calls
+// updateGame(state, dt) every frame while not paused.
 
 import { MISSIONS, currentMission, nextMission } from './missions.js';
 import { takeSnapshot, copySketch } from './snapshots.js';

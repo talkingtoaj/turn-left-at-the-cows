@@ -3,7 +3,7 @@
 // user activation from that click, so poke its gesture listener once the
 // game is in, and sound can start straight away.
 export function unlockAudioSoon() {
-  // Phaser makes its audio a frame or two after the import, so try a few times.
+  // Try a few times, in case the audio is made a frame or two after the import.
   for (const ms of [0, 300, 1000, 2500]) {
     setTimeout(() => {
       try {

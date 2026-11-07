@@ -1,5 +1,5 @@
 // three.js version: entry point. Renderer, world, car, camera, main loop.
-// Gameplay (physics, collisions, state updates) matches the Phaser DriveScene.
+// Gameplay (physics, collisions, state updates) is shared engine-free code in src/.
 
 import * as THREE from 'three';
 import { WORLD } from '../src/world/world.js';

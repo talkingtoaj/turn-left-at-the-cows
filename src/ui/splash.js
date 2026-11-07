@@ -15,7 +15,7 @@ export const STEPS = [
   ['Read the clues.', ' Road signs, the compass, the trip meter and the clock tell you where you are.'],
 ];
 
-// [keys, what it does, which version: null = both, '3d' = 3D only]
+// [keys, what it does, optional version it only applies to (unused since the 2D drop)]
 export const CONTROLS = [
   [['Arrows', 'WASD'], 'Drive'],
   [['Space'], 'Handbrake'],
@@ -24,8 +24,8 @@ export const CONTROLS = [
   [['M'], 'Map'],
   [['N'], 'North-up / heading-up'],
   [['K'], 'Mute'],
-  [['C'], 'Camera (3D only)', '3d'],
-  [['B'], 'Horn (3D only)', '3d'],
+  [['C'], 'Camera'],
+  [['B'], 'Horn'],
   [['H'], 'Help'],
   [['Enter'], 'Next mission'],
 ];
@@ -71,10 +71,6 @@ export function showSplash({ version, load }) {
   btn.id = 'splash-start';
   btn.type = 'button';
   el('span', 'ui-note', foot, 'or press Enter');
-  const link = el('div', 'ui-link', foot);
-  const other = version === '3d' ? { href: './', text: 'Play the 2D version' } : { href: './three.html', text: 'Play the 3D version' };
-  const a = el('a', null, link, other.text);
-  a.href = other.href;
 
   return new Promise((resolve) => {
     let started = false;
