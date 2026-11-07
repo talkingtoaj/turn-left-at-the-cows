@@ -8,7 +8,7 @@ import { generateScenery } from '../src/drive/layout.js';
 import { Collider } from '../src/drive/collider.js';
 import { stepCar } from '../src/drive/car.js';
 import { runtime } from './runtime.js';
-import { updateGame } from '../src/game/update.js';
+import { updateGame, jumpToMission } from '../src/game/update.js';
 import { createHUD } from './hud/hud.js';
 import { createMapOverlay } from './map/map.js';
 import { buildWorld3D } from './world3d/world3d.js';
@@ -327,4 +327,12 @@ window.__car3d = car3d;
 window.__wet = wetness;
 window.__rain3d = rain3d;
 
-requestAnimationFrame(frame);
+// Called by the start screen (src3/boot.js) with the mission to play:
+// Continue (the first unfinished one) or any finished one to replay.
+export async function startGame(index = 0) {
+  if (index !== state.missionIndex) {
+    jumpToMission(state, index);
+    if (spot) Object.assign(state.car, spot, { speed: 0 });
+  }
+  requestAnimationFrame(frame);
+}

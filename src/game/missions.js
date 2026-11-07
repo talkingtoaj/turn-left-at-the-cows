@@ -1,7 +1,10 @@
 // Missions, in play order. Plain data plus small lookup helpers.
 //
 // Mission fields:
-//   id, title
+//   id, title, region: from ./missionList.js (light list, same order)
+//   start: { x, y, heading } where the car starts when the mission is played
+//     on its own (Continue or Replay on the start screen). Played straight
+//     on from the mission before, it starts wherever that one ended.
 //   giverNpcId: who hands out the job (null for the first mission)
 //   brief: lines the giver says when the mission starts (shown by the HUD)
 //   goalTopic: topic id for "where am I going" (always offered when talking)
@@ -16,6 +19,7 @@
 //   always leave a way past, so they never change a route.
 
 import { WORLD } from '../world/world.js';
+import { MISSION_LIST } from './missionList.js';
 
 const place = (id) => {
   const p = WORLD.places.find((q) => q.id === id);
@@ -24,11 +28,11 @@ const place = (id) => {
 const bridge = (id) => WORLD.bridges.find((b) => b.id === id);
 const town = (id) => WORLD.towns.find((t) => t.id === id);
 
-export const MISSIONS = [
+const DETAILS = [
   {
     id: 'm1_parcel',
-    title: 'A Parcel for Hartley Farm',
     giverNpcId: null,
+    start: { x: WORLD.start.x, y: WORLD.start.y, heading: WORLD.start.heading },
     brief: [
       "There's a parcel for Hartley Farm on the seat beside you. No address, just the name.",
       "The old county map is in the glovebox. Earl at the gas station knows everybody. Ask him.",
@@ -49,8 +53,9 @@ export const MISSIONS = [
   },
   {
     id: 'm2_cabin',
-    title: "Tom's Pills",
     giverNpcId: 'hartley',
+    // In Hartley Farm's lane, by Mrs Hartley, facing back towards Millbrook.
+    start: { x: 2624, y: 476, heading: 236 },
     brief: [
       "Thank you for bringing that parcel, dear. Now, could I trouble you for one more?",
       "My son Tom is up at his cabin on Loon Pond, and there's no phone up there. These are his pills, and a pie. He'll have run out by now.",
@@ -81,6 +86,12 @@ export const MISSIONS = [
     printedMaps: ['hartley_sketch', 'county1987'],
   },
 ];
+
+export const MISSIONS = MISSION_LIST.map((m) => {
+  const d = DETAILS.find((q) => q.id === m.id);
+  if (!d) throw new Error(`mission ${m.id}: no details in missions.js`);
+  return { ...m, ...d };
+});
 
 
 export function currentMission(state) {
