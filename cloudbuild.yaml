@@ -76,3 +76,14 @@ steps:
       - --max-instances=4
       - --concurrency=80
       - --timeout=60
+
+  # Smoke Test on the real URL, once the new revision is serving. (The "smoke" step
+  # above only proves the image starts; this proves the deployed service answers.)
+  - id: smoke-live
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        URL=$$(gcloud run services describe ${_SERVICE_NAME} --region=${_REGION} --format='value(status.url)')
+        bash scripts/smoke.sh "$$URL"

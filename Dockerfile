@@ -26,7 +26,6 @@ RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev
 
 # ---- 3. Runtime ----
 FROM python:3.13-slim
-COPY --from=ghcr.io/astral-sh/uv:0.11 /uv /bin/
 RUN useradd --create-home --uid 10001 app
 WORKDIR /app/server
 COPY --from=deps /app/server/.venv /app/server/.venv
@@ -35,10 +34,10 @@ COPY server/mapshare ./mapshare
 COPY --from=web /web/dist /app/dist
 ENV PORT=8080 \
     DIST_DIR=/app/dist \
-    UV_NO_CACHE=1 \
-    UV_PYTHON_DOWNLOADS=never \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PATH="/app/server/.venv/bin:${PATH}"
 USER app
 EXPOSE 8080
-# No argv: `python -m mapshare` reads everything from the environment.
-CMD ["uv", "run", "--frozen", "--no-dev", "python", "-m", "mapshare"]
+# No argv: `python -m mapshare` reads everything from the environment. The venv is on
+# PATH, so this is its python; never `uv run` here, it re-checks on every cold start.
+CMD ["python", "-m", "mapshare"]
