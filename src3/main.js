@@ -529,7 +529,7 @@ function frame(now) {
       audio.thunder(s, ear);
     }
   }
-  lightning.update(runtime.paused ? 0 : dt, camera);
+  lightning.update(runtime.paused ? 0 : dt, camera, wetness.rain);
   // Sound every frame, even paused (it ducks while the map is open).
   audio.update(dt, state, amb, {
     paused: runtime.paused, rain: wetness, planes: planes ? planes.sound : null, tow: tow.sound,
@@ -547,7 +547,7 @@ function frame(now) {
     camera.far = far;
     camera.updateProjectionMatrix();
   }
-  if (look) look.update(state, wetness.rain, wetness.wet); // weather drift, rain
+  if (look) look.update(state, wetness.rain, wetness.wet, lightning ? lightning.storm : 0); // weather drift, rain, storm
   world3d.puddles.update(wetness.puddle, wetness.rain, now / 1000, scene.fog.color);
   rain3d.update(runtime.paused ? 0 : dt, now / 1000, camera, wetness.rain, scene.fog.color);
   world3d.update(now / 1000, dt, foot.active ? viewer : car, rig.focus, rig.shadowRadius, camera, amb);
@@ -813,6 +813,8 @@ export async function startGame(index = 0) {
   }
   last = performance.now();
   startLoop();
+  // The sharp sky downloads now and swaps in when it is here (SPEC 9n).
+  if (look) look.sharpenSky();
   console.info(`[start] driving ${Math.round(performance.now() - t0)} ms after Start`);
 }
 

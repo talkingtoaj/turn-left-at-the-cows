@@ -380,8 +380,14 @@ void main() {
   float u = atan(d.z, d.x) * 0.15915494 + 0.5;
   float v = clamp(asin(clamp(d.y, -1.0, 1.0)) / 1.5707963, 0.0, 1.0);
   vec2 uv = vec2(u, v);
-  vec3 cs = skyMix < 0.999 ? texture2D(skyS, uv).rgb * bgS : vec3(0.0);
-  vec3 cc = skyMix > 0.001 ? texture2D(skyC, uv).rgb * bgC : vec3(0.0);
+  // Mip level from derivatives that ignore the jump where u wraps (else the
+  // sharp sky's mipmaps would draw a seam there).
+  float u2 = fract(u + 0.5);
+  float ux = dFdx(u), uy = dFdy(u), ux2 = dFdx(u2), uy2 = dFdy(u2);
+  vec2 gx = vec2(abs(ux) < abs(ux2) ? ux : ux2, dFdx(v));
+  vec2 gy = vec2(abs(uy) < abs(uy2) ? uy : uy2, dFdy(v));
+  vec3 cs = skyMix < 0.999 ? textureGrad(skyS, uv, gx, gy).rgb * bgS : vec3(0.0);
+  vec3 cc = skyMix > 0.001 ? textureGrad(skyC, uv, gx, gy).rgb * bgC : vec3(0.0);
   // The clear photo is a dull steel blue after the look's desaturation: give
   // it back some blue.
   cs = max(mix(vec3(dot(cs, vec3(0.2126, 0.7152, 0.0722))), cs, 1.45), 0.0);
@@ -394,6 +400,8 @@ void main() {
   gl_FragColor = vec4(c, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
+  // A little dither so the smooth blues do not band into steps.
+  gl_FragColor.rgb += (fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) / 255.0;
 }`,
     side: THREE.BackSide,
     depthWrite: false,
