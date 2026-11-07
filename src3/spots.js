@@ -1,6 +1,8 @@
-// Dev review spots: three.html?spot=<name> starts the car at a named place.
+// Dev review spots: ?spot=<name> starts the car at a named place.
 // Each spot is a point; the car goes on the nearest road (or the given road)
 // there, keeping right, facing `toward` (or along the road).
+// `region` (default 'fenwick'): the region the spot is in. A spot in another
+// region than the mission picked starts that region's first mission instead.
 
 import { nearestOnPolyline, headingOf } from '../src/drive/geom.js';
 
@@ -17,10 +19,17 @@ export const SPOTS = {
   plowed: { at: [2400, 1255], road: 'hwy9', toward: [2400, 1100] }, // plowed field by Highway 9 (pf_5)
 };
 
+// Region id of a named spot, or null (unknown name, or x,y,heading).
+export function spotRegion(name) {
+  const s = SPOTS[name];
+  return s ? s.region || 'fenwick' : null;
+}
+
 // { x, y, heading } for a spot name, or null.
 export function spotFor(name, world) {
   const s = SPOTS[name];
   if (!s) return null;
+  if ((s.region || 'fenwick') !== (world.regionId || 'fenwick')) return null;
   if (s.start) return { x: world.start.x, y: world.start.y, heading: world.start.heading };
   const roads = s.road ? world.roads.filter((r) => r.id === s.road) : world.roads;
   let best = null;

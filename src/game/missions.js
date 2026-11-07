@@ -18,21 +18,25 @@
 //   No mission closes a road: the fixed fallen trees (src/world/fallenTrees.js)
 //   always leave a way past, so they never change a route.
 
-import { WORLD } from '../world/world.js';
+import { regionWorld } from '../world/world.js';
 import { MISSION_LIST } from './missionList.js';
 
-const place = (id) => {
-  const p = WORLD.places.find((q) => q.id === id);
-  return { x: p.x, y: p.y, r: p.r, name: p.name };
-};
-const bridge = (id) => WORLD.bridges.find((b) => b.id === id);
-const town = (id) => WORLD.towns.find((t) => t.id === id);
+// Lookups into one region's built world. Each mission's details are made on
+// first use (see MISSIONS below), so only the regions actually played get built.
+const lookups = (W) => ({
+  W,
+  place(id) {
+    const p = W.places.find((q) => q.id === id);
+    return { x: p.x, y: p.y, r: p.r, name: p.name };
+  },
+  bridge: (id) => W.bridges.find((b) => b.id === id),
+  town: (id) => W.towns.find((t) => t.id === id),
+});
 
-const DETAILS = [
-  {
-    id: 'm1_parcel',
+const DETAILS = {
+  m1_parcel: ({ W, place, bridge }) => ({
     giverNpcId: null,
-    start: { x: WORLD.start.x, y: WORLD.start.y, heading: WORLD.start.heading },
+    start: { x: W.start.x, y: W.start.y, heading: W.start.heading },
     brief: [
       "There's a parcel for Hartley Farm on the seat beside you. No address, just the name.",
       "The old county map is in the glovebox. Earl at the gas station knows everybody. Ask him.",
@@ -50,9 +54,8 @@ const DETAILS = [
     arrivalLabel: 'Map on arrival at Hartley Farm',
     finalLabel: 'Final map: Hartley Farm',
     printedMaps: ['county1987'],
-  },
-  {
-    id: 'm2_cabin',
+  }),
+  m2_cabin: ({ place, bridge, town }) => ({
     giverNpcId: 'hartley',
     // In Hartley Farm's lane, by Mrs Hartley, facing back towards Millbrook.
     start: { x: 2624, y: 476, heading: 236 },
@@ -84,13 +87,30 @@ const DETAILS = [
     arrivalLabel: "Map on arrival at Tom's cabin",
     finalLabel: "Final map: Tom's cabin",
     printedMaps: ['hartley_sketch', 'county1987'],
-  },
-];
+  }),
+};
 
+// Lists a mission's detail keys without building its region.
+const PROBE = {
+  W: { start: {} },
+  place: () => ({}),
+  bridge: () => ({}),
+  town: () => ({}),
+};
+
+// MISSIONS[i] has the light fields (id, title, region) now and the rest
+// (brief, goal, start, waypoints, ...) from DETAILS on first read, built
+// against the mission's own region.
 export const MISSIONS = MISSION_LIST.map((m) => {
-  const d = DETAILS.find((q) => q.id === m.id);
-  if (!d) throw new Error(`mission ${m.id}: no details in missions.js`);
-  return { ...m, ...d };
+  const make = DETAILS[m.id];
+  if (!make) throw new Error(`mission ${m.id}: no details in missions.js`);
+  const out = { ...m };
+  let d = null;
+  const details = () => (d ||= make(lookups(regionWorld(m.region))));
+  for (const key of Object.keys(make(PROBE))) {
+    Object.defineProperty(out, key, { enumerable: true, get: () => details()[key] });
+  }
+  return out;
 });
 
 

@@ -45,6 +45,7 @@ const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 // opts.weather (3D): also load and play the rain sounds; update() then
 // takes opts.rain = { rain, wet } each frame (src/game/wetness.js).
 export function createAudio(world, opts = {}) {
+  // world is swapped by setWorld() when the game moves to another region.
   const withWeather = !!opts.weather;
   let ctx = null;
   let muted = false;
@@ -68,7 +69,8 @@ export function createAudio(world, opts = {}) {
   let talk = null; // { npcId, src, g, until }
   const chatter = new Map(); // npcId -> { src, g, pan, on, t }
 
-  const water = (world.creeks || []).filter((c) => !world.ambient || !world.ambient.waterSounds || world.ambient.waterSounds.includes(c.id));
+  const waterOf = (w) => (w.creeks || []).filter((c) => !w.ambient || !w.ambient.waterSounds || w.ambient.waterSounds.includes(c.id));
+  let water = waterOf(world);
 
   function gesture() {
     try {
@@ -642,6 +644,14 @@ export function createAudio(world, opts = {}) {
     toggleMute() {
       muted = !muted;
       return muted;
+    },
+    // The game moved to another region (src/world/regions.js): its creeks
+    // and towns are the water and town sounds from now on.
+    setWorld(w) {
+      world = w;
+      water = waterOf(w);
+      for (const c of chatter.values()) stopVoice(c, 0.1);
+      chatter.clear();
     },
     get muted() {
       return muted;

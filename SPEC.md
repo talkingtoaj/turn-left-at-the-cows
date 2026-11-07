@@ -244,3 +244,8 @@ Middle path between low-poly and realistic, no 3D artist needed:
 - **CC0 tree models are the default.** `?trees=old` keeps the code-made ones.
 - **Surface feel tuning stays** (dirt safe speed 58 km/h, grass 32 km/h) until a mission has been played.
 - **Cars get more detail and textures,** the player's car first: an era-fitting late-80s car, more shape detail and real materials, keeping dents, tilt, wheels and the flat tyre. Traffic cars get variety too.
+
+### 9j. Round 10 decisions (Nov 2026)
+- **2D dropped.** See section 2.
+- **Saved progress** in the browser (`localStorage`, key `askalocal.progress.v1`): finished missions with best time and distance. The start screen lists them with ticks, Continue plays the first unfinished one, any finished one can be replayed. `?reset=progress` clears it. Logic in `src/game/progress.js` (engine-free) for the coming splash redesign.
+- **Regions.** The world is a set of regions joined in fiction by road (`src/world/regions.js`), each with its own data and seed. Every mission names its region; starting it builds only that region behind a short load screen, and leaving a region frees everything it put on the GPU, so memory stays flat. Region 1 is the old 6.5 x 3.2 km map, unchanged.

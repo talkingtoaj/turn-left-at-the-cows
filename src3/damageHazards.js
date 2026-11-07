@@ -66,18 +66,17 @@ export function createDamageHazards({ scene, scenery, collider, amb, world3d, ri
   // Horn: B. One honk per press; animals and slow vehicles ahead may react.
   let hornCool = 0;
   let honkNow = false;
-  window.addEventListener('keydown', (e) => {
+  const onHornKey = (e) => {
     if (e.code !== 'KeyB' || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
     const t = e.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
     honkNow = true;
-  });
-
-  if (devHazard) {
-    window.addEventListener('keydown', (e) => {
-      if (e.code === 'KeyG' && !e.repeat) pendingSpawn = devHazard;
-    });
-  }
+  };
+  window.addEventListener('keydown', onHornKey);
+  const onSpawnKey = (e) => {
+    if (e.code === 'KeyG' && !e.repeat) pendingSpawn = devHazard;
+  };
+  if (devHazard) window.addEventListener('keydown', onSpawnKey);
 
   // Fallen tree review: start on its road 45 m short of it, facing it.
   const placeFallen = () => {
@@ -93,6 +92,11 @@ export function createDamageHazards({ scene, scenery, collider, amb, world3d, ri
   const dh = {
     hz,
     group: hz3d.group,
+    // Leaving the region (src3/main.js): stop listening for keys.
+    dispose() {
+      window.removeEventListener('keydown', onHornKey);
+      window.removeEventListener('keydown', onSpawnKey);
+    },
     mods() {
       damageMods(state.damage, mods);
       mods.surfaceFeel = true; // surfaces change grip and drag, not top speed (car.js)

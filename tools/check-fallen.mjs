@@ -20,9 +20,10 @@
 // width to every other solid thing, so none ever closes a way through
 // (tools/scatter-checks.mjs).
 //
+// Every region (src/world/regions.js) is checked in turn.
 // Exits 1 when any check fails.
 
-import { WORLD } from '../src/world/world.js';
+import { setRegion, REGION_IDS, REGIONS } from '../src/world/world.js';
 import { generateScenery } from '../src/drive/layout.js';
 import { Collider, CAR_R } from '../src/drive/collider.js';
 import { createHazards } from '../src/ambient/hazards.js';
@@ -36,117 +37,123 @@ const CORRIDOR = 8; // m past the road edge the way past may use
 const CLEAR = CAR_R * 1.15; // footprint radius: the car's half width plus a little
 const CELL = 0.5;
 
-const t0 = Date.now();
-const scenery = generateScenery(WORLD);
-const collider = new Collider(WORLD, scenery);
-const bare = new Collider(WORLD, scenery); // without the scatter, for the gap check
-const scatter = scatterFor(WORLD, scenery);
-for (const s of scatter.solids) collider.addCircle(s);
-collider.addSurfaceEvents(scatter.surface);
-const hz = createHazards(WORLD, scenery);
+let failedRegions = 0;
+for (const id of REGION_IDS) {
+  const WORLD = setRegion(id);
+  console.log(`\n=== Region ${id} (${REGIONS[id].name}) ===`);
+  const t0 = Date.now();
+  const scenery = generateScenery(WORLD);
+  const collider = new Collider(WORLD, scenery);
+  const bare = new Collider(WORLD, scenery); // without the scatter, for the gap check
+  const scatter = scatterFor(WORLD, scenery);
+  for (const s of scatter.solids) collider.addCircle(s);
+  collider.addSurfaceEvents(scatter.surface);
+  const hz = createHazards(WORLD, scenery);
 
-const N8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+  const N8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
 
-function wayPast(f) {
-  const road = WORLD.roads.find((r) => r.id === f.roadId);
-  const cum = measurePolyline(road.points);
-  const L = cum[cum.length - 1];
-  const a = pointAlong(road.points, cum, Math.max(0, f.at - APPROACH));
-  const z = pointAlong(road.points, cum, Math.min(L, f.at + APPROACH));
-  const mid = pointAlong(road.points, cum, f.at);
-  const half = road.width / 2 + CORRIDOR;
-  const span = APPROACH + half + 4;
-  const ox = mid.x - span;
-  const oy = mid.y - span;
-  const side = Math.ceil((2 * span) / CELL);
-  const state = new Uint8Array(side * side); // 0 unknown, 1 open, 2 shut
-  const hitTree = (x, y) => f.solids.some((s) => (s.x - x) ** 2 + (s.y - y) ** 2 < (s.r + CLEAR) ** 2);
-  const open = (ix, iy) => {
-    if (ix < 0 || iy < 0 || ix >= side || iy >= side) return false;
-    const k = iy * side + ix;
-    if (!state[k]) {
-      const x = ox + (ix + 0.5) * CELL;
-      const y = oy + (iy + 0.5) * CELL;
-      const ok = distToPolyline(x, y, road.points) <= half && !hitTree(x, y) && collider.circleHit(x, y, CLEAR) === null;
-      state[k] = ok ? 1 : 2;
+  function wayPast(f) {
+    const road = WORLD.roads.find((r) => r.id === f.roadId);
+    const cum = measurePolyline(road.points);
+    const L = cum[cum.length - 1];
+    const a = pointAlong(road.points, cum, Math.max(0, f.at - APPROACH));
+    const z = pointAlong(road.points, cum, Math.min(L, f.at + APPROACH));
+    const mid = pointAlong(road.points, cum, f.at);
+    const half = road.width / 2 + CORRIDOR;
+    const span = APPROACH + half + 4;
+    const ox = mid.x - span;
+    const oy = mid.y - span;
+    const side = Math.ceil((2 * span) / CELL);
+    const state = new Uint8Array(side * side); // 0 unknown, 1 open, 2 shut
+    const hitTree = (x, y) => f.solids.some((s) => (s.x - x) ** 2 + (s.y - y) ** 2 < (s.r + CLEAR) ** 2);
+    const open = (ix, iy) => {
+      if (ix < 0 || iy < 0 || ix >= side || iy >= side) return false;
+      const k = iy * side + ix;
+      if (!state[k]) {
+        const x = ox + (ix + 0.5) * CELL;
+        const y = oy + (iy + 0.5) * CELL;
+        const ok = distToPolyline(x, y, road.points) <= half && !hitTree(x, y) && collider.circleHit(x, y, CLEAR) === null;
+        state[k] = ok ? 1 : 2;
+      }
+      return state[k] === 1;
+    };
+    const cellOf = (p) => [Math.floor((p.x - ox) / CELL), Math.floor((p.y - oy) / CELL)];
+    const seed = (p) => {
+      const [cx, cy] = cellOf(p);
+      for (let r = 0; r <= 8; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (open(cx + dx, cy + dy)) return [cx + dx, cy + dy];
+      return null;
+    };
+    const s = seed(a);
+    const t = seed(z);
+    if (!s || !t) return { ok: false, note: 'road blocked at the approach points' };
+    const seen = new Uint8Array(side * side);
+    const queue = [s];
+    seen[s[1] * side + s[0]] = 1;
+    for (let qi = 0; qi < queue.length; qi++) {
+      const [x, y] = queue[qi];
+      if (x === t[0] && y === t[1]) return { ok: true };
+      for (const [dx, dy] of N8) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= side || ny >= side || seen[ny * side + nx]) continue;
+        if (dx && dy && !(open(x + dx, y) && open(x, y + dy))) continue;
+        if (!open(nx, ny)) continue;
+        seen[ny * side + nx] = 1;
+        queue.push([nx, ny]);
+      }
     }
-    return state[k] === 1;
-  };
-  const cellOf = (p) => [Math.floor((p.x - ox) / CELL), Math.floor((p.y - oy) / CELL)];
-  const seed = (p) => {
-    const [cx, cy] = cellOf(p);
-    for (let r = 0; r <= 8; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (open(cx + dx, cy + dy)) return [cx + dx, cy + dy];
-    return null;
-  };
-  const s = seed(a);
-  const t = seed(z);
-  if (!s || !t) return { ok: false, note: 'road blocked at the approach points' };
-  const seen = new Uint8Array(side * side);
-  const queue = [s];
-  seen[s[1] * side + s[0]] = 1;
-  for (let qi = 0; qi < queue.length; qi++) {
-    const [x, y] = queue[qi];
-    if (x === t[0] && y === t[1]) return { ok: true };
-    for (const [dx, dy] of N8) {
-      const nx = x + dx;
-      const ny = y + dy;
-      if (nx < 0 || ny < 0 || nx >= side || ny >= side || seen[ny * side + nx]) continue;
-      if (dx && dy && !(open(x + dx, y) && open(x, y + dy))) continue;
-      if (!open(nx, ny)) continue;
-      seen[ny * side + nx] = 1;
-      queue.push([nx, ny]);
-    }
+    return { ok: false, note: 'no way past' };
   }
-  return { ok: false, note: 'no way past' };
-}
 
-// How much of the road's width the trunk covers (m), sampled across it.
-function covered(f) {
-  const road = WORLD.roads.find((r) => r.id === f.roadId);
-  let onRoad = 0;
-  for (const s of f.solids) if (distToPolyline(s.x, s.y, road.points) < road.width / 2) onRoad++;
-  return onRoad;
-}
+  // How much of the road's width the trunk covers (m), sampled across it.
+  function covered(f) {
+    const road = WORLD.roads.find((r) => r.id === f.roadId);
+    let onRoad = 0;
+    for (const s of f.solids) if (distToPolyline(s.x, s.y, road.points) < road.width / 2) onRoad++;
+    return onRoad;
+  }
 
-const goals = [];
-for (const m of MISSIONS) if (m.goal) goals.push(m.goal);
-for (const p of WORLD.places || []) goals.push(p);
+  const goals = [];
+  for (const m of MISSIONS) if (m.region === id && m.goal) goals.push(m.goal);
+  for (const p of WORLD.places || []) goals.push(p);
 
-let bad = 0;
-console.log(`Fallen tree check: ${hz.fallen.length} fixed fallen trees (way past at ${(2 * CLEAR).toFixed(2)} m wide within ${CORRIDOR} m of the road edge)`);
-if (hz.fallen.length < 4) {
-  console.log(`  FAIL only ${hz.fallen.length} fallen trees placed (want 4 or more)`);
-  bad++;
-}
-for (const f of hz.fallen) {
-  const road = WORLD.roads.find((r) => r.id === f.roadId);
-  const fails = [];
-  const w = wayPast(f);
-  if (!w.ok) fails.push(w.note);
-  if (!covered(f)) fails.push('trunk does not reach the road');
-  const baseD = distToPolyline(f.x, f.y, road.points);
-  if (baseD < road.width / 2 + 4) fails.push('base on or by the road');
-  if (collider.onIntactBridge && collider.onIntactBridge(f.x, f.y)) fails.push('base on a bridge');
-  const wet = collider.circleHit(f.x, f.y, 2);
-  if (wet === 'water' || wet === 'lake') fails.push('base in water');
-  for (const fl of WORLD.fields || []) if (pointInPolygon(f.x, f.y, fl.polygon)) fails.push('base in a field');
-  const treesNear = scenery.trees.filter((t) => Math.hypot(t.x - f.x, t.y - f.y) < 25).length;
-  const forest = (WORLD.forests || []).some((fo) => pointInPolygon(f.x, f.y, fo.polygon));
-  if (!treesNear && !forest && !f.tree.windbreak) fails.push('no trees or woods near its base');
-  if (Math.hypot(f.x - WORLD.start.x, f.y - WORLD.start.y) < 300) fails.push('too close to the start');
-  for (const g of goals) if (Math.hypot(f.x - g.x, f.y - g.y) < 200) fails.push(`too close to ${g.name || g.id}`);
-  const where = `${f.id}: ${f.roadId} at ${Math.round(f.at)} m, base (${f.x.toFixed(0)}, ${f.y.toFixed(0)}) ${baseD.toFixed(1)} m from the centre, ${f.kind} ${f.h.toFixed(0)} m, gap ${f.gap.toFixed(1)} m of road, ${treesNear} trees within 25 m${forest ? ', in a forest' : ''}${f.tree.windbreak ? ', windbreak' : ''}`;
-  if (fails.length) {
+  let bad = 0;
+  console.log(`Fallen tree check: ${hz.fallen.length} fixed fallen trees (way past at ${(2 * CLEAR).toFixed(2)} m wide within ${CORRIDOR} m of the road edge)`);
+  if (hz.fallen.length < 4) {
+    console.log(`  FAIL only ${hz.fallen.length} fallen trees placed (want 4 or more)`);
     bad++;
-    console.log(`  FAIL ${where}: ${fails.join('; ')}`);
-  } else console.log(`  ok   ${where}`);
+  }
+  for (const f of hz.fallen) {
+    const road = WORLD.roads.find((r) => r.id === f.roadId);
+    const fails = [];
+    const w = wayPast(f);
+    if (!w.ok) fails.push(w.note);
+    if (!covered(f)) fails.push('trunk does not reach the road');
+    const baseD = distToPolyline(f.x, f.y, road.points);
+    if (baseD < road.width / 2 + 4) fails.push('base on or by the road');
+    if (collider.onIntactBridge && collider.onIntactBridge(f.x, f.y)) fails.push('base on a bridge');
+    const wet = collider.circleHit(f.x, f.y, 2);
+    if (wet === 'water' || wet === 'lake') fails.push('base in water');
+    for (const fl of WORLD.fields || []) if (pointInPolygon(f.x, f.y, fl.polygon)) fails.push('base in a field');
+    const treesNear = scenery.trees.filter((t) => Math.hypot(t.x - f.x, t.y - f.y) < 25).length;
+    const forest = (WORLD.forests || []).some((fo) => pointInPolygon(f.x, f.y, fo.polygon));
+    if (!treesNear && !forest && !f.tree.windbreak) fails.push('no trees or woods near its base');
+    if (Math.hypot(f.x - WORLD.start.x, f.y - WORLD.start.y) < 300) fails.push('too close to the start');
+    for (const g of goals) if (Math.hypot(f.x - g.x, f.y - g.y) < 200) fails.push(`too close to ${g.name || g.id}`);
+    const where = `${f.id}: ${f.roadId} at ${Math.round(f.at)} m, base (${f.x.toFixed(0)}, ${f.y.toFixed(0)}) ${baseD.toFixed(1)} m from the centre, ${f.kind} ${f.h.toFixed(0)} m, gap ${f.gap.toFixed(1)} m of road, ${treesNear} trees within 25 m${forest ? ', in a forest' : ''}${f.tree.windbreak ? ', windbreak' : ''}`;
+    if (fails.length) {
+      bad++;
+      console.log(`  FAIL ${where}: ${fails.join('; ')}`);
+    } else console.log(`  ok   ${where}`);
+  }
+  const sw = scatterWayProblems(WORLD, scenery, bare, 2 * CLEAR);
+  console.log(`Scatter rocks: ${sw.solid} solid; each keeps ${(2 * CLEAR).toFixed(2)} m (a car) from every other solid thing and stays off roads, tracks and yards`);
+  for (const p of sw.problems.slice(0, 25)) console.log(`  FAIL ${p.id} at ${p.x},${p.y}: ${p.type} (${p.by} m)`);
+  if (sw.problems.length) {
+    console.log(`  ${sw.problems.length} scatter rock problems`);
+    bad++;
+  } else console.log('  ok   no scatter rock closes a way');
+  console.log(`${bad ? `${bad} FAILED` : 'OK: there is a way past every fallen tree, and no scatter rock closes a way'} (${((Date.now() - t0) / 1000).toFixed(1)} s)`);
+  if (bad) failedRegions++;
 }
-const sw = scatterWayProblems(WORLD, scenery, bare, 2 * CLEAR);
-console.log(`Scatter rocks: ${sw.solid} solid; each keeps ${(2 * CLEAR).toFixed(2)} m (a car) from every other solid thing and stays off roads, tracks and yards`);
-for (const p of sw.problems.slice(0, 25)) console.log(`  FAIL ${p.id} at ${p.x},${p.y}: ${p.type} (${p.by} m)`);
-if (sw.problems.length) {
-  console.log(`  ${sw.problems.length} scatter rock problems`);
-  bad++;
-} else console.log('  ok   no scatter rock closes a way');
-console.log(`${bad ? `${bad} FAILED` : 'OK: there is a way past every fallen tree, and no scatter rock closes a way'} (${((Date.now() - t0) / 1000).toFixed(1)} s)`);
-process.exit(bad ? 1 : 0);
+process.exit(failedRegions ? 1 : 0);
