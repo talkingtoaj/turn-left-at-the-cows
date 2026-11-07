@@ -1,10 +1,11 @@
-// Per-frame game rules shared by both versions (Phaser DriveScene and the
-// three.js main loop). Call updateGame(state, dt) every frame while not paused.
+// Per-frame game rules, engine-free. The three.js main loop calls
+// updateGame(state, dt) every frame while not paused.
 
 import { MISSIONS, currentMission, nextMission } from './missions.js';
 import { takeSnapshot, copySketch } from './snapshots.js';
 import { getNpc } from './dialogue.js';
 import { resetDamage } from './damage.js';
+import { recordFinish } from './progress.js';
 
 // Waypoint snapshots and goal arrival. Sets state.won on arrival.
 export function updateGame(state, _dt) {
@@ -22,6 +23,8 @@ export function updateGame(state, _dt) {
   if (!state.won && Math.hypot(x - m.goal.x, y - m.goal.y) <= m.goal.r) {
     takeSnapshot(state, m.arrivalLabel, { kind: 'arrival' });
     state.won = true;
+    // Saved progress (src/game/progress.js): ticks it on the start screen.
+    state.lastRecord = recordFinish(m.id, { elapsedMs: state.elapsedMs, odometer: state.odometer });
   }
 }
 
@@ -71,6 +74,30 @@ export function finishMission(state) {
   state.talkedTo.clear();
   state.inputLocked = false;
   return startMission(state, state.missionIndex + 1);
+}
+
+// Plays mission `index` on its own (start screen: Continue or Replay): a
+// clean slate (nothing heard, nothing drawn, trip meter and timer at zero),
+// the car at the mission's own start, then startMission as usual.
+export function jumpToMission(state, index) {
+  const m = MISSIONS[index];
+  if (!m) return null;
+  state.knownTopics.clear();
+  state.notebook.length = 0;
+  state.talkedTo.clear();
+  state.waypointsReached.clear();
+  state.snapshots.length = 0;
+  state.sketchArchive.length = 0;
+  state.sketch.strokes = [];
+  state.sketch.stamps = [];
+  state.sketch.labels = [];
+  state.sketchEpoch++;
+  state.odometer = 0;
+  state.elapsedMs = 0;
+  state.allMissionsDone = false;
+  state.inputLocked = false;
+  Object.assign(state.car, m.start, { speed: 0 });
+  return startMission(state, index);
 }
 
 // After a breakdown: the car is towed back to where this mission started,

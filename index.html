@@ -6,12 +6,16 @@
   <title>Ask a Local</title>
   <link rel="icon" href="data:," />
   <style>
-    html, body { margin: 0; height: 100%; background: #1b1b1b; }
-    body { display: flex; align-items: center; justify-content: center; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #1b1b1b; }
+    #app { position: fixed; inset: 0; }
+    #app canvas { display: block; }
+    #ui { position: fixed; inset: 0; pointer-events: none; }
+    #ui > * { pointer-events: auto; }
   </style>
 </head>
 <body>
-  <div id="game"></div>
-  <script type="module" src="/src/boot.js"></script>
+  <div id="app"></div>
+  <div id="ui"></div>
+  <script type="module" src="/src3/boot.js"></script>
 </body>
 </html>

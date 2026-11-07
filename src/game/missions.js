@@ -1,7 +1,10 @@
 // Missions, in play order. Plain data plus small lookup helpers.
 //
 // Mission fields:
-//   id, title
+//   id, title, region: from ./missionList.js (light list, same order)
+//   start: { x, y, heading } where the car starts when the mission is played
+//     on its own (Continue or Replay on the start screen). Played straight
+//     on from the mission before, it starts wherever that one ended.
 //   giverNpcId: who hands out the job (null for the first mission)
 //   brief: lines the giver says when the mission starts (shown by the HUD)
 //   goalTopic: topic id for "where am I going" (always offered when talking)
@@ -15,20 +18,25 @@
 //   No mission closes a road: the fixed fallen trees (src/world/fallenTrees.js)
 //   always leave a way past, so they never change a route.
 
-import { WORLD } from '../world/world.js';
+import { regionWorld } from '../world/world.js';
+import { MISSION_LIST } from './missionList.js';
 
-const place = (id) => {
-  const p = WORLD.places.find((q) => q.id === id);
-  return { x: p.x, y: p.y, r: p.r, name: p.name };
-};
-const bridge = (id) => WORLD.bridges.find((b) => b.id === id);
-const town = (id) => WORLD.towns.find((t) => t.id === id);
+// Lookups into one region's built world. Each mission's details are made on
+// first use (see MISSIONS below), so only the regions actually played get built.
+const lookups = (W) => ({
+  W,
+  place(id) {
+    const p = W.places.find((q) => q.id === id);
+    return { x: p.x, y: p.y, r: p.r, name: p.name };
+  },
+  bridge: (id) => W.bridges.find((b) => b.id === id),
+  town: (id) => W.towns.find((t) => t.id === id),
+});
 
-export const MISSIONS = [
-  {
-    id: 'm1_parcel',
-    title: 'A Parcel for Hartley Farm',
+const DETAILS = {
+  m1_parcel: ({ W, place, bridge }) => ({
     giverNpcId: null,
+    start: { x: W.start.x, y: W.start.y, heading: W.start.heading },
     brief: [
       "There's a parcel for Hartley Farm on the seat beside you. No address, just the name.",
       "The old county map is in the glovebox. Earl at the gas station knows everybody. Ask him.",
@@ -46,11 +54,11 @@ export const MISSIONS = [
     arrivalLabel: 'Map on arrival at Hartley Farm',
     finalLabel: 'Final map: Hartley Farm',
     printedMaps: ['county1987'],
-  },
-  {
-    id: 'm2_cabin',
-    title: "Tom's Pills",
+  }),
+  m2_cabin: ({ place, bridge, town }) => ({
     giverNpcId: 'hartley',
+    // In Hartley Farm's lane, by Mrs Hartley, facing back towards Millbrook.
+    start: { x: 2624, y: 476, heading: 236 },
     brief: [
       "Thank you for bringing that parcel, dear. Now, could I trouble you for one more?",
       "My son Tom is up at his cabin on Loon Pond, and there's no phone up there. These are his pills, and a pie. He'll have run out by now.",
@@ -79,8 +87,61 @@ export const MISSIONS = [
     arrivalLabel: "Map on arrival at Tom's cabin",
     finalLabel: "Final map: Tom's cabin",
     printedMaps: ['hartley_sketch', 'county1987'],
-  },
-];
+  }),
+  // Region 2 (Brandt). Tom is not a local you can talk to: his name is on the card.
+  m3_airfield: ({ W, place, town }) => ({
+    giverNpcId: null,
+    giverName: 'Tom Hartley',
+    // Route 40 at the county line, driving east from Fenwick County.
+    start: { x: W.start.x, y: W.start.y, heading: W.start.heading },
+    brief: [
+      "Pills and a pie. Mum thinks of everything. Since you've got the car and I've got this knee, could you run one more errand?",
+      "This magneto belongs to Ray Kessler. He flies out of a little grass airfield over Brandt way, east along Route 40. His plane won't start without it.",
+      "I've only ever flown over the place, years ago, never driven there. Ask in Brandt. And keep your ears open.",
+    ],
+    goalTopic: 'kestrel_field',
+    startTopics: ['kestrel_field', 'brandt', 'rt40'],
+    goal: place('kestrel_field'),
+    waypoints: [
+      {
+        id: 'wp_brandt', x: town('brandt').x, y: town('brandt').y, r: 110,
+        label: 'Brandt',
+        snapshotLabel: 'Map on reaching Brandt',
+      },
+      {
+        id: 'wp_field_lane_end', x: 2470, y: 935, r: 60,
+        label: 'the end of Field Lane',
+        snapshotLabel: "Map at the end of Field Lane (Peg's way)",
+      },
+    ],
+    arrivalLabel: 'Map on arrival at Kestrel Field',
+    finalLabel: 'Final map: Kestrel Field',
+    printedMaps: ['harlan1979'],
+  }),
+};
+
+// Lists a mission's detail keys without building its region.
+const PROBE = {
+  W: { start: {} },
+  place: () => ({}),
+  bridge: () => ({}),
+  town: () => ({}),
+};
+
+// MISSIONS[i] has the light fields (id, title, region) now and the rest
+// (brief, goal, start, waypoints, ...) from DETAILS on first read, built
+// against the mission's own region.
+export const MISSIONS = MISSION_LIST.map((m) => {
+  const make = DETAILS[m.id];
+  if (!make) throw new Error(`mission ${m.id}: no details in missions.js`);
+  const out = { ...m };
+  let d = null;
+  const details = () => (d ||= make(lookups(regionWorld(m.region))));
+  for (const key of Object.keys(make(PROBE))) {
+    Object.defineProperty(out, key, { enumerable: true, get: () => details()[key] });
+  }
+  return out;
+});
 
 
 export function currentMission(state) {

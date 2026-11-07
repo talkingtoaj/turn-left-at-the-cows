@@ -11,7 +11,7 @@ import { openMissionCard } from '../../src/ui/missionCard.js';
 import { openHelp } from '../../src/ui/help.js';
 import { speak } from '../../src/audio/voice.js';
 
-// DOM/CSS port of the Phaser HUDScene. Shows the dash (compass, odometer,
+// The HUD (a DOM/CSS port of the old 2D HUD). Shows the dash (compass, odometer,
 // clock, speed, trip timer), road signs, mailboxes, the talk prompt, the
 // topic menu dialogue, the goal line, the mission complete screen, and owns
 // the E / M / R / Enter / H / 1-9 keys. The mission card and the help panel

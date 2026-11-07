@@ -11,6 +11,7 @@ import { box, cyl, cone, pyramid, gable, strut, disc, flatPolygon } from './shap
 import { buildKind } from './kinds.js';
 import { buildNewLandmark } from './landmarks3d.js';
 import { buildRuin, buildWindpumpWheels } from './ruins3d.js';
+import { buildAirfield, buildAirfieldBuilding } from './airfield3d.js';
 
 const WALLS = [0xe8e2d0, 0xf1ede4, 0xe6d9a8, 0xc9d3d6, 0xd9b9a0, 0xcfd8c4];
 const ROOFS = [0x8e4b3a, 0x5a5f66, 0x6b4a3a, 0x4f6a5a, 0x7a3b3b, 0x6e6a60];
@@ -89,6 +90,10 @@ export function buildStructures(world, terrain, batch, materials, extras = {}) {
   const dynamic = [];
   const rng = makeRng(world.seed + 202);
   for (const l of world.landmarks) {
+    if (l.kind === 'airfield') {
+      dynamic.push(buildAirfield(world, terrain, batch, l));
+      continue;
+    }
     if (buildRuin(world, terrain, batch, l)) continue;
     if (buildNewLandmark(world, terrain, batch, l, rng)) continue;
     const d = buildLandmark(terrain, batch, l, rng, materials);
@@ -133,6 +138,8 @@ function buildBuilding(world, terrain, batch, b) {
   const { base, bottom } = standOn(terrain, batch, b.x, b.y, b.w, b.h, a);
   const P = (geo, lx, ly, up, color, opts) => batch.place(geo, b.x, b.y, base, a, lx, ly, up, color, opts);
   if (batch.audit) batch.audit.rect(b.id, b.kind, b.x, b.y, b.w, b.h, a, bottom, base);
+
+  if (buildAirfieldBuilding(world, terrain, batch, b, base)) return;
 
   if (b.kind === 'gas') {
     const s = GAS.shop;

@@ -15,14 +15,14 @@ A driving game where you never see a "you are here" marker. You find your way us
 - **Code only, no editor.** Everything is built by vibe coding. (LOCKED)
 - **Runs in the browser.** Easy to test and share by link. (LOCKED)
 - **Engine: three.js is the main game.** (LOCKED, Nov 2026)
-  - The Phaser 2D version is frozen. It is kept, but gets no new features.
-  - Shared logic stays engine-free (`src/world`, `src/game`, `src/ambient`, `src/audio`), so Phaser still gets shared fixes for free.
+  - **The Phaser 2D version is dropped** (LOCKED, Nov 2026). Its scenes, renderers and the `phaser` package are gone. `/` is the three.js game; `/three.html` stays as an alias so old links work.
+  - Shared logic stays engine-free (`src/world`, `src/game`, `src/ambient`, `src/audio`, `src/drive`, `src/ui`). Engine-free modules nothing uses any more are deleted.
 - **No Rapier or real physics.** Car stays arcade. Bumps are visual (car tilts and bobs with the ground, camera shakes a little). Try Rapier on a branch only if this feels flat. (LOCKED)
 - **Speed target:** 60 FPS on a normal laptop with built-in graphics, in Chrome. Phones are not a target. (LOCKED)
 
 ## 3. Camera (LOCKED: close view)
 
-- Phaser: top-down, **zoomed in close**, so you only see a small area around the car.
+- (Old 2D version: top-down, **zoomed in close**, so you only saw a small area around the car.)
 - three.js: close top-down or low chase cam. (OPEN)
 - Seeing too much from above would act like a map and spoil the game.
 - **North-up / heading-up toggle** for top-down views. Heading-up is harder and makes the compass matter. Could become a difficulty setting. (LOCKED)
@@ -244,3 +244,10 @@ Middle path between low-poly and realistic, no 3D artist needed:
 - **CC0 tree models are the default.** `?trees=old` keeps the code-made ones.
 - **Surface feel tuning stays** (dirt safe speed 58 km/h, grass 32 km/h) until a mission has been played.
 - **Cars get more detail and textures,** the player's car first: an era-fitting late-80s car, more shape detail and real materials, keeping dents, tilt, wheels and the flat tyre. Traffic cars get variety too.
+
+### 9j. Round 10 decisions (Nov 2026)
+- **2D dropped.** See section 2.
+- **Saved progress** in the browser (`localStorage`, key `askalocal.progress.v1`): finished missions with best time and distance. The start screen lists them with ticks, Continue plays the first unfinished one, any finished one can be replayed. `?reset=progress` clears it. Logic in `src/game/progress.js` (engine-free) for the coming splash redesign.
+- **Regions.** The world is a set of regions joined in fiction by road (`src/world/regions.js`), each with its own data and seed. Every mission names its region; starting it builds only that region behind a short load screen, and leaving a region frees everything it put on the GPU, so memory stays flat. Region 1 is the old 6.5 x 3.2 km map, unchanged.
+- **Region 2 and mission 3: the airfield.** Harlan County round Brandt (4.8 x 3 km), 22 km east along Route 40. Mission 3 (from Tom Hartley): take a magneto to Kestrel Field, a grass strip north of Route 40 that no highway sign points to. The town only knows the planes; Peg sends you down Field Lane, fenced off since 1984; Dagny at its end says go round, or watch the planes.
+- **Planes as a clue.** Light singles fly circuits (take-off into the wind, crosswind, downwind 800 m to the side along Route 40, base, final, landing, touch-and-goes), sometimes depart and curve away, and come back later. One is up most of the time, sometimes two. Wind (and so the landing direction, shown by the windsock) comes from the seed. Deterministic from the seed and the game clock. The drone is positional with distance, Doppler and throttle: near the field, never exactly on it.

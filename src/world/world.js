@@ -1,16 +1,48 @@
-// The "true" world. Every scene builds what it shows from this data.
+// The "true" world, one region at a time. Every scene builds what it shows
+// from this data.
 //
-// Units: 1 unit = 1 metre. x grows east, y grows SOUTH (Phaser screen axes).
+// Units: 1 unit = 1 metre. x grows east, y grows SOUTH (screen axes).
 // North is -y. Headings/angles are degrees: 0 = north, 90 = east (clockwise).
 // Polylines/polygons are arrays of [x, y].
 //
-// The authored data lives in ./data.js (control points, road-relative signs)
-// and ./npcs.js (people and dialogue). ./build.js turns it into this built
-// WORLD: smooth dense road/creek polylines, bridge positions, sign positions.
+// The world is made of regions (./regions.js), each its own map with its own
+// seed, joined in fiction by road. Each region's authored data (control
+// points, road-relative signs, people) is built by ./build.js into a WORLD:
+// smooth dense road/creek polylines, bridge positions, sign positions.
 // See DATA.md at the repo root for the full format.
+//
+// `WORLD` is a live binding: setRegion(id) swaps it, and every module that
+// imports WORLD sees the new region from then on. Built regions are kept
+// (plain data, built once), so going back is instant and identical.
 
-import { WORLD_SOURCE } from './data.js';
+import { REGIONS, DEFAULT_REGION, REGION_IDS } from './regions.js';
 import { buildWorld } from './build.js';
 
-export const WORLD = buildWorld(WORLD_SOURCE);
+const built = new Map();
+
+// The built WORLD of region `id` (built on first use).
+export function regionWorld(id) {
+  let w = built.get(id);
+  if (!w) {
+    const r = REGIONS[id];
+    if (!r) throw new Error(`unknown region ${id}`);
+    w = buildWorld(r.source);
+    w.regionId = id;
+    w.regionName = r.name;
+    built.set(id, w);
+  }
+  return w;
+}
+
+export let WORLD = regionWorld(DEFAULT_REGION);
+export let REGION = DEFAULT_REGION;
+
+// Makes region `id` the current WORLD. Returns it.
+export function setRegion(id) {
+  WORLD = regionWorld(id);
+  REGION = id;
+  return WORLD;
+}
+
+export { REGIONS, DEFAULT_REGION, REGION_IDS };
 export { defaultSignFacing } from './build.js';

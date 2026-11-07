@@ -1,4 +1,4 @@
-// Shared CSS for the DOM screens both versions use: splash, how-to-play
+// Shared CSS for the DOM screens: splash, how-to-play
 // panel and mission card. Paper map look: cream paper, dark ink, red marks.
 
 const CSS = `
@@ -62,6 +62,14 @@ const CSS = `
 .ui-btn:hover, .ui-btn:focus-visible { background: #b0452f; outline: 2px dashed #3b2f22; outline-offset: 3px; }
 .ui-btn:disabled { opacity: 0.7; cursor: wait; }
 .ui-note { font-size: 13px; color: #6b5a42; }
+.ui-progress { margin-top: 12px; }
+.ui-plist { list-style: none; margin: 4px 0 0; padding: 0; font-size: 15px; }
+.ui-plist li { display: flex; align-items: center; gap: 10px; padding: 4px 0; border-bottom: 1px dotted #bfae8c; }
+.ui-tick { width: 1.2em; font-weight: bold; color: #2f6a35; }
+.ui-ptitle { flex: 1; }
+.ui-pbest { font-size: 13px; color: #6b5a42; }
+.ui-pbtn { font: 13px Georgia, serif; padding: 3px 12px; color: #3b2f22; background: #efe4c8; border: 1px solid #8a7550; border-radius: 3px; cursor: pointer; }
+.ui-pbtn:hover, .ui-pbtn:focus-visible { background: #e2d2aa; }
 .ui-link { font-size: 13px; color: #6b5a42; }
 .ui-link a { color: #3b2f22; }
 

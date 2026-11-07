@@ -1,14 +1,21 @@
-// three.js version: entry point. Renderer, world, car, camera, main loop.
-// Gameplay (physics, collisions, state updates) matches the Phaser DriveScene.
+// The game's entry point (loaded by src3/boot.js after the start screen).
+// Renderer, car, camera, HUD and the main loop live for the whole session;
+// the world is built one region at a time (src/world/regions.js): starting
+// a mission builds its region behind a load screen, and leaving a region
+// disposes everything it put on the GPU (src3/gpuTracker.js).
+// Gameplay (physics, collisions, state updates) is shared engine-free code in src/.
 
 import * as THREE from 'three';
-import { WORLD } from '../src/world/world.js';
+import { trackRegion, collectKeep, disposeTracked } from './gpuTracker.js';
+import { WORLD, setRegion, REGIONS } from '../src/world/world.js';
 import { state } from '../src/state.js';
 import { generateScenery } from '../src/drive/layout.js';
 import { Collider } from '../src/drive/collider.js';
 import { stepCar } from '../src/drive/car.js';
 import { runtime } from './runtime.js';
-import { updateGame } from '../src/game/update.js';
+import { updateGame, jumpToMission } from '../src/game/update.js';
+import { MISSIONS, currentMission } from '../src/game/missions.js';
+import { showLoadScreen } from '../src/ui/loadScreen.js';
 import { createHUD } from './hud/hud.js';
 import { createMapOverlay } from './map/map.js';
 import { buildWorld3D } from './world3d/world3d.js';
@@ -23,13 +30,14 @@ import { SUN_DIR } from './world3d/world3d.js';
 import { createStats } from './stats.js';
 import { createResScale } from './resscale.js';
 import { createDamageHazards } from './damageHazards.js';
-import { spotFor } from './spots.js';
+import { spotFor, spotRegion } from './spots.js';
 import { setRoughnessEnabled, setRollEnabled } from '../src/world/roughness.js';
 import { setScatterEnabled } from '../src/world/scatter.js';
 import { districtsFor } from '../src/world/districts.js';
 import { createWetness } from '../src/game/wetness.js';
 import { createWeatherClock } from './look/weather.js';
 import { createRain3D } from './world3d/rain3d.js';
+import { createPlanes3D } from './world3d/planes3d.js';
 
 const TALK_RANGE = 25;
 const READ_RANGE = 25;
@@ -66,21 +74,6 @@ if (showDistricts && !params.has('stats')) {
   document.body.appendChild(districtEl);
 }
 
-// Dev: ?spot=<name> starts the car at a review spot (src3/spots.js).
-const spot = params.has('spot') ? spotFor(params.get('spot'), WORLD) : null;
-if (spot) Object.assign(state.car, spot, { speed: 0 });
-
-// Rain and wet ground (round 8, src/game/wetness.js), driven by the weather.
-// ?rain=on|off, ?wet=<0..1>; ?weather=cycle speeds it up like the weather.
-const wetness = createWetness(WORLD.seed || 1, {
-  rain: params.get('rain'),
-  wet: params.has('wet') ? Number(params.get('wet')) : null,
-  speed: params.get('weather') === 'cycle' ? 15 : 1,
-});
-// Without the new look there is no weather clock of its own: keep one here.
-const ownWeather = look ? null : createWeatherClock(WORLD.seed || 1, params.get('weather'));
-
-const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.8, 450);
 
 window.addEventListener('resize', () => {
@@ -89,40 +82,164 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// ---------- world ----------
+// ---------- world (one region at a time) ----------
 
 if (params.get('rough') === 'off') setRoughnessEnabled(false); // dev: compare without rough ground
 if (params.get('roll') === 'off') setRollEnabled(false); // dev: compare without the rolling layer
 // Dev: ?scatter=off builds the world without the district scatter (rocks,
 // shrubs, tussocks, outcrops) and without the district grass tints.
 if (params.get('scatter') === 'off') setScatterEnabled(false);
-const scenery = generateScenery(WORLD);
-const collider = new Collider(WORLD, scenery);
-const world3d = buildWorld3D(scene, WORLD, scenery, collider);
-if (look) look.apply(scene, world3d, WORLD, scenery);
-const car3d = buildCar({ env: look ? look.carEnv() : null });
-scene.add(car3d.object);
-const rig = new CameraRig(camera);
 
-// Ambient life (shared logic) and sound.
-const amb = createAmbient(WORLD, scenery);
+// The player's car and camera outlive regions.
+const car3d = buildCar({ env: look ? look.carEnv() : null });
+const rig = new CameraRig(camera);
+// Sound: one audio graph for the session; it follows the region (setWorld).
 const audio = createAudio(WORLD, { weather: true });
-// Smoke from chimneys our models put somewhere other than the shared house formula.
-const chimneyFix = [];
-for (const ch of amb.chimneys || []) {
-  const mine = world3d.chimneys.get(ch.id);
-  if (mine) chimneyFix.push({ from: ch, dx: mine.x - ch.x, dy: mine.y - ch.y, top: mine.top });
+
+// The current region's pieces (rebuilt by loadRegion).
+let regionId = null;
+let scene = null;
+let scenery = null;
+let collider = null;
+let world3d = null;
+let amb = null;
+let amb3d = null;
+let dh = null;
+let rain3d = null;
+let planes = null; // light planes, in a region with an airfield
+let wetness = null;
+let ownWeather = null; // without the new look there is no weather clock of its own: keep one here
+let groundAt = null;
+let gpuSet = null; // GPU resources this region uploaded (src3/gpuTracker.js)
+let loading = 0; // region loads queued or running (the main loop waits)
+let loadChain = Promise.resolve();
+let firstLoad = true;
+
+const nextPaint = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+
+// Frees everything the current region put on the GPU (the car and the
+// look's shared textures stay) and drops its objects for the GC.
+function disposeRegion() {
+  if (!scene) return 0;
+  if (dh && dh.dispose) dh.dispose();
+  scene.remove(car3d.object);
+  const keep = collectKeep([car3d.object], look ? look.keepTextures() : []);
+  const n = gpuSet ? disposeTracked(gpuSet, keep) : 0;
+  scene.clear();
+  renderer.renderLists.dispose();
+  scene = scenery = collider = world3d = amb = amb3d = dh = rain3d = planes = null;
+  gpuSet = null;
+  return n;
 }
-const amb3d = createAmbient3D(scene, {
-  terrain: world3d.terrain, surfaceAt: world3d.surfaceAt, scenery, sunDir: SUN_DIR,
-  campfire: campfireOf(WORLD, world3d.terrain), chimneyFix, carEnv: look ? look.carEnv() : null,
-});
-addCloudShadowsTo(scene);
-if (look) look.afterAmbient(scene);
-// Damage, potholes and road hazards (also the ?hazard, ?fallen, ?spot dev flags).
-const dh = createDamageHazards({ scene, scenery, collider, amb, world3d, rig, sunDir: SUN_DIR, params, env: look ? look.carEnv() : null });
-// Rain streaks and wheel spray.
-const rain3d = createRain3D(scene);
+
+// Builds region `id` behind a load screen. `title`: the mission's title.
+// Dev URL flags that place the car (?spot, ?fallen) only act on the first load.
+// Loads run one after another; the main loop waits until none is left.
+function loadRegion(id, title) {
+  loading++;
+  const run = () => buildRegion(id, title).finally(() => {
+    loading--;
+    last = performance.now();
+  });
+  loadChain = loadChain.then(run, run);
+  return loadChain;
+}
+
+async function buildRegion(id, title) {
+  const t0 = performance.now();
+  const ls = showLoadScreen({ title, region: REGIONS[id] ? REGIONS[id].name : id });
+  const step = async (f, text) => {
+    ls.progress(f, text);
+    await nextPaint();
+  };
+  try {
+    await step(0.02, 'Folding the old map away');
+    const freed = disposeRegion();
+    await step(0.08, 'Reading the county records');
+    setRegion(id);
+    regionId = id;
+    gpuSet = trackRegion();
+    audio.setWorld(WORLD);
+    const devParams = firstLoad ? params : new URLSearchParams([...params].filter(([k]) => k !== 'spot' && k !== 'fallen'));
+    // Rain and wet ground (round 8, src/game/wetness.js), driven by the weather.
+    // ?rain=on|off, ?wet=<0..1>; ?weather=cycle speeds it up like the weather.
+    wetness = createWetness(WORLD.seed || 1, {
+      rain: params.get('rain'),
+      wet: params.has('wet') ? Number(params.get('wet')) : null,
+      speed: params.get('weather') === 'cycle' ? 15 : 1,
+    });
+    ownWeather = look ? null : createWeatherClock(WORLD.seed || 1, params.get('weather'));
+    await step(0.14, 'Planting trees');
+    scenery = generateScenery(WORLD);
+    collider = new Collider(WORLD, scenery);
+    await step(0.3, 'Laying out the land, roads and farms');
+    scene = new THREE.Scene();
+    world3d = buildWorld3D(scene, WORLD, scenery, collider);
+    groundAt = world3d.terrain.heightAt.bind(world3d.terrain);
+    await step(0.7, 'Mixing the paint');
+    if (look) look.apply(scene, world3d, WORLD, scenery);
+    scene.add(car3d.object);
+    await step(0.78, 'Waking the locals');
+    // Ambient life (shared logic).
+    amb = createAmbient(WORLD, scenery);
+    // Smoke from chimneys our models put somewhere other than the shared house formula.
+    const chimneyFix = [];
+    for (const ch of amb.chimneys || []) {
+      const mine = world3d.chimneys.get(ch.id);
+      if (mine) chimneyFix.push({ from: ch, dx: mine.x - ch.x, dy: mine.y - ch.y, top: mine.top });
+    }
+    amb3d = createAmbient3D(scene, {
+      terrain: world3d.terrain, surfaceAt: world3d.surfaceAt, scenery, sunDir: SUN_DIR,
+      campfire: campfireOf(WORLD, world3d.terrain), chimneyFix, carEnv: look ? look.carEnv() : null,
+    });
+    addCloudShadowsTo(scene);
+    if (look) look.afterAmbient(scene);
+    // Damage, potholes and road hazards (also the ?hazard, ?fallen, ?spot dev flags).
+    dh = createDamageHazards({ scene, scenery, collider, amb, world3d, rig, sunDir: SUN_DIR, params: devParams, env: look ? look.carEnv() : null });
+    // Rain streaks and wheel spray.
+    rain3d = createRain3D(scene);
+    // Light planes flying circuits from the airfield (src/world/airfield.js).
+    planes = createPlanes3D(scene, WORLD, world3d.terrain);
+    await step(0.9, 'Warming up the engine');
+    // One frame with everything in, so the shaders compile behind the card.
+    car3d.update(state.car, 0, world3d.surfaceAt, 0, state.damage || null, null);
+    rig.update(car3d.object.position, state.car.heading, 0, runtime.cameraMode, groundAt, state.view.northUp);
+    world3d.update(0, 0, state.car, rig.focus, rig.shadowRadius, camera, amb);
+    renderer.render(scene, camera);
+    await step(1, '');
+    const ms = Math.round(performance.now() - t0);
+    lastLoad = { region: id, ms, freed, memory: memoryNow() };
+    console.info(`[region] ${id} built in ${ms} ms (freed ${freed} GPU resources of the region before)`);
+    exposeDebug();
+  } finally {
+    ls.close();
+    firstLoad = false;
+  }
+}
+
+let lastLoad = null;
+function memoryNow() {
+  const m = renderer.info.memory;
+  const pm = performance.memory;
+  return {
+    geometries: m.geometries,
+    textures: m.textures,
+    programs: renderer.info.programs ? renderer.info.programs.length : null,
+    heapMB: pm ? Math.round(pm.usedJSHeapSize / 1048576) : null,
+  };
+}
+
+// The mission now playing is in another region (the one before it ended
+// there): build that region and put the car at the mission's start.
+async function followMission() {
+  const m = currentMission(state);
+  if (!m || m.region === regionId) return;
+  runtime.paused = true;
+  await loadRegion(m.region, m.title);
+  Object.assign(state.car, m.start, { speed: 0 });
+  state.missionStart = { ...m.start };
+  runtime.paused = false;
+}
 
 // ---------- UI wiring (see CONTRACT3.md) ----------
 
@@ -186,7 +303,7 @@ function nearestId(list, car, range, posOf = null) {
 // ---------- main loop ----------
 
 const carPos = new THREE.Vector3();
-const groundAt = world3d.terrain.heightAt.bind(world3d.terrain);
+const listener = { x: 0, y: 0, z: 0 };
 const personPos = (id) => amb.personPos(id);
 let last = performance.now();
 let steer = 0;
@@ -195,6 +312,13 @@ const fps = { frames: 0, acc: 0, value: 0 };
 
 function frame(now) {
   requestAnimationFrame(frame);
+  if (loading > 0 || !scene) return;
+  // A finished mission handed over to one in another region: load it.
+  const cm = currentMission(state);
+  if (cm && cm.region !== regionId && !state.won) {
+    followMission();
+    return;
+  }
   stats.begin(now);
   const rawMs = Math.max(0, now - last);
   const dtMs = Math.min(rawMs, MAX_DT_MS);
@@ -275,8 +399,16 @@ function frame(now) {
   const groundRumble = ground.offRoad ? ground.rough * 0.85 * Math.min(1, Math.abs(car.speed) / 14) : 0;
   rig.rumble(Math.max(roadRumble, groundRumble) * (runtime.paused ? 0 : 1));
   const e = rig.update(carPos, car.heading, dt, runtime.cameraMode, groundAt, state.view.northUp);
+  // Planes by the game clock (seconds), so the same time shows the same sky.
+  if (planes) {
+    camera.updateMatrixWorld();
+    listener.x = car.x;
+    listener.y = car.y;
+    listener.z = groundAt(car.x, car.y) + 1.2;
+    planes.update(state.clockMinutes * 6, camera, scene.fog.color, wetness.rain, listener);
+  }
   // Sound every frame, even paused (it ducks while the map is open).
-  audio.update(dt, state, amb, { paused: runtime.paused, rain: wetness });
+  audio.update(dt, state, amb, { paused: runtime.paused, rain: wetness, planes: planes ? planes.sound : null });
 
   // Fog and draw distance: driver's view is hazy; top view sees its patch
   // clearly. Rain closes it in.
@@ -314,17 +446,54 @@ function frame(now) {
   }
 }
 
-// Debug handles.
-window.__state = state;
-window.__runtime = runtime;
-window.__three = { renderer, scene, camera, fps, THREE, world3d, stats, res };
-window.__amb = amb;
-window.__dh = dh;
-window.__audio = audio;
-window.__cloudUniforms = cloudUniforms;
-window.__look = look;
-window.__car3d = car3d;
-window.__wet = wetness;
-window.__rain3d = rain3d;
+// Debug handles (refreshed after every region load).
+function exposeDebug() {
+  window.__state = state;
+  window.__runtime = runtime;
+  window.__three = { renderer, scene, camera, fps, THREE, world3d, stats, res, regionId, lastLoad, memoryNow };
+  window.__amb = amb;
+  window.__dh = dh;
+  window.__audio = audio;
+  window.__cloudUniforms = cloudUniforms;
+  window.__look = look;
+  window.__car3d = car3d;
+  window.__wet = wetness;
+  window.__rain3d = rain3d;
+  window.__planes = planes;
+  // Dev: play a mission now, building its region if need be (memory checks):
+  // await __playMission('m3_airfield').
+  window.__playMission = playMission;
+}
 
-requestAnimationFrame(frame);
+// Called by the start screen (src3/boot.js) with the mission to play:
+// Continue (the first unfinished one) or any finished one to replay.
+// Dev: ?spot=<name> starts the car at a review spot (src3/spots.js); a
+// spot in another region plays that region's first mission instead.
+let started = false;
+export async function startGame(index = 0) {
+  const spotName = params.get('spot');
+  const sr = spotName ? spotRegion(spotName) : null;
+  if (sr && MISSIONS[index].region !== sr) {
+    const i = MISSIONS.findIndex((m) => m.region === sr);
+    if (i >= 0) index = i;
+  }
+  jumpToMission(state, index);
+  const m = MISSIONS[index];
+  await loadRegion(m.region, m.title);
+  const spot = spotName ? spotFor(spotName, WORLD) : null;
+  if (spot) {
+    Object.assign(state.car, spot, { speed: 0 });
+    state.missionStart = { x: spot.x, y: spot.y, heading: spot.heading };
+  }
+  last = performance.now();
+  if (!started) requestAnimationFrame(frame);
+  started = true;
+}
+
+// Plays mission `idOrIndex` from its own start (dev and checks).
+async function playMission(idOrIndex) {
+  const i = typeof idOrIndex === 'number' ? idOrIndex : MISSIONS.findIndex((m) => m.id === idOrIndex);
+  if (i < 0) return;
+  jumpToMission(state, i);
+  if (MISSIONS[i].region !== regionId) await loadRegion(MISSIONS[i].region, MISSIONS[i].title);
+}

@@ -300,7 +300,7 @@ export function buildWorld3D(scene, world, scenery, collider) {
     puddles,
     // Per frame: animated bits and the sun's shadow box following `focus`.
     update(time, dt, car, focus, shadowRadius, camera, amb) {
-      for (const d of dynamic) d.update(time);
+      for (const d of dynamic) d.update(time, amb);
       locals.update(car, dt, amb);
       sky.position.copy(camera.position);
       trees.update(camera, focus, shadowRadius);

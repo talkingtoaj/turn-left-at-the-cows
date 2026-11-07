@@ -18,7 +18,7 @@ export function missionCardInfo(index) {
   return {
     kicker: `Mission ${index + 1}`,
     title: m.title,
-    from: giver ? `From: ${giver.name}` : 'Your job',
+    from: giver ? `From: ${giver.name}` : m.giverName ? `From: ${m.giverName}` : 'Your job',
     lines: m.brief,
     goal: `Goal: ${m.goal.name}`,
   };

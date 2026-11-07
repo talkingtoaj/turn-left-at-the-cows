@@ -272,6 +272,11 @@ export async function createLook(renderer, params) {
       if (weather) weather.update(state);
     },
     get weather() { return weather ? weather.clock.w : null; },
+    // Textures that outlive a region (src3/main.js keeps them when it
+    // disposes one): the texture arrays, the skies and the car reflections.
+    keepTextures() {
+      return [tex && tex.albedo, tex && tex.normal, sky.tex, sunnySky.tex, carEnv];
+    },
     // After the ambient life is built: the low-poly sky clouds would sit in
     // front of the photo sky, which has its own clouds. Move them to a layer
     // the camera does not draw (their ground shadows stay).

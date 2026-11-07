@@ -7,6 +7,7 @@ import {
   polygonArea, bbox, circleHitsRect, SegIndex, measurePolyline, pointAlong, nearestOnPolyline,
 } from './geom.js';
 import { pickFallenTrees } from '../world/fallenTrees.js';
+import { AIRFIELD, airfieldFrame } from '../world/airfield.js';
 
 // Gas station, in the building's local frame (w = 22, h = 14).
 export const GAS = {
@@ -305,6 +306,19 @@ export function landmarkSolids(l, world = null) {
     rects.push(partRect(l.x, l.y, l.angle || 0, ELEVATOR.main), partRect(l.x, l.y, l.angle || 0, ELEVATOR.annex));
   } else if (l.kind === 'windpump') {
     for (const [lx, ly] of WINDPUMP.legs) circles.push({ x: l.x + lx, y: l.y + ly, r: WINDPUMP.legR });
+  } else if (l.kind === 'airfield') {
+    // Parked planes (their fuselages; the car fits under a high wing), the
+    // windsock pole and the fuel pump. The hangars and clubhouse are buildings.
+    const f = airfieldFrame(l);
+    for (const pl of AIRFIELD.parked) {
+      const c = f.at(pl.s, pl.t);
+      const h = f.heading(pl.h) * (Math.PI / 180);
+      for (const hit of AIRFIELD.planeHits) circles.push({ x: c.x + Math.sin(h) * hit.f, y: c.y - Math.cos(h) * hit.f, r: hit.r });
+    }
+    const ws = f.at(AIRFIELD.windsock.s, AIRFIELD.windsock.t);
+    circles.push({ x: ws.x, y: ws.y, r: 0.25 });
+    const pp = f.at(AIRFIELD.pump.s, AIRFIELD.pump.t);
+    rects.push({ x: pp.x, y: pp.y, w: AIRFIELD.pump.w, h: AIRFIELD.pump.h, angle: f.angle });
   }
   return { rects, circles };
 }
@@ -379,6 +393,18 @@ export function makePads(world) {
       pads.push({ kind: 'gravel', x: b.x - 4, y: b.y, w: b.w + 14, h: b.h + 8, angle: b.angle || 0 });
     }
   }
+  // Airfield: a gravel apron in front of the hangars, the car park, and a
+  // concrete pad under the fuel pump (src/world/airfield.js).
+  for (const l of world.landmarks) {
+    if (l.kind !== 'airfield') continue;
+    const f = airfieldFrame(l);
+    for (const [kind, r] of [['gravel', AIRFIELD.apron], ['gravel', AIRFIELD.carPark], ['concrete', AIRFIELD.pumpPad]]) {
+      const c = f.at(r.s, r.t);
+      // Pads are w across and h along `angle` (a heading): along the runway is w here.
+      pads.push({ kind, x: c.x, y: c.y, w: r.h, h: r.w, angle: f.angle });
+    }
+  }
+
   // Quarry: a gravel apron from the end of its road to the pit rim.
   for (const l of world.landmarks) {
     if (l.kind !== 'quarry') continue;

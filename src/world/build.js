@@ -6,6 +6,7 @@ import { smoothPolyline, polylineLength } from './spline.js';
 import { nearestOnPolyline, headingOf, polylineCrossings, DEG } from '../drive/geom.js';
 import { TOPICS } from './topics.js';
 import { generateFill, fieldDefaults } from './fill.js';
+import { airfieldOf, seededWindFrom } from './airfield.js';
 
 const STEP = 9; // metres per polyline piece after smoothing
 
@@ -200,13 +201,14 @@ export function buildWorld(source) {
   for (const def of Object.values(w.printedMaps)) {
     def.lies = def.lies.map((lie) => (lie.type === 'extra_road' ? { ...lie, road: buildRoad(lie.road, roads) } : lie));
   }
-  // Legacy alias: the 1987 county map.
-  w.oldMap = w.printedMaps.county1987;
+  // Legacy alias: the 1987 county map (region 1 only).
+  if (w.printedMaps.county1987) w.oldMap = w.printedMaps.county1987;
 
-  // Legacy: WORLD.goal is mission 1's goal. Game code should use
-  // currentGoal(state) from src/game/missions.js instead.
-  const farm = w.places.find((p) => p.id === 'hartley_farm');
-  w.goal = { x: farm.x, y: farm.y, r: farm.r, name: farm.name };
+  // Legacy: WORLD.goal is the region's first place (mission 1's goal in
+  // region 1). Game code should use currentGoal(state) from
+  // src/game/missions.js instead.
+  const first = w.places[0];
+  if (first) w.goal = { x: first.x, y: first.y, r: first.r, name: first.name };
 
   // Countryside fill: procedural fields, props and power lines (src/world/fill.js).
   w.fields = (src.fields || []).map(fieldDefaults);
@@ -214,6 +216,14 @@ export function buildWorld(source) {
   w.fields = w.fields.concat(fill.fields);
   w.props = fill.props;
   w.powerLines = fill.powerLines;
+
+  // A region with an airfield gets a prevailing wind from its seed: the
+  // planes land into it, and the ambient wind (smoke, the windsock) blows
+  // the same way (src/world/airfield.js). Other regions keep their own.
+  if (airfieldOf(w)) {
+    w.windFrom = seededWindFrom(w.seed);
+    w.windBase = (w.windFrom + 180) % 360;
+  }
 
   w.topics = TOPICS;
   return w;
