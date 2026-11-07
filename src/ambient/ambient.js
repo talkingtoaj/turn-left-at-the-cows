@@ -10,6 +10,9 @@ import {
   makeRng, hashString, DEG, SegIndex, distToSegment, pointInPolygon, pointInRect,
   localToWorld, nearestOnPolyline, measurePolyline, bbox, headingOf, centroid,
 } from '../drive/geom.js';
+import {
+  TRAFFIC, relTo, inLane, playerSpeedCap, seenByPlayer, respawnReason, goodRespawn,
+} from './trafficRules.js';
 
 // Level of detail: things within NEAR_R of the player get full updates.
 const NEAR_R = 600;
@@ -119,13 +122,23 @@ export function createAmbient(world, scenery) {
     const q = nearestOnPolyline(b.x, b.y, n.pts);
     if (q) n.blocks.push(q.along);
   }
-  for (const n of net) n.baseBlocks = n.blocks.slice();
-  // Fixed fallen trees part way across a road: traffic slows and edges
-  // through the gap the trunk leaves.
-  for (const n of net) n.squeeze = [];
+  // Fixed fallen trees part way across a road: traffic turns around before
+  // them too. The gap they leave is one car wide, so two cars meeting in it
+  // would block each other for good; the gap is the player's way past.
   for (const f of (scenery && scenery.fallen) || []) {
     const n = netById.get(f.roadId);
-    if (n) n.squeeze.push({ at: f.at, lat: f.gapLat });
+    if (n) n.blocks.push(f.at);
+  }
+  for (const n of net) n.baseBlocks = n.blocks.slice();
+  // Metres to the nearest block (broken bridge, fallen tree) from `at`
+  // going `dir` along the road, or Infinity.
+  function blockAhead(n, at, dir) {
+    let best = Infinity;
+    for (const b of n.blocks) {
+      const ahead = (b - at) * dir;
+      if (ahead > 0 && ahead < best) best = ahead;
+    }
+    return best;
   }
 
   // Point on a road at distance s (cached segment index in obj.seg).
@@ -168,10 +181,12 @@ export function createAmbient(world, scenery) {
         k -= m.len;
       }
       const s = R(10, Math.max(11, n.len - 10));
-      if (n.blocks.some((b) => Math.abs(b - s) < 40)) continue;
+      if (n.blocks.some((b) => Math.abs(b - s) < 60)) continue;
       const p = roadPoint(n, s, {});
       if (rng() > townScore(p.x, p.y)) continue;
       if (filter && !filter(p)) continue;
+      // Not on top of another car.
+      if (cars.some((o) => Math.abs(o.x - p.x) < 40 && Math.abs(o.y - p.y) < 40)) continue;
       return { n, s, p };
     }
     return null;
@@ -180,8 +195,11 @@ export function createAmbient(world, scenery) {
     cs.n = sp.n;
     cs.s = sp.s;
     cs.dir = rng() < 0.5 ? 1 : -1;
+    // Not straight at a block close ahead.
+    if (blockAhead(sp.n, sp.s, cs.dir) < 150) cs.dir = -cs.dir;
     cs.seg = undefined;
     cs.skip = 0;
+    cs.stuckT = 0;
     const t = carTarget(cs);
     c.x = t.x;
     c.y = t.y;
@@ -193,22 +211,14 @@ export function createAmbient(world, scenery) {
     const p = roadPoint(cs.n, cs.s, cs);
     const dx = p.dx * cs.dir;
     const dy = p.dy * cs.dir;
-    let off = cs.n.road.width / 4;
-    // Past a fallen tree: ease over to the gap it leaves (lat is right of
-    // the road's own direction, off right of travel).
-    for (const q of cs.n.squeeze) {
-      const d = Math.abs(cs.s - q.at);
-      if (d > 26) continue;
-      const k = d < 10 ? 1 : 1 - (d - 10) / 16;
-      off += (q.lat * cs.dir - off) * k * k * (3 - 2 * k);
-    }
+    const off = cs.n.road.width / 4;
     // Right of travel (y south): (-dy, dx).
     return { x: p.x - dy * off, y: p.y + dx * off, h: headingOf(dx, dy) };
   }
   const nCars = 10;
   for (let i = 0; i < nCars; i++) {
     const c = { id: `car${i}`, x: 0, y: 0, heading: 0, speed: 0, color: CAR_COLORS[i % CAR_COLORS.length], onDirt: false };
-    const cs = { n: null, s: 0, dir: 1, seg: 0, skip: 0, cruise: R(0.85, 1.1), relocT: R(10, 25) };
+    const cs = { n: null, s: 0, dir: 1, seg: 0, skip: 0, cruise: R(0.85, 1.1), relocT: R(1, 3), stuckT: 0 };
     const sp = pickSpawn();
     if (!sp) continue;
     placeCar(c, cs, sp);
@@ -219,6 +229,10 @@ export function createAmbient(world, scenery) {
   function chooseDirOn(n, at) {
     if (at < 5) return 1;
     if (at > n.len - 5) return -1;
+    // A block close one way and not the other: go the open way.
+    const bf = blockAhead(n, at, 1) < 300;
+    const bb = blockAhead(n, at, -1) < 300;
+    if (bf !== bb) return bf ? -1 : 1;
     const a = roadPoint(n, Math.min(n.len, at + 300), {});
     const b = roadPoint(n, Math.max(0, at - 300), {});
     const wa = townScore(a.x, a.y);
@@ -233,7 +247,9 @@ export function createAmbient(world, scenery) {
     // Dead-end stubs (no junction at the far end) are less attractive.
     const farEnd = dir === 1 ? n.len : 0;
     const dead = dir !== 0 && !n.junctions.some((k) => Math.abs(k.at - farEnd) < 6) ? 0.4 : 1;
-    return townScore(p.x, p.y) * dead;
+    // A road blocked soon after the turn is a poor choice: the car would only turn back.
+    const blocked = dir !== 0 && blockAhead(n, j.toAt, dir) < 400 ? 0.1 : 1;
+    return townScore(p.x, p.y) * dead * blocked;
   }
   function turnOnto(cs, j) {
     cs.n = j.to;
@@ -243,42 +259,36 @@ export function createAmbient(world, scenery) {
     cs.skip = 15;
   }
 
-  function stepCar(c, cs, dt, player) {
+  function stepCar(c, cs, dt, player, onFoot) {
     const n = cs.n;
     const surface = n.road.type === 'paved' ? 'paved' : 'dirt';
     c.onDirt = surface === 'dirt';
     let target = (surface === 'paved' ? 14 : 8.5) * cs.cruise;
     if (inTown(c.x, c.y)) target = Math.min(target, 9);
 
-    // Stop when the player is close ahead (or very close anywhere).
-    const fx = fwdX(c.heading);
-    const fy = fwdY(c.heading);
-    if (player) {
-      const px = player.x - c.x;
-      const py = player.y - c.y;
-      const along = px * fx + py * fy;
-      const lat = Math.abs(px * fy - py * fx);
-      if (Math.hypot(px, py) < 6) target = 0;
-      else if (along > 0 && along < 26 && lat < 5) target = Math.min(target, Math.max(0, (along - 9) * 0.6));
+    // The player (in the car or on foot): stop only when they are in this
+    // car's own lane ahead. A car in the other lane is passed, a little slower.
+    if (player && Math.abs(player.x - c.x) < 50 && Math.abs(player.y - c.y) < 50) {
+      const r = relTo(c.x, c.y, c.heading, player.x, player.y);
+      target = Math.min(target, playerSpeedCap(r.along, r.lat, onFoot));
     }
-    // Hazards on the road (livestock, a tractor, a deer): slow down and wait.
+    // Hazards on the road (livestock, a tractor, a deer, the parked car):
+    // slow down and wait when one is in this car's lane.
     for (const o of obstacles) {
-      const ox = o.x - c.x;
-      const oy = o.y - c.y;
-      if (Math.abs(ox) > 30 || Math.abs(oy) > 30) continue;
-      const along = ox * fx + oy * fy;
-      const lat = Math.abs(ox * fy - oy * fx);
-      if (along > 0 && along < 26 && lat < 2.6 + (o.r || 0)) target = Math.min(target, Math.max(0, (along - 8) * 0.6));
+      if (Math.abs(o.x - c.x) > 30 || Math.abs(o.y - c.y) > 30) continue;
+      const r = relTo(c.x, c.y, c.heading, o.x, o.y);
+      if (r.along > 0 && inLane(r.along, r.lat, o.r || 0)) target = Math.min(target, Math.max(0, (r.along - 8) * 0.6));
     }
-    // Don't drive into other traffic going the same way.
+    // Don't drive into other traffic going the same way (cars coming the
+    // other way keep to their own lane and pass).
     for (const o of cars) {
       if (o === c) continue;
-      const ox = o.x - c.x;
-      const oy = o.y - c.y;
-      if (Math.abs(ox) > 30 || Math.abs(oy) > 30) continue;
-      const along = ox * fx + oy * fy;
-      const lat = Math.abs(ox * fy - oy * fx);
-      if (along > 0 && along < 18 && lat < 2.5) target = Math.min(target, Math.max(0, (along - 8) * 0.8));
+      if (Math.abs(o.x - c.x) > 30 || Math.abs(o.y - c.y) > 30) continue;
+      if (Math.abs(angDiff(c.heading, o.heading)) > 70) continue;
+      const r = relTo(c.x, c.y, c.heading, o.x, o.y);
+      if (r.along > 0 && r.along < 18 && Math.abs(r.lat) < TRAFFIC.halfW * 2 + TRAFFIC.margin) {
+        target = Math.min(target, Math.max(0, (r.along - 8) * 0.8));
+      }
     }
     // Slow before a broken bridge or a road end.
     const endAt = cs.dir > 0 ? n.len : 0;
@@ -288,14 +298,13 @@ export function createAmbient(world, scenery) {
       const ahead = (b - cs.s) * cs.dir;
       if (ahead > 0 && ahead < 70) target = Math.min(target, 2.5 + (ahead - 25) * 0.25);
     }
-    for (const q of n.squeeze) {
-      const ahead = (q.at - cs.s) * cs.dir;
-      if (ahead > -12 && ahead < 60) target = Math.min(target, 2.5 + Math.max(0, ahead - 15) * 0.25);
-    }
 
     const acc = target > c.speed ? 2.2 : 5.5;
     c.speed += Math.max(-acc * dt, Math.min(acc * dt, target - c.speed));
     if (c.speed < 0.02 && target === 0) c.speed = 0;
+    // How long it has stood still (see maybeRespawn).
+    if (c.speed < 0.3) cs.stuckT += dt;
+    else if (c.speed > 1) cs.stuckT = 0;
 
     const prev = cs.s;
     cs.s += cs.dir * c.speed * dt;
@@ -348,19 +357,26 @@ export function createAmbient(world, scenery) {
     c.y = ny;
   }
 
-  // Move far cars to roads near the player now and then, so traffic is seen.
-  function maybeRelocate(c, cs, dt, player) {
+  // Take a car away and put it back on a road out of the player's sight
+  // when it is far off (so traffic stays round the player) or has stood
+  // stuck a long while with the player not close. The car count stays the same.
+  function seenFrom(player, x, y) {
+    const dx = x - player.x;
+    const dy = y - player.y;
+    const d = Math.hypot(dx, dy);
+    const cos = d > 0 ? (dx * fwdX(player.heading || 0) + dy * fwdY(player.heading || 0)) / d : 1;
+    return { d, seen: seenByPlayer(d, cos) };
+  }
+  function maybeRespawn(c, cs, dt, player) {
     if (!player) return;
     cs.relocT -= dt;
     if (cs.relocT > 0) return;
-    cs.relocT = R(15, 30);
-    if (Math.hypot(c.x - player.x, c.y - player.y) < 1500) return;
-    let nearby = 0;
-    for (const o of cars) if (Math.hypot(o.x - player.x, o.y - player.y) < 1300) nearby++;
-    if (nearby >= 3) return;
+    cs.relocT = R(1.5, 3);
+    const v = seenFrom(player, c.x, c.y);
+    if (!respawnReason(v.d, cs.stuckT, v.seen)) return;
     const sp = pickSpawn((p) => {
-      const d = Math.hypot(p.x - player.x, p.y - player.y);
-      return d > 450 && d < 1200;
+      const w = seenFrom(player, p.x, p.y);
+      return goodRespawn(w.d, w.seen);
     });
     if (sp) placeCar(c, cs, sp);
   }
@@ -979,8 +995,8 @@ export function createAmbient(world, scenery) {
 
       // Traffic (everywhere, cheap).
       for (let i = 0; i < cars.length; i++) {
-        stepCar(cars[i], carState[i], dt, player);
-        maybeRelocate(cars[i], carState[i], dt, player);
+        stepCar(cars[i], carState[i], dt, player, !!(state && state.onFoot));
+        maybeRespawn(cars[i], carState[i], dt, player);
         const c = cars[i];
         if (c.onDirt && c.speed > 3 && (c.x - px) ** 2 + (c.y - py) ** 2 < nearSq) emitDust(c.x, c.y, c.heading, c.speed, dt, carDustAcc[i]);
       }

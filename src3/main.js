@@ -460,8 +460,9 @@ function frame(now) {
     // Ambient life moves after the car (dust, birds scatter, traffic stops).
     amb.update(dt, foot.active ? footState : state);
     dh.afterStep(dt, result, prev);
-    // Traffic waits behind the parked car while you are out of it.
-    if (foot.active && amb.obstacles) amb.obstacles.push({ x: car.x, y: car.y, r: 2 });
+    // Traffic waits behind the parked car while you are out of it (r is
+    // about its half width: traffic in the other lane drives past).
+    if (foot.active && amb.obstacles) amb.obstacles.push({ x: car.x, y: car.y, r: 1 });
     // Through a shrub: a little bounce of the body and the camera. Through a
     // puddle: a splash at the wheel and a small jolt.
     for (const ev of (state.damage && state.damage.events) || []) {
