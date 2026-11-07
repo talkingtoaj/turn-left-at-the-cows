@@ -146,7 +146,10 @@ gcloud projects add-iam-policy-binding $PROJECT --member=serviceAccount:$BUILD_S
 gcloud iam service-accounts add-iam-policy-binding $RUN_SA --project=$PROJECT \
   --member=serviceAccount:$BUILD_SA --role=roles/iam.serviceAccountUser
 
-# 7. Trigger: a push to main deploys production (repo already connected to Cloud Build).
+# 7. Push-to-main deploys run from GitHub Actions (.github/workflows/deploy.yml),
+#    signed in with Workload Identity Federation; one-time setup in
+#    'GitHub Actions deploy' below. The Cloud Build trigger here is the
+#    alternative if the repo is ever connected to the Cloud Build GitHub app.
 #    The site key is public; it is passed as a substitution.
 gcloud builds triggers create github --project=$PROJECT \
   --name="turn-left-at-the-cows-deploy" \
@@ -167,3 +170,15 @@ hostnames in the Cloudflare dashboard, or the widget will refuse to run there.
 
 Cost: a few KB per map; storage and egress stay inside Google's free tier at
 this size. Cloud Run scales to zero.
+
+
+## GitHub Actions deploy (what is used)
+
+`.github/workflows/deploy.yml` runs `cloudbuild.yaml` with `gcloud builds submit` on
+every push to main. It signs in as `turn-left-at-the-cows-deploy@lifebalance-nuxt`
+through the Workload Identity pool `github-pool` (provider `github`), limited to the
+repo `talkingtoaj/orienteering-game`; no keys are stored. The public Turnstile site
+key is the repo variable `TURNSTILE_SITE_KEY`. One-time setup: create that service
+account (Cloud Build editor, Service Usage consumer, object admin on
+`gs://lifebalance-nuxt_cloudbuild`), the pool and provider, and give the repo
+`roles/iam.workloadIdentityUser` on the account.

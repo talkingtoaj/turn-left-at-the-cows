@@ -1,0 +1,49 @@
+# Push to main -> run cloudbuild.yaml in Cloud Build (build, smoke test, push,
+# deploy to Cloud Run). Signs in to Google Cloud with Workload Identity
+# Federation (no stored keys). One-time setup: server/README.md.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/493602269932/locations/global/workloadIdentityPools/github-pool/providers/github
+          service_account: turn-left-at-the-cows-deploy@lifebalance-nuxt.iam.gserviceaccount.com
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build and deploy with Cloud Build
+        env:
+          SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
+        run: |
+          set -eu
+          id=$(gcloud builds submit --project lifebalance-nuxt --config cloudbuild.yaml \
+            --substitutions=COMMIT_SHA=${GITHUB_SHA},_TURNSTILE_SITE_KEY=${SITE_KEY} \
+            --async --format='value(id)' .)
+          echo "Build $id: https://console.cloud.google.com/cloud-build/builds/$id?project=493602269932"
+          while true; do
+            s=$(gcloud builds describe "$id" --project lifebalance-nuxt --format='value(status)')
+            case "$s" in
+              SUCCESS) echo "Deployed."; exit 0 ;;
+              FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED|EXPIRED) echo "Build $s"; exit 1 ;;
+            esac
+            sleep 15
+          done
