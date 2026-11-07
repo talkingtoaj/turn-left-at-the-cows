@@ -9,8 +9,8 @@ substitutions:
   _REPO: turn-left-at-the-cows
   _SERVICE_NAME: turn-left-at-the-cows
   _RUNTIME_SA: turn-left-at-the-cows-run
-  _MAPS_BUCKET: talkingtoaj-public-media
-  _MAPS_PREFIX: turn-left-at-the-cows/maps/
+  _MAPS_BUCKET: turn-left-at-the-cows-maps
+  _MAPS_PREFIX: maps/
   _TURNSTILE_SITE_KEY: ""
   _SITE_URL: ""
 

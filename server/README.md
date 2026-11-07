@@ -28,8 +28,8 @@ API at the same time, run the server as above and `API_PROXY=http://localhost:87
 |---|---|---|
 | `PORT` | 8080 | Port to listen on (Cloud Run sets it) |
 | `STORAGE` | `gcs` on Cloud Run, else `local` | `gcs`, `local` (a folder) or `memory` |
-| `MAPS_BUCKET` | `talkingtoaj-public-media` | GCS bucket (private, shared, one folder per app) |
-| `MAPS_PREFIX` | `turn-left-at-the-cows/maps/` | Folder in the bucket for this game's maps |
+| `MAPS_BUCKET` | `turn-left-at-the-cows-maps` | The game's own private GCS bucket |
+| `MAPS_PREFIX` | `maps/` | Folder in the bucket for the maps |
 | `LOCAL_MAPS_DIR` | `server/.localmaps` | Folder for `STORAGE=local` |
 | `DIST_DIR` | `../dist` | The built game |
 | `TURNSTILE_SITE_KEY` | Cloudflare test key | Public site key (sent to the browser) |
@@ -68,7 +68,7 @@ An unhidden map is marked reviewed and later reports no longer hide it.
 
 ## Storage, votes and reports
 
-One JSON object per shared map: `gs://talkingtoaj-public-media/turn-left-at-the-cows/maps/<mission>/<id>.json`
+One JSON object per shared map: `gs://turn-left-at-the-cows-maps/maps/<mission>/<id>.json`
 holding the sketch (the game's own format: strokes, stamps, labels in 960x640
 map-screen coordinates), mission, region, seed, game version, time, km, tows,
 nickname, created time, vote and report counts, hidden flag, and the salted
@@ -103,8 +103,7 @@ the commands and never printed.
 ```bash
 PROJECT=lifebalance-nuxt
 REGION=us-central1
-BUCKET=talkingtoaj-public-media
-PREFIX=turn-left-at-the-cows/maps/
+BUCKET=turn-left-at-the-cows-maps
 SERVICE=turn-left-at-the-cows
 RUN_SA=turn-left-at-the-cows-run@$PROJECT.iam.gserviceaccount.com
 PROJECT_NUMBER=$(gcloud projects describe $PROJECT --format='value(projectNumber)')
@@ -114,7 +113,7 @@ BUILD_SA=$PROJECT_NUMBER@cloudbuild.gserviceaccount.com   # or the SA your trigg
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com \
   secretmanager.googleapis.com storage.googleapis.com --project=$PROJECT
 
-# 2. The bucket: check, then create it if it is missing. Private: NO allUsers grant.
+# 2. The game's own bucket: check, then create it if missing. Private: NO allUsers grant.
 #    The server reads and writes it with its own service account; nothing is public.
 gcloud storage buckets describe gs://$BUCKET --project=$PROJECT \
   || gcloud storage buckets create gs://$BUCKET --project=$PROJECT \
@@ -133,14 +132,9 @@ openssl rand -hex 32 | tr -d '\n' \
 # 5. Runtime service account for Cloud Run
 gcloud iam service-accounts create turn-left-at-the-cows-run --project=$PROJECT \
   --display-name="Turn Left at the Cows (Cloud Run)"
-#    Read and write the maps: objectAdmin on the bucket ...
+#    Read and write the maps: objectAdmin on this bucket only.
 gcloud storage buckets add-iam-policy-binding gs://$BUCKET \
   --member=serviceAccount:$RUN_SA --role=roles/storage.objectAdmin
-#    ... OR (optional, tighter) only under this game's prefix, with an IAM condition
-#    (the second half lets it list that prefix). Use this instead of the line above:
-# gcloud storage buckets add-iam-policy-binding gs://$BUCKET \
-#   --member=serviceAccount:$RUN_SA --role=roles/storage.objectAdmin \
-#   --condition='title=turn-left-maps-only,expression=resource.name.startsWith("projects/_/buckets/'$BUCKET'/objects/'$PREFIX'") || api.getAttribute("storage.googleapis.com/objectListPrefix", "").startsWith("'$PREFIX'")'
 for S in turn-left-turnstile-secret turn-left-admin-token; do
   gcloud secrets add-iam-policy-binding $S --project=$PROJECT \
     --member=serviceAccount:$RUN_SA --role=roles/secretmanager.secretAccessor

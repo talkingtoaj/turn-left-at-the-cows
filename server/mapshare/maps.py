@@ -1,7 +1,7 @@
 """Shared maps: checking an upload, and storing, listing, voting and reporting.
 
-Storage layout (bucket MAPS_BUCKET, default talkingtoaj-public-media, under
-MAPS_PREFIX, default "turn-left-at-the-cows/maps/"):
+Storage layout (bucket MAPS_BUCKET, default turn-left-at-the-cows-maps, under
+MAPS_PREFIX, default "maps/"):
 
     <prefix><mission id>/<map id>.json     one object per shared map
 

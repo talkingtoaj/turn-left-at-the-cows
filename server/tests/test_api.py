@@ -32,8 +32,8 @@ def test_share_then_list_and_get(client, storage):
     m = share(client)
     assert m["nickname"] == "Dusty" and m["votes"] == 0 and m["mine"] is True
     assert m["sketch"]["strokes"][0]["points"][1] == [300.1, 201]
-    names = [n for n, _ in storage.list("turn-left-at-the-cows/maps/m1_parcel/")]
-    assert names == [f"turn-left-at-the-cows/maps/m1_parcel/{m['id']}.json"]
+    names = [n for n, _ in storage.list("maps/m1_parcel/")]
+    assert names == [f"maps/m1_parcel/{m['id']}.json"]
     stored = json.loads(storage.read(names[0])[0])
     assert stored["owner"] != P1 and "player" not in stored  # only a hash is kept
 

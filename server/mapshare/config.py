@@ -11,9 +11,9 @@ from pathlib import Path
 TEST_SITE_KEY = "1x00000000000000000000AA"
 TEST_SECRET_KEY = "1x0000000000000000000000000000000AA"
 
-# A shared, private bucket (one folder per app); this game keeps its maps under the prefix.
-DEFAULT_BUCKET = "talkingtoaj-public-media"
-DEFAULT_PREFIX = "turn-left-at-the-cows/maps/"
+# The game's own private bucket (no public access); maps live under the prefix.
+DEFAULT_BUCKET = "turn-left-at-the-cows-maps"
+DEFAULT_PREFIX = "maps/"
 
 SERVER_DIR = Path(__file__).resolve().parent.parent
 
