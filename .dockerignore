@@ -1,0 +1,12 @@
+.git
+.claude
+node_modules
+dist
+docs
+tools
+*.log
+server/.venv
+server/.localmaps
+server/.pytest_cache
+server/tests
+**/__pycache__

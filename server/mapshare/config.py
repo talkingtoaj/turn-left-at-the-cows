@@ -11,6 +11,10 @@ from pathlib import Path
 TEST_SITE_KEY = "1x00000000000000000000AA"
 TEST_SECRET_KEY = "1x0000000000000000000000000000000AA"
 
+# A shared, private bucket (one folder per app); this game keeps its maps under the prefix.
+DEFAULT_BUCKET = "talkingtoaj-public-media"
+DEFAULT_PREFIX = "turn-left-at-the-cows/maps/"
+
 SERVER_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -24,8 +28,8 @@ def _int(name: str, default: int) -> int:
 @dataclass
 class Settings:
     storage: str = "gcs"  # gcs | local | memory
-    bucket: str = ""
-    prefix: str = "turn-left-at-the-cows/"
+    bucket: str = DEFAULT_BUCKET
+    prefix: str = DEFAULT_PREFIX
     local_dir: Path = SERVER_DIR / ".localmaps"
     dist_dir: Path = SERVER_DIR.parent / "dist"
     turnstile_site_key: str = TEST_SITE_KEY
@@ -45,13 +49,14 @@ class Settings:
     @classmethod
     def from_env(cls) -> "Settings":
         env = os.environ
-        prefix = env.get("MAPS_PREFIX", "turn-left-at-the-cows/")
+        prefix = env.get("MAPS_PREFIX", DEFAULT_PREFIX)
         if prefix and not prefix.endswith("/"):
             prefix += "/"
-        storage = env.get("STORAGE", "gcs" if env.get("MAPS_BUCKET") else "local").lower()
+        # On Cloud Run (K_SERVICE is set) the default is GCS; anywhere else a local folder.
+        storage = env.get("STORAGE", "gcs" if env.get("K_SERVICE") else "local").lower()
         return cls(
             storage=storage,
-            bucket=env.get("MAPS_BUCKET", ""),
+            bucket=env.get("MAPS_BUCKET") or DEFAULT_BUCKET,
             prefix=prefix,
             local_dir=Path(env.get("LOCAL_MAPS_DIR", str(SERVER_DIR / ".localmaps"))),
             dist_dir=Path(env.get("DIST_DIR", str(SERVER_DIR.parent / "dist"))),

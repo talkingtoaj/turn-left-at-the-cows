@@ -1,8 +1,9 @@
 """Shared maps: checking an upload, and storing, listing, voting and reporting.
 
-Storage layout (all under MAPS_PREFIX, default "turn-left-at-the-cows/"):
+Storage layout (bucket MAPS_BUCKET, default talkingtoaj-public-media, under
+MAPS_PREFIX, default "turn-left-at-the-cows/maps/"):
 
-    maps/<mission id>/<map id>.json     one object per shared map
+    <prefix><mission id>/<map id>.json     one object per shared map
 
 Each object holds the sketch (the game's own format: strokes, stamps,
 labels in 960x640 map-screen coordinates), the trip it came from, and its
@@ -226,7 +227,7 @@ class MapStore:
 
     # names and hashes
     def _dir(self, mission: str) -> str:
-        return f"{self.prefix}maps/{mission}/"
+        return f"{self.prefix}{mission}/"
 
     def _name(self, mission: str, map_id: str) -> str:
         return f"{self._dir(mission)}{map_id}.json"

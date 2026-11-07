@@ -1,0 +1,175 @@
+# Game server and shared maps
+
+A small FastAPI app that serves the built game (`../dist`, from `npm run build`)
+and the shared-maps API under `/api/maps`. It runs on Cloud Run as the service
+`turn-left-at-the-cows` (project `lifebalance-nuxt`, region `us-central1`). A push
+to `main` builds and deploys it through `../cloudbuild.yaml`.
+
+The game works without this server: with no API (plain `npm run dev`, a static
+host, offline) the share buttons are replaced by a one-line note.
+
+## Run it locally
+
+```bash
+npm run build                      # from the repo root: makes dist/
+cd server
+uv run pytest                      # tests use an in-memory store, no cloud
+STORAGE=local PORT=8799 uv run --frozen --no-dev python -m mapshare
+# open http://localhost:8799/   (maps are saved in server/.localmaps/)
+```
+
+Without real Turnstile keys the server uses Cloudflare's always-pass test keys,
+so sharing works locally. To work on the game with Vite's hot reload and the
+API at the same time, run the server as above and `API_PROXY=http://localhost:8799 npm run dev`.
+
+## Environment
+
+| Variable | Default | What |
+|---|---|---|
+| `PORT` | 8080 | Port to listen on (Cloud Run sets it) |
+| `STORAGE` | `gcs` on Cloud Run, else `local` | `gcs`, `local` (a folder) or `memory` |
+| `MAPS_BUCKET` | `talkingtoaj-public-media` | GCS bucket (private, shared, one folder per app) |
+| `MAPS_PREFIX` | `turn-left-at-the-cows/maps/` | Folder in the bucket for this game's maps |
+| `LOCAL_MAPS_DIR` | `server/.localmaps` | Folder for `STORAGE=local` |
+| `DIST_DIR` | `../dist` | The built game |
+| `TURNSTILE_SITE_KEY` | Cloudflare test key | Public site key (sent to the browser) |
+| `TURNSTILE_SECRET_KEY` | Cloudflare test key | Secret key (Secret Manager in production) |
+| `ADMIN_TOKEN` | unset (admin off) | Bearer token for the admin endpoints |
+| `VOTER_SALT` | fixed string | Salt for hashing player ids |
+| `UPLOADS_PER_HOUR` | 5 | Shares per IP per hour |
+| `ACTIONS_PER_HOUR` | 120 | Votes + reports per IP per hour |
+| `UPLOADS_PER_HOUR_TOTAL` | 300 | Shares per hour for the whole instance (a cost cap) |
+| `HIDE_AFTER_REPORTS` | 3 | Reports from different players that hide a map |
+
+## API
+
+| Method and path | What |
+|---|---|
+| `GET /health` | `{"ok": true}` |
+| `GET /api/maps/config` | Turnstile site key and limits; the game uses it to see if sharing is up |
+| `GET /api/maps?mission=m1_parcel&sort=votes\|new&offset=0&limit=12&player=ID` | A page of maps (with sketches), plus `voted` / `reported` / `mine` for that player |
+| `GET /api/maps/{mission}/{id}?player=ID` | One map |
+| `POST /api/maps` | Share: `{mission, region, seed, gameVersion, timeMs, km, tows, nickname, sketch, player, turnstileToken}` |
+| `POST` / `DELETE /api/maps/{mission}/{id}/vote` | Thumbs-up on / off: `{player}` |
+| `POST /api/maps/{mission}/{id}/report` | Report: `{player}` |
+| `GET /api/admin/maps?mission=m1_parcel[&hidden_only=false]` | Admin: hidden maps |
+| `POST /api/admin/maps/{mission}/{id}/unhide` (or `/hide`) | Admin |
+
+Admin calls need `Authorization: Bearer $ADMIN_TOKEN`, for example:
+
+```bash
+URL=https://turn-left-at-the-cows-XXXX-uc.a.run.app
+TOKEN=$(gcloud secrets versions access latest --secret=turn-left-admin-token --project=lifebalance-nuxt)
+curl -s -H "Authorization: Bearer $TOKEN" "$URL/api/admin/maps?mission=m1_parcel"
+curl -s -X POST -H "Authorization: Bearer $TOKEN" "$URL/api/admin/maps/m1_parcel/MAP_ID/unhide"
+```
+
+An unhidden map is marked reviewed and later reports no longer hide it.
+
+## Storage, votes and reports
+
+One JSON object per shared map: `gs://talkingtoaj-public-media/turn-left-at-the-cows/maps/<mission>/<id>.json`
+holding the sketch (the game's own format: strokes, stamps, labels in 960x640
+map-screen coordinates), mission, region, seed, game version, time, km, tows,
+nickname, created time, vote and report counts, hidden flag, and the salted
+hashes of the owner, voters and reporters (never the raw player ids).
+
+Votes and reports rewrite the map's own object with a GCS generation
+precondition (compare-and-swap; retried on a clash). One object per map means
+clicks on different maps never clash, the voter list makes "one thumbs-up per
+player" exact, and there is no index to keep in step. Listing a mission lists
+its objects (names and generations) and reads only the ones whose generation
+changed since this instance last read them; the list is cached 3 s.
+
+## Safety
+
+- Cloudflare Turnstile on every share (checked server side).
+- Rate limits per IP: 5 shares an hour, 120 votes and reports an hour, plus 300
+  shares an hour per instance in all (in memory, per instance).
+- Bodies over 200 KB are refused; sketches are checked field by field (counts of
+  strokes, points, stamps and labels capped, coordinates clamped, colours and
+  stamp kinds checked) and rounded to 0.1 px.
+- Nicknames: optional ("A driver" by default), at most 24 characters, a basic
+  profanity filter refuses rude ones; rude words in map labels become stars.
+- Report button on every map; 3 reports from different players hide it until
+  the owner unhides it with the admin endpoint.
+- Player identity is an anonymous random id kept in the browser's localStorage.
+
+## One-time cloud setup (run by hand, once)
+
+Nothing here holds a secret: the Turnstile keys are read from `~/.env` inside
+the commands and never printed.
+
+```bash
+PROJECT=lifebalance-nuxt
+REGION=us-central1
+BUCKET=talkingtoaj-public-media
+PREFIX=turn-left-at-the-cows/maps/
+SERVICE=turn-left-at-the-cows
+RUN_SA=turn-left-at-the-cows-run@$PROJECT.iam.gserviceaccount.com
+PROJECT_NUMBER=$(gcloud projects describe $PROJECT --format='value(projectNumber)')
+BUILD_SA=$PROJECT_NUMBER@cloudbuild.gserviceaccount.com   # or the SA your triggers run as
+
+# 1. APIs
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com \
+  secretmanager.googleapis.com storage.googleapis.com --project=$PROJECT
+
+# 2. The bucket: check, then create it if it is missing. Private: NO allUsers grant.
+#    The server reads and writes it with its own service account; nothing is public.
+gcloud storage buckets describe gs://$BUCKET --project=$PROJECT \
+  || gcloud storage buckets create gs://$BUCKET --project=$PROJECT \
+       --location=us-central1 --uniform-bucket-level-access --public-access-prevention
+
+# 3. Artifact Registry repo for the images
+gcloud artifacts repositories create turn-left-at-the-cows --repository-format=docker \
+  --location=$REGION --project=$PROJECT
+
+# 4. Secrets (values read from ~/.env / generated, never echoed)
+grep '^TURNSTILE_SECRET_KEY=' ~/.env | cut -d= -f2- | tr -d '"\n' \
+  | gcloud secrets create turn-left-turnstile-secret --data-file=- --project=$PROJECT
+openssl rand -hex 32 | tr -d '\n' \
+  | gcloud secrets create turn-left-admin-token --data-file=- --project=$PROJECT
+
+# 5. Runtime service account for Cloud Run
+gcloud iam service-accounts create turn-left-at-the-cows-run --project=$PROJECT \
+  --display-name="Turn Left at the Cows (Cloud Run)"
+#    Read and write the maps: objectAdmin on the bucket ...
+gcloud storage buckets add-iam-policy-binding gs://$BUCKET \
+  --member=serviceAccount:$RUN_SA --role=roles/storage.objectAdmin
+#    ... OR (optional, tighter) only under this game's prefix, with an IAM condition
+#    (the second half lets it list that prefix). Use this instead of the line above:
+# gcloud storage buckets add-iam-policy-binding gs://$BUCKET \
+#   --member=serviceAccount:$RUN_SA --role=roles/storage.objectAdmin \
+#   --condition='title=turn-left-maps-only,expression=resource.name.startsWith("projects/_/buckets/'$BUCKET'/objects/'$PREFIX'") || api.getAttribute("storage.googleapis.com/objectListPrefix", "").startsWith("'$PREFIX'")'
+for S in turn-left-turnstile-secret turn-left-admin-token; do
+  gcloud secrets add-iam-policy-binding $S --project=$PROJECT \
+    --member=serviceAccount:$RUN_SA --role=roles/secretmanager.secretAccessor
+done
+
+# 6. Let Cloud Build deploy the service as that account
+gcloud projects add-iam-policy-binding $PROJECT --member=serviceAccount:$BUILD_SA --role=roles/run.admin
+gcloud projects add-iam-policy-binding $PROJECT --member=serviceAccount:$BUILD_SA --role=roles/artifactregistry.writer
+gcloud iam service-accounts add-iam-policy-binding $RUN_SA --project=$PROJECT \
+  --member=serviceAccount:$BUILD_SA --role=roles/iam.serviceAccountUser
+
+# 7. Trigger: a push to main deploys production (repo already connected to Cloud Build).
+#    The site key is public; it is passed as a substitution.
+gcloud builds triggers create github --project=$PROJECT \
+  --name="turn-left-at-the-cows-deploy" \
+  --repo-name="orienteering-game" --repo-owner="talkingtoaj" \
+  --branch-pattern="^main$" --build-config="cloudbuild.yaml" \
+  --substitutions=_TURNSTILE_SITE_KEY="$(grep '^TURNSTILE_SITE_KEY=' ~/.env | cut -d= -f2- | tr -d '"')"
+#    (Add --service-account=projects/$PROJECT/serviceAccounts/$BUILD_SA if your
+#    project's triggers need an explicit build account.)
+
+# 8. Later: the custom domain (then add the domain to the Turnstile widget's
+#    hostnames in the Cloudflare dashboard, and set _SITE_URL on the trigger).
+gcloud beta run domain-mappings create --service=$SERVICE --domain=YOUR.DOMAIN \
+  --region=$REGION --project=$PROJECT
+```
+
+Also add the Cloud Run URL (and later the domain) to the Turnstile widget's
+hostnames in the Cloudflare dashboard, or the widget will refuse to run there.
+
+Cost: a few KB per map; storage and egress stay inside Google's free tier at
+this size. Cloud Run scales to zero.
