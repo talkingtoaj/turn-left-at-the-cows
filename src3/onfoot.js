@@ -5,7 +5,9 @@
 // F (car stopped or nearly) gets out at the driver's door; F within a
 // couple of metres of the car gets back in. On foot: WASD walk, Shift jog,
 // mouse look (click to capture the mouse, Esc lets it go; dragging with the
-// left button works too when the browser will not capture it).
+// left button works too when the browser will not capture it). Hold the
+// right mouse button to squint (the view narrows to 30 degrees) at a far
+// plane or tower.
 // In the car: hold the right mouse button and move the mouse to turn your
 // head, up to 100 degrees left or right and 35 up; it eases back to the
 // front when you let go. Works in the chase view (the top view ignores it).
@@ -27,6 +29,7 @@ const DEG = Math.PI / 180;
 const MOUSE = 0.12; // degrees per pixel
 const GLANCE = { yaw: 100, up: 35, down: 15, back: 5 }; // limits (deg) and ease-back rate (1/s)
 const FOOT_FOV = 70;
+const SQUINT_FOV = 30;
 const BLEND_S = 0.35;
 
 export function createOnFoot({ canvas, camera, rig, canLook = () => true }) {
@@ -35,6 +38,7 @@ export function createOnFoot({ canvas, camera, rig, canLook = () => true }) {
   const glance = { yaw: 0, pitch: 0, held: false };
   let dragging = false; // left-drag look without pointer lock
   let bob = 0;
+  let squint = false; // on foot, right button held: a narrower view
   // The cut between the chase camera and your eyes, eased over BLEND_S.
   const from = { pos: new THREE.Vector3(), quat: new THREE.Quaternion(), t: 1 };
   const look = new THREE.Euler(0, 0, 0, 'YXZ');
@@ -43,8 +47,9 @@ export function createOnFoot({ canvas, camera, rig, canLook = () => true }) {
   const locked = () => document.pointerLockElement === canvas;
   const turn = (dx, dy) => {
     if (active) {
-      walker.yaw = (walker.yaw + dx * MOUSE + 360) % 360;
-      walker.pitch = Math.max(-85, Math.min(85, walker.pitch - dy * MOUSE));
+      const k = MOUSE * (camera.fov / FOOT_FOV); // slower when squinting
+      walker.yaw = (walker.yaw + dx * k + 360) % 360;
+      walker.pitch = Math.max(-85, Math.min(85, walker.pitch - dy * k));
     } else if (glance.held) {
       glance.yaw = Math.max(-GLANCE.yaw, Math.min(GLANCE.yaw, glance.yaw + dx * MOUSE));
       glance.pitch = Math.max(-GLANCE.down, Math.min(GLANCE.up, glance.pitch - dy * MOUSE));
@@ -63,17 +68,22 @@ export function createOnFoot({ canvas, camera, rig, canLook = () => true }) {
           // No pointer lock here: dragging still looks around.
         }
       }
-    } else if (!active && e.button === 2) {
-      glance.held = true;
+    } else if (e.button === 2) {
+      if (active) squint = true;
+      else glance.held = true;
     }
   });
   window.addEventListener('mouseup', (e) => {
     if (e.button === 0) dragging = false;
-    if (e.button === 2) glance.held = false;
+    if (e.button === 2) {
+      glance.held = false;
+      squint = false;
+    }
   });
   window.addEventListener('blur', () => {
     dragging = false;
     glance.held = false;
+    squint = false;
   });
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   window.addEventListener('mousemove', (e) => {
@@ -115,6 +125,9 @@ export function createOnFoot({ canvas, camera, rig, canLook = () => true }) {
     },
     holdGlance(on) {
       glance.held = !!on;
+    },
+    setSquint(on) {
+      squint = !!on;
     },
     // F: out of the car (when it is stopped) or back in (when close to it).
     toggle(car, isClear) {
@@ -178,8 +191,10 @@ export function createOnFoot({ canvas, camera, rig, canLook = () => true }) {
       camera.position.set(walker.x, g + WALK.eye + Math.sin(bob) * amp * Math.min(1, walker.speed), walker.y);
       look.set(walker.pitch * DEG, -walker.yaw * DEG, 0, 'YXZ');
       camera.quaternion.setFromEuler(look);
-      if (camera.fov !== FOOT_FOV) {
-        camera.fov = FOOT_FOV;
+      const fov = squint ? SQUINT_FOV : FOOT_FOV;
+      if (camera.fov !== fov) {
+        camera.fov += (fov - camera.fov) * Math.min(1, dt * 8);
+        if (Math.abs(camera.fov - fov) < 0.2) camera.fov = fov;
         camera.updateProjectionMatrix();
       }
       // Sharp shadows just ahead of you.

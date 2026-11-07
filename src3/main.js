@@ -559,6 +559,8 @@ function frame(now) {
   renderer.shadowMap.autoUpdate = !runtime.paused;
   renderer.render(scene, camera);
   hud.update(dt);
+  // A conversation, the map, a card or help needs the mouse pointer back.
+  if (foot.locked && (state.inputLocked || runtime.paused)) foot.release();
   updateTips(dt);
   stats.end(statsExtra);
   if (districtEl && (fps.frames & 15) === 0) districtEl.textContent = districtLabel();
@@ -585,7 +587,7 @@ function updateLookAt() {
     for (const p of planes.states) {
       if (!p || !p.visible || p.ground) continue;
       const ref = groundAt(planes.info.landmark.x, planes.info.landmark.y);
-      planeSpots.push({ id: 'plane', topicId: 'planes', x: p.x, y: p.y, z: ref + p.alt, h: 3, r: 12 });
+      planeSpots.push({ id: 'plane', topicId: 'planes', x: p.x, y: p.y, z: ref + p.alt, h: 3, r: 30 }); // generous: it moves
     }
   }
   const hit = pickLookable(lookablesFor(WORLD), eye, w.yaw, w.pitch, groundAt, planeSpots);

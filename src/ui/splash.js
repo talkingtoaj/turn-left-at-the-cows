@@ -41,7 +41,7 @@ export const CONTROLS = [
   [['F'], 'Get out of the car / back in'],
   [['Mouse'], 'Look around on foot (click; Esc lets go)'],
   [['Shift'], 'Jog'],
-  [['Right mouse'], 'Turn your head in the car (hold)'],
+  [['Right mouse'], 'Hold: turn your head in the car, squint on foot'],
   [['E'], 'Talk / next / "What\u2019s that?"'],
   [['1-4'], 'Ask about an underlined name'],
   [['M'], 'Map'],

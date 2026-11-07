@@ -47,6 +47,8 @@ export const TIPS = [
     when: (c) => !c.onFoot && !c.busy && c.planeClue && c.planeD < 1300 },
   { id: 'plane_look', max: 2, text: 'Hold the right mouse button and move the mouse to turn your head.',
     when: (c) => !c.onFoot && !c.busy && c.planeClue && c.planeD < 900 && c.speed < 3 },
+  { id: 'squint', max: 2, text: 'Hold the right mouse button to squint at something far off.',
+    when: (c) => c.onFoot && !c.busy && c.planeClue && c.planeD < 1500 && c.footTime > 4 },
   { id: 'rain', max: 2, text: 'Rain: the road gets slippery. Brake early and take bends slowly.',
     when: (c) => !c.onFoot && !c.busy && c.rain > 0.3 && c.speed > 5 },
   { id: 'damage', max: 2, text: 'A warning light: amber means worn, red and blinking means bad. Go gently.',
