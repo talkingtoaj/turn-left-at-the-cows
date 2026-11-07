@@ -14,6 +14,8 @@ import { loadProgress, nextUnfinishedIndex, canSaveProgress } from '../game/prog
 import { timerText } from '../hud/format.js';
 import { unlockAudio, isMuted, setMuted, onMuteChange } from '../audio/context.js';
 import { soundBytes } from '../audio/sounds.js';
+import { available as mapsAvailable } from '../net/mapsApi.js';
+import { myMap } from '../game/myMaps.js';
 
 export const TITLE = 'Turn Left at the Cows';
 export const TAGLINE = 'There was a time before GPS, when finding your way required you to ask a local.';
@@ -259,6 +261,26 @@ export function showSplash({ version = '3d', load, preferred = null, phone = fal
     }
   });
   if (!canSaveProgress()) el('p', 'sp-savenote', paper, 'Progress can’t be saved in this window.');
+
+  // Finished jobs get a "Maps" link to other drivers' maps (src/ui/mapShare.js,
+  // loaded on click), only when the map server answers.
+  if (anyDone) {
+    mapsAvailable().then((config) => {
+      if (!config || !root.isConnected) return;
+      MISSION_LIST.forEach((m) => {
+        if (!done[m.id]) return;
+        const name = list.querySelector(`li[data-mission="${m.id}"] .sp-jbest`);
+        if (!name) return;
+        const b = el('button', 'sp-jmaps', name, 'Maps');
+        b.type = 'button';
+        b.setAttribute('aria-label', `Other drivers’ maps for ${m.title}`);
+        b.addEventListener('click', async () => {
+          const { openMapsBrowser } = await import('./mapShare.js');
+          openMapsBrowser({ missionId: m.id, missionTitle: m.title, mySketch: myMap(m.id)?.sketch || null });
+        });
+      });
+    });
+  }
 
   const go = el('div', 'sp-go', pad);
   let btn = null;

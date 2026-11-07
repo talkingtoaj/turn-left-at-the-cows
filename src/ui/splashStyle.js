@@ -77,6 +77,9 @@ body[data-world="live"] .sp-paint { opacity: 0; }
 .sp-jbtn { padding: 3px 10px; font: 500 13px Oswald, "Arial Narrow", sans-serif !important; letter-spacing: 0.08em; text-transform: uppercase;
   color: #3a3128 !important; background: transparent; border: 1.5px solid #3a3128; border-radius: 3px; cursor: pointer; }
 .sp-jbtn:hover { background: #d8ccb4; }
+.sp-jmaps { margin-left: 8px; padding: 0 2px; font: 19px/1 Caveat, cursive !important; color: #7c1812 !important; background: none; border: 0;
+  text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.sp-jmaps:hover { color: #b3261e !important; }
 .sp-savenote { margin: 8px 0 0; font: 14px/1.3 Georgia, serif; font-style: italic; color: #7c1812; }
 
 .sp-go { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
