@@ -8,13 +8,16 @@
 //
 // API:
 //   loadProgress()                      -> { version, missions: { [id]: Record } }
-//   recordFinish(id, { elapsedMs, odometer })  -> the updated Record
+//   recordFinish(id, { elapsedMs, odometer, tows })  -> the updated Record
 //   isFinished(id) / finishedIds()
 //   nextUnfinishedIndex(list = MISSION_LIST)   -> index of the first unfinished
 //                                               mission (0 when all are done)
 //   clearProgress()                     (also the ?reset=progress dev flag)
 // Record: { finishedAt (ISO), times (how often finished), bestMs, bestDistance (m),
-//           lastMs, lastDistance }
+//           lastMs, lastDistance, tows }
+// tows (round 11, optional): how often the car was towed on the finish just
+// recorded (0 for a clean run). Older saves have no tows field: read it as
+// `rec.tows || 0`. Same storage key and version, so old saves still load.
 
 import { MISSION_LIST } from './missionList.js';
 
@@ -55,7 +58,7 @@ function save(p) {
 }
 
 // Notes that mission `id` was finished in `elapsedMs` over `odometer` metres.
-export function recordFinish(id, { elapsedMs = 0, odometer = 0 } = {}) {
+export function recordFinish(id, { elapsedMs = 0, odometer = 0, tows = 0 } = {}) {
   const p = loadProgress();
   const old = p.missions[id] || null;
   const ms = Math.round(elapsedMs);
@@ -67,6 +70,7 @@ export function recordFinish(id, { elapsedMs = 0, odometer = 0 } = {}) {
     bestDistance: old && old.bestDistance > 0 ? Math.min(old.bestDistance, dist) : dist,
     lastMs: ms,
     lastDistance: dist,
+    tows: Math.max(0, Math.round(tows) || 0),
   };
   p.missions[id] = rec;
   save(p);

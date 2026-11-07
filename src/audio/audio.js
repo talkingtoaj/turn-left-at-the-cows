@@ -6,6 +6,8 @@
 //   planes: [{ engine, x, y, dz, vx, vy, vz, throttle, ground }] as heard
 //   now (src3/world3d/planes3d.js works out where each one was when the
 //   sound left it), or null where there is no airfield.
+//   tow: { x, y, throttle } where the tow truck is (src3/tow3d.js), or null.
+//   audio.cue(id, vol)   one-shot now, centre (the tow chain and winch)
 //   audio.toggleMute(); audio.muted
 // The AudioContext is created on the first keydown / pointerdown (browsers
 // need a user gesture) and resumed on later gestures if it was suspended.
@@ -199,10 +201,14 @@ export function createAudio(world, opts = {}) {
     // Light planes: one voice each, made when the prop loop arrives.
     const planeBus = gain(1, bus);
 
+    // Tow truck (round 11): its diesel idle, panned toward the truck.
+    const towPan = panner(bus);
+    const towG = gain(0, towPan);
+
     nodes = {
       master, bus, engGain, engLp, engLayers, revG, revSrc: null, gravelG, grassG, pavedG, surfSrc: {},
       waterPan, creekG, riverG, townPan, townG, birdPan, birdG, voiceBus, started: new Set(), flatG, flatSrc: null,
-      roofG, rainG, wetG, wetSrc: null, planeBus, planeVoices: [],
+      roofG, rainG, wetG, wetSrc: null, planeBus, planeVoices: [], towPan, towG, towSrc: null,
     };
 
     loadSounds(ctx, ALL_SOUNDS.filter((s) => withWeather || !s.weather).map((s) => s.id), (id, buf) => {
@@ -230,6 +236,7 @@ export function createAudio(world, opts = {}) {
     else if (id === 'weather/rain_roof') src = loopSource(id, n.roofG);
     else if (id === 'weather/rain') src = loopSource(id, n.rainG);
     else if (id === 'tyres/wet') src = n.wetSrc = loopSource(id, n.wetG);
+    else if (id === 'tow/engine') src = n.towSrc = loopSource(id, n.towG);
     if (src) n.started.add(id);
   }
 
@@ -647,6 +654,19 @@ export function createAudio(world, opts = {}) {
     }
   }
 
+  // Tow truck: louder as it comes close, pitched up while it drives.
+  function updateTow(car, tow) {
+    const n = nodes;
+    if (!tow) {
+      ramp(n.towG.gain, 0, 0.3);
+      return;
+    }
+    const r = rel(car, tow.x, tow.y);
+    ramp(n.towG.gain, 0.55 / (1 + r.d / 18), 0.15);
+    setPan(n.towPan, r.pan);
+    if (n.towSrc) ramp(n.towSrc.playbackRate, 0.92 + 0.3 * (tow.throttle || 0), 0.25);
+  }
+
   function handleEvents(car, amb) {
     if (!amb || !amb.events) return;
     for (const e of amb.events) {
@@ -709,10 +729,16 @@ export function createAudio(world, opts = {}) {
       updateTalk();
       updateChatter(dt, car, amb, s);
       updatePlanes(car, opts && opts.planes);
+      updateTow(car, opts && opts.tow);
       if (!paused && !muted) {
         updateBirds(dt, car, amb);
         handleEvents(car, amb);
       }
+    },
+    // A one-shot now, centred (the tow chain and winch).
+    cue(id, vol = 0.5) {
+      if (!ctx || !nodes || ctx.state !== 'running') return;
+      oneShot(id, ctx.currentTime, 0, vol, 0.97 + Math.random() * 0.06);
     },
     toggleMute() {
       muted = !muted;

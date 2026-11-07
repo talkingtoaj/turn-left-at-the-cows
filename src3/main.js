@@ -38,6 +38,7 @@ import { createWetness } from '../src/game/wetness.js';
 import { createWeatherClock } from './look/weather.js';
 import { createRain3D } from './world3d/rain3d.js';
 import { createPlanes3D } from './world3d/planes3d.js';
+import { createTow } from './tow3d.js';
 
 const TALK_RANGE = 25;
 const READ_RANGE = 25;
@@ -200,6 +201,8 @@ async function buildRegion(id, title) {
     rain3d = createRain3D(scene);
     // Light planes flying circuits from the airfield (src/world/airfield.js).
     planes = createPlanes3D(scene, WORLD, world3d.terrain);
+    // The tow truck that comes after a breakdown (src3/tow3d.js).
+    tow.attach(scene, world3d);
     await step(0.9, 'Warming up the engine');
     // One frame with everything in, so the shaders compile behind the card.
     car3d.update(state.car, 0, world3d.surfaceAt, 0, state.damage || null, null);
@@ -246,6 +249,9 @@ async function followMission() {
 const ui = document.getElementById('ui');
 const map = createMapOverlay(ui, { onClose: () => { runtime.paused = false; state.inputLocked = false; } });
 const hud = createHUD(ui, { openMap: () => { runtime.paused = true; state.inputLocked = true; map.open(); } });
+// Breakdowns end in a tow to the nearest garage, not a lost mission.
+// Dev: ?breakdown=1 breaks the car down at once.
+const tow = createTow(ui, { audio, rig, params });
 
 // ---------- input ----------
 
@@ -276,7 +282,7 @@ window.addEventListener('keyup', (e) => keys.delete(e.code));
 window.addEventListener('blur', () => keys.clear());
 
 function readInput() {
-  if (state.inputLocked || state.won || (state.damage && state.damage.brokenDown)) return { brake: true };
+  if (state.inputLocked || state.won || state.towing || (state.damage && state.damage.brokenDown)) return { brake: true };
   return {
     up: keys.has('KeyW') || keys.has('ArrowUp'),
     down: keys.has('KeyS') || keys.has('ArrowDown'),
@@ -393,6 +399,8 @@ function frame(now) {
   }
 
   car3d.update(car, runtime.paused ? 0 : dt, world3d.surfaceAt, steer, state.damage || null, ground.offRoad ? ground : null);
+  // The tow scene: the truck, and the winch lifting the car's front.
+  tow.update(dt, car3d.object);
   carPos.copy(car3d.object.position);
   // Camera rumble: dirt road bumps, or the ground's own small bumps off-road.
   const roadRumble = world3d.terrain.bumps.roughness(car.x, car.y) * Math.min(1, Math.abs(car.speed) / 20);
@@ -408,7 +416,7 @@ function frame(now) {
     planes.update(state.clockMinutes * 6, camera, scene.fog.color, wetness.rain, listener);
   }
   // Sound every frame, even paused (it ducks while the map is open).
-  audio.update(dt, state, amb, { paused: runtime.paused, rain: wetness, planes: planes ? planes.sound : null });
+  audio.update(dt, state, amb, { paused: runtime.paused, rain: wetness, planes: planes ? planes.sound : null, tow: tow.sound });
 
   // Fog and draw distance: driver's view is hazy; top view sees its patch
   // clearly. Rain closes it in.
@@ -460,6 +468,7 @@ function exposeDebug() {
   window.__wet = wetness;
   window.__rain3d = rain3d;
   window.__planes = planes;
+  window.__towScene = tow;
   // Dev: play a mission now, building its region if need be (memory checks):
   // await __playMission('m3_airfield').
   window.__playMission = playMission;
