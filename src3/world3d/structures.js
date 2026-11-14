@@ -285,8 +285,11 @@ function buildLandmark(terrain, batch, l, rng, materials) {
   if (l.kind === 'water_tower') {
     const H = 20;
     const R = WATER_TOWER.tankR;
-    const top = 0.72;
-    const legs = WATER_TOWER.legs.map(([x, y]) => [new THREE.Vector3(x, -FOUND, y), new THREE.Vector3(x * top, H, y * top)]);
+    // The legs run up to the rim of the tank's rounded bottom (it starts at H + 1.6),
+    // so the tank sits on them instead of floating above their tips.
+    const top = 0.66;
+    const legTop = H + 1.5;
+    const legs = WATER_TOWER.legs.map(([x, y]) => [new THREE.Vector3(x, -FOUND, y), new THREE.Vector3(x * top, legTop, y * top)]);
     const steel = 0x5d6468;
     if (A) for (const [x, y] of WATER_TOWER.legs) A.circle(l.id, 'tower_leg', l.x + x, l.y + y, WATER_TOWER.legR * 0.7, base - FOUND);
     for (const [a, b] of legs) batch.add(strut(a, b, WATER_TOWER.legR * 0.7, 6), mAt(l.x, base, l.y), steel);
