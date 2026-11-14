@@ -14,6 +14,7 @@
 //     snapshot of the player's sketch the first time the car enters them
 //   arrivalLabel: snapshot label taken when the car reaches the goal
 //   finalLabel: snapshot label taken when the player closes the win screen
+//   arrival: { name, line } who you delivered to and the one line they say on the win screen
 //   printedMaps: ids into WORLD.printedMaps the player has during this mission
 //   approach: optional first leg in another region, driven before the
 //     mission's own region: { region, start: { x, y, heading }, exit(x, y) }.
@@ -58,6 +59,8 @@ const DETAILS = {
     ],
     arrivalLabel: 'Map on arrival at Hartley Farm',
     finalLabel: 'Final map: Hartley Farm',
+    // Arrival line (win screen). Line id: arrival-m1
+    arrival: { name: 'Mrs Hartley', line: 'Oh, you found us. Leave it on the table, and sit down. The kettle is already hot.' },
     // No printed map: you draw your own and compare it with the real one at
     // the end. (Mission 2 has only Mrs Hartley's hand-drawn sketch.)
     printedMaps: [],
@@ -93,6 +96,8 @@ const DETAILS = {
     ],
     arrivalLabel: "Map on arrival at Tom's cabin",
     finalLabel: "Final map: Tom's cabin",
+    // Arrival line (win screen). Line id: arrival-m2
+    arrival: { name: 'Tom Hartley', line: 'Ma sent the pie too? Good. I ran out of pills on Tuesday and ate the last of the beans on Thursday.' },
     // Only Mrs Hartley's own sketch: a few years out of date.
     printedMaps: ['hartley_sketch'],
   }),
@@ -132,6 +137,8 @@ const DETAILS = {
     ],
     arrivalLabel: 'Map on arrival at Kestrel Field',
     finalLabel: 'Final map: Kestrel Field',
+    // Arrival line (win screen). Line id: arrival-m3
+    arrival: { name: 'Ray Kessler', line: "That's the magneto. Hold the prop for me, would you? No, I'm kidding. Mostly." },
     printedMaps: [],
   }),
 };
