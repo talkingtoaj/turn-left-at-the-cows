@@ -4,6 +4,13 @@
 import { WORLD } from '../world/world.js';
 import { TOPIC_BY_ID, TOPICS } from '../world/topics.js';
 import { currentMission } from './missions.js';
+import { rememberMet } from './progress.js';
+
+// Marks a local as talked to this mission, and remembered for good.
+function meet(state, npcId) {
+  state.talkedTo.add(npcId);
+  rememberMet(npcId);
+}
 
 export function getNpc(npcId) {
   return WORLD.locals.find((l) => l.id === npcId) || null;
@@ -29,7 +36,7 @@ export function listTopics(npcId, state) {
 export function greet(npcId, state) {
   const npc = getNpc(npcId);
   if (!npc) return [];
-  state.talkedTo.add(npcId);
+  meet(state, npcId);
   return npc.greeting ? [...npc.greeting] : [];
 }
 
@@ -39,7 +46,7 @@ export function greet(npcId, state) {
 export function ask(npcId, topicId, state) {
   const npc = getNpc(npcId);
   if (!npc) return [];
-  state.talkedTo.add(npcId);
+  meet(state, npcId);
   state.knownTopics.add(topicId);
   const entry = npc.topics && npc.topics[topicId];
   let lines;
@@ -171,7 +178,7 @@ export function askWhatsThat(npcId, topicId, state) {
   const t = TOPIC_BY_ID[topicId];
   if (!npc || !t) return [];
   if (npc.topics && npc.topics[topicId]) return ask(npcId, topicId, state);
-  state.talkedTo.add(npcId);
+  meet(state, npcId);
   const knows = hash01(`${npcId}:${topicId}`) < t.fame;
   const name = t.label.charAt(0).toUpperCase() + t.label.slice(1);
   const text = knows
@@ -188,12 +195,12 @@ export function askWhatsThat(npcId, topicId, state) {
 // No one to ask: a note to yourself. If someone has named it to you, it is
 // that ("St. Anne's Church, to the north-east. Something to ask about.");
 // else just what you see ("Hm, what's that? Something to the north-east,
-// a few hundred metres off."). Returns the note's text (null if the same
+// a few hundred yards off."). Returns the note's text (null if the same
 // note is already in the notebook).
 export function noteLandmark(topicId, where, state) {
   const t = TOPIC_BY_ID[topicId];
   const known = t && state.knownTopics.has(topicId);
-  const far = where.d < 150 ? 'close by' : where.d < 400 ? 'a few hundred metres off' : 'a long way off';
+  const far = where.d < 150 ? 'close by' : where.d < 400 ? 'a few hundred yards off' : 'a long way off';
   const name = known ? t.label.charAt(0).toUpperCase() + t.label.slice(1) : null;
   const text = known
     ? `${name}, to the ${where.dir}. Something to ask about.`

@@ -305,12 +305,11 @@ export function buildGround(world, scenery, terrain, batch) {
   for (const r of paved) {
     addRibbon(r.points, r.width + 1.8, 0.09, 0x8c8a82, nearWater);
     addCaps(r.points, r.width + 1.8, 0.09, 0x8c8a82, nearWater);
-    addRibbon(r.points, r.width, 0.11, 0xd8d8d0, nearWater);
-    addCaps(r.points, r.width, 0.11, 0xd8d8d0, nearWater);
-    addRibbon(r.points, r.width - 0.5, 0.13, 0x66676a, nearWater);
-    addCaps(r.points, r.width - 0.5, 0.13, 0x66676a, nearWater);
+    // Rural road: no white edge lines. The tar runs to the gravel edge.
+    addRibbon(r.points, r.width, 0.13, 0x66676a, nearWater);
+    addCaps(r.points, r.width, 0.13, 0x66676a, nearWater);
   }
-  // Dashed centre lines.
+  // Dashed centre lines, faded by years of sun.
   for (const r of paved) {
     const cum = measurePolyline(r.points);
     const total = cum[cum.length - 1];
@@ -319,7 +318,7 @@ export function buildGround(world, scenery, terrain, batch) {
       const b = pointAlong(r.points, cum, Math.min(total, d + 3));
       if (nearWater(a.x, a.y)) continue;
       const g = ribbon([[a.x, a.y], [b.x, b.y]], 0.25, 0.15, H, null, 3);
-      if (g) batch.add(g, ID, 0xe6d690, NO_SHADOW);
+      if (g) batch.add(g, ID, 0xb8ad84, NO_SHADOW);
       if (A) A.surface(r.id, 'road_dash', g, 0.15);
     }
   }

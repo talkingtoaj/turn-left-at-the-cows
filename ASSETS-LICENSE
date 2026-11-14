@@ -1,0 +1,29 @@
+Assets license: all rights reserved
+
+Copyright (c) 2026 AJ. All rights reserved.
+
+The following are NOT covered by the MIT license in the LICENSE file. You may
+not copy, reuse, redistribute or sell them without written permission:
+
+  - the art and look of the game made for this project (the painted splash
+    and intro art, signs, the sign textures in public/look/signs/, the
+    textures we made with AI, the car paint)
+  - all sound we made or generated, and the voices (public/sounds/voices/,
+    public/sounds/tow/ and any other generated sound)
+  - all music and the radio audio (stations, DJ talk, jingles)
+  - all writing: the story, the locals' dialogue, the mission text, the radio
+    scripts, the tow lines, the win-screen lines, the notebook lines, the
+    intro note and the taglines
+  - the title "Turn Left at the Cows" and its characters
+
+Third-party material keeps its own terms. The sky maps, textures, 3D models
+and sound effects we use from other people are CC0 (public domain) and
+need no credit, but we credit them anyway. The full list, with links, is in:
+
+  public/look/SOURCES.md     skies, textures, tree and rock models
+  public/sounds/SOURCES.md   sound effects
+
+The fonts Oswald, Caveat and Libre Baskerville are loaded from Google Fonts
+under the SIL Open Font License. three.js is MIT licensed.
+
+You are welcome to play the game and to stream or record it.

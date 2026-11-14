@@ -70,6 +70,17 @@ export const SOUND_GROUPS = [
       { id: 'nature/bird4', kind: 'oneshot', label: 'Bird chirp 4 (tweets)' },
     ],
   },
+  // Round 13: small layers in open country and at farms.
+  {
+    group: 'Countryside',
+    items: [
+      { id: 'ambient/insects', kind: 'loop', label: 'Insects (daytime, away from towns)' },
+      { id: 'ambient/grass_wind', kind: 'loop', label: 'Wind in tall grass (on grass, rises with speed)' },
+      { id: 'ambient/tractor', kind: 'loop', label: 'Distant tractor (near some farms)' },
+      { id: 'ambient/chimes', kind: 'oneshot', label: 'Wind chimes (near farms)' },
+      { id: 'ambient/screen_door', kind: 'oneshot', label: 'Screen door (near farms)' },
+    ],
+  },
   {
     group: 'Town',
     items: [
@@ -117,6 +128,11 @@ export const SOUND_GROUPS = [
     group: 'Car',
     items: [
       { id: 'car/horn', kind: 'oneshot', label: 'Horn (B key), one friendly honk' },
+      { id: 'car/ignition', kind: 'oneshot', label: 'Ignition: key turn and starter (when a mission starts)' },
+      { id: 'car/creak1', kind: 'oneshot', label: 'Body creak 1 (dirt road)' },
+      { id: 'car/creak2', kind: 'oneshot', label: 'Body creak 2 (dirt road)' },
+      { id: 'car/creak3', kind: 'oneshot', label: 'Body creak 3 (dirt road)' },
+      { id: 'car/window_wind', kind: 'loop', label: 'Wind at the window (rises with speed)' },
     ],
   },
   // Round 10: light planes at the airfield (src3/world3d/planes3d.js).

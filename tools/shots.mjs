@@ -46,6 +46,9 @@ const VIEWS = [
   // Dirt roads with the car on them: chase view, and low beside the car.
   { name: 'dirtroad', car: { road: 'ridge_rd', at: 0.5 } },
   { name: 'dirtroad_low', car: { road: 'creek_rd', at: 0.3 }, rel: [-3.2, 0.9, 5] },
+  // Paved roads: chase view and low beside the car (edge and centre lines).
+  { name: 'paved', car: { road: 'hwy9', at: 0.4 } },
+  { name: 'paved_low', car: { road: 'rt40', at: 0.5 }, rel: [-3.2, 0.9, 5] },
   { name: 'dirtroad_ridge_low', car: { road: 'ridge_rd', at: 0.5 }, rel: [2.8, 0.8, 7.5] },
 ];
 

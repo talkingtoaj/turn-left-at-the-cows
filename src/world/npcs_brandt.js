@@ -46,7 +46,7 @@ export const NPCS_BRANDT = [
         lines: ["Sandy Creek runs north to south, just east of town. The highway bridge is fine. Up north there's only a ford."],
       },
       corley: {
-        lines: ["Corley? Thirty-odd kilometres east. Bigger town. Don't bother."],
+        lines: ["Corley? Twenty miles or so east. Bigger town. Don't bother."],
       },
       ray: {
         lines: ["Ray Kessler. The flying fellow. Comes in for petrol for his mower and talks about wind for an hour."],
@@ -96,7 +96,7 @@ export const NPCS_BRANDT = [
         lines: ["North Road goes up from the elevator, past the turn for Field Lane, to the Lindgren place at the top."],
       },
       field_lane: {
-        lines: ["Field Lane goes off North Road on the right, maybe a kilometre up. That's the way to the airfield. Always was."],
+        lines: ["Field Lane goes off North Road on the right, maybe half a mile up. That's the way to the airfield. Always was."],
       },
       planes: {
         lines: ["You hear them going over all morning. I don't look up any more."],
@@ -118,7 +118,7 @@ export const NPCS_BRANDT = [
       kestrel_field: {
         lines: [
           "Field Lane used to run on to the strip, back when it was the army's. I fenced it off in '84 after one of their planes put down in my barley. Haven't spoken to Ray Kessler since.",
-          "You'll have to go round. Back to the highway, east over the creek, and keep your eyes open on the left. The club got a lane in from that side.",
+          "You'll have to go round. Back to the highway and east over the creek. Turn left at the cows. That's Pike Lane, and the club got in from that side.",
           "Or watch the planes. Ray's lot fly round and round the field all day. Whatever's in the middle of all that circling, that's it.",
         ],
         unlocks: ['rt40', 'planes', 'sandy_creek', 'pike_lane'],
@@ -230,12 +230,12 @@ export const NPCS_BRANDT = [
     greeting: ["Hello! You found us. Most people follow the noise."],
     topics: {
       kestrel_field: {
-        lines: ["Kestrel Field. Eight hundred metres of grass, two hangars and the best kettle in the county. Built by the army in '42."],
+        lines: ["Kestrel Field. Half a mile of grass, two hangars and the best kettle in the county. Built by the army in '42."],
       },
       planes: {
         lines: [
           "We fly a left-hand circuit when we land west, right-hand when we land east. Either way the downwind leg runs out over the highway. Keeps the noise off Brandt.",
-          "So if you see one flying along Route 40, look north. The field's a kilometre up, give or take.",
+          "So if you see one flying along Route 40, look north. The field's half a mile up, give or take.",
         ],
       },
       windsock: {
