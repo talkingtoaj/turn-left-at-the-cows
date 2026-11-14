@@ -1,11 +1,13 @@
 // Checks the radio segment list: 16 segments per station (11 spoken, 5 music),
 // rotation covers each once, files unique, no dashes, no other town named,
-// no time-of-day words.
+// no time-of-day words, known kinds only, one new kind (traffic or thought) per station,
+// no banned words (honest, second only to the elevator).
 import { STATIONS, SEGMENTS } from '../src/radio/segments.js';
 
 let bad = 0;
 const fail = (m) => { console.error('FAIL', m); bad++; };
 const files = new Set();
+const KINDS = ['link', 'farm', 'swap', 'weather', 'ad', 'notices', 'guest', 'traffic', 'thought', 'jingle', 'music'];
 const others = ['Millbrook', 'Calder', 'Dunmore', 'Oakham', 'Corley'];
 const otherTowns = { ashford: ['Brandt', ...others], brandt: ['Ashford', ...others] };
 
@@ -15,7 +17,11 @@ for (const st of STATIONS) {
   if (segs.filter((s) => s.spoken).length !== 11) fail(st.id + ' spoken count');
   if (segs.filter((s) => !s.spoken).length !== 5) fail(st.id + ' music count');
   if ([...st.rotation].sort().join() !== segs.map((s) => s.id).sort().join()) fail(st.id + ' rotation mismatch');
+  const extra = segs.filter((s) => s.kind === 'traffic' || s.kind === 'thought').length;
+  if (extra !== 1) fail(st.id + ' needs exactly one traffic or thought piece, has ' + extra);
   for (const s of segs) {
+    if (!KINDS.includes(s.kind)) fail(s.id + ' unknown kind ' + s.kind);
+    if (/\bhonest|second only to the elevator/i.test(s.subtitle)) fail(s.id + ' banned phrase');
     if (files.has(s.file)) fail('dup file ' + s.file);
     files.add(s.file);
     if (/[—–]/.test(s.subtitle + s.voiceNotes)) fail(s.id + ' dash');
