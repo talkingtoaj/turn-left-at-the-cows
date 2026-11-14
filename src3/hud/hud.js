@@ -3,7 +3,7 @@ import { state } from '../../src/state.js';
 import { repairCar } from '../../src/game/repair.js';
 import { runtime } from '../runtime.js';
 import { headingText, clockText, timerText } from '../../src/hud/format.js';
-import { mphFromMps, odometerHundredths } from '../../src/units.js';
+import { mphFromMps, odometerHundredths, milesText } from '../../src/units.js';
 import { noteLandmark } from '../../src/game/dialogue.js';
 import { createTalk } from './talk.js';
 import { currentMission, currentGoal, nextMission, MISSIONS } from '../../src/game/missions.js';
@@ -110,6 +110,10 @@ const CSS = `
 .hud-thumb-label { margin-top: 6px; font-size: 12px; line-height: 1.3; color: #d9d4c5; }
 .hud-thumb-label small { display: block; color: #8a8d92; font-size: 11px; }
 .hud-truth { width: 380px; max-width: 100%; cursor: zoom-in; }
+.hud-win-arrival { margin: 0 16px 14px; color: #d9d4c5; font-size: 16px; font-style: italic; }
+.hud-win-arrival b { color: #e6b450; font-style: normal; margin-right: 6px; }
+.hud-win-extras { list-style: none; margin: 0 0 14px; padding: 0; font-size: 14px; color: #d9d4c5; }
+.hud-win-extras li::before { content: '\\2713'; color: #5fbf6a; margin-right: 8px; font-weight: bold; }
 .hud-win-foot { margin-top: 16px; font-size: 14px; color: #d9d4c5; }
 .hud-win-row { display: flex; justify-content: space-between; padding: 0 50px; font-size: 17px; line-height: 30px; }
 .hud-win-row span:first-child { color: #8a8d92; }
@@ -623,6 +627,12 @@ export function createHUD(root, { openMap } = {}) {
     return box;
   }
 
+  // Lines for the win panel's tick list. Add a row by pushing a string here.
+  function winExtras(m) {
+    const rows = [];
+    return rows;
+  }
+
   function buildWin() {
     winShade.textContent = '';
     const m = currentMission(state);
@@ -633,10 +643,22 @@ export function createHUD(root, { openMap } = {}) {
     if (state.lastRecord && state.lastRecord.saved === false) {
       el('div', 'hud-win-sub hud-win-nosave', panel, 'Progress can\u2019t be saved in this window (storage is blocked).');
     }
+    if (m && m.arrival) {
+      const a = el('div', 'hud-win-arrival', panel);
+      el('b', null, a, `${m.arrival.name}:`);
+      a.appendChild(document.createTextNode(`\u201c${m.arrival.line}\u201d`));
+    }
+    // Extras: green-tick rows under the arrival line, empty by default. To add
+    // one, push a line of text into winExtras(m) (e.g. the tourist, issue #27).
+    const extras = winExtras(m);
+    if (extras.length) {
+      const ul = el('ul', 'hud-win-extras', panel);
+      for (const text of extras) el('li', null, ul, text);
+    }
     const stats = el('div', 'hud-win-stats hud-mono', panel);
     const rows = [
       ['Trip time', timerText(state.elapsedMs)],
-      ['Distance', `${(state.odometer / 1000).toFixed(2)} km`],
+      ['Distance', milesText(state.odometer, 2)],
       ['Clock', clockText(state.clockMinutes)],
       ['Locals asked', String(state.talkedTo.size)],
     ];
@@ -652,7 +674,7 @@ export function createHUD(root, { openMap } = {}) {
       el('h3', null, left, 'Your maps');
       const thumbs = el('div', 'hud-thumbs', left);
       for (const snap of state.snapshots.filter((q) => q.missionId === m.id)) {
-        thumb(thumbs, snap.sketch, snap.label, `${clockText(snap.clockMinutes)} · ${(snap.odometer / 1000).toFixed(1)} km`);
+        thumb(thumbs, snap.sketch, snap.label, `${clockText(snap.clockMinutes)} · ${milesText(snap.odometer)}`);
       }
       // The final map is saved when you continue; show it as it is now.
       thumb(thumbs, state.sketch, m.finalLabel, 'now (M to finish it)');
