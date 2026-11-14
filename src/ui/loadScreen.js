@@ -47,7 +47,7 @@ const CSS = `
 // credit once met]. A null id is nobody in particular, so it stays anonymous.
 const LINES = [
   ['Oh, you can’t miss it.', 'everyone, eventually', null, null],
-  ['Left at the cows. Or was it right? The cows move.', 'a man at the feed store', 'gus', 'Gus, at the store'],
+  ['Keep going till the road turns to gravel. Then keep going.', 'a man at the feed store', 'gus', 'Gus, at the store'],
   ['Past where the old mill used to be.', 'a woman walking her dog', 'mabel', 'Mabel, out walking'],
   ['It’s about ten minutes. Maybe twenty.', 'a farmer on a fence', 'ade', 'Ade, on the fence'],
   ['Follow the road till it stops being a road.', 'the man at the pumps', 'earl', 'Earl, at the pumps'],

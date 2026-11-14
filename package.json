@@ -12,6 +12,7 @@
     "check:fallen": "node tools/check-fallen.mjs",
     "check:blockers": "node tools/check-fallen.mjs",
     "check:traffic": "node tools/check-traffic.mjs",
+    "check:radiosubs": "node tools/check-radio-subs.mjs",
     "radio:bake": "node tools/radio-bake.mjs"
   },
   "dependencies": {

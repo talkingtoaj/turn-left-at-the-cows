@@ -130,6 +130,7 @@ function makeScatter(world, scenery) {
   };
   for (const t of (scenery && scenery.trees) || []) addSolid(t.x, t.y, TREE_HIT_R, 'tree');
   for (const p of world.props || []) addSolid(p.x, p.y, p.r, 'prop');
+  for (const p of world.dressing || []) addSolid(p.x, p.y, (p.r || 2) + 1, 'prop');
   for (const l of world.powerLines || []) for (const p of l.poles) addSolid(p.x, p.y, POLE_R, 'pole');
   for (const l of world.locals || []) addSolid(l.x, l.y, 6, 'local');
   for (const b of R.boulders) addSolid(b.x, b.y, b.r, 'stone');

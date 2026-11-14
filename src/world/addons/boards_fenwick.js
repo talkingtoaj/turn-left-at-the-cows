@@ -6,8 +6,8 @@
 export const BOARDS_FENWICK = {
   boards: [
     // Pruitt farm, sheep field gate on the west side of Pruitt Lane.
-    { id: 'bd_eggs', look: 0, x: 2965.7, y: 1110, faces: 112, mount: 'gate', lines: ['EGGS.', 'Honest box.'] },
+    { id: 'bd_eggs', look: 0, x: 2965.7, y: 1110, faces: 112, mount: 'gate', lines: ['EGGS $1 A DOZEN.', 'Leave money in the tin.'] },
     // Hartley Lane, a leaning stake by the farmhouse.
-    { id: 'bd_slow', look: 1, x: 2600, y: 489, faces: 238, mount: 'stake', lines: ['SLOW.', 'Children, dogs, Walt.'] },
+    { id: 'bd_slow', look: 1, x: 2600, y: 489, faces: 238, mount: 'stake', lines: ['SLOW.', 'Children playing.'] },
   ],
 };

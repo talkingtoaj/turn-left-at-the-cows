@@ -20,9 +20,8 @@ import { myMap } from '../game/myMaps.js';
 import { tipsEnabled, setTipsEnabled } from '../game/tips.js';
 
 export const TITLE = 'Turn Left at the Cows';
-// T9 lines (SPEC 9o theme): ids splash-tagline and splash-subline.
-export const TAGLINE = 'Everything\u2019s shifted since 1987. Even the cows.';
-export const SUBLINE = 'You\u2019re covering Darlene\u2019s mail route with her old county map. Ask a local. Don\u2019t trust the cows.';
+// Tagline restored to the original after owner review (I10-splash-tagline). The subline was removed (I10-splash-subline).
+export const TAGLINE = 'There was a time before GPS, when finding your way required you to ask a local.';
 export const PITCH = TAGLINE;
 export const PITCH_LINE = 'GeoGuessr, but you drive, and the locals might be unreliable.';
 export const SHORT_LINE = 'Get directions. Get lost. Find it anyway.';
@@ -223,7 +222,6 @@ export function showSplash({ version = '3d', load, preferred = null, phone = fal
   el('span', 'sp-cows', h1, 'Cows');
   sign.insertAdjacentHTML('beforeend', ARROW);
   el('p', null, sign, TAGLINE);
-  el('p', 'sp-subline', sign, SUBLINE);
 
   // First visit: a local at a fence says the line, then goes. Never blocks.
   let local = null;

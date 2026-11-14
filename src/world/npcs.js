@@ -21,19 +21,19 @@ export const NPCS = [
   // ---------------------------------------------------------------- mission 1
   {
     id: 'earl', name: 'Earl', role: 'gas station attendant', x: 680, y: 2398,
-    greeting: ["Morning. That Darlene's old county map? Fill her up? No? Then what do you need?"],
+    greeting: ["Morning! Fill her up? No? Then what can I do for you?"],
     topics: {
       hartley_farm: {
         lines: [
-          "Hartley Farm? Sure. Quickest way is Creek Road. Haven't been up it since Easter, but roads don't move.",
+          "Hartley Farm? Sure. Quickest way's the old Creek Road.",
           "Go straight north out of town on the dirt road, right here by the station. About a mile and a bit.",
-          "You'll cross the old bridge over Willow Creek. Then the road bends right, east, past the radio mast on the hill.",
+          "You'll cross the old bridge over Willow Creek. Then the road bends right, past the radio mast on the hill.",
           "Keep on into Millbrook. The farm is out the northeast side of town. Big red barn. You can't miss it.",
         ],
         unlocks: ['creek_rd', 'willow_creek', 'old_bridge', 'radio_mast', 'millbrook'],
       },
       creek_rd: {
-        lines: ["Creek Road starts right here by the pumps and runs north. Dirt the whole way. Mind the potholes. Last I knew, anyway."],
+        lines: ["Creek Road starts right here by the pumps and runs north. Dirt the whole way. Mind the potholes."],
         unlocks: ['willow_creek'],
       },
       millbrook: {
@@ -45,14 +45,14 @@ export const NPCS = [
         unlocks: ['water_tower', 'millbrook'],
       },
       radio_mast: {
-        lines: ["The radio mast? Up on the hill past the creek. Red light on top. I can see it blink from my porch."],
+        lines: ["The radio mast? Up on the hill past the creek. Red light on top. You can see it for miles at night."],
       },
       willow_creek: {
         lines: ["Willow Creek cuts right across the county, west to east. Dot's usually fishing it, up by the old bridge."],
         unlocks: ['old_bridge'],
       },
       old_bridge: {
-        lines: ["Old wooden bridge on Creek Road. Older than me. Creaks a bit. Always has."],
+        lines: ["Old wooden bridge on Creek Road. Creaks a bit, but then again it's older than me even."],
       },
       water_tower: {
         lines: ["Water tower is out east on the highway. Big silver tank on legs. Kids paint something on it every summer. Last year it was a cow."],
@@ -79,7 +79,7 @@ export const NPCS = [
     fallback: ["Can't say I know it. I mostly stay by the pumps.", "Never heard of it, sorry."],
     profile: {
       home: 'ashford', work: 'a_gas', routes: ['creek_rd', 'hwy9', 'ashford_st'], yearsHere: 38, style: 'landmarks',
-      reliability: "Knows mission 1 roads well but has not driven Creek Road since Easter: does not know the bridge washed out. Says so himself, 'but roads don't move'.",
+      reliability: "Knows mission 1 roads well but has not driven Creek Road in a while: does not know the bridge washed out. He never says so.",
     },
   },
   {
@@ -89,8 +89,9 @@ export const NPCS = [
       hartley_farm: {
         lines: [
           "The bridge? Ha. Washed out in the spring floods. County still hasn't fixed it.",
-          "You'll have to go back down to the highway and head east. Past the water tower, keep on till the road turns north and crosses the creek on the new bridge.",
-          "That takes you right up into Millbrook. And don't bother with the lane by the water tower. Dead end. The old mill burned down years ago.",
+          "You'll have to go back down Creek Road, past the rusted car in the weeds on your right, to the highway and head east. Past the water tower, keep on till the road turns north and crosses the creek on the new bridge.",
+          "That takes you right up into Millbrook. And don't bother with the lane by the water tower, the one with the tyre swing in the big oak. Dead end. The old mill burned down years ago.",
+          "Hartley's is out the northeast side of town, at the end of its own lane. Look for the mailbox shaped like a cow.",
         ],
         unlocks: ['hwy9', 'water_tower', 'mill_lane', 'old_mill', 'millbrook'],
       },
@@ -415,7 +416,7 @@ export const NPCS = [
     topics: {
       toms_cabin: {
         lines: [
-          "The Hartley boy's cabin? Out on Loon Pond. Go east on the highway to Calder.",
+          "The Hartley boy's cabin? Out on Loon Pond. Back down my lane, past the corn stand, then east on the highway to Calder.",
           "Turn left at the schoolhouse. That's Pond Road.",
           "Then it's along the brook a ways and up past the old fire tower. You'll find it.",
         ],

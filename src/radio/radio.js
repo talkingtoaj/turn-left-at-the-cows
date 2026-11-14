@@ -324,6 +324,23 @@ export function createRadio() {
       listeners.add(fn);
       return () => listeners.delete(fn);
     },
+    // For the subtitles: fills `out` (no allocation) with what is on air now.
+    //   out.segment  the segment, or null
+    //   out.offset   seconds into it, on the station's clock
+    //   out.mode     'play' (its file is playing), 'dead' (file missing), 'wait' (still loading), 'off'
+    //   out.clear    signal * dial quality, 0..1
+    airInfo(out) {
+      out.segment = null;
+      out.offset = 0;
+      out.mode = 'off';
+      out.clear = 0;
+      if (!on || !tuned || !active) return out;
+      out.segment = active.segment;
+      out.offset = stationClock(active.station, clockSeconds()).offset;
+      out.mode = active.dead ? 'dead' : active.src ? 'play' : 'wait';
+      out.clear = signals[tuned.id] * lastQuality;
+      return out;
+    },
     stations: STATIONS,
     get on() {
       return on;
