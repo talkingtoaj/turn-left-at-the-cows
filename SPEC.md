@@ -1,6 +1,6 @@
 # Orienteering Driving Game: Spec
 
-Title: **Turn Left at the Cows** (LOCKED, Nov 2026; see 9l). World: Ashford County. "Ask a local" stays as the in-game verb.
+Title: **Turn Left at the Cows** (LOCKED, Nov 2026; see 9l). Splash title: Rural Route 3 · Ashford; the counties are Fenwick and Harlan (see 9o). "Ask a local" stays as the in-game verb.
 
 Status key: **LOCKED** = decided. **TRIAL** = trying, not decided. **OPEN** = still to decide.
 
@@ -47,7 +47,7 @@ Later: generate worlds from a seed so each game is a new place. (OPEN)
 ## 5. Navigation mechanics (LOCKED, all six)
 
 1. **Wrong or outdated maps.** Road closed, new bypass, town renamed, bridge gone. The player must notice when a map "lies."
-2. **Dead reckoning.** Dash shows odometer, compass, and clock. "Drove 12 km northeast, so I should be near the lake."
+2. **Dead reckoning.** Dash shows odometer, compass, and clock. "Drove 8 miles northeast, so I should be near the lake." (The player sees miles; see 9o and ADR 0001.)
 3. **Ask the locals.** People give directions that are partly wrong or use landmarks that have changed ("turn where the old mill used to be").
 4. **Radio signal.** Each station's strength fades with distance from its tower, so you can roughly place yourself.
 5. **Sun and time.** Shadows show your heading if your compass breaks.
@@ -126,7 +126,7 @@ Best ambient things also give clues.
 - Hand-made missions on one shared world.
 - Mission 1: Ashford to Hartley Farm.
 - Mission 2: starts at Hartley Farm, overlaps the first map a little, then goes into new land with more people to ask.
-- Each mission can give a printed map with its own lies (1987 county map, or a rough map an NPC sketches for you).
+- Each mission can give a map with its own lies (1987 county map, or a rough map a local draws for you). Mission 1 gives Darlene's 1987 map (9o).
 
 ## 6h. Onboarding (LOCKED)
 
@@ -159,9 +159,9 @@ Not in MVP: good car physics, nice art, big worlds, multiplayer, radio, sun shad
 
 ## 8. Open questions
 
-- Is there a story or just separate trips/deliveries?
+- ~~Is there a story or just separate trips/deliveries?~~ Answered in 9o: you're the relief carrier on Darlene's route; a light story thread comes after the jam.
 - Do locals ever lie on purpose, or only get things wrong?
-- Can the player find printed maps, and how old are they?
+- ~~Can the player find printed maps, and how old are they?~~ Answered in 9o: Darlene's 1987 map in mission 1; it's July 1992.
 - Fuel or time limits to make getting lost matter?
 - Co-op later (one player holds the map, one drives)?
 - Gallery and voting for shared maps: what server, and how to stop cheating (tracing the real map)?
@@ -288,3 +288,96 @@ A critic worried that getting lost and then breaking down feels stressful. Break
 ### 9n. Sharper sky and storms you can see (round 13, Nov 2026)
 - **Sharper sky.** The two Poly Haven skies (cloudy, clear) are also baked from their 4k HDRIs to 4096 x 1024 webp (`public/look/sky_4k.webp`, `sky_sunny_4k.webp`, 340 KB for both; `tools/look/bake_sky.py ... sharp` keeps the small sky's turn and brightness). The small 2048 x 512 skies still paint the first frames; once the game starts (`startGame`) `look.sharpenSky()` downloads both, decodes them off the main thread, uploads them with mipmaps and swaps both in together, so the weather keeps blending a matching pair, then frees the small ones. The sky shader picks the mip level from derivatives that skip the jump where u wraps (no seam), and dithers its output a little against banding. Texture memory for the skies: 8 MB before, about 43 MB after (two 4096 x 1024 RGBA8 with mips). Phones and low-memory devices (deviceMemory under 4, touch-only) keep the small sky; `?sharpsky=0|1` forces it.
 - **Storms you can see.** The bolt read only as a faint outline on the pale rain sky. Now, in heavy rain (from rain 0.6, full at 0.8) and for 40 s after any strike, a storm darkness (`lightning.storm`, eased in and out over about 5 s) darkens the sky dome (to 45 % less), the haze and background (to 50 % less) and the sky light (to 30 % less), on top of the rain's own darkening; never black. The bolt is a white-hot core inside a soft blue glow, and the cloud base around its top lights up: one additive mesh, one draw, only while a flash is on (`src3/world3d/lightning3d.js`). Far bolts are drawn a little wider (up to 2.2 times at 5.5 km) so they still read. The screen veil is a little softer (at most 0.35) so it does not wash the bolt out. Reduced motion: unchanged (one soft flash, no bolt).
+
+### 9o. Whimsy polish and Game Off 2026 (LOCKED, 14 Nov 2026, after critic round 2)
+Source: `docs/reviews/2026-11-14-critic-round-2-whimsy.md`, the owner's 1 to 5 ratings of every idea, then a grilling session. Terms are in `GLOSSARY.md`; decisions that are hard to undo are in `docs/adr/`.
+
+**Review rule for words (LOCKED).** Every new line of dialogue or story (locals, radio scripts, tow lines, win-screen lines, notebook lines, intro, taglines) first gets a pass with the remove-ai-style skill, then the owner reviews it in an artifact. Only approved lines ship. Lines the owner wrote need only a punctuation tidy.
+
+**Setting and story**
+- **Present day: July 1992.** Darlene's 1987 map is five years out of date. Real 1992 news (Olympics, Perot, line dancing) is fair game for the radio.
+- **The player is the relief carrier,** covering Darlene's rural mail route in their own car while her wrist heals. Missions are favours for people on the route.
+- **Intro card,** shown once after Start and before mission 1's card, on a note in Darlene's style, readable again from Help. The owner's text: "Darlene asked if you can cover her shift, but she only had a map for you five years out of date. 'This'll help,' she claimed, 'but the county's shifted since then. If you get lost, just ask a local. They'll know the way.'"
+- **Names.** Region 1 is Fenwick County, region 2 is Harlan County, Ashford is a town. The splash map title "ASHFORD COUNTY" becomes **"RURAL ROUTE 3 · ASHFORD"** (supersedes the world name in 9l).
+- **Theme (Game Off, SHIFT).** Main angle: the maps are out of date. Second: you're covering a shift. Splash map: a printer's stamp "CORRECT AS OF 1987" with Darlene's pencilled "ha." beside it. Tagline: "Everything's shifted since 1987. Even the cows." Subline: "You're covering Darlene's mail route with her old county map. Ask a local. Don't trust the cows." (Wording goes through the review rule.)
+
+**Maps**
+- **Mission 1 gives Darlene's map** (`county1987`) with lots of gaps: roads and lanes built since 1987 left off, the washed-out bridge shown as fine, Mill Lane drawn through. This reverses the 7 Nov choice that mission 1 starts with no map. The mission 1 brief is rewritten to match.
+- Mission 2 keeps Mrs Hartley's map; mission 3 has none (Darlene's map stops at the county line). `harlan1979` stays unused for now.
+- **Words:** a *map* is anything handed to the player; a *sketch* is only what the player draws. Mrs Hartley's tab label becomes "Mrs Hartley's map".
+
+**Traps: how maps and locals mislead (LOCKED).** Mission authors pick one or two traps per mission from this list; the difficulty ladder uses more as it goes. **Every trap has a fair tell** that an observant player can catch. Mission 1 uses a counting trap: Darlene's map leaves off the farm lane, so if that lane comes before the real turn it gets a mailbox as its tell.
+
+| Trap | How it misleads | Its tell |
+|---|---|---|
+| New driveway | The map says "5 miles, then first left", and a farm driveway built since shows up at 3 miles. | A mailbox at the driveway; no centre line; a farmhouse at the end. |
+| Junction missing from the map | A crossroads built after 1987 throws off "the third turning". | A road sign at the real junction. |
+| Side left out | "Second left at the silos." The silos are on the right, and there is also a right turn there. | The silos can be seen from the approach; a second local or the road sign at the junction. |
+| Two of a thing | "Turn at the church" means the local's church, but another church comes first. | Names painted on signs (St. Anne's, St. Luke's); the local said "our church"; "What's that?" names each. |
+| Distance as time | "Ten minutes on", from someone who drives a tractor at 15 mph. | The tractor stands beside them. Their line mentions it, so "the tractor" is an underlined topic you can ask about ("Does fifteen, downhill."). Most players won't ask. |
+| Wrong scale | A map drawn by a local is stretched or squashed (the `scale` lie). Only on maps locals draw, never on the player's sketch. | The odometer against the map; distances on road signs. |
+| T vs Y | The map draws a T junction; the real road is a Y fork with both ways bending. | Both roads can be seen as you come up to the fork; a road sign at the fork. |
+| Gated lane | A through road on the map is now a farm track behind a gate. It looks private, but it's fine to use. | The gate stands open; a "PLEASE SHUT THE GATE" board; tyre tracks through it. |
+| Name changes partway | A road changes name at the county line or a junction, and the map or the local uses only one name. | A road sign with the new name at the change. |
+
+**Look, time and dash**
+- **Colour grade** inside the existing `CustomToneMapping` (olive and straw greens, warm highlights, slightly teal shadows, lifted blacks, soft vignette, light grain), **cream fog** at the same distances. Rural paved roads lose the white edge lines; the centre line fades. Keep 60 FPS; before and after shots.
+- **A fixed hour and a fixed sun per mission:** mission 1 at 09:00 with morning mist, mission 2 at 16:00, mission 3 at 18:30 golden hour. No day/night cycle, no headlights.
+- **The clock runs at real speed** and shows 4 minutes fast. Missions are sized to under an hour. A tow still moves the clock on (9k); the sun does not move.
+- **No in-car view.** The dash is the bottom panel over the chase view. Restyle it to match the splash (Oswald labels, round needle speedo, rolling odometer, domed warning lamps) and make it smaller. The goal sits on a Caveat paper tag at the top left. Key hints fade after about a minute; H brings them back. Leave a slot for the radio dial. Optional: the compass restyled as a stick-on ball compass that wobbles.
+- **Miles everywhere the player looks** (dash, road signs, local lines, tow card, load screen); world data stays in metres (ADR 0001). Road signs show whole or half miles ("ASHFORD 2½").
+- **Signs: words painted on every board** (road signs, mailboxes, hand-painted signs) as textures. No sign pop-up on the HUD and no "back of a sign" note: slowing down to read is part of the fun. If a road sign can't be read from about 15 m on a laptop, the board gets bigger. Hand-painted signs only at crafted places: "EGGS. Honest box.", "SLOW. Children, dogs, Walt.", "NO PLANES." on Dagny's fence.
+
+**Writing** (all under the review rule)
+- Earl rewritten: he is the first voice and the flattest; a habit hints at his mistake ("Haven't been up Creek Road since Easter, but roads don't move"). Hank always rounds up.
+- The person you deliver to says one warm line on the win screen.
+- Tow drivers react to who you've talked to (`state.talkedTo`).
+- Every distance in local lines moves to miles and feet.
+- **"Turn left at the cows"** is said wherever a herd really is: the cows are there when the line is used. Any mission, later is fine.
+- Load-screen quotes are credited to their speaker once you've met them.
+
+**Radio** (builds navigation mechanic 4)
+- **2 stations for the jam:** one from the existing mast near Ashford, one from a new mast near Brandt. Static between stations; strength fades with distance from each mast.
+- **Per station:** 11 spoken pieces (4 DJ links, farm report, swap shop, weather and wind report, 2 ads, local notices and birthdays, 1 local guest spot) and 5 music files (a jingle and 4 tracks).
+- **Who makes what.** The owner makes the music and the ElevenLabs speech. Agents write the segment list and scripts; scripts reach the owner for review by 19 Nov; the owner's first batch of audio arrives by 24 Nov, one MP3 per segment, named from the segment list.
+- **Voices.** Real English on air, with subtitles. Locals you can meet come on air only rarely (about one guest spot per station), talking their usual gibberish with no subtitle while the DJ answers as if it all made sense; the DJ's reply can carry a small clue.
+- **Rules.** A station names only its own home town and never gives a live "here" report. No music anywhere except the radio; never background music by area.
+- **AM sound baked in.** A tool turns the owner's files into AM-radio quality before they ship (band-pass about 300 to 3400 Hz, mono, low sample rate, low bit rate), which also makes them small. The game adds static and weak-signal muffling live. The full-quality masters stay outside `public/`.
+- **Streamed, not preloaded.** Only the tuned station loads, one segment at a time with the next fetched in the background. Stations keep their own time, so tuning back finds the station moved on.
+
+**Tourist**
+- One per mission at a fixed spot, easy to miss and sometimes off the main way: an easter egg. They ask the way to a place that is never the mission's goal. Three replies written the way locals talk, at least two of them sounding right.
+- Either way the win screen gets a green tick with a funny line written per mission: "Helped a tourist from Miami. Spreading good vibes." or "Misdirected a pesky tourist. Keeping Ashford safe from rubber-necks." Mission 2's tourist is a lawyer looking for a married local's farm ("Saved [local] from being served divorce papers."). A notebook line too. No score.
+
+**World**
+- About 12 hand-placed props at crafted places: a flapping clothesline, a tyre swing, a cow-painted mailbox (Hartley); round-top pumps and a wall ad (Ashford); a diner OPEN sign (Brandt); a windsock and a checkered tank (Kestrel Field); a corn stand with an honesty box, a church letter board, a junk car in the weeds. Locals can give directions by them.
+- Small CC0 sound layers: insects, wind in tall grass, a screen door and chimes at farms, a distant tractor, body creaks on dirt roads, turn-signal tick, ignition clunk, window wind, a dog barking at some farms.
+
+**After the jam (decided, not scheduled)**
+- **Ray's joy flight.** After you deliver the magneto, Ray offers a ride. No goes straight to the win screen. Yes: take-off, Ray flies, you look around, and the win screen comes 1 to 2 minutes after the wheels leave the ground.
+- **The lookout.** Frank's fire lookout: walk up, climb, and get a clear look round from the top with no fog, labels or markers. The sketch can be opened up there. Always open; Frank mentions it in mission 2.
+- **One farm dog** that trots along its own fence as you pass (built on the existing animal poses, no chasing), usable as a clue.
+- **Story:** the Tom, Dagny and barley thread as optional side topics, plus Darlene's running gag ("Darlene'd have known that.") and one pencilled inner-voice line per mission.
+- **Difficulty ladder for missions 4 and up:** each mission takes one aid away and teaches the skill that replaces it. Mission 4: odometer broken (time it against your speed). Mission 5: the map torn in half. Mission 6: compass cracked (read the sun). Mission 7: no map (use the radio masts). Tricky locals and spun signposts as seasoning.
+- Also later: wordless roadside fill (wildflower verges, ditches, leaning posts, tar patches), cargo sliding on the dash, Dot fishing off the snapped bridge, mission 4.
+- **Parked:** gossip, sketching on found paper, more greetings per local, the share postcard, glovebox, scrapbook keepsakes, disposable camera, mud as a clue, truck drivers waving, horn reactions, the farmer who reacts more each time, porch radio and jukebox.
+
+**Game Off 2026** (theme SHIFT; submissions close 1 Dec 13:37 PST)
+- We enter. The entry says plainly that 15 and 16 Oct were a prototype and November is the jam work, and says how AI was used.
+- MIT license for the code; art, sound, music and writing all rights reserved.
+- 28 Nov: a full secret scan (gitleaks), LICENSE and README, then the repo goes public only on the owner's go-ahead. Submit on itch.io on 29 Nov.
+
+**Work lanes.** One branch per lane; each item becomes a ticket. Lanes that add world data each use their own data file so branches don't collide in `data.js`.
+
+| Lane | Week 1 (15 to 21 Nov) | Week 2 (22 to 28 Nov) |
+|---|---|---|
+| A. Look | colour grade, cream fog, rural road lines, fixed sun per mission | buffer |
+| B. Dash | slim restyle, goal tag, hint fade, miles on the dash, real-time clock 4 min fast | radio dial slot |
+| C. Writing | Earl, arrival lines, tow lines, intro card text, miles in lines, year and names tidy, radio scripts (by 19 Nov) | cows line, tourist lines, load-screen credits |
+| D. Signs and maps | painted words on every sign and mailbox, pop-ups gone, splash title and stamp, Darlene's gappy map in mission 1 | buffer |
+| E. Radio | core: 2 stations, static, fade, AM tool, streaming, placeholder audio (from 20 Nov) | the owner's audio (24 Nov), subtitles, guest spots |
+| F. World | the cows where the line is used | about 12 props, sound layers |
+| G. Tourist | | tourists in missions 1 to 3, win-screen ticks |
+| H. Release | | secret scan, license, README, itch page, AI note, public on 28 Nov, submit on 29 Nov |
+
+Critical path: radio scripts (C, 19 Nov), then recording (owner, 24 Nov), then wiring in (E, 25 to 26 Nov). If we fall behind, drop in this order: props, sound layers, the mission 3 tourist, radio guest spots.

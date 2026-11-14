@@ -3,7 +3,7 @@
 Question: the game feels "a little bare". How do we make it more whimsical and nostalgic?
 Critics: cozy game designer, nostalgic target player (80s road-trip kid), narrative designer, art and audio director, indie producer / scope skeptic.
 Inputs: SPEC.md, dialogue (`src/world/npcs*.js`), missions, tow, tips, load screen, splash, ambient, sound list, 13 headless screenshots.
-Nothing here is decided until the owner picks. SPEC.md is unchanged.
+**Update (14 Nov 2026):** the owner rated every idea and settled the open decisions. The result is SPEC.md section 9o; follow that, not the recommendations below.
 
 ## Where "bare" comes from (all 5 agree)
 The writing is the best part. The start screen is full of charm. The game you actually drive is not:
