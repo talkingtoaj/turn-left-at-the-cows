@@ -857,6 +857,7 @@ export async function startGame(index = 0) {
   const t0 = performance.now();
   // The start screen made and resumed the AudioContext in its click.
   audio.wake();
+  audio.ignition();
   if (currentLs) currentLs.reveal();
   index = resolveIndex(index);
   const spotName = params.get('spot');

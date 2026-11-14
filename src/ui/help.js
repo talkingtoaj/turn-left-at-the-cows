@@ -2,6 +2,7 @@
 // splash). H or Esc closes it. The caller pauses and unpauses the game.
 
 import { injectUiStyle, el, trapKeys } from './style.js';
+import { renderIntroNote } from './introCard.js';
 import { renderHowTo, TITLE, PITCH } from './splash.js';
 
 // Opens the panel. onClose runs once when it closes. Returns { close }.
@@ -16,6 +17,22 @@ export function openHelp({ version, onClose }) {
   el('p', 'ui-pitch', paper, PITCH);
   renderHowTo(paper, version);
   const foot = el('div', 'ui-foot', paper);
+  const noteBtn = el('button', 'ui-pbtn', foot, "Darlene's note");
+  noteBtn.type = 'button';
+  noteBtn.setAttribute('aria-expanded', 'false');
+  let noteEl = null;
+  noteBtn.addEventListener('click', () => {
+    if (noteEl) {
+      noteEl.remove();
+      noteEl = null;
+    } else {
+      noteEl = renderIntroNote(paper);
+      noteEl.classList.add('ui-help-note');
+      paper.insertBefore(noteEl, foot);
+      noteEl.scrollIntoView?.({ block: 'nearest' });
+    }
+    noteBtn.setAttribute('aria-expanded', String(!!noteEl));
+  });
   const btn = el('button', 'ui-btn', foot, 'Back to the road');
   btn.type = 'button';
   el('span', 'ui-note', foot, 'or press H or Esc');

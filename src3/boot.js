@@ -12,11 +12,15 @@
 // ?menu=painted force the still or painted backdrop.
 import { showSplash } from '../src/ui/splash.js';
 import { clearProgress } from '../src/game/progress.js';
+import { clearIntroSeen } from '../src/ui/introCard.js';
 import { missionIndexById } from '../src/game/missionList.js';
 import { prefetchSounds } from '../src/audio/sounds.js';
 
 const params = new URLSearchParams(window.location.search);
-if (params.get('reset') === 'progress') clearProgress();
+if (params.get('reset') === 'progress') {
+  clearProgress();
+  clearIntroSeen();
+}
 const asked = params.has('mission') ? missionIndexById(params.get('mission')) : -1;
 
 const media = (q) => !!(window.matchMedia && window.matchMedia(q).matches);

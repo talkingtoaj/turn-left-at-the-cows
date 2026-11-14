@@ -21,19 +21,19 @@ export const NPCS = [
   // ---------------------------------------------------------------- mission 1
   {
     id: 'earl', name: 'Earl', role: 'gas station attendant', x: 680, y: 2398,
-    greeting: ["Morning! Fill her up? No? Then what can I do for you?"],
+    greeting: ["Morning. That Darlene's old county map? Fill her up? No? Then what do you need?"],
     topics: {
       hartley_farm: {
         lines: [
-          "Hartley Farm? Sure. Quickest way's the old Creek Road.",
-          "Go straight north out of town on the dirt road, right here by the station. Keep going a good while, couple kilometres.",
-          "You'll cross the old bridge over Willow Creek. After that the road bends right, east, past the radio mast up on the hill.",
-          "Follow it into Millbrook. Farm's out the northeast side of town. Big red barn, can't miss it.",
+          "Hartley Farm? Sure. Quickest way is Creek Road. Haven't been up it since Easter, but roads don't move.",
+          "Go straight north out of town on the dirt road, right here by the station. About a mile and a bit.",
+          "You'll cross the old bridge over Willow Creek. Then the road bends right, east, past the radio mast on the hill.",
+          "Keep on into Millbrook. The farm is out the northeast side of town. Big red barn. You can't miss it.",
         ],
         unlocks: ['creek_rd', 'willow_creek', 'old_bridge', 'radio_mast', 'millbrook'],
       },
       creek_rd: {
-        lines: ["Creek Road starts right here by the pumps and runs north. Dirt the whole way. Mind the potholes."],
+        lines: ["Creek Road starts right here by the pumps and runs north. Dirt the whole way. Mind the potholes. Last I knew, anyway."],
         unlocks: ['willow_creek'],
       },
       millbrook: {
@@ -45,17 +45,17 @@ export const NPCS = [
         unlocks: ['water_tower', 'millbrook'],
       },
       radio_mast: {
-        lines: ["The radio mast? Up on the hill past the creek. Red light on top. You can see it for miles at night."],
+        lines: ["The radio mast? Up on the hill past the creek. Red light on top. I can see it blink from my porch."],
       },
       willow_creek: {
         lines: ["Willow Creek cuts right across the county, west to east. Dot's usually fishing it, up by the old bridge."],
         unlocks: ['old_bridge'],
       },
       old_bridge: {
-        lines: ["Old wooden bridge on Creek Road. Been there since before I was born. Creaks a bit."],
+        lines: ["Old wooden bridge on Creek Road. Older than me. Creaks a bit. Always has."],
       },
       water_tower: {
-        lines: ["Water tower's out east on the highway. Big silver tank on legs. Kids paint things on it every summer."],
+        lines: ["Water tower is out east on the highway. Big silver tank on legs. Kids paint something on it every summer. Last year it was a cow."],
       },
       ashford: {
         lines: ["Ashford? You're standing in it. Church, gas station, five houses and me."],
@@ -79,7 +79,7 @@ export const NPCS = [
     fallback: ["Can't say I know it. I mostly stay by the pumps.", "Never heard of it, sorry."],
     profile: {
       home: 'ashford', work: 'a_gas', routes: ['creek_rd', 'hwy9', 'ashford_st'], yearsHere: 38, style: 'landmarks',
-      reliability: "Knows mission 1 roads well but has not driven Creek Road since spring: does not know the bridge washed out.",
+      reliability: "Knows mission 1 roads well but has not driven Creek Road since Easter: does not know the bridge washed out. Says so himself, 'but roads don't move'.",
     },
   },
   {
@@ -310,15 +310,15 @@ export const NPCS = [
     topics: {
       toms_cabin: {
         lines: [
-          "Hartley's boy? Pond Road, from the corner by the diner. About two and a half kilometres to the end.",
-          "Half a kilometre and you hit the ford. Another half or so there's a fork with Ridge Road. Stay on Pond Road, it bends east.",
+          "Hartley's boy? Pond Road, from the corner by the diner. Call it a mile and a half to the end.",
+          "Half a mile and you hit the ford. Another half mile after that, there's a fork with Ridge Road. Stay on Pond Road, it bends east.",
           "Cabin's the last thing before the water. If you see the campground, you're nearly there.",
         ],
         unlocks: ['pond_rd', 'brook_ford', 'ridge_rd', 'campground', 'loon_pond'],
       },
       grain_silos: {
         lines: [
-          "Forty metres tall, those silos. You can see them from the lookout, and from most places with a view.",
+          "A hundred and fifty feet tall, those silos. You can see them from the lookout, and from most places with a view.",
           "Before the trucks, grain went out by rail. The branch line came up from Ashford past Gilmore Halt. Closed in '59, so we built these.",
         ],
         unlocks: ['lookout', 'railway_halt', 'ashford_elevator'],
@@ -330,7 +330,7 @@ export const NPCS = [
         lines: ["Ashford's old wooden elevator. Went quiet when the trains stopped. Nobody's had the money to pull it down."],
       },
       rt40: {
-        lines: ["Route 40 goes east to Brandt, twenty-odd kilometres. West, it meets Highway 9 below Millbrook."],
+        lines: ["Route 40 goes east to Brandt. Call it fifteen miles. West, it meets Highway 9 below Millbrook."],
         unlocks: ['brandt', 'hwy9', 'millbrook'],
       },
       covered_bridge: {
@@ -346,7 +346,7 @@ export const NPCS = [
     fallback: ["Can't help you there."],
     profile: {
       home: 'calder', work: 'silos', routes: ['rt40', 'pond_rd', 'river_rd'], yearsHere: 35, style: 'distances',
-      reliability: "Gives distances, always about half again too long: Pond Road is about 1.6 km to the cabin, he says two and a half.",
+      reliability: "Gives distances, always rounded up: Pond Road is about a mile to the cabin, he says a mile and a half.",
     },
   },
   {
