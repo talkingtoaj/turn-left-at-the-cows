@@ -136,6 +136,8 @@ export function buildObjects(world, scenery, terrain, batch, materials = {}) {
   const chimneys = new Map();
   const dynamic = buildStructures(world, terrain, batch, materials, { chimneys });
   buildSigns(world, terrain, batch);
+  const words = batch.faces && batch.faces.build(); // painted words on signs and mailboxes
+  if (words) dynamic.push(words);
   buildStones(terrain, batch); // last: stones join the buckets already there
   const trees = buildTrees(scenery, terrain, SUN_DIR, batch.audit);
   const scatter = buildScatter(world, scenery, terrain, SUN_DIR, batch.audit);

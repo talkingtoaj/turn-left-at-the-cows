@@ -13,6 +13,7 @@
 //   extra_lake { lake }             { id, name, polygon } in the wrong place
 //   extra_landmark { landmark }     { id, kind, name, x, y }
 //   hide_landmark { id }
+//   hide_building { id }            building left off (built after the map)
 //   move { what: 'landmark'|'town'|'place', id, dx, dy }
 //   scale { about: [x, y], sx, sy } whole map stretched (bad sense of distance)
 
@@ -76,6 +77,8 @@ export function resolvePrintedMap(def, world = WORLD) {
   for (const l of of('extra_place')) out.places.push({ ...l.place });
   for (const l of of('extra_lake')) out.lakes.push({ ...l.lake });
   for (const l of of('extra_landmark')) out.landmarks.push({ ...l.landmark });
+  const hiddenBl = new Set(of('hide_building').map((l) => l.id));
+  out.buildings = out.buildings.filter((b) => !hiddenBl.has(b.id));
   const hiddenLm = new Set(of('hide_landmark').map((l) => l.id));
   out.landmarks = out.landmarks.filter((l) => !hiddenLm.has(l.id));
   for (const l of of('move')) {
