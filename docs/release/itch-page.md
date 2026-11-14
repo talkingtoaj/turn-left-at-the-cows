@@ -59,11 +59,11 @@ Play on a computer with a keyboard. It runs in your browser and needs WebGL.
 
 ## Theme: SHIFT
 
-Our theme is SHIFT, and the game is full of it. The county has shifted since 1987, so Darlene's map is out of date: roads have moved, a bridge has washed out, and a farm lane shows up where the map says there is none. You are also covering a shift. Darlene hurt her wrist, so you're the one carrying her mail. Nothing here stays where the map left it. Even the cows.
+The theme is SHIFT. The county has shifted since 1987, so Darlene's map is out of date: roads have moved, a bridge has washed out, and a farm lane shows up where the map says there is none. You are also covering a shift. Darlene hurt her wrist, so you're the one carrying her mail. Nothing here stays where the map left it. Even the cows.
 
 ## A note on the prototype
 
-Straight talk: a first version of this game was made on 15 and 16 October 2026, before the jam. The jam work started on 5 November. That is where the mail route, the radio and the new look came in.
+A first version of this game was made on 15 and 16 October 2026, before the jam. The jam work started on 5 November. That is where the mail route, the radio and the new look came in.
 
 ## How AI was used
 
