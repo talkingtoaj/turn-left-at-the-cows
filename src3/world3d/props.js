@@ -1,9 +1,11 @@
-// Road signs (posts with blank boards, the text lives in the HUD) and locals.
+// Road signs (posts and boards; the words are painted by signtext.js) and locals.
 
 import * as THREE from 'three';
 import { distToSegment, localToWorld } from '../../src/drive/geom.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { box, cyl } from './shapes.js';
+import { objMatrix } from './batch.js';
+import { FaceAtlas, signStyle, signSize, signLineText, drawSignFace, SIGN_PX_PER_M } from './signtext.js';
 
 // Bearing (deg, 0 = north) from a sign to the closest point on any road.
 function bearingToRoad(world, x, y) {
@@ -30,18 +32,9 @@ function bearingToRoad(world, x, y) {
 
 export function buildSigns(world, terrain, batch) {
   for (const s of world.signs) {
-    const first = (s.lines[0] || '').toUpperCase();
-    let board = 0xf0eee6;
-    let ink = 0x2a2a2a;
-    if (first.includes('BRIDGE OUT') || first.includes('CLOSED')) {
-      board = 0xe07b20;
-    } else if (s.lines.length === 1 || /^[A-Z .]+$/.test(s.lines[0] || '')) {
-      board = 0x2f6b45;
-      ink = 0xf0eee6;
-    }
-    const longest = Math.max(...s.lines.map((t) => t.length));
-    const bw = Math.min(3.4, 1.2 + longest * 0.09);
-    const bh = 0.35 + s.lines.length * 0.4;
+    const { board, ink } = signStyle(s.lines);
+    // Boards grow with their words so letters stay readable from about 15 m.
+    const { w: bw, h: bh } = signSize(s.lines);
     // Board front (local -z) faces the oncoming car: the reader drives on
     // heading `facing`, so the front points the opposite way.
     const angle = s.facing != null ? (s.facing + 180) % 360 : bearingToRoad(world, s.x, s.y);
@@ -58,11 +51,10 @@ export function buildSigns(world, terrain, batch) {
     for (const px of posts) P(box(0.12, top + 0.3, 0.12), px, 0.08, -0.3, 0x4a3a28);
     P(box(bw + 0.12, bh + 0.12, 0.08), 0, 0, top - bh - 0.06, 0x222222);
     P(box(bw, bh, 0.1), 0, 0, top - bh, board);
-    // Lines of "writing": just bars, never readable text.
-    s.lines.forEach((t, i) => {
-      const w = Math.min(bw - 0.3, 0.3 + t.length * 0.075);
-      P(box(w, 0.14, 0.02), 0, -0.06, top - 0.33 - i * 0.4, ink, { cast: false });
-    });
+    // The words: a quad just in front of the board, painted in the shared atlas.
+    if (!batch.faces) batch.faces = new FaceAtlas();
+    batch.faces.add('sign:' + s.lines.map(signLineText).join('|') + ':' + board, bw, bh, SIGN_PX_PER_M,
+      drawSignFace(s.lines, { board, ink }), objMatrix(s.x, s.y, base, angle, 0, -0.056, top - bh / 2));
   }
 }
 

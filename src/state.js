@@ -16,8 +16,7 @@ export const state = {
   inputLocked: false, // true while dialogue or map is open; Drive ignores input
   nearLocalId: null, // id of the local you can talk to: on foot, within 3 m and facing them (round 12)
   nearRepair: null, // repair shop in reach while the car needs work (src/game/repair.js)
-  nearSignBack: null, // id of a sign in range seen from behind (blank back)
-  nearSignId: null, // id of a sign within reading range (25 m), set by Drive each frame
+  nearSignId: null, // id of a sign being read: within 15 m and you face its front (learns the names on it)
   talkedTo: new Set(), // ids of locals talked to this mission (cleared per mission)
   // On foot (round 12, src3/onfoot.js and src/game/onfoot.js).
   leg: null, // 'approach' while driving over from another region (missions.js)

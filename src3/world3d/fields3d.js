@@ -7,6 +7,7 @@ import { fenceRuns } from '../../src/drive/layout.js';
 import { box, cyl } from './shapes.js';
 import { CELL } from './terrain.js';
 import { objMatrix } from './batch.js';
+import { FaceAtlas, drawPlateFace, PLATE_PX_PER_M } from './signtext.js';
 
 const I = new THREE.Matrix4();
 
@@ -646,6 +647,14 @@ export function buildMailboxes(world, terrain, batch) {
     const top = new THREE.CylinderGeometry(0.12, 0.12, 0.5, 8, 1, false, -Math.PI / 2, Math.PI).rotateX(-Math.PI / 2);
     P(top, 0, 0, 1.3, col);
     P(box(0.22, 0.3, 0.03), 0, -0.26, 1.1, 0x2a2a2a, { cast: false });
+    // Family name on a little board hung from the post, facing the road.
+    if (m.name) {
+      const plate = { w: 1.7, h: 0.5 };
+      if (!batch.faces) batch.faces = new FaceAtlas();
+      P(box(plate.w + 0.06, plate.h + 0.06, 0.04), 0, 0.06, 0.5, 0x4a3622, { cast: false });
+      batch.faces.add('plate:' + m.name, plate.w, plate.h, PLATE_PX_PER_M, drawPlateFace(m.name),
+        objMatrix(m.x, m.y, base, m.facing || 0, 0, 0.028, 0.5 + plate.h / 2 + 0.03));
+    }
     // Little red flag, up on some boxes.
     const up = (i % 3) === 0;
     P(box(0.03, 0.35, 0.05), 0.14, 0.12, up ? 1.25 : 1.1, 0xc0392b, { cast: false });

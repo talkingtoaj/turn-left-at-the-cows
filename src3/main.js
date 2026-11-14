@@ -53,7 +53,7 @@ import { createTips, TIP_CONTEXT, setTipsEnabled, resetTips } from '../src/game/
 import { createTipsView } from './hud/tips.js';
 import { warningLights } from '../src/game/damage.js';
 
-const READ_RANGE = 25;
+const READ_RANGE = 15; // you read a sign (and learn its names) this close, facing its front
 const MAX_DT_MS = 50;
 
 // ---------- renderer and scene ----------
@@ -522,7 +522,6 @@ function frame(now) {
     }
     const seen = signInView(WORLD.signs, viewer, READ_RANGE);
     state.nearSignId = seen && !seen.back ? seen.id : null;
-    state.nearSignBack = seen && seen.back ? seen.id : null;
     // Names you read on a sign, or are close to, can be asked about.
     if (state.nearSignId && state.nearSignId !== lastSignRead) {
       const sign = WORLD.signs.find((s) => s.id === state.nearSignId);
