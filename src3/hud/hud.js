@@ -3,6 +3,7 @@ import { state } from '../../src/state.js';
 import { repairCar } from '../../src/game/repair.js';
 import { runtime } from '../runtime.js';
 import { headingText, clockText, timerText } from '../../src/hud/format.js';
+import { mphFromMps, odometerHundredths } from '../../src/units.js';
 import { noteLandmark } from '../../src/game/dialogue.js';
 import { createTalk } from './talk.js';
 import { currentMission, currentGoal, nextMission, MISSIONS } from '../../src/game/missions.js';
@@ -220,7 +221,7 @@ function buildLights(parent) {
 }
 
 // Mechanical odometer: one rolling drum per digit, the last two (tenths and
-// hundredths of a km) inverted like a classic trip meter.
+// hundredths of a mile) inverted like a classic trip meter.
 function buildOdometer(parent) {
   const box = el('div', 'hud-odo', parent);
   const strips = [];
@@ -252,10 +253,10 @@ export function createHUD(root, { openMap } = {}) {
   };
   const headingTxt = el('div', 'hud-gauge', bezel(118, 120, 'HEADING'));
   headingTxt.style.fontSize = '22px';
-  const odoStrips = buildOdometer(bezel(256, 210, 'TRIP km'));
+  const odoStrips = buildOdometer(bezel(256, 210, 'TRIP mi'));
   const speedBox = bezel(484, 140, 'SPEED');
   const speedTxt = el('div', 'hud-speed', speedBox, '0');
-  el('div', 'hud-unit', speedBox, 'km/h');
+  el('div', 'hud-unit', speedBox, 'mph');
   const gearTxt = el('div', 'hud-gear', speedBox);
   const clockTxt = el('div', 'hud-gauge', bezel(642, 130, 'CLOCK'));
   clockTxt.style.fontSize = '26px';
@@ -464,7 +465,7 @@ export function createHUD(root, { openMap } = {}) {
 
     // Rolling drums: the last drum turns smoothly, each higher drum rolls
     // only while every drum below it is passing from 9 to 0.
-    const v = Math.min(state.odometer / 10, 999999.99); // hundredths of a km
+    const v = Math.min(odometerHundredths(state.odometer), 999999.99); // hundredths of a mile
     const frac = v % 1;
     for (let i = 0; i < 6; i++) {
       const place = 10 ** (5 - i);
@@ -480,7 +481,7 @@ export function createHUD(root, { openMap } = {}) {
     }
 
     const { car } = state;
-    setText('speed', speedTxt, String(Math.round(Math.abs(car.speed) * 3.6)));
+    setText('speed', speedTxt, String(Math.round(mphFromMps(Math.abs(car.speed)))));
     setText('gear', gearTxt, car.speed < -0.2 ? 'REV' : '');
     setText('clock', clockTxt, clockText(state.clockMinutes));
     setText('timer', timerTxt, timerText(state.elapsedMs));

@@ -1,4 +1,5 @@
 // Small pure helpers for turning raw state numbers into dash text.
+import { odometerHundredths } from '../units.js';
 
 const POINTS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 
@@ -25,10 +26,10 @@ export function timerText(ms) {
   return `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
 }
 
-// Metres to an odometer digit string like "0012.34" (km, 2 decimals).
+// Metres to an odometer digit string like "0012.34" (miles, 2 decimals).
 export function odoDigits(metres) {
-  const km = Math.min(metres / 1000, 9999.99);
-  return km.toFixed(2).padStart(7, '0');
+  const mi = Math.min(odometerHundredths(metres) / 100, 9999.99);
+  return mi.toFixed(2).padStart(7, '0');
 }
 
 function pad(n) {
