@@ -1,5 +1,5 @@
 // The paper map on the passenger seat (start screen): a hand-drawn sketch of
-// Ashford County with each delivery pencilled on. Finished ones get a tick
+// Ashford and the roads out of it, with each delivery pencilled on. Finished ones get a tick
 // at the place you found and the best time beside it; the next one is
 // circled where it starts; the rest are a faint number and a question mark.
 // Unfinished jobs are only ever marked where they START, so the menu never

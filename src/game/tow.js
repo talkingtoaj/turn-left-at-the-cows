@@ -32,7 +32,7 @@ export const TOW_LINES = [
   'Hop in. Radio only gets the one station, and it is mostly hog prices.',
   "You're not the first car to lose a fight with this county.",
   'Seen worse. Fella last spring drove into a pond. Said it looked like a road.',
-  "Lucky I was passing. Well, I'm always passing. Only tow truck for forty miles.",
+  "Lucky I was passing. Well, I'm always passing. Only tow truck this side of the county line.",
   'Sounds like she just needs a rest. And a new everything.',
   "Folks get lost round here all the time. Signs point wherever the wind left 'em.",
   "Sit tight. I'll have you in {town} before the coffee's cold.",
