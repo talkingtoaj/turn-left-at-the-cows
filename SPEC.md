@@ -338,7 +338,7 @@ Source: `docs/reviews/2026-11-14-critic-round-2-whimsy.md`, the owner's 1 to 5 r
 
 **Radio** (builds navigation mechanic 4)
 - **2 stations for the jam:** one from the existing mast near Ashford, one from a new mast near Brandt. Static between stations; strength fades with distance from each mast.
-- **Per station:** 11 spoken pieces (4 DJ links, farm report, swap shop, weather and wind report, 2 ads, local notices and birthdays, 1 local guest spot) and 5 music files (a jingle and 4 tracks).
+- **Per station:** 11 spoken pieces (3 DJ links plus a traffic report on Ashford or a Thought for the Road from the pastor on Brandt, farm report, swap shop, weather and wind report, 2 ads, local notices and birthdays, 1 local guest spot) and 5 music files (a jingle and 4 tracks).
 - **Who makes what.** The owner makes the music and the ElevenLabs speech. Agents write the segment list and scripts; scripts reach the owner for review by 19 Nov; the owner's first batch of audio arrives by 24 Nov, one MP3 per segment, named from the segment list.
 - **Voices.** Real English on air, with subtitles. Locals you can meet come on air only rarely (about one guest spot per station), talking their usual gibberish with no subtitle while the DJ answers as if it all made sense; the DJ's reply can carry a small clue.
 - **Rules.** A station names only its own home town and never gives a live "here" report. No music anywhere except the radio; never background music by area.

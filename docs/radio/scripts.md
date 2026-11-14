@@ -26,6 +26,8 @@ Commit the new files in `public/radio/` and the changed `segments.js`.
 - July 1992. A station names only its own home town. Never a live "here" report.
 - No "today", "tonight" or "this morning". The player can tune in at any clock time. Weather is always a forecast for the week.
 - Plain, short sentences. A DJ says what a person would say on air.
+- Two themes run through the scripts. (a) 1992 people meet future tech without knowing it (VCR, fax machine, a caller predicting streaming music, self-driving tractors); the joke is that the listener knows how it turns out. (b) Church life is shown warmly as part of the town (churches bringing combines, a youth car wash for a mission trip, a weekly Thought for the Road from the pastor). Never preachy, no wink, no cow puns.
+- Each station has 11 spoken pieces. Ashford swaps one DJ link for a traffic report (`traffic`); Brandt swaps one DJ link for Thought for the Road (`thought`).
 - Real 1992 things are light jokes only: Barcelona Olympics, Perot, line dancing, cool summer, farm prices. Prices are round numbers for flavour.
 - Lines starting with `~` are a local talking gibberish. Make nonsense sounds with real sentence rhythm. They get no subtitle.
 - Music is instrumental, no real song or artist names, no spoken titles.
@@ -51,7 +53,7 @@ Approx. length of each loop: about 14 minutes per station. Stations keep their o
 - Home town: Ashford. Mast id: `mast` (the existing mast).
 - DJ: Dewey Halloran. Older man, slow and dry, a little gravel, easygoing.
 - Tagline: "Ashford's own, on the hill."
-- Loop order: ashford_jingle, ashford_link_1, ashford_music_1, ashford_farm, ashford_ad_1, ashford_music_2, ashford_link_2, ashford_swap, ashford_music_3, ashford_weather, ashford_ad_2, ashford_link_3, ashford_notices, ashford_music_4, ashford_guest, ashford_link_4
+- Loop order: ashford_jingle, ashford_link_1, ashford_music_1, ashford_farm, ashford_ad_1, ashford_music_2, ashford_link_2, ashford_swap, ashford_music_3, ashford_weather, ashford_ad_2, ashford_traffic, ashford_notices, ashford_music_4, ashford_guest, ashford_link_4
 
 ### Music slots (you make these)
 
@@ -63,29 +65,29 @@ Approx. length of each loop: about 14 minutes per station. Stations keep their o
 
 ### Spoken pieces (record these in ElevenLabs)
 
-#### ashford_link_1.mp3: DJ link (about 20 s)
+#### ashford_link_1.mp3: DJ link (about 16 s)
 
 **Speaker:** Dewey Halloran
 
-**Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Opening link. Unhurried. Pause after the call sign. Slight laugh on "went cold".
+**Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Opening link. Unhurried. Pause after the call sign.
 
 > WHAY, Radio Ashford, ten ten on your AM dial. Ashford's own, on the hill. This is Dewey Halloran.
 >
-> I've got records, a farm report, and a coffee that went cold around the second song. Stay with me.
+> I've got records, a farm report, and a freshly brewed pot of coffee. So stay with me.
 
-#### ashford_farm.mp3: Farm report (about 36 s)
+#### ashford_farm.mp3: Farm report (about 40 s)
 
 **Speaker:** Dewey Halloran
 
-**Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Farm report. Read it flat and serious like the numbers matter, then let the cows line land as a deadpan.
+**Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Farm report. Read the prices flat and serious like the numbers matter. Slow down and get warmer for the Vern Sutter news.
 
 > Time for the farm report. Corn is a little over two dollars a bushel. Soybeans, a little under six. Hogs are steady and cattle are steady, and so are the people who raise them, mostly.
 >
-> Hay is up, because it rained when it shouldn't have. A cool summer, folks. Corn likes warm nights and we haven't had many.
+> Hay is up, because it rained when it shouldn't have.
 >
-> And check your gates. Somebody's cows were seen walking down Main Street on Sunday, and I won't say whose.
+> Vern Sutter is home from the hospital and doing fine. His wheat was ready and the rain was coming, so three churches sent combines. They got every acre in before the first drop. Vern says thank you, and the coffee is on him.
 
-#### ashford_ad_1.mp3: Ad (about 22 s)
+#### ashford_ad_1.mp3: Ad (about 19 s)
 
 **Speaker:** Dewey Halloran
 
@@ -95,7 +97,7 @@ Approx. length of each loop: about 14 minutes per station. Stations keep their o
 >
 > Earl's. If you can see the pumps, you've found it.
 
-#### ashford_link_2.mp3: DJ link (about 24 s)
+#### ashford_link_2.mp3: DJ link (about 27 s)
 
 **Speaker:** Dewey Halloran
 
@@ -109,17 +111,17 @@ Approx. length of each loop: about 14 minutes per station. Stations keep their o
 
 **Speaker:** Dewey Halloran
 
-**Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Swap shop. Read like a very serious list. A tiny pause before "Gerald".
+**Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Swap shop. Read like a very serious list. Deadpan on "slightly used". A tiny pause before "Gerald".
 
 > Swap shop. Call the station, or tell Earl at the pumps and he'll tell me.
 >
-> First up. A two-bottom plow, good shape, wants a rowboat. Next, a washing machine that walks across the floor when it spins. Free to a home with a strong back.
+> First up. A caller wants to trade a slightly used manure spreader for a VCR. His words: slightly used. Next, a two-bottom plow, good shape, wants a rowboat.
 >
 > Wanted, one left boot, size ten, brown. Please don't ask about the right one. And last, five kittens, free, all of them named Gerald.
 >
 > That's the swap shop. Fair trades only.
 
-#### ashford_weather.mp3: Weather and wind report (about 28 s)
+#### ashford_weather.mp3: Weather and wind report (about 23 s)
 
 **Speaker:** Dewey Halloran
 
@@ -129,7 +131,7 @@ Approx. length of each loop: about 14 minutes per station. Stations keep their o
 >
 > Winds mostly from the west, about ten miles an hour. Showers are possible. Bring the laundry in early.
 
-#### ashford_ad_2.mp3: Ad (about 24 s)
+#### ashford_ad_2.mp3: Ad (about 21 s)
 
 **Speaker:** Dewey Halloran
 
@@ -139,23 +141,23 @@ Approx. length of each loop: about 14 minutes per station. Stations keep their o
 >
 > Hendricks. We have a new shipment of garden hoses.
 
-#### ashford_link_3.mp3: DJ link (about 22 s)
+#### ashford_traffic.mp3: Traffic report (about 15 s)
 
 **Speaker:** Dewey Halloran
 
-**Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Link about the election. Gentle joke, not mean. Pause before "Creek Road".
+**Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Traffic report. Read it like a serious bulletin, with a straight face. Let "three cars" land with a pause before it.
 
-> Folks keep asking me about Mr. Perot. He was in the race, now he's out, and I can't keep up. A man at the pumps asked who I'm voting for. I said whoever fixes the bridge on Creek Road.
+> Traffic report. Combine on Highway 9, backup is nine miles long. That's three cars, folks.
 >
-> That's all I've got on politics.
+> If you're one of the three, the combine will pull over at the next driveway. They always do.
 
-#### ashford_notices.mp3: Local notices and birthdays (about 40 s)
+#### ashford_notices.mp3: Local notices and birthdays (about 44 s)
 
 **Speaker:** Dewey Halloran
 
 **Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Local notices and birthdays. A warm, slow read, like he is reading off the back of an envelope. Laugh a little on "eleven years".
 
-> Local notices. St. Anne's is having a bake sale on Saturday. The ladies ask that nobody sample the pies before they're priced. Mrs. Miller is back from her sister's. And the school board will not meet this month, because nobody can find the key.
+> Local notices. The youth group at St. Anne's is washing cars in the church lot on Saturday. It's by donation, and the money goes to their mission trip. Mrs. Miller is back from her sister's. And the school board will not meet this month, because nobody can find the key.
 >
 > Birthdays. Happy birthday to Martha Ruggles, who is eighty-one. Happy birthday to Tommy Pratt, who is seven and wants it known that he is nearly eight.
 >
@@ -169,25 +171,25 @@ Approx. length of each loop: about 14 minutes per station. Stations keep their o
 
 > I've got a visitor. Earl, from the pumps on Main Street. Earl, say hello.
 >
-> *(gibberish)* Mm. Nuh-hmm. Dannow poddle, ressa ka lun bo. Hmf.
+> ~ Mm. Nuh-hmm. Dannow poddle, ressa ka lun bo. Hmf.
 >
 > Is that right? Folks, Earl says the pumps are open till six, and the coffee is free if you bring your own cup. Is that right, Earl?
 >
-> *(gibberish)* Woomba. Heh.
+> ~ Woomba. Heh.
 >
 > He says it is. And Earl says to stay off Mill Lane. It goes up from the highway to where the mill used to be, and it stops there. It always has.
 >
 > Thanks, Earl. Come back any time. Maybe bring a cup.
 
-#### ashford_link_4.mp3: DJ link (about 24 s)
+#### ashford_link_4.mp3: DJ link (about 18 s)
 
 **Speaker:** Dewey Halloran
 
-**Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Link about line dancing and the church hall. Fond, a little worried about the floor.
+**Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Link about tractors. Dry. Let the last joke sit, no laugh.
 
-> Line dancing is all anyone wants to do. Every Saturday somebody's cousin shows up in new boots, and the church hall floor is not what it was.
+> The paper says experts think tractors will drive themselves someday. Orville Dahl called the station to say his already does. The brakes went out in April, and he calls it a runaway success.
 >
-> If you must dance, stay off the loose board by the piano. That's all I'm saying. More music, then back with me.
+> More music, then back with me.
 
 ---
 
@@ -195,8 +197,8 @@ Approx. length of each loop: about 14 minutes per station. Stations keep their o
 
 - Home town: Brandt. Mast id: `mast_brandt` (new mast, needs adding near Brandt).
 - DJ: Rocky Tillman. Woman in her thirties, bright and quick, big laugh, small-town warm.
-- Tagline: "The tallest voice in Brandt, second only to the elevator."
-- Loop order: brandt_jingle, brandt_link_1, brandt_music_1, brandt_farm, brandt_ad_1, brandt_music_2, brandt_link_2, brandt_swap, brandt_music_3, brandt_weather, brandt_ad_2, brandt_link_3, brandt_notices, brandt_music_4, brandt_guest, brandt_link_4
+- Tagline: "The tallest voice in Brandt."
+- Loop order: brandt_jingle, brandt_link_1, brandt_music_1, brandt_farm, brandt_ad_1, brandt_music_2, brandt_link_2, brandt_swap, brandt_music_3, brandt_weather, brandt_ad_2, brandt_thought, brandt_notices, brandt_music_4, brandt_guest, brandt_link_3
 
 ### Music slots (you make these)
 
@@ -208,25 +210,25 @@ Approx. length of each loop: about 14 minutes per station. Stations keep their o
 
 ### Spoken pieces (record these in ElevenLabs)
 
-#### brandt_link_1.mp3: DJ link (about 22 s)
+#### brandt_link_1.mp3: DJ link (about 18 s)
 
 **Speaker:** Rocky Tillman
 
 **Voice notes:** Rocky: woman in her thirties, bright and quick, big laugh, small-town warm. Mid-western American. Talks like she is grinning. Opening link. Big energy but still friendly, like she is talking across the counter. Laugh on "stiff".
 
-> You're on WBRT, Brandt thirteen-forty, the tallest voice in town, second only to the elevator. I'm Rocky Tillman.
+> You're on WBRT, Brandt thirteen-forty, the tallest voice in Brandt. I'm Rocky Tillman.
 >
 > I've got records, the farm report, and a swap shop that is getting out of hand. Don't touch that dial. Seriously, it's stiff, you'll break it.
 
-#### brandt_farm.mp3: Farm report (about 38 s)
+#### brandt_farm.mp3: Farm report (about 37 s)
 
 **Speaker:** Rocky Tillman
 
-**Voice notes:** Rocky: woman in her thirties, bright and quick, big laugh, small-town warm. Mid-western American. Talks like she is grinning. Farm report. Reads the numbers fast and proud, slows down for the Pikes line.
+**Voice notes:** Rocky: woman in her thirties, bright and quick, big laugh, small-town warm. Mid-western American. Talks like she is grinning. Farm report. Reads the numbers fast and proud, slows down for the fax machine.
 
 > Farm report, Brandt style. Corn is around two twenty a bushel. Soybeans, just under six. Wheat, about three forty. Hogs are up a little, cattle are flat, and milk is thirteen dollars a hundredweight.
 >
-> The co-op elevator asks that trucks line up on the right side of the road. And if you are missing a sheep, call the Pikes. They have extras.
+> The co-op elevator asks that trucks line up on the right side of the road. And the co-op got a fax machine. Somebody faxed a picture of his prize hog to the feed store, just to see if it works. The feed store says it came through fine.
 
 #### brandt_ad_1.mp3: Ad (about 24 s)
 
@@ -238,7 +240,7 @@ Approx. length of each loop: about 14 minutes per station. Stations keep their o
 >
 > Try the apple pie with cream on top, the way Ray Kessler has it. Sit anywhere. Peg says that is the only rule, and she doesn't like it either.
 
-#### brandt_link_2.mp3: DJ link (about 24 s)
+#### brandt_link_2.mp3: DJ link (about 23 s)
 
 **Speaker:** Rocky Tillman
 
@@ -248,7 +250,7 @@ Approx. length of each loop: about 14 minutes per station. Stations keep their o
 >
 > The garage in Brandt already has a television going in the bay. If you need an oil change, expect to watch some gymnastics.
 
-#### brandt_swap.mp3: Swap shop (about 34 s)
+#### brandt_swap.mp3: Swap shop (about 27 s)
 
 **Speaker:** Rocky Tillman
 
@@ -258,9 +260,9 @@ Approx. length of each loop: about 14 minutes per station. Stations keep their o
 >
 > This week. A pickup bed, no truck attached, wants a truck. A saddle, hardly sat in. A ladder, because a man bought one and can't remember why. A tuba, one owner, one lung.
 >
-> And a pie safe, free, if you eat what's in it. Please, nothing that is still attached to a barn.
+> And a pie safe, free to anyone who can carry it.
 
-#### brandt_weather.mp3: Weather and wind report (about 32 s)
+#### brandt_weather.mp3: Weather and wind report (about 35 s)
 
 **Speaker:** Rocky Tillman
 
@@ -272,7 +274,7 @@ Approx. length of each loop: about 14 minutes per station. Stations keep their o
 >
 > Hold on to your hat.
 
-#### brandt_ad_2.mp3: Ad (about 24 s)
+#### brandt_ad_2.mp3: Ad (about 17 s)
 
 **Speaker:** Rocky Tillman
 
@@ -282,15 +284,15 @@ Approx. length of each loop: about 14 minutes per station. Stations keep their o
 >
 > Lou's, in Brandt. If it has wheels, bring it.
 
-#### brandt_link_3.mp3: DJ link (about 22 s)
+#### brandt_thought.mp3: Thought for the Road (about 28 s)
 
 **Speaker:** Rocky Tillman
 
-**Voice notes:** Rocky: woman in her thirties, bright and quick, big laugh, small-town warm. Mid-western American. Talks like she is grinning. Link about line dancing. Playful, a little exasperated.
+**Voice notes:** Rocky: woman in her thirties, bright and quick, big laugh, small-town warm. Mid-western American. Talks like she is grinning. Thought for the Road. Rocky drops the big energy: softer, slower, no grin. Reads the pastor's word plainly, like a note she respects.
 
-> Everybody wants to line dance. Peg says the diner is not a dance floor, but somebody keeps putting masking tape lines on it.
+> Thought for the Road. It's a short word from Pastor Dale Weber of the Brandt Community Church, and he drops it off every week.
 >
-> The tape is still there. So are the boots. I'm not saying who.
+> He says, even on the roads you know best, you can't see over the next hill. He finds that a comfort, because God can. He's looking after you, and the fellow coming the other way. Drive safe, folks.
 
 #### brandt_notices.mp3: Local notices and birthdays (about 42 s)
 
@@ -312,23 +314,22 @@ Approx. length of each loop: about 14 minutes per station. Stations keep their o
 
 > I have a visitor. Lou from the garage dropped off a part, and I told him he's not leaving until he says hello. Lou, you're on.
 >
-> *(gibberish)* Mm. Hrmph. Gorra nash, bidda lunk, ottle ottle rum. Hnh.
+> ~ Mm. Hrmph. Gorra nash, bidda lunk, ottle ottle rum. Hnh.
 >
 > Is that right? Folks, Lou says you'll hear the flying club planes long before you see them. He says they go round and round the field on a fine day, and they never fly right over the middle.
 >
 > So if you are ever trying to find them, don't drive to where they are. Drive to the middle. Did I get that right, Lou?
 >
-> *(gibberish)* Hnh.
+> ~ Hnh.
 >
 > He says I did. Thanks, Lou. Now go home.
 
-#### brandt_link_4.mp3: DJ link (about 24 s)
+#### brandt_link_3.mp3: DJ link (about 21 s)
 
 **Speaker:** Rocky Tillman
 
-**Voice notes:** Rocky: woman in her thirties, bright and quick, big laugh, small-town warm. Mid-western American. Talks like she is grinning. Link about the election. Friendly, laughing at herself.
+**Voice notes:** Rocky: woman in her thirties, bright and quick, big laugh, small-town warm. Mid-western American. Talks like she is grinning. Link with the caller. Cheerful at first. The laugh after "Ha, ha" is nervous and a little too long. Small pause before "right?".
 
-> Mr. Perot said he is out of the race, and my phone rang six times in one minute. Three were the same man.
+> The phones are lit up again. One caller says that someday you'll pick any song, any time, no DJ needed. He says it will come through the phone line, or maybe the air, he wasn't sure.
 >
-> Folks, I'm a deejay. Call me about requests, not politics. Politics I can't play. I've tried.
-
+> Ha, ha. Sure, sir. They'll always need ol' Rocky... right?
