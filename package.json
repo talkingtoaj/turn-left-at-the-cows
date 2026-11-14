@@ -11,7 +11,8 @@
     "tune:rough": "node tools/rough-drive.mjs",
     "check:fallen": "node tools/check-fallen.mjs",
     "check:blockers": "node tools/check-fallen.mjs",
-    "check:traffic": "node tools/check-traffic.mjs"
+    "check:traffic": "node tools/check-traffic.mjs",
+    "radio:bake": "node tools/radio-bake.mjs"
   },
   "dependencies": {
     "three": "^0.186.1"

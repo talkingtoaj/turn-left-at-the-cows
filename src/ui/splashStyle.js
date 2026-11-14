@@ -35,6 +35,7 @@ body[data-world="live"] .sp-paint { opacity: 0; }
 .sp-sign h1 { margin: 0; font: 600 clamp(28px, 4.4vw, 50px)/0.95 Oswald, "Arial Narrow", Impact, sans-serif; letter-spacing: 0.02em;
   text-transform: uppercase; color: #3a3128; }
 .sp-sign h1 .sp-cows { color: #b3261e; }
+.sp-sign .sp-subline { margin-top: 6px; font-size: clamp(13px, 1.3vw, 15px); font-style: normal; color: #4a4a48; }
 .sp-sign p { margin: 8px 0 0; font: clamp(15px, 1.5vw, 17px)/1.3 Georgia, "Libre Baskerville", serif; font-style: italic; color: #3a3128; }
 .sp-arrow { position: absolute; right: -40px; top: 2px; width: 70px; height: 56px; pointer-events: none; }
 .sp-pin { position: absolute; right: 14px; top: -10px; width: 16px; height: 16px; border-radius: 50%;
@@ -129,6 +130,10 @@ body[data-world="live"] .sp-paint { opacity: 0; }
 .mp-gap { stroke-dasharray: 3 6; }
 .mp-water { stroke: #6f9fb8; }
 .mp-house { fill: none; stroke: #4a4a48; stroke-width: 1.2; }
+.mp-stamp rect { stroke: #9a2a22; }
+.mp-stamp text { font: 600 17px Oswald, "Arial Narrow", Impact, sans-serif; letter-spacing: 0.08em; fill: #9a2a22; }
+.mp-stamp { opacity: 0.82; }
+.mp-ha { font: 32px Caveat, "Segoe Print", cursive; fill: #4a4a48; }
 .mp-hand { font: 21px Caveat, "Segoe Print", cursive; fill: #4a4a48; }
 .mp-faint { fill: #8a8478; }
 .mp-best { fill: #2f6a35; }

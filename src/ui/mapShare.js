@@ -16,6 +16,7 @@ import { el } from './style.js';
 import { MAP_SHARE_CSS } from './mapShareStyle.js';
 import { renderSketchCanvas } from '../../src3/map/sketchPaper.js';
 import { timerText } from '../hud/format.js';
+import { milesText } from '../units.js';
 import {
   available, listMaps, shareMap, vote, report, compactSketch, sketchIsEmpty, loadTurnstile,
 } from '../net/mapsApi.js';
@@ -48,7 +49,7 @@ const fontsReady = () => Promise.race([
 ]);
 
 function tripText(m) {
-  const parts = [timerText(m.timeMs || 0), `${Number(m.km || 0).toFixed(1)} km`];
+  const parts = [timerText(m.timeMs || 0), milesText((m.km || 0) * 1000)];
   if (m.tows) parts.push(m.tows === 1 ? 'towed once' : m.tows === 2 ? 'towed twice' : `towed ${m.tows} times`);
   return parts.join(' · ');
 }
