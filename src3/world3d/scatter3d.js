@@ -333,10 +333,18 @@ export function buildScatter(world, scenery, terrain, sunDir, audit = null) {
     mesh.instanceColor.needsUpdate = true;
   };
 
-  const sl = Math.hypot(sunDir.x, sunDir.z) || 1;
-  const sx = sunDir.x / sl;
-  const sz = sunDir.z / sl;
-  const stretch = 1 / Math.max(0.2, sunDir.y / sunDir.length());
+  // The sun is fixed per mission but can change with the mission (look/missionLook.js),
+  // so these are read again on every rebuild.
+  let sx = 0;
+  let sz = 0;
+  let stretch = 1;
+  const readSun = () => {
+    const sl = Math.hypot(sunDir.x, sunDir.z) || 1;
+    sx = sunDir.x / sl;
+    sz = sunDir.z / sl;
+    stretch = 1 / Math.max(0.2, sunDir.y / sunDir.length());
+  };
+  readSun();
   const frustum = new THREE.Frustum();
   const pv = new THREE.Matrix4();
   const sphere = new THREE.Sphere();
@@ -348,6 +356,7 @@ export function buildScatter(world, scenery, terrain, sunDir, audit = null) {
   const halfDiag = CELL * Math.SQRT1_2;
 
   function rebuild(camera, focus, shadowRadius) {
+    readSun();
     camera.updateMatrixWorld();
     pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     frustum.setFromProjectionMatrix(pv);

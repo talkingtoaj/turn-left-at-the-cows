@@ -13,6 +13,7 @@ import { learnMentions, learnNearby } from '../src/game/dialogue.js';
 import { repairNear, needsRepair } from '../src/game/repair.js';
 import { trackRegion, collectKeep, disposeTracked } from './gpuTracker.js';
 import { WORLD, setRegion, REGIONS } from '../src/world/world.js';
+import { GAME_MIN_PER_MS } from '../src/game/clock.js';
 import { state } from '../src/state.js';
 import { generateScenery } from '../src/drive/layout.js';
 import { Collider } from '../src/drive/collider.js';
@@ -29,6 +30,7 @@ import { buildCar } from './world3d/car3d.js';
 import { CameraRig } from './world3d/camera.js';
 import { createAmbient } from '../src/ambient/ambient.js';
 import { createAudio } from '../src/audio/audio.js';
+import { createRadio } from '../src/radio/radio.js';
 import { createAmbient3D } from './world3d/ambient3d.js';
 import { addCloudShadowsTo, cloudUniforms } from './world3d/clouds.js';
 import { campfireOf } from './world3d/landmarks3d.js';
@@ -54,7 +56,7 @@ import { createTips, TIP_CONTEXT, setTipsEnabled, resetTips } from '../src/game/
 import { createTipsView } from './hud/tips.js';
 import { warningLights } from '../src/game/damage.js';
 
-const READ_RANGE = 25;
+const READ_RANGE = 15; // you read a sign (and learn its names) this close, facing its front
 const MAX_DT_MS = 50;
 
 // ---------- renderer and scene ----------
@@ -289,7 +291,9 @@ async function followMission() {
 
 const ui = document.getElementById('ui');
 const map = createMapOverlay(ui, { onClose: () => { runtime.paused = false; state.inputLocked = false; } });
-const hud = createHUD(ui, { openMap: () => { runtime.paused = true; state.inputLocked = true; foot.release(); map.open(); } });
+const radio = createRadio();
+window.__radio = radio; // for checks
+const hud = createHUD(ui, { radio, openMap: () => { runtime.paused = true; state.inputLocked = true; foot.release(); map.open(); } });
 // Breakdowns end in a tow to the nearest garage, not a lost mission.
 // Dev: ?breakdown=1 breaks the car down at once.
 const tow = createTow(ui, { audio, rig, params });
@@ -329,6 +333,11 @@ window.addEventListener('keydown', (e) => {
     runtime.cameraMode = runtime.cameraMode === 'top' ? 'chase' : 'top';
   } else if (e.code === 'KeyN' && plain) {
     state.view.northUp = !state.view.northUp;
+  } else if (e.code === 'KeyT' && plain) {
+    radio.toggle();
+  } else if ((e.code === 'Comma' || e.code === 'Period') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    // Tune the radio: 10 kHz a step, 50 with Shift. Held keys keep stepping.
+    radio.tune((e.code === 'Comma' ? -1 : 1) * (e.shiftKey ? 50 : 10));
   }
 });
 window.addEventListener('keyup', (e) => keys.delete(e.code));
@@ -452,8 +461,8 @@ function frame(now) {
     if (result.hitSpeed > 6) rig.shake(result.hitSpeed);
     steer += (((input.right ? 1 : 0) - (input.left ? 1 : 0)) - steer) * Math.min(1, dt * 10);
 
-    // Clocks: game clock runs 10x real time; trip timer stops on arrival.
-    state.clockMinutes = (state.clockMinutes + dtMs / 6000) % 1440;
+    // Clocks: game clock runs at real speed (src/game/clock.js); trip timer stops on arrival.
+    state.clockMinutes = (state.clockMinutes + dtMs * GAME_MIN_PER_MS) % 1440;
     if (!state.won) state.elapsedMs += dtMs;
 
     // On foot: walk (the car stays parked with the handbrake on).
@@ -523,7 +532,6 @@ function frame(now) {
     }
     const seen = signInView(WORLD.signs, viewer, READ_RANGE);
     state.nearSignId = seen && !seen.back ? seen.id : null;
-    state.nearSignBack = seen && seen.back ? seen.id : null;
     // Names you read on a sign, or are close to, can be asked about.
     if (state.nearSignId && state.nearSignId !== lastSignRead) {
       const sign = WORLD.signs.find((s) => s.id === state.nearSignId);
@@ -574,7 +582,7 @@ function frame(now) {
     listener.x = ear.x;
     listener.y = ear.y;
     listener.z = groundAt(ear.x, ear.y) + (foot.active ? WALK.eye : 1.2);
-    planes.update(state.clockMinutes * 6, camera, scene.fog.color, wetness.rain, listener);
+    planes.update(state.clockMinutes * 60, camera, scene.fog.color, wetness.rain, listener);
   }
   // Lightning in heavy rain, and its thunder 3 s per km later.
   if (!runtime.paused && thunder) {
@@ -589,6 +597,7 @@ function frame(now) {
   }
   lightning.update(runtime.paused ? 0 : dt, camera, wetness.rain);
   // Sound every frame, even paused (it ducks while the map is open).
+  radio.update(dt, { region: regionId, x: ear.x, y: ear.y, paused: runtime.paused });
   audio.update(dt, state, amb, {
     paused: runtime.paused, rain: wetness, planes: planes ? planes.sound : null, tow: tow.sound,
     listener: ear, onFoot: foot.active,
@@ -598,8 +607,8 @@ function frame(now) {
   // clearly. Rain closes it in.
   const wv = look ? (look.weather ?? 0.5) : ownWeather.update(state);
   if (!runtime.paused) wetness.update(state, wv);
-  scene.fog.near = THREE.MathUtils.lerp(150, 260, e) * (1 - 0.45 * wetness.rain);
-  scene.fog.far = THREE.MathUtils.lerp(420, 600, e) * (1 - 0.25 * wetness.rain);
+  scene.fog.near = THREE.MathUtils.lerp(150, 260, e) * (1 - 0.45 * wetness.rain) * (look ? look.fogK.near : 1);
+  scene.fog.far = THREE.MathUtils.lerp(420, 600, e) * (1 - 0.25 * wetness.rain) * (look ? look.fogK.far : 1);
   const far = scene.fog.far + 30;
   if (camera.far !== far) {
     camera.far = far;
@@ -739,11 +748,11 @@ function menuFrame(now) {
   camera.far = 640;
   camera.updateProjectionMatrix();
   camera.updateMatrixWorld();
-  scene.fog.near = 220;
-  scene.fog.far = 620;
+  scene.fog.near = 220 * (look ? look.fogK.near : 1);
+  scene.fog.far = 620 * (look ? look.fogK.far : 1);
 
   amb.update(dt, state);
-  if (planes) planes.update(state.clockMinutes * 6 + menu.t, camera, scene.fog.color, wetness.rain, listener);
+  if (planes) planes.update(state.clockMinutes * 60 + menu.t, camera, scene.fog.color, wetness.rain, listener);
   if (look) look.update(state, wetness.rain, wetness.wet);
   world3d.puddles.update(wetness.puddle, wetness.rain, now / 1000, scene.fog.color);
   world3d.update(now / 1000, dt, state.car, menuFocus, 110, camera, amb);
@@ -859,6 +868,7 @@ export async function startGame(index = 0) {
   // The start screen made and resumed the AudioContext in its click.
   audio.wake();
   audio.ignition();
+  radio.start();
   if (currentLs) currentLs.reveal();
   index = resolveIndex(index);
   const spotName = params.get('spot');

@@ -367,7 +367,7 @@ export const WORLD_SOURCE = {
     county1987: {
       id: 'county1987',
       title: 'Fenwick County Road Map, 1987',
-      tabLabel: 'Old county map',
+      tabLabel: "Darlene's map",
       style: 'print',
       bounds: { x: 0, y: 0, w: 3000, h: 3000 },
       include: 'all',
@@ -379,14 +379,20 @@ export const WORLD_SOURCE = {
           type: 'extra_road',
           road: { id: 'mill_lane_fake', name: 'Mill Lane', type: 'dirt', width: 5, snapEnd: 'creek_rd', points: [[1500, 1525], [1510, 1300], [1600, 1000], [1700, 800]] },
         },
-        // Leaves out the farm lane (built after 1987).
+        // Leaves out every road and lane built since 1987.
         { type: 'hide_road', roadId: 'farm_rd' },
+        { type: 'hide_road', roadId: 'dolan_ln' },
+        { type: 'hide_road', roadId: 'pruitt_ln' },
+        { type: 'hide_road', roadId: 'quarry_rd' },
+        { type: 'hide_road', roadId: 'ridge_rd' },
+        { type: 'hide_building', id: 'dl_house' },
+        { type: 'hide_building', id: 'dl_barn' },
       ],
     },
     hartley_sketch: {
       id: 'hartley_sketch',
       title: 'Drawn by June Hartley',
-      tabLabel: "Mrs Hartley's sketch",
+      tabLabel: "Mrs Hartley's map",
       style: 'hand',
       author: 'hartley',
       bounds: { x: 2100, y: 60, w: 3600, h: 1000 },

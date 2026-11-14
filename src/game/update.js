@@ -39,6 +39,7 @@ export function startMission(state, index) {
   const m = MISSIONS[index];
   if (!m) return null;
   state.missionIndex = index;
+  if (typeof m.startMinutes === 'number') state.clockMinutes = m.startMinutes; // each mission has its own hour
   state.won = false;
   state.leg = m.approach ? 'approach' : null;
   // Each mission starts with a fresh car, and no tows yet (src/game/tow.js).
