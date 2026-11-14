@@ -5,7 +5,7 @@ import { distToSegment, localToWorld } from '../../src/drive/geom.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { box, cyl } from './shapes.js';
 import { objMatrix } from './batch.js';
-import { FaceAtlas, signStyle, signSize, signLineText, drawSignFace, SIGN_PX_PER_M } from './signtext.js';
+import { FaceAtlas, signStyle, signSize, signLineText, drawSignFace, SIGN_PX_PER_M, handStyle, drawHandFace, HAND_PX_PER_M } from './signtext.js';
 
 // Bearing (deg, 0 = north) from a sign to the closest point on any road.
 function bearingToRoad(world, x, y) {
@@ -30,7 +30,54 @@ function bearingToRoad(world, x, y) {
   return (Math.atan2(bx - x, -(by - y)) * 180) / Math.PI;
 }
 
+// Hand-painted boards from world.boards (add-on data, not road signs):
+// raw wood on a stake, a field gate or a fence, a little crooked and each
+// one painted differently. Words share the road signs' atlas.
+function buildBoards(world, terrain, batch) {
+  for (const b of world.boards || []) {
+    const st = handStyle(b.id, b.lines, b.look);
+    const angle = (b.faces + st.yaw + 360) % 360;
+    const base = terrain.heightAt(b.x, b.y);
+    const P = (geo, lx, ly, up, color, extra) => batch.place(geo, b.x, b.y, base, angle, lx, ly, up, color, extra ? { extra } : undefined);
+    const wood = 0x6b5638;
+    const lean = new THREE.Matrix4().makeRotationZ(st.tilt * 0.6);
+    const roll = new THREE.Matrix4().makeRotationZ(st.tilt);
+    let bottom = 0.5;
+    const posts = [];
+    if (b.mount === 'gate') {
+      bottom = 0.5;
+      for (const px of [-1.8, 1.8]) {
+        P(box(0.14, 1.4, 0.14), px, 0.1, -0.2, wood);
+        posts.push(px);
+      }
+      for (const up of [0.3, 0.68, 1.06]) P(box(3.6, 0.07, 0.04), 0, 0.12, up, 0x8a7550, roll);
+    } else if (b.mount === 'stake') {
+      bottom = 0.55;
+      P(box(0.09, 1.5, 0.09), 0, 0.1, -0.25, wood, lean);
+      posts.push(0);
+    } else {
+      bottom = 0.5;
+      for (const px of [-st.w / 2 + 0.15, st.w / 2 - 0.15]) {
+        P(box(0.12, 1.3, 0.12), px, 0.08, -0.25, wood);
+        posts.push(px);
+      }
+    }
+    if (batch.audit) {
+      for (const px of posts) {
+        const c = localToWorld(b.x, b.y, angle, px, 0.1);
+        batch.audit.circle(b.id, 'sign_post', c.x, c.y, 0.06, base - 0.3);
+      }
+    }
+    const mid = bottom + st.h / 2;
+    P(box(st.w + 0.06, st.h + 0.06, 0.05).translate(0, -(st.h + 0.06) / 2, 0), 0, 0, mid, 0x3a2c1a, roll);
+    if (!batch.faces) batch.faces = new FaceAtlas();
+    batch.faces.add('board:' + b.id, st.w, st.h, HAND_PX_PER_M, drawHandFace(b.lines, st),
+      objMatrix(b.x, b.y, base, angle, 0, -0.04, mid, roll));
+  }
+}
+
 export function buildSigns(world, terrain, batch) {
+  buildBoards(world, terrain, batch);
   for (const s of world.signs) {
     const { board, ink } = signStyle(s.lines);
     // Boards grow with their words so letters stay readable from about 15 m.

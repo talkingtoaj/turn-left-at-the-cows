@@ -14,8 +14,8 @@ export const PROPS_FENWICK = {
     { id: 'fen_round_pumps', kind: 'round_pumps', x: 696, y: 2433, heading: 270, r: 2.2 },
     // Painted ad on the west wall of Earl's shop.
     { id: 'fen_wall_ad', kind: 'wall_ad', building: 'a_gas', x: 715, y: 2435, lines: ["EARL'S", 'GAS  BAIT  COLD POP'] },
-    // Corn stand at the Pruitt farm lane, front to the lane.
-    { id: 'fen_corn_stand', kind: 'corn_stand', x: 2958, y: 1112, heading: 90, r: 2.4, lines: ['FRESH CORN', '6 FOR $1  PAY IN THE BOX'] },
+    // Corn stand on the west side of Pruitt Lane, 11 m south of the EGGS board (bd_eggs) at the gate.
+    { id: 'fen_corn_stand', kind: 'corn_stand', x: 2959, y: 1121, heading: 90, r: 2.4, lines: ['FRESH CORN', '6 FOR $1  PAY IN THE BOX'] },
     // St. Anne's letter board, facing east towards town.
     { id: 'fen_church_board', kind: 'church_board', x: 492, y: 2441, heading: 90, r: 1.8, lines: ['BEAN SUPPER SAT 6 PM', 'ALL WELCOME', 'BRING A PIE'] },
     // Rusted car in the weeds on the west side of Creek Road.
