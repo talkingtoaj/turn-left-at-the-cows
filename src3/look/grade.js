@@ -61,20 +61,51 @@ export function creamTint(g) {
 // Vignette and grain as one fixed overlay on the page. Cheap: the browser
 // composites it, and the game renders nothing extra. Call again with a new
 // grade (for presets) to change it.
+// A small tile of black and white speckle, drawn once, repeated by the browser.
+// The grain strength is the layer's opacity, so a plain alpha blend is enough.
+let tileUrl = null;
+function noiseTile() {
+  if (tileUrl) return tileUrl;
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const x = c.getContext('2d');
+  const img = x.createImageData(128, 128);
+  let seed = 12345;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const v = rnd() > 0.5 ? 255 : 0;
+    img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+    img.data[i + 3] = Math.round(rnd() * 255);
+  }
+  x.putImageData(img, 0, 0);
+  tileUrl = c.toDataURL('image/png');
+  return tileUrl;
+}
+
+// The overlay sits over the game only: it goes while the map, the cards, the
+// start screen or the load screen cover it.
+let hideStyle = null;
+function hideWhenCovered() {
+  if (hideStyle) return;
+  hideStyle = document.createElement('style');
+  hideStyle.textContent = 'body:has(.map-overlay.map-open, .sp, .ls-shade, .ms-shade, .ui-shade, .hud-zoom) #grade-overlay { display: none; }';
+  document.head.appendChild(hideStyle);
+}
+
 export function applyOverlay(g, parent = document.getElementById('app') || document.body) {
   let el = document.getElementById('grade-overlay');
   if (!g.on || (g.vig <= 0 && g.grain <= 0)) {
     if (el) el.remove();
     return;
   }
+  hideWhenCovered();
   if (!el) {
     el = document.createElement('div');
     el.id = 'grade-overlay';
     el.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:1;';
     parent.appendChild(el);
   }
-  const noise = `<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 1.4 -0.2'/></filter><rect width='100%' height='100%' filter='url(#n)'/></svg>`;
-  const url = `url("data:image/svg+xml,${encodeURIComponent(noise)}")`;
+  const url = `url("${noiseTile()}")`;
   const vig = `radial-gradient(ellipse at 50% 50%, rgba(30,24,10,0) 55%, rgba(30,24,10,${g.vig.toFixed(3)}) 120%)`;
   // Grain strength is the noise layer's own alpha, via a second element.
   let gr = el.firstChild;
@@ -86,5 +117,5 @@ export function applyOverlay(g, parent = document.getElementById('app') || docum
   const w = g.wash;
   const wash = w ? `linear-gradient(rgba(${w[0]},${w[1]},${w[2]},${w[3]}),rgba(${w[0]},${w[1]},${w[2]},${w[3]})), ` : '';
   el.style.background = wash + vig;
-  gr.style.cssText = `position:absolute;inset:0;background:${url};opacity:${g.grain.toFixed(3)};mix-blend-mode:overlay;`;
+  gr.style.cssText = `position:absolute;inset:0;background:${url};background-size:128px 128px;opacity:${g.grain.toFixed(3)};`;
 }
