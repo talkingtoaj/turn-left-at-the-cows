@@ -1,4 +1,4 @@
-// The car radio: off until you switch it on, two AM stations, static between
+// The car radio: on when you set off (T switches it off), two AM stations, static between
 // them, signal that fades with distance from each mast. It is the only music
 // and talk in the game (SPEC 9o "Radio").
 //

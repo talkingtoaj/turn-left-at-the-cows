@@ -31,6 +31,7 @@ import { CameraRig } from './world3d/camera.js';
 import { createAmbient } from '../src/ambient/ambient.js';
 import { createAudio } from '../src/audio/audio.js';
 import { createRadio } from '../src/radio/radio.js';
+import { STATIONS } from '../src/radio/segments.js';
 import { createAmbient3D } from './world3d/ambient3d.js';
 import { addCloudShadowsTo, cloudUniforms } from './world3d/clouds.js';
 import { campfireOf } from './world3d/landmarks3d.js';
@@ -829,7 +830,7 @@ export async function preloadMenu(index = 0, { live = true, still = false, rect 
   if (started || !live || regionId !== region0) return;
   // The weather follows this mission's timeline (startGame sets it properly).
   state.missionIndex = index;
-  radio.setOn(false); // the start screen is quiet; the player turns it on again when driving
+  radio.setOn(false); // the start screen is quiet; startGame switches it back on
   menu = { at: { x: start0.x, y: start0.y }, yaw0: (start0.heading || 0) * (Math.PI / 180), t: 0, frames: 0, still, rect, onReady };
   car3d.object.visible = false;
   exposeDebug();
@@ -887,6 +888,11 @@ export async function startGame(index = 0) {
   }
   await loadChain;
   if (missionRegion(state, m) !== regionId) await loadRegion(missionRegion(state, m), m.title);
+  // The radio is on when you set off, tuned to the home station of the county
+  // you start in (the start screen keeps it quiet).
+  const home = STATIONS.find((s) => s.id === (missionRegion(state, m) === 'brandt' ? 'brandt' : 'ashford'));
+  if (home) radio.setFreq(home.freqKhz);
+  radio.setOn(true);
   exitMenu();
   foot.reset();
   state.onFoot = false;
