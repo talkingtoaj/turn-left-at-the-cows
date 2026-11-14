@@ -113,6 +113,19 @@ RECIPES = [
     ('thunder/close2', f'{FS}/534023.ogg', 0.4, 7.5, 'oneshot', 'highpass=f=30', -1),
     ('thunder/far1', f'{FS}/581123.ogg', 2.6, 14, 'oneshot', 'highpass=f=30', -1),
     ('thunder/far2', f'{FS}/581124.ogg', 0.4, 7.2, 'oneshot', 'highpass=f=30', -1),
+    # Round 13: small sound layers (ticket 26). Insects and wind in grass are
+    # ambient beds; the screen door, chimes and creaks are one-shots; the
+    # tractor is a distant loop; window wind rises with speed in the game.
+    ('ambient/insects', f'{FS}/515055.ogg', 3, 10, 'loop', 'highpass=f=1500', -26),
+    ('ambient/grass_wind', f'{FS}/593817.ogg', 2, 12, 'loop', 'highpass=f=250,lowpass=f=6000', -24),
+    ('ambient/tractor', f'{FS}/164444.ogg', 6, 12, 'loop', 'highpass=f=60,lowpass=f=1400', -24),
+    ('ambient/screen_door', f'{FS}/322191.ogg', 0, None, 'oneshot', 'highpass=f=150', -3),
+    ('ambient/chimes', f'{FS}/398495.ogg', 8, 6, 'oneshot', 'highpass=f=300', -3),
+    ('car/creak1', f'{FS}/508278.ogg', 0, 1.4, 'oneshot', 'highpass=f=120', -3),
+    ('car/creak2', f'{FS}/508278.ogg', 3.5, 1.5, 'oneshot', 'highpass=f=120', -3),
+    ('car/creak3', f'{FS}/508278.ogg', 8, 1.5, 'oneshot', 'highpass=f=120', -3),
+    ('car/ignition', f'{FS}/138099.ogg', 0.1, 1.8, 'oneshot', 'highpass=f=60,lowpass=f=3500', -3),
+    ('car/window_wind', f'{FS}/506910.ogg', 2, 14, 'loop', 'highpass=f=120,lowpass=f=4500', -22),
 ]
 
 
