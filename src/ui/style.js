@@ -93,6 +93,11 @@ const CSS = `
   border-top: 1px dashed rgba(90,70,45,0.5); padding-top: 10px; font: 13px "Courier New", Courier, monospace; color: #5a4a36; }
 .ui-card-foot .ui-btn { font-size: 15px; padding: 6px 18px; }
 
+.ui-intro { transform: rotate(0.8deg); }
+.ui-note-hand p { margin: 0 0 8px; font: 500 clamp(24px, 5.2vw, 30px)/1.3 Caveat, "Segoe Print", cursive; color: #2f2a3a; }
+.ui-note-sign { font: 600 30px/1 Caveat, "Segoe Print", cursive; color: #9a3a2a; text-align: right; margin: 0 6px 14px 0; }
+.ui-note-hand.ui-help-note { margin: 0 0 14px; padding: 12px 18px 4px; background: #f6f0de; border: 1px dashed rgba(90,70,45,0.5); transform: rotate(-0.4deg); }
+
 .ui-paused { position: absolute; top: 14px; right: 18px; font: bold 12px "Courier New", Courier, monospace;
   letter-spacing: 0.2em; color: #9a3a2a; }
 .ui-close { position: absolute; top: 14px; left: 18px; font: 13px "Courier New", Courier, monospace; color: #6b5a42; }

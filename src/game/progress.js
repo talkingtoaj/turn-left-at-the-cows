@@ -126,3 +126,31 @@ export function clearProgress() {
     // blocked: nothing saved anyway
   }
 }
+
+// Locals the player has ever talked to (any mission). Used to credit load
+// screen quotes. Own key, so the finish records above are untouched.
+export const MET_KEY = 'askalocal.met.v1';
+
+export function metIds() {
+  try {
+    const s = storage();
+    const raw = s && s.getItem(MET_KEY);
+    const a = raw ? JSON.parse(raw) : [];
+    return Array.isArray(a) ? a : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+export function rememberMet(id) {
+  try {
+    const s = storage();
+    if (!s || !id) return;
+    const a = metIds();
+    if (a.includes(id)) return;
+    a.push(id);
+    s.setItem(MET_KEY, JSON.stringify(a));
+  } catch (e) {
+    // forgetting is fine
+  }
+}
