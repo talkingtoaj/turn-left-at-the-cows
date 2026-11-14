@@ -114,6 +114,8 @@ export const FARM_RUIN = {
 };
 // A rusting truck: its body, angle from the landmark.
 export const TRUCK = { w: 2.3, h: 5.8 };
+// A parked visitor's estate car (kind 'parked_car', issue 27): its footprint.
+export const PARKED_CAR = { w: 1.9, h: 4.7 };
 // Disused railway: the bank (bottom width, top width, height) along the
 // landmark's `points`; the halt platform and shelter beside it.
 export const RAILWAY = {
@@ -290,6 +292,8 @@ export function landmarkSolids(l, world = null) {
     for (const [lx, ly] of WINDPUMP.legs) circles.push({ x: w.x + lx, y: w.y + ly, r: WINDPUMP.legR });
   } else if (l.kind === 'rusty_truck') {
     rects.push(partRect(l.x, l.y, l.angle || 0, { lx: 0, ly: 0, ...TRUCK }));
+  } else if (l.kind === 'parked_car') {
+    rects.push(partRect(l.x, l.y, l.angle || 0, { lx: 0, ly: 0, ...PARKED_CAR }));
   } else if (l.kind === 'railway') {
     // The bank is solid (a car cannot climb it), with the platform and shelter.
     const B = RAILWAY.bank;
@@ -486,6 +490,7 @@ function makeTreeRejector(world, pads) {
     ...world.locals.map((l) => ({ x: l.x, y: l.y, r: 10 })),
     ...(world.mailboxes || []).map((m) => ({ x: m.x, y: m.y, r: 4 })),
     ...(world.props || []).map((p) => ({ x: p.x, y: p.y, r: p.r + 3 })),
+    ...(world.dressing || []).map((p) => ({ x: p.x, y: p.y, r: (p.r || 2) + 3 })),
     ...(world.powerLines || []).flatMap((l) => l.poles.map((p) => ({ x: p.x, y: p.y, r: 4 }))),
   ];
   // Clear circles in a spatial index too (zero-length segments, data = radius).

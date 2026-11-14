@@ -819,7 +819,7 @@ export function createAmbient(world, scenery) {
     const p = { x: l.x, y: l.y, heading: rd ? headingOf(rd.x - l.x, rd.y - l.y) : 180, moving: false };
     people.set(l.id, p);
     const blds = world.buildings.filter((b) => Math.hypot(b.x - l.x, b.y - l.y) < 40);
-    peopleState.set(l.id, { hx: l.x, hy: l.y, timer: R(3, 12), tx: l.x, ty: l.y, blds, idleH: p.heading });
+    peopleState.set(l.id, { hx: l.x, hy: l.y, timer: R(3, 12), tx: l.x, ty: l.y, blds, idleH: p.heading, stay: !!l.stay });
   }
   function nearestRoadPoint(x, y) {
     let best = null;
@@ -1044,7 +1044,9 @@ export function createAmbient(world, scenery) {
         }
       }
       for (const [id, p] of people) {
-        if ((p.x - px) ** 2 + (p.y - py) ** 2 < nearSq) stepPerson(p, peopleState.get(id), dt, player);
+        const ps = peopleState.get(id);
+        if (ps.stay) continue; // the tourist stands by her car
+        if ((p.x - px) ** 2 + (p.y - py) ** 2 < nearSq) stepPerson(p, ps, dt, player);
       }
 
       // Dust particles.

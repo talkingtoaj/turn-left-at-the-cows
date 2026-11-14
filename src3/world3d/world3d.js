@@ -9,6 +9,7 @@ import { Batcher } from './batch.js';
 import { buildGround, DECK_TOP } from './ground.js';
 import { buildStructures } from './structures.js';
 import { buildSigns, buildLocals } from './props.js';
+import { buildDressing } from './dressing.js';
 import { buildTrees } from './trees.js';
 import { buildScatter } from './scatter3d.js';
 import { buildPuddles } from './puddles3d.js';
@@ -136,6 +137,7 @@ export function buildObjects(world, scenery, terrain, batch, materials = {}) {
   const chimneys = new Map();
   const dynamic = buildStructures(world, terrain, batch, materials, { chimneys });
   buildSigns(world, terrain, batch);
+  dynamic.push(...buildDressing(world, terrain, batch, materials)); // clotheslines, pumps, corn stand and the rest
   const words = batch.faces && batch.faces.build(); // painted words on signs and mailboxes
   if (words) dynamic.push(words);
   buildStones(terrain, batch); // last: stones join the buckets already there
@@ -306,7 +308,7 @@ export function buildWorld3D(scene, world, scenery, collider) {
     puddles,
     // Per frame: animated bits and the sun's shadow box following `focus`.
     update(time, dt, car, focus, shadowRadius, camera, amb) {
-      for (const d of dynamic) d.update(time, amb);
+      for (const d of dynamic) d.update(time, amb, car);
       locals.update(car, dt, amb);
       sky.position.copy(camera.position);
       trees.update(camera, focus, shadowRadius);

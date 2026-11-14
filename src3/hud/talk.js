@@ -21,6 +21,7 @@ import {
   openTalk, ask, askWhatsThat, topicChoices, topicLabel, listTopics, getNpc, learnMentions,
 } from '../../src/game/dialogue.js';
 import { speak } from '../../src/audio/voice.js';
+import { openTourist, answerTourist } from '../../src/game/tourists.js';
 
 const CSS = `
 .talk { position: absolute; left: 50%; bottom: calc(var(--hud-dash-h) + 14px); transform: translateX(-50%);
@@ -43,6 +44,11 @@ const CSS = `
 .talk-next:hover, .talk-next:focus-visible { background: #f3d58c; outline: none; }
 @keyframes talk-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(230,180,80,0.7); } 50% { box-shadow: 0 0 0 7px rgba(230,180,80,0); } }
 @media (prefers-reduced-motion: reduce) { .talk-next { animation: none; } }
+.talk-choices { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.talk-choice { text-align: left; font: 16px/1.4 Arial, Helvetica, sans-serif; color: #ece7d8; background: #3a3c40; border: 1px solid #55585e;
+  border-radius: 6px; padding: 8px 12px; cursor: pointer; }
+.talk-choice:hover, .talk-choice:focus-visible { border-color: #e6b450; background: #44464b; outline: none; }
+.talk-choice b { color: #e6b450; margin-right: 8px; font-family: "Courier New", Courier, monospace; }
 .talk-hint { margin-left: auto; font: 12px "Courier New", Courier, monospace; color: #8a8d92; }
 .talk-ask { position: absolute; left: 0; right: 0; bottom: calc(100% + 8px); padding: 12px 14px 10px; background: #f1ead6; color: #3a3128;
   border-radius: 4px; box-shadow: 0 6px 18px rgba(0,0,0,0.35); display: none; }
@@ -84,6 +90,8 @@ export function createTalk(root) {
   const qEl = el('div', 'talk-q', box);
   const textEl = el('div', 'talk-text', box);
   textEl.setAttribute('aria-live', 'polite');
+  const choiceEl = el('div', 'talk-choices', box);
+  choiceEl.style.display = 'none';
   const foot = el('div', 'talk-foot', box);
   // Shown while there is more to say, so new players know to keep going.
   const nextBtn = el('button', 'talk-next', foot, 'Next \u25B8');
@@ -122,7 +130,8 @@ export function createTalk(root) {
     qEl.style.display = p.q ? 'block' : 'none';
     textEl.textContent = '';
     // Underline the first 4 names mentioned (not the one being answered).
-    d.choices = topicChoices(p.text, p.topicId, 4, WORLD);
+    // A stranger (the tourist) speaks plain English: no gibberish, no names to ask about.
+    d.choices = d.tourist ? [] : topicChoices(p.text, p.topicId, 4, WORLD);
     let at = 0;
     d.choices.forEach((c, i) => {
       if (c.start > at) textEl.append(p.text.slice(at, c.start));
@@ -147,22 +156,48 @@ export function createTalk(root) {
     if (at < p.text.length) textEl.append(p.text.slice(at));
     // Every name on the page is learned now you have read it (asked later
     // through "Ask about..."), not only the 4 underlined.
-    learnMentions(p.text, state, WORLD);
+    if (!d.tourist) learnMentions(p.text, state, WORLD);
     // Later mentions of a chosen name, beyond the first, stay plain text.
     if (d.choices.length) state.namesShown = true;
-    speak(d.npcId, p.text);
+    if (!d.tourist) speak(d.npcId, p.text);
     const last = d.page === d.pages.length - 1;
+    // The question: three replies on the last page, keys 1 to 3.
+    choiceEl.textContent = '';
+    const picking = !!(d.tourist && last && d.replies);
+    choiceEl.style.display = picking ? 'flex' : 'none';
+    askBtn.style.display = d.tourist ? 'none' : '';
+    if (picking) {
+      d.replies.forEach((text, i) => {
+        const b = el('button', 'talk-choice', choiceEl);
+        b.type = 'button';
+        el('b', null, b, String(i + 1));
+        b.append(text);
+        b.addEventListener('click', (e) => {
+          e.stopPropagation();
+          pickReply(i);
+        });
+      });
+    }
     nextBtn.style.display = last ? 'none' : '';
     nextBtn.textContent = `Next (${d.page + 1}/${d.pages.length}) \u25B8`;
     const pages = d.pages.length > 1 ? `${d.page + 1}/${d.pages.length}   ` : '';
+    if (d.tourist) {
+      hint.textContent = picking ? `${pages}1-${d.replies.length}: reply   Esc: leave` : `${pages}E: ${last ? 'goodbye' : 'next'}`;
+      return;
+    }
     hint.textContent = `${pages}E: ${last ? 'goodbye' : 'next'}${d.choices.length ? `   ${d.choices.length > 1 ? `1-${d.choices.length}` : '1'}: ask` : ''}   M: map`;
   }
 
-  function begin(npcId, pages) {
+  function begin(npcId, pages, tourist = null) {
     const npc = getNpc(npcId);
     if (!npc) return;
     if (!pages.length) pages = [{ text: '...', topicId: null }];
     d = { npcId, title: `${npc.name}, ${npc.role}`, pages, page: 0, choices: [] };
+    if (tourist) {
+      d.tourist = true;
+      d.title = tourist.name;
+      d.replies = tourist.choices;
+    }
     closeAsk();
     box.style.display = 'block';
     state.inputLocked = true;
@@ -179,8 +214,18 @@ export function createTalk(root) {
     begin(d.npcId, pagesFor(ask(d.npcId, topicId, state), topicId, `You: ${label.charAt(0).toUpperCase()}${label.slice(1)}?`));
   }
 
+  // The tourist's three replies: pick one and she answers.
+  function pickReply(i) {
+    if (!d || !d.tourist || !d.replies) return;
+    const id = d.npcId;
+    const lines = answerTourist(state, id, i);
+    if (!lines) return;
+    begin(id, lines.map((text) => ({ text, topicId: null })), { name: 'The tourist, visiting from Miami', choices: null });
+  }
+
   function advance() {
     if (!d) return;
+    if (d.tourist && d.replies && d.page === d.pages.length - 1) return; // pick a reply first
     if (d.page < d.pages.length - 1) {
       d.page++;
       showPage();
@@ -291,6 +336,11 @@ export function createTalk(root) {
       return askOpen;
     },
     open(npcId) {
+      const t = openTourist(state, npcId);
+      if (t) {
+        begin(npcId, t.pages.map((text) => ({ text, topicId: null })), t);
+        return;
+      }
       begin(npcId, openTalk(npcId, state));
       // The answer about the goal starts on the page after the greeting.
       const g = d && d.pages.findIndex((p) => p.topicId);
@@ -321,6 +371,13 @@ export function createTalk(root) {
         return true;
       }
       if (e.repeat) return true;
+      if (d.tourist) {
+        if (d.replies && /^[1-9]$/.test(k)) pickReply(Number(k) - 1);
+        else if (!d.replies || d.page < d.pages.length - 1) {
+          if (k === 'e' || k === 'E' || k === 'Enter' || k === ' ') advance();
+        }
+        return true;
+      }
       if (/^[1-4]$/.test(k)) {
         const c = d.choices[Number(k) - 1];
         if (c) askTopic(c.id);
