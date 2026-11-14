@@ -10,6 +10,7 @@ import { MISSIONS } from '../src/game/missions.js';
 import { TOURISTS } from '../src/game/tourists.js';
 import { Collider } from '../src/drive/collider.js';
 import { TOPIC_BY_ID } from '../src/world/topics.js';
+import { topicMentions } from '../src/game/dialogue.js';
 
 let WORLD = null; // the mission's region, set per tourist
 const road = (id) => {
@@ -45,6 +46,13 @@ for (const [missionId, t] of Object.entries(TOURISTS)) {
   assert.equal(t.choices.length, 3, 'three replies');
   assert.equal(t.choices.filter((c) => c.right).length, 1, 'exactly one right reply');
   for (const c of t.choices) {
+    // `names` must match the places the words name (so a reply is only offered once you know them all).
+    const said = [...new Set(topicMentions(c.text, WORLD).map((q) => q.id))].sort();
+    assert.ok(Array.isArray(c.names), `${c.id} has names`);
+    assert.deepEqual([...c.names].sort(), said, `${c.id}: names tag matches the words`);
+    for (const id of c.names) assert.ok(TOPIC_BY_ID[id], `${c.id}: topic ${id} exists`);
+    assert.ok(!/might want to check/i.test(c.notebook), `${c.id}: notebook line stays short`);
+    assert.ok(typeof t.sorry === 'string' && t.sorry.length > 0, 'sorry line');
     const roads = c.route.map(road);
     assert.ok(nearest(roads[0], [local.x, local.y]) < 8, `${c.id} starts at her road`);
     for (let i = 1; i < roads.length; i++) assert.ok(gap(roads[i - 1], roads[i]) < 15, `${c.id}: ${roads[i - 1].id} meets ${roads[i].id}`);

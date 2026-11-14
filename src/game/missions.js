@@ -62,7 +62,7 @@ const DETAILS = {
     arrivalLabel: 'Map on arrival at Hartley Farm',
     finalLabel: 'Final map: Hartley Farm',
     // Arrival line (win screen). Line id: arrival-m1
-    arrival: { name: 'Mrs Hartley', line: "Oh, you found us. Just leave it by the door, dear. The kettle's on, but I'll bring you a cup out here." },
+    arrival: { name: 'Mrs Hartley', line: "Oh, you found us. Just leave it by the door, dear. The kettle's on, I'll bring you a cup out if you like." },
     // Darlene's 1987 county map, full of gaps (see county1987 in src/world/data.js).
     // You also draw your own sketch. (Mission 2 has only Mrs Hartley's map.)
     printedMaps: ['county1987'],

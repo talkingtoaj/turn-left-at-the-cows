@@ -8,7 +8,7 @@ Turn Left at the Cows
 
 ## Short description (the itch "tagline" field)
 
-Everything's shifted since 1987. Even the cows.
+There was a time before GPS, when finding your way required you to ask a local.
 
 ## Pitch
 
@@ -59,11 +59,11 @@ Play on a computer with a keyboard. It runs in your browser and needs WebGL.
 
 ## Theme: SHIFT
 
-The theme is SHIFT. The county has shifted since 1987, so Darlene's map is out of date: roads have moved, a bridge has washed out, and a farm lane shows up where the map says there is none. You are also covering a shift. Darlene hurt her wrist, so you're the one carrying her mail. Nothing here stays where the map left it. Even the cows.
+The theme is SHIFT. The county has shifted since 1987, so Darlene's map is out of date: roads have moved, a bridge has washed out, and a farm lane shows up where the map says there is none. You are also covering a shift. Darlene hurt her wrist, so you're the one carrying her mail. Nothing here stays where the map left it.
 
 ## A note on the prototype
 
-A first version of this game was made on 15 and 16 October 2026, before the jam. The jam work started on 5 November. That is where the mail route, the radio and the new look came in.
+I was toying with the idea of a driving game back in October, but didn't know what to do with it. When I learnt of the jam, I found a real theme - a game where you need to navigate by map, but the world's shifted since the map was printed.
 
 ## How AI was used
 

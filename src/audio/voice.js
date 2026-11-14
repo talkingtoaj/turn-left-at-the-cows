@@ -25,6 +25,15 @@ export const VOICE_GENDER = {
   tow_junie: 'f',
 };
 
+// Tourists (src/game/tourists.js) get a picked voice and pitch, so each one
+// sounds like herself: the Miami visitor bright, the lawyer low and slow,
+// the plane spotter in between.
+const VOICE_PICK = {
+  tourist_miami: { gender: 'f', n: 3, rate: 1.1 },
+  tourist_lawyer: { gender: 'm', n: 1, rate: 0.9 },
+  tourist_spotter: { gender: 'm', n: 2, rate: 1.04 },
+};
+
 function hash(s) {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) {
@@ -37,6 +46,8 @@ function hash(s) {
 // { id: 'voices/m2', rate: 0.93, gender: 'm' }. rate is the playback rate
 // (pitch shift), between 0.88 and 1.12.
 export function voiceFor(npcId) {
+  const pick = VOICE_PICK[npcId];
+  if (pick) return { id: `voices/${pick.gender}${pick.n}`, rate: pick.rate, gender: pick.gender };
   const h = hash(String(npcId));
   const gender = VOICE_GENDER[npcId] || (h & 1 ? 'f' : 'm');
   const n = 1 + ((h >>> 3) % 3);

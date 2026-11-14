@@ -21,7 +21,7 @@ import {
   openTalk, ask, askWhatsThat, topicChoices, topicLabel, listTopics, getNpc, learnMentions,
 } from '../../src/game/dialogue.js';
 import { speak } from '../../src/audio/voice.js';
-import { openTourist, answerTourist } from '../../src/game/tourists.js';
+import { openTourist, answerTourist, touristReplies } from '../../src/game/tourists.js';
 
 const CSS = `
 .talk { position: absolute; left: 50%; bottom: calc(var(--hud-dash-h) + 14px); transform: translateX(-50%);
@@ -130,7 +130,7 @@ export function createTalk(root) {
     qEl.style.display = p.q ? 'block' : 'none';
     textEl.textContent = '';
     // Underline the first 4 names mentioned (not the one being answered).
-    // A stranger (the tourist) speaks plain English: no gibberish, no names to ask about.
+    // A stranger (the tourist) mumbles too, but has no names to ask about.
     d.choices = d.tourist ? [] : topicChoices(p.text, p.topicId, 4, WORLD);
     let at = 0;
     d.choices.forEach((c, i) => {
@@ -156,18 +156,24 @@ export function createTalk(root) {
     if (at < p.text.length) textEl.append(p.text.slice(at));
     // Every name on the page is learned now you have read it (asked later
     // through "Ask about..."), not only the 4 underlined.
-    if (!d.tourist) learnMentions(p.text, state, WORLD);
+    learnMentions(p.text, state, WORLD);
     // Later mentions of a chosen name, beyond the first, stay plain text.
     if (d.choices.length) state.namesShown = true;
-    if (!d.tourist) speak(d.npcId, p.text);
+    speak(d.npcId, p.text);
     const last = d.page === d.pages.length - 1;
     // The question: three replies on the last page, keys 1 to 3.
     choiceEl.textContent = '';
     const picking = !!(d.tourist && last && d.replies);
+    // Only replies naming places you know (read after this page's names were learned).
+    if (picking) {
+      const r = touristReplies(state, d.npcId);
+      d.replyTexts = r.texts;
+      d.replyIdx = r.idx;
+    }
     choiceEl.style.display = picking ? 'flex' : 'none';
     askBtn.style.display = d.tourist ? 'none' : '';
     if (picking) {
-      d.replies.forEach((text, i) => {
+      d.replyTexts.forEach((text, i) => {
         const b = el('button', 'talk-choice', choiceEl);
         b.type = 'button';
         el('b', null, b, String(i + 1));
@@ -182,7 +188,7 @@ export function createTalk(root) {
     nextBtn.textContent = `Next (${d.page + 1}/${d.pages.length}) \u25B8`;
     const pages = d.pages.length > 1 ? `${d.page + 1}/${d.pages.length}   ` : '';
     if (d.tourist) {
-      hint.textContent = picking ? `${pages}1-${d.replies.length}: reply   Esc: leave` : `${pages}E: ${last ? 'goodbye' : 'next'}`;
+      hint.textContent = picking ? `${pages}1-${d.replyTexts.length}: reply   Esc: leave` : `${pages}E: ${last ? 'goodbye' : 'next'}`;
       return;
     }
     hint.textContent = `${pages}E: ${last ? 'goodbye' : 'next'}${d.choices.length ? `   ${d.choices.length > 1 ? `1-${d.choices.length}` : '1'}: ask` : ''}   M: map`;
@@ -218,7 +224,8 @@ export function createTalk(root) {
   function pickReply(i) {
     if (!d || !d.tourist || !d.replies) return;
     const id = d.npcId;
-    const lines = answerTourist(state, id, i);
+    if (!d.replyIdx || i >= d.replyIdx.length) return;
+    const lines = answerTourist(state, id, d.replyIdx[i]);
     if (!lines) return;
     begin(id, lines.map((text) => ({ text, topicId: null })), { name: d.title, choices: null });
   }
