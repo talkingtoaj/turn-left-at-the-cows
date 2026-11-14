@@ -44,9 +44,9 @@ export const TOW_TALK_LINES = [
   { id: 'tow-talk-1', text: 'You stopped and asked {name}? Good. Most folks just drive past.' },
   { id: 'tow-talk-2', text: "{name} gave you directions, huh. Half of it'll even be right." },
   { id: 'tow-talk-3', text: "Talked to {name}, did you? Then you're doing better than the last fella." },
-  { id: 'tow-talk-4', text: 'If {name} sent you that way, no wonder. {name} sends everybody that way.' },
-  { id: 'tow-talk-5', text: "Word travels. I hear you've been bothering {name}. Don't worry, {name} likes it." },
-  { id: 'tow-talk-6', text: 'Next time, ask {name} twice. It helps. A little.' },
+  { id: 'tow-talk-4', text: "{name} sent you this way? Figures. Sends everybody this way." },
+  { id: 'tow-talk-5', text: "Heard you got talking to {name}. Hope you had an hour spare." },
+  { id: 'tow-talk-6', text: "Next time ask {name} again on the way back. Can't hurt." },
 ];
 
 const CAUSE_TEXT = {
