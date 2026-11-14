@@ -10,6 +10,7 @@ import { finishMission } from '../../src/game/update.js';
 import { compassHeading, warningLights, PARTS } from '../../src/game/damage.js';
 import { renderSketchCanvas, renderPrintedMapCanvas, trueMapDef } from '../map/sketchRender.js';
 import { openMissionCard } from '../../src/ui/missionCard.js';
+import { openIntroCard, introSeen } from '../../src/ui/introCard.js';
 import { openHelp } from '../../src/ui/help.js';
 import { towedText } from '../../src/game/tow.js';
 import { mountShareStrip } from '../../src/ui/mapShare.js';
@@ -307,13 +308,21 @@ export function createHUD(root, { openMap } = {}) {
     if (!currentMission(state)) return;
     state.inputLocked = true;
     runtime.paused = true;
-    card = openMissionCard(state.missionIndex, {
-      onClose: () => {
-        card = null;
-        runtime.paused = false;
-        state.inputLocked = false;
-      },
-    });
+    const openMission = () => {
+      card = openMissionCard(state.missionIndex, {
+        onClose: () => {
+          card = null;
+          runtime.paused = false;
+          state.inputLocked = false;
+        },
+      });
+    };
+    // Darlene's note comes once, before mission 1's card.
+    if (state.missionIndex === 0 && !introSeen()) {
+      card = openIntroCard({ onClose: openMission });
+    } else {
+      openMission();
+    }
   }
 
   // H: how-to-play as a pause overlay. Not over the map, a dialogue, the
