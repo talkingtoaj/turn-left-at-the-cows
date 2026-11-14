@@ -118,7 +118,7 @@ export const NPCS_BRANDT = [
       kestrel_field: {
         lines: [
           "Field Lane used to run on to the strip, back when it was the army's. I fenced it off in '84 after one of their planes put down in my barley. Haven't spoken to Ray Kessler since.",
-          "You'll have to go round. Back to the highway, east over the creek, and keep your eyes open on the left. The club got a lane in from that side.",
+          "You'll have to go round. Back to the highway and east over the creek. Turn left at the cows. That's Pike Lane, and the club got in from that side.",
           "Or watch the planes. Ray's lot fly round and round the field all day. Whatever's in the middle of all that circling, that's it.",
         ],
         unlocks: ['rt40', 'planes', 'sandy_creek', 'pike_lane'],

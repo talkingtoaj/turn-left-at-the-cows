@@ -19,8 +19,7 @@ import { rememberMyMap } from '../../src/game/myMaps.js';
 import { createRadioDial } from './radioDial.js';
 
 // The HUD (a DOM/CSS port of the old 2D HUD). Shows the dash (compass, odometer,
-// clock, speed, trip timer), road signs, mailboxes, the talk prompt, the
-// conversation (./talk.js), the goal line, the mission complete screen, and owns
+// clock, speed, trip timer), the talk prompt, the conversation (./talk.js), the goal line, the mission complete screen, and owns
 // the E / M / R / Enter / H / 1-9 keys. The mission card and the help panel
 // are shared DOM screens (src/ui) that take every key while open.
 // Core rule: never show the player's position, a minimap or coordinates.
@@ -95,22 +94,10 @@ const CSS = `
 .hud-dash.hud-foot .hud-bezel, .hud-dash.hud-foot .hud-radio-slot { opacity: 0.35; }
 .hud-dash.hud-foot .hud-compass { filter: drop-shadow(0 0 6px rgba(0,0,0,0.6)); }
 
-.hud-sign { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); min-width: 160px;
-  padding: 16px 24px; border-radius: 10px; text-align: center; font-weight: bold; font-size: 20px; line-height: 1.3;
-  white-space: pre; box-shadow: 3px 3px 0 rgba(0,0,0,0.3); display: none; }
-.hud-sign.hud-green { background: #2e6a47; color: #f2f2ea; outline: 2px solid #f2f2ea; outline-offset: -6px; }
-.hud-sign.hud-back { background: #8c9096; color: #5d6166; outline: 2px solid #a3a7ac; outline-offset: -6px;
-  font-size: 13px; font-weight: normal; font-style: italic; }
-.hud-sign.hud-warn { background: #f4f1ea; color: #b3261e; outline: 6px solid #b3261e; outline-offset: -8px; }
 
 .hud-prompt { position: absolute; left: 50%; bottom: calc(var(--hud-dash-h) + 22px); transform: translate(-50%, 50%); padding: 6px 12px;
   background: rgba(20,21,23,0.82); color: #f0ead8; font-size: 15px; white-space: nowrap; display: none; }
 
-.hud-mailbox { position: absolute; top: 70px; left: 14px; display: none; text-align: center; }
-.hud-mailbox-box { padding: 7px 14px 6px; background: #ece4cf; color: #2c2620; border: 2px solid #5b4630; border-radius: 10px 10px 3px 3px;
-  font: bold 17px Georgia, serif; letter-spacing: 0.12em; box-shadow: 3px 3px 0 rgba(0,0,0,0.3); }
-.hud-mailbox-box small { display: block; font: 10px Arial, sans-serif; letter-spacing: 0.05em; color: #7a6a55; margin-bottom: 1px; }
-.hud-mailbox-post { width: 8px; height: 22px; margin: 0 auto; background: #5b4630; }
 
 .hud-win-shade { position: absolute; left: 0; right: 0; top: 0; bottom: var(--hud-dash-h); background: rgba(0,0,0,0.45); display: none; }
 .hud-win { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(1040px, calc(100% - 32px));
@@ -353,20 +340,14 @@ export function createHUD(root, { openMap, radio } = {}) {
 
   // ---------------------------------------------------------------- overlays
   const goalLine = el('div', 'hud-goal-tag', hud); // paper tag, top left
-  const signBox = el('div', 'hud-sign', hud);
   const promptBox = el('div', 'hud-prompt hud-mono', hud);
   // Talking to locals (round 12): ./talk.js.
   const talk = createTalk(hud);
   const winShade = el('div', 'hud-win-shade', hud);
-  const mailbox = el('div', 'hud-mailbox', hud);
-  const mailboxBox = el('div', 'hud-mailbox-box', mailbox);
-  el('div', 'hud-mailbox-post', mailbox);
   let zoomBox = null; // enlarged map on the complete screen
 
-  let currentMailboxId; // undefined forces the first render
   let mapOpen = false;
   let mapClosedAt = -Infinity;
-  let currentSignId; // undefined forces the first render
   let winShown = false;
   let promptText = null;
   let card = null; // mission card while it shows
@@ -480,7 +461,6 @@ export function createHUD(root, { openMap, radio } = {}) {
     }
     winShade.style.display = 'none';
     winShown = false;
-    currentSignId = undefined;
     state.inputLocked = false;
   }
 
@@ -489,8 +469,6 @@ export function createHUD(root, { openMap, radio } = {}) {
     mapOpen = false;
     mapClosedAt = performance.now();
     hud.style.display = '';
-    currentSignId = undefined; // redraw the sign now we are back
-    currentMailboxId = undefined;
     // The map screen unlocks input on close; a dialogue or the complete
     // screen underneath still needs it locked.
     if (inDialogue() || winShown) state.inputLocked = true;
@@ -619,31 +597,6 @@ export function createHUD(root, { openMap, radio } = {}) {
   // Breakdowns: the tow scene (src3/tow3d.js) takes over from here; the
   // HUD just stands aside while state.towing.
 
-  function updateSign() {
-    const backId = state.won ? null : state.nearSignBack;
-    const id = state.won ? null : state.nearSignId || (backId && 'back:' + backId);
-    if (id === currentSignId) return;
-    currentSignId = id;
-    if (backId && id === 'back:' + backId) {
-      // The back of a sign: you know it is there, but it is for the other way.
-      signBox.className = 'hud-sign hud-back';
-      signBox.textContent = 'back of a sign\n(it faces the other way)';
-      signBox.style.display = 'block';
-      return;
-    }
-    const sign = id && WORLD.signs.find((s) => s.id === id);
-    if (!sign) {
-      signBox.style.display = 'none';
-      return;
-    }
-    // Warning signs (closures) get the red and white look, the rest are
-    // green direction signs.
-    const warn = sign.lines.some((l) => /\b(OUT|CLOSED)\b/i.test(l));
-    signBox.className = 'hud-sign ' + (warn ? 'hud-warn' : 'hud-green');
-    signBox.textContent = sign.lines.join('\n');
-    signBox.style.display = 'block';
-  }
-
   function updateGoalLine() {
     const goal = state.won ? null : currentGoal(state);
     const text = goal ? goal.name : null;
@@ -674,21 +627,6 @@ export function createHUD(root, { openMap, radio } = {}) {
     promptText = text;
     promptBox.textContent = text || '';
     promptBox.style.display = text ? 'block' : 'none';
-  }
-
-  function updateMailbox() {
-    const id = state.won ? null : state.nearMailboxId || null;
-    if (id === currentMailboxId) return;
-    currentMailboxId = id;
-    const mb = id && (WORLD.mailboxes || []).find((m) => m.id === id);
-    if (!mb) {
-      mailbox.style.display = 'none';
-      return;
-    }
-    mailboxBox.textContent = '';
-    el('small', null, mailboxBox, 'MAILBOX');
-    mailboxBox.append(String(mb.name).toUpperCase());
-    mailbox.style.display = 'block';
   }
 
   // ---------------------------------------------------------------- complete screen
@@ -848,8 +786,6 @@ export function createHUD(root, { openMap, radio } = {}) {
       }
       return;
     }
-    updateSign();
-    updateMailbox();
     updatePrompt();
     updateGoalLine();
     if (inDialogue() || winShown || card || help) state.inputLocked = true;

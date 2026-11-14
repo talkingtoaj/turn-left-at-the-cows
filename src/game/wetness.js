@@ -28,6 +28,8 @@
 // ?rain=off (never rains), ?wet=<0..1> pins the ground's wetness and the
 // puddles. Handling numbers live in src/game/damage.js (TUNING.wet).
 
+import { weatherMinutes } from './clock.js';
+
 export const WETNESS = {
   RAIN_FROM: 0.8, // weather w where rain can start...
   RAIN_FULL: 0.95, // ...and where it can be at full strength
@@ -92,7 +94,7 @@ export function createWetness(seed, opts = {}) {
       if (lastClock !== null) {
         let d = state.clockMinutes - lastClock;
         if (d < -720) d += 1440;
-        if (d > 0 && d < 60) dMin = d * speed;
+        if (d > 0 && d < 60) dMin = weatherMinutes(d) * speed;
       }
       lastClock = state.clockMinutes;
       t += dMin;

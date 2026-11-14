@@ -45,7 +45,9 @@ const DETAILS = {
     start: { x: W.start.x, y: W.start.y, heading: W.start.heading },
     brief: [
       "There's a parcel for Hartley Farm on the seat beside you. No address, just the name.",
-      "No map in the glovebox, just a pencil and a blank notepad. Earl at the gas station knows everybody. Ask him.",
+      // Line ids: brief-m1-map, brief-m1-ask
+      "Darlene's county map is in the glovebox, with a pencil and a notepad. It's five years old, and plenty has changed since.",
+      "If the map and the road disagree, believe the road. Earl at the gas station knows everybody. Ask him.",
     ],
     goalTopic: 'hartley_farm',
     startTopics: ['hartley_farm'],
@@ -61,9 +63,9 @@ const DETAILS = {
     finalLabel: 'Final map: Hartley Farm',
     // Arrival line (win screen). Line id: arrival-m1
     arrival: { name: 'Mrs Hartley', line: 'Oh, you found us. Leave it on the table, and sit down. The kettle is already hot.' },
-    // No printed map: you draw your own and compare it with the real one at
-    // the end. (Mission 2 has only Mrs Hartley's hand-drawn sketch.)
-    printedMaps: [],
+    // Darlene's 1987 county map, full of gaps (see county1987 in src/world/data.js).
+    // You also draw your own sketch. (Mission 2 has only Mrs Hartley's map.)
+    printedMaps: ['county1987'],
   }),
   m2_cabin: ({ place, bridge, town }) => ({
     giverNpcId: 'hartley',

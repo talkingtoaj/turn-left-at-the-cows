@@ -13,6 +13,7 @@ import { learnMentions, learnNearby } from '../src/game/dialogue.js';
 import { repairNear, needsRepair } from '../src/game/repair.js';
 import { trackRegion, collectKeep, disposeTracked } from './gpuTracker.js';
 import { WORLD, setRegion, REGIONS } from '../src/world/world.js';
+import { GAME_MIN_PER_MS } from '../src/game/clock.js';
 import { state } from '../src/state.js';
 import { generateScenery } from '../src/drive/layout.js';
 import { Collider } from '../src/drive/collider.js';
@@ -54,7 +55,7 @@ import { createTips, TIP_CONTEXT, setTipsEnabled, resetTips } from '../src/game/
 import { createTipsView } from './hud/tips.js';
 import { warningLights } from '../src/game/damage.js';
 
-const READ_RANGE = 25;
+const READ_RANGE = 15; // you read a sign (and learn its names) this close, facing its front
 const MAX_DT_MS = 50;
 
 // ---------- renderer and scene ----------
@@ -459,8 +460,8 @@ function frame(now) {
     if (result.hitSpeed > 6) rig.shake(result.hitSpeed);
     steer += (((input.right ? 1 : 0) - (input.left ? 1 : 0)) - steer) * Math.min(1, dt * 10);
 
-    // Clocks: game clock runs 10x real time; trip timer stops on arrival.
-    state.clockMinutes = (state.clockMinutes + dtMs / 6000) % 1440;
+    // Clocks: game clock runs at real speed (src/game/clock.js); trip timer stops on arrival.
+    state.clockMinutes = (state.clockMinutes + dtMs * GAME_MIN_PER_MS) % 1440;
     if (!state.won) state.elapsedMs += dtMs;
 
     // On foot: walk (the car stays parked with the handbrake on).
@@ -530,7 +531,6 @@ function frame(now) {
     }
     const seen = signInView(WORLD.signs, viewer, READ_RANGE);
     state.nearSignId = seen && !seen.back ? seen.id : null;
-    state.nearSignBack = seen && seen.back ? seen.id : null;
     // Names you read on a sign, or are close to, can be asked about.
     if (state.nearSignId && state.nearSignId !== lastSignRead) {
       const sign = WORLD.signs.find((s) => s.id === state.nearSignId);
@@ -581,7 +581,7 @@ function frame(now) {
     listener.x = ear.x;
     listener.y = ear.y;
     listener.z = groundAt(ear.x, ear.y) + (foot.active ? WALK.eye : 1.2);
-    planes.update(state.clockMinutes * 6, camera, scene.fog.color, wetness.rain, listener);
+    planes.update(state.clockMinutes * 60, camera, scene.fog.color, wetness.rain, listener);
   }
   // Lightning in heavy rain, and its thunder 3 s per km later.
   if (!runtime.paused && thunder) {
@@ -606,8 +606,8 @@ function frame(now) {
   // clearly. Rain closes it in.
   const wv = look ? (look.weather ?? 0.5) : ownWeather.update(state);
   if (!runtime.paused) wetness.update(state, wv);
-  scene.fog.near = THREE.MathUtils.lerp(150, 260, e) * (1 - 0.45 * wetness.rain);
-  scene.fog.far = THREE.MathUtils.lerp(420, 600, e) * (1 - 0.25 * wetness.rain);
+  scene.fog.near = THREE.MathUtils.lerp(150, 260, e) * (1 - 0.45 * wetness.rain) * (look ? look.fogK.near : 1);
+  scene.fog.far = THREE.MathUtils.lerp(420, 600, e) * (1 - 0.25 * wetness.rain) * (look ? look.fogK.far : 1);
   const far = scene.fog.far + 30;
   if (camera.far !== far) {
     camera.far = far;
@@ -747,11 +747,11 @@ function menuFrame(now) {
   camera.far = 640;
   camera.updateProjectionMatrix();
   camera.updateMatrixWorld();
-  scene.fog.near = 220;
-  scene.fog.far = 620;
+  scene.fog.near = 220 * (look ? look.fogK.near : 1);
+  scene.fog.far = 620 * (look ? look.fogK.far : 1);
 
   amb.update(dt, state);
-  if (planes) planes.update(state.clockMinutes * 6 + menu.t, camera, scene.fog.color, wetness.rain, listener);
+  if (planes) planes.update(state.clockMinutes * 60 + menu.t, camera, scene.fog.color, wetness.rain, listener);
   if (look) look.update(state, wetness.rain, wetness.wet);
   world3d.puddles.update(wetness.puddle, wetness.rain, now / 1000, scene.fog.color);
   world3d.update(now / 1000, dt, state.car, menuFocus, 110, camera, amb);
