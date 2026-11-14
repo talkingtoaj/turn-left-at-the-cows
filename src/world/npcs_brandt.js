@@ -13,7 +13,7 @@ export const NPCS_BRANDT = [
         lines: [
           "The flying club? Out east of town somewhere. I fix their mower, not their planes. Never been up there myself.",
           "Tell you what, though. You'll hear them before you see them. On a fine day they go round and round all morning.",
-          "Head east on Route 40 and keep your window down.",
+          "Head east on Route 40 and keep your window down. Out past the creek there's an orange and white checkered tank way off to the left. Can't tell you what it's for.",
         ],
         unlocks: ['planes', 'rt40'],
       },
@@ -55,7 +55,7 @@ export const NPCS_BRANDT = [
         lines: ["The orange sock thing? That's at the airfield. Never seen it myself."],
       },
     },
-    fallback: ["Couldn't tell you. Ask Peg at the diner, she hears everything.", "Never heard of it. I mostly see the underside of cars."],
+    fallback: ["Couldn't tell you. Ask Peg at the diner, the one with the neon OPEN sign out front. She hears everything.", "Never heard of it. I mostly see the underside of cars."],
     profile: {
       home: 'brandt', work: 'br_gas', routes: ['rt40', 'station_rd'], yearsHere: 19, style: 'compass',
       reliability: "Never been to the airfield. Knows the planes circle it, and says so: the one honest clue.",
@@ -137,7 +137,7 @@ export const NPCS_BRANDT = [
         lines: ["My lane now, near enough. The old county map still shows it going through. It doesn't."],
       },
       pike_lane: {
-        lines: ["Pike Lane, off Route 40. Hal Pike let the club have the top of it. Ask Hal, he's usually at his gate."],
+        lines: ["Pike Lane, off Route 40. Hal Pike let the club have the top of it. Ask Hal, he's usually at his gate. Or just look for the checkered tank."],
         unlocks: ['hal_pike'],
       },
       dagny_farm: {
@@ -162,7 +162,7 @@ export const NPCS_BRANDT = [
     topics: {
       kestrel_field: {
         lines: [
-          "The strip? Up my lane, past the house and the top paddock. The club's at the far end, behind their hangars.",
+          "The strip? Up my lane, past the house and the top paddock. The club's at the far end, behind their hangars. You'll see their checkered water tank on your right, by the gate.",
           "Shut the gate after you if it's shut. It never is.",
         ],
         unlocks: ['pike_lane'],

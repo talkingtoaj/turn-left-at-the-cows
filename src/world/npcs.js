@@ -89,8 +89,9 @@ export const NPCS = [
       hartley_farm: {
         lines: [
           "The bridge? Ha. Washed out in the spring floods. County still hasn't fixed it.",
-          "You'll have to go back down to the highway and head east. Past the water tower, keep on till the road turns north and crosses the creek on the new bridge.",
-          "That takes you right up into Millbrook. And don't bother with the lane by the water tower. Dead end. The old mill burned down years ago.",
+          "You'll have to go back down Creek Road, past the rusted car in the weeds on your right, to the highway and head east. Past the water tower, keep on till the road turns north and crosses the creek on the new bridge.",
+          "That takes you right up into Millbrook. And don't bother with the lane by the water tower, the one with the tyre swing in the big oak. Dead end. The old mill burned down years ago.",
+          "Hartley's is out the northeast side of town, at the end of its own lane. Look for the mailbox shaped like a cow.",
         ],
         unlocks: ['hwy9', 'water_tower', 'mill_lane', 'old_mill', 'millbrook'],
       },
@@ -415,7 +416,7 @@ export const NPCS = [
     topics: {
       toms_cabin: {
         lines: [
-          "The Hartley boy's cabin? Out on Loon Pond. Go east on the highway to Calder.",
+          "The Hartley boy's cabin? Out on Loon Pond. Back down my lane, past the corn stand, then east on the highway to Calder.",
           "Turn left at the schoolhouse. That's Pond Road.",
           "Then it's along the brook a ways and up past the old fire tower. You'll find it.",
         ],
