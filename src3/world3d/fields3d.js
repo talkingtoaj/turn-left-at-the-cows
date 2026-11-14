@@ -7,6 +7,7 @@ import { fenceRuns } from '../../src/drive/layout.js';
 import { box, cyl } from './shapes.js';
 import { CELL } from './terrain.js';
 import { objMatrix } from './batch.js';
+import { isCowMailbox, cowMailboxParts } from './dressing.js';
 import { FaceAtlas, drawPlateFace, PLATE_PX_PER_M } from './signtext.js';
 
 const I = new THREE.Matrix4();
@@ -642,11 +643,13 @@ export function buildMailboxes(world, terrain, batch) {
     }
     P(box(0.12, 1.15, 0.12), 0, 0.15, -0.1, 0x6a4c2e);
     P(box(0.28, 0.06, 0.6), 0, 0, 1.05, 0x6a4c2e, { cast: false });
-    const col = MAILBOX[i % MAILBOX.length];
+    const cow = isCowMailbox(world, m);
+    const col = cow ? 0xf4f1ea : MAILBOX[i % MAILBOX.length];
     P(box(0.24, 0.2, 0.5), 0, 0, 1.1, col);
     const top = new THREE.CylinderGeometry(0.12, 0.12, 0.5, 8, 1, false, -Math.PI / 2, Math.PI).rotateX(-Math.PI / 2);
     P(top, 0, 0, 1.3, col);
     P(box(0.22, 0.3, 0.03), 0, -0.26, 1.1, 0x2a2a2a, { cast: false });
+    if (cow) cowMailboxParts(P);
     // Family name on a little board hung from the post, facing the road.
     if (m.name) {
       const plate = { w: 1.7, h: 0.5 };

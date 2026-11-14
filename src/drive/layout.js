@@ -486,6 +486,7 @@ function makeTreeRejector(world, pads) {
     ...world.locals.map((l) => ({ x: l.x, y: l.y, r: 10 })),
     ...(world.mailboxes || []).map((m) => ({ x: m.x, y: m.y, r: 4 })),
     ...(world.props || []).map((p) => ({ x: p.x, y: p.y, r: p.r + 3 })),
+    ...(world.dressing || []).map((p) => ({ x: p.x, y: p.y, r: (p.r || 2) + 3 })),
     ...(world.powerLines || []).flatMap((l) => l.poles.map((p) => ({ x: p.x, y: p.y, r: 4 }))),
   ];
   // Clear circles in a spatial index too (zero-length segments, data = radius).

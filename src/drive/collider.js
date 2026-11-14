@@ -40,6 +40,7 @@ export class Collider {
     for (const t of scenery.trees) this.addCircle({ x: t.x, y: t.y, r: TREE_HIT_R, kind: 'tree' });
     // Countryside fill: bales, haystacks, rocks and power poles.
     for (const p of world.props || []) this.addCircle({ x: p.x, y: p.y, r: p.r, kind: p.kind });
+    for (const p of world.dressing || []) if (p.r) this.addCircle({ x: p.x, y: p.y, r: p.r, kind: 'prop' });
     for (const l of world.powerLines || []) for (const p of l.poles) this.addCircle({ x: p.x, y: p.y, r: POLE_R, kind: 'pole' });
     if (opts.staticLocals !== false) {
       for (const l of world.locals) this.addCircle({ x: l.x, y: l.y, r: LOCAL_HIT_R });
