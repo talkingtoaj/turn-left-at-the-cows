@@ -27,7 +27,8 @@
 //   spoken      true for the 11 spoken pieces, false for the 5 music slots
 //   file        file name the owner records to, MP3, in the owner's masters folder.
 //               The AM tool writes the same name into public/.
-//   seconds     length guess in seconds. Real length is read from the file later.
+//   seconds     length in seconds. A guess until `npm run radio:bake -- <dir> --write-durations`
+//               copies the real baked length here.
 //   speaker     who is talking (spoken only)
 //   subtitle    English subtitle text (spoken only, '' for music). Blank line = new
 //               subtitle card. A line starting with '~' is a local talking gibberish:
@@ -39,6 +40,15 @@
 // Rules the scripts follow (SPEC 9o): own home town only, never a live "here"
 // report, no "today / tonight / this morning" (the player can tune in at any
 // clock time), July 1992, no real song or artist names.
+
+// Where the AM tool writes baked files and where the radio player streams them
+// from. Folder under public/, one subfolder per station. URL for a segment:
+//   radioAudioUrl(seg)  ->  '/radio/ashford/ashford_link_1.mp3'
+// (the AM tool writes public/radio/<station>/<file>.)
+export const RADIO_AUDIO_DIR = 'radio';
+export function radioAudioUrl(seg) {
+  return '/' + RADIO_AUDIO_DIR + '/' + seg.station + '/' + seg.file;
+}
 
 export const STATIONS = [
   {

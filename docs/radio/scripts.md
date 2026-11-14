@@ -2,6 +2,25 @@
 
 Two AM stations. The machine-readable list is `src/radio/segments.js`; this page is the same content for people. File names are what you record to (MP3, one per segment). Edit scripts here and in T17 review; approved text is copied back into the list.
 
+## Radio audio
+
+How to turn your recordings into the files the game plays.
+
+1. Make a folder outside the repo for your masters. The default is `radio-masters`, next to the repo folder (`../radio-masters`). Any folder works if you pass it in. Never put masters inside the repo or in `public/`.
+2. Drop your recordings in it. Name each one like the file names below, for example `ashford_link_1`, `brandt_music_3`. The extension can be mp3, wav, m4a or flac. Both stations are in the same folder.
+3. From the repo root, run:
+
+   ```
+   npm run radio:bake -- ../radio-masters
+   ```
+
+   You can use another folder instead, or set `RADIO_MASTERS=/some/folder`. You need ffmpeg installed.
+4. The tool turns each file into a small AM-radio sound (thin voice, mono, low bitrate, all files at the same loudness, music too) and writes it to `public/radio/<station>/<name>.mp3`. These small files are what ships.
+5. It then prints the real length of each file, the segments that have no master yet, and any file in your folder that matches no segment (usually a typo in the name).
+6. Add `--write-durations` to also copy the real lengths into `src/radio/segments.js`, so the schedule uses true lengths. Run it again any time you replace a recording. To redo just a few, add `--only ashford_link_1,brandt_farm`.
+
+Commit the new files in `public/radio/` and the changed `segments.js`.
+
 ## House rules for every script
 
 - July 1992. A station names only its own home town. Never a live "here" report.
