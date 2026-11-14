@@ -28,6 +28,7 @@ import { DEG } from '../src/drive/geom.js';
 import { speak } from '../src/audio/voice.js';
 import { box } from './world3d/shapes.js';
 import { colored } from './world3d/ambient3d.js';
+import { milesText } from '../src/units.js';
 import {
   garageFor, towDriverFor, towLine, towMinutes, applyTow, nearestRoad, causeText,
 } from '../src/game/tow.js';
@@ -318,6 +319,7 @@ export function createTow(ui, { audio = null, rig = null, params = new URLSearch
     el('p', null, card, g.garage
       ? `${g.mechanic} at the garage patched her up. She runs fine, give or take a dent.`
       : `${g.mechanic} patched her up by the side of the road. She runs fine, give or take a dent.`);
+    el('p', null, card, `The hook carried her ${milesText(g.dist)}.`);
     el('p', null, card, 'Your notes and your map came along too. The job is still yours.');
     const tows = state.tows || 0;
     el('p', 'tow-time', card, `${minutes} minutes later${tows > 1 ? ` · towed ${tows} times this trip` : ''}`);
