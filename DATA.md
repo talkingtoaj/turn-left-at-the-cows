@@ -34,6 +34,8 @@ A region can merge extra data files at build time, so a lane (masts, props, herd
 1. Create `src/world/addons/<name>_<region>.js` exporting a plain object in the same shape as the region's data, with any subset of keys, e.g. `export const MASTS_FENWICK = { masts: [{ id: 'm1', x: 100, y: 200 }] };`. New kinds of key are fine; the build passes unknown keys through to `WORLD`.
 2. In `src/world/regions.js`, import it and add it to that region's list (`FENWICK_ADDONS` or `BRANDT_ADDONS`).
 
+Example key: `boards [{id, x, y, faces, mount: 'gate' | 'stake' | 'fence', look?: 0..2, lines}]` are hand-painted boards at crafted places. They are not road signs (not in `signs`, never read as directions). Built by `buildBoards` in `src3/world3d/props.js`.
+
 Merge rules: arrays are appended after the main items, objects are shallow merged (add-on wins), other values are only used if the main data has none. Ids must stay unique across the main file and add-ons. `npm run check:world` checks the merged world.
 
 ## Units and axes

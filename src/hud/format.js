@@ -1,5 +1,6 @@
 // Small pure helpers for turning raw state numbers into dash text.
 import { odometerHundredths } from '../units.js';
+import { CLOCK_FAST_MIN } from '../game/clock.js';
 
 const POINTS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 
@@ -14,9 +15,10 @@ export function headingText(deg) {
   return `${POINTS[Math.round(h / 45) % 8]} ${h}°`;
 }
 
-// Game clock minutes to "HH:MM" (wraps past midnight).
+// Game clock minutes to "HH:MM" on the dash, which runs CLOCK_FAST_MIN minutes
+// fast (SPEC 9o). Wraps past midnight.
 export function clockText(minutes) {
-  const m = ((Math.floor(minutes) % 1440) + 1440) % 1440;
+  const m = ((Math.floor(minutes + CLOCK_FAST_MIN) % 1440) + 1440) % 1440;
   return `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
 }
 

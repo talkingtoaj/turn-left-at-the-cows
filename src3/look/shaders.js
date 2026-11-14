@@ -356,7 +356,7 @@ export function skyMaterial(sunnyTex, cloudyTex, bgS, bgC, fogColor) {
     uniforms: {
       skyS: { value: sunnyTex }, skyC: { value: cloudyTex },
       bgS: { value: bgS }, bgC: { value: bgC },
-      gain: { value: 1 }, skyMix: { value: 1 }, grey: { value: 0 },
+      gain: { value: 1 }, skyMix: { value: 1 }, grey: { value: 0 }, tint: { value: new THREE.Vector3(1, 1, 1) },
       fogCol: { value: fogColor },
     },
     vertexShader: /* glsl */`
@@ -373,6 +373,7 @@ uniform float bgC;
 uniform float gain;
 uniform float skyMix;
 uniform float grey;
+uniform vec3 tint;
 uniform vec3 fogCol;
 varying vec3 vDir;
 void main() {
@@ -395,7 +396,7 @@ void main() {
   // Overcast: grey, low contrast, a little brighter overhead.
   float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
   vec3 g = vec3(mix(1.45, l, 0.3) * (0.85 + 0.3 * v)) * vec3(0.97, 1.0, 1.04);
-  c = mix(c, g, grey) * gain;
+  c = mix(c, g, grey) * gain * tint;
   c = mix(fogCol, c, smoothstep(-0.01, 0.12, d.y));
   gl_FragColor = vec4(c, 1.0);
   #include <tonemapping_fragment>

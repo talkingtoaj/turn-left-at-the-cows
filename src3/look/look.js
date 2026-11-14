@@ -25,6 +25,8 @@ import { makeGrade, gradeGLSL, creamTint, applyOverlay } from './grade.js';
 import { patchObjects, patchTerrain, patchTrunks, patchRocks, patchWetPlants, skyMaterial, WET } from './shaders.js';
 import { createWeatherClock, keyLooks, lookAt, emptyLook } from './weather.js';
 import { cloudCover, cloudUniforms } from '../world3d/clouds.js';
+import { setSunDir } from '../world3d/world3d.js';
+import { missionLookFor } from './missionLook.js';
 
 export const LOOK_NEW = new URLSearchParams(window.location.search).get('look') !== 'old';
 
@@ -182,8 +184,15 @@ export async function createLook(renderer, params) {
   // Rain (round 8, src/game/wetness.js): how hard it rains darkens the sky,
   // the light and the haze; the wetness goes to every patched material.
   const rainNow = { rain: 0, wet: 0, storm: 0 };
+  // The mission's fixed light (missionLook.js). fogK scales the fog distances
+  // (src3/main.js reads it); the rest is applied in weather.update.
+  const forced = params.has('missionlook') ? Number(params.get('missionlook')) - 1 : null;
+  const fogK = { near: 1, far: 1 };
+  let ml = missionLookFor(0, forced);
+  let lastMission = -1;
   return {
     opts,
+    fogK,
     // Reflections for the cars' paint, glass and chrome: the sunny sky above
     // a soft green-brown ground, as a PMREM map (made once, on first use).
     carEnv() {
@@ -241,6 +250,16 @@ export async function createLook(renderer, params) {
         clock,
         update(state) {
           const w = clock.update(state);
+          if (state.missionIndex !== lastMission) {
+            // A new mission: its sun, haze and overlay. The sun stays put until the next one.
+            lastMission = state.missionIndex;
+            ml = missionLookFor(state.missionIndex, forced);
+            setSunDir(ml.az, ml.el);
+            fogK.near = ml.fogNear;
+            fogK.far = ml.fogFar;
+            applyOverlay(makeGrade(params, ml.grade));
+            lastW = -1;
+          }
           const rk = rainNow.rain;
           const st = rainNow.storm;
           if (Math.abs(w - lastW) < 1e-4 && Math.abs(rk - lastRain) < 1e-3 && Math.abs(st - lastStorm) < 1e-3) return;
@@ -252,13 +271,16 @@ export async function createLook(renderer, params) {
           // A thunder spell (SPEC 9n, src3/world3d/lightning3d.js storm):
           // darker still, so a bolt stands out; never black.
           const dim = (1 - 0.28 * rk) * (1 - 0.3 * st);
-          cur.sh.forEach((c, i) => probe.sh.coefficients[i].set(c[0] * dim, c[1] * dim, c[2] * dim * (1 + 0.03 * rk)));
-          sunLight.color.setRGB(cur.sunColor[0], cur.sunColor[1], cur.sunColor[2], THREE.LinearSRGBColorSpace);
-          sunLight.intensity = cur.sun * (1 - 0.6 * rk);
+          const sk = ml.skyTint;
+          cur.sh.forEach((c, i) => probe.sh.coefficients[i].set(c[0] * dim * sk[0], c[1] * dim * sk[1], c[2] * dim * sk[2] * (1 + 0.03 * rk)));
+          sunLight.color.setRGB(cur.sunColor[0] * ml.sunTint[0], cur.sunColor[1] * ml.sunTint[1], cur.sunColor[2] * ml.sunTint[2], THREE.LinearSRGBColorSpace);
+          sunLight.intensity = cur.sun * ml.sunK * (1 - 0.6 * rk);
           sunLight.shadow.intensity = cur.shadow * (1 - 0.5 * rk);
           const fd = (1 - 0.38 * rk) * (1 - 0.5 * st);
-          scene.fog.color.setRGB(cur.fog[0] * cream[0] * fd * (1 - 0.03 * rk), cur.fog[1] * cream[1] * fd, cur.fog[2] * cream[2] * fd * (1 + 0.03 * rk), THREE.LinearSRGBColorSpace);
+          const ft = ml.fogTint;
+          scene.fog.color.setRGB(cur.fog[0] * cream[0] * ft[0] * fd * (1 - 0.03 * rk), cur.fog[1] * cream[1] * ft[1] * fd, cur.fog[2] * cream[2] * ft[2] * fd * (1 + 0.03 * rk), THREE.LinearSRGBColorSpace);
           scene.background.copy(scene.fog.color);
+          skyMat.uniforms.tint.value.set(sk[0], sk[1], sk[2]);
           skyMat.uniforms.gain.value = cur.gain * (1 - 0.42 * rk) * (1 - 0.55 * st);
           skyMat.uniforms.skyMix.value = cur.skyMix;
           skyMat.uniforms.grey.value = cur.grey;

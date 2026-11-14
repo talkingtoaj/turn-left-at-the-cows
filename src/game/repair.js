@@ -8,6 +8,7 @@
 //   repairCar(state, shop) -> { minutes, line } fixes the car, clock runs on
 
 import { freshDamage, PARTS } from './damage.js';
+import { minutesToMs } from './clock.js';
 
 // Per region, by building id. kind 'garage': a full fix. kind 'farm': a
 // farmer with a welder patches the car up (most of the way), quicker.
@@ -94,7 +95,7 @@ export function repairCar(state, shop) {
   }
   const minutes = MINUTES[kind];
   state.clockMinutes = (state.clockMinutes + minutes) % 1440;
-  state.elapsedMs += minutes * 6000; // the clock runs 10x real time
+  state.elapsedMs += minutesToMs(minutes); // the clock runs at real speed
   state.repairs = (state.repairs || 0) + 1;
   const lines = LINES[kind];
   const line = lines[(state.repairs - 1) % lines.length];
