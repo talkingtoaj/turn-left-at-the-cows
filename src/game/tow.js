@@ -11,6 +11,7 @@
 import { freshDamage } from './damage.js';
 import { nearestOnPolyline, headingOf, localToWorld, hashString } from '../drive/geom.js';
 import { GAS } from '../drive/layout.js';
+import { milesText } from '../units.js';
 
 // Who drives the tow truck, per region. ids are voice ids (src/audio/voice.js).
 export const TOW_DRIVERS = {
@@ -35,6 +36,17 @@ export const TOW_LINES = [
   'Sounds like she just needs a rest. And a new everything.',
   "Folks get lost round here all the time. Signs point wherever the wind left 'em.",
   "Sit tight. I'll have you in {town} before the coffee's cold.",
+];
+
+// Lines about a local you talked to. {name}: that local. Ids match
+// scratchpad/lines/T14.json.
+export const TOW_TALK_LINES = [
+  { id: 'tow-talk-1', text: 'You stopped and asked {name}? Good. Most folks just drive past.' },
+  { id: 'tow-talk-2', text: "{name} gave you directions, huh. Half of it'll even be right." },
+  { id: 'tow-talk-3', text: "Talked to {name}, did you? Then you're doing better than the last fella." },
+  { id: 'tow-talk-4', text: 'If {name} sent you that way, no wonder. {name} sends everybody that way.' },
+  { id: 'tow-talk-5', text: "Word travels. I hear you've been bothering {name}. Don't worry, {name} likes it." },
+  { id: 'tow-talk-6', text: 'Next time, ask {name} twice. It helps. A little.' },
 ];
 
 const CAUSE_TEXT = {
@@ -114,7 +126,20 @@ export function towMinutes(distM) {
 export function towLine(W, state, g) {
   const mission = state.missionIndex || 0;
   const h = hashString(`${W.seed || 1}:${mission}:${state.tows || 0}:${Math.round(state.car.x / 50)}`);
-  const text = TOW_LINES[h % TOW_LINES.length];
+  // Most recent local you talked to (the notebook is in order), else the
+  // last one in the talked-to set. About 3 tows in 5 mention them.
+  let npc = null;
+  const talked = state.talkedTo;
+  if (talked && talked.size && h % 5 < 3) {
+    let id = null;
+    const nb = state.notebook || [];
+    for (let i = nb.length - 1; i >= 0 && !id; i--) if (nb[i].npcId && talked.has(nb[i].npcId)) id = nb[i].npcId;
+    if (!id) for (const t of talked) id = t;
+    npc = (W.locals || []).find((l) => l.id === id) || null;
+  }
+  const text = npc
+    ? TOW_TALK_LINES[Math.floor(h / 5) % TOW_TALK_LINES.length].text.replace(/\{name\}/g, npc.name)
+    : TOW_LINES[h % TOW_LINES.length];
   return text.replace('{mech}', g.mechanic).replace('{town}', g.town);
 }
 
