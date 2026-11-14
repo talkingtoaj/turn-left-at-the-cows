@@ -12,6 +12,7 @@ import { mapSVG } from './splashMap.js';
 import { MISSION_LIST } from '../game/missionList.js';
 import { loadProgress, nextUnfinishedIndex, canSaveProgress } from '../game/progress.js';
 import { timerText } from '../hud/format.js';
+import { milesText } from '../units.js';
 import { unlockAudio, isMuted, setMuted, onMuteChange } from '../audio/context.js';
 import { soundBytes } from '../audio/sounds.js';
 import { available as mapsAvailable } from '../net/mapsApi.js';
@@ -19,7 +20,9 @@ import { myMap } from '../game/myMaps.js';
 import { tipsEnabled, setTipsEnabled } from '../game/tips.js';
 
 export const TITLE = 'Turn Left at the Cows';
-export const TAGLINE = 'There was a time before GPS, when finding your way required you to ask a local.';
+// T9 lines (SPEC 9o theme): ids splash-tagline and splash-subline.
+export const TAGLINE = 'Everything\u2019s shifted since 1987. Even the cows.';
+export const SUBLINE = 'You\u2019re covering Darlene\u2019s mail route with her old county map. Ask a local. Don\u2019t trust the cows.';
 export const PITCH = TAGLINE;
 export const PITCH_LINE = 'GeoGuessr, but you drive, and the locals might be unreliable.';
 export const SHORT_LINE = 'Get directions. Get lost. Find it anyway.';
@@ -218,6 +221,7 @@ export function showSplash({ version = '3d', load, preferred = null, phone = fal
   el('span', 'sp-cows', h1, 'Cows');
   sign.insertAdjacentHTML('beforeend', ARROW);
   el('p', null, sign, TAGLINE);
+  el('p', 'sp-subline', sign, SUBLINE);
 
   // First visit: a local at a fence says the line, then goes. Never blocks.
   let local = null;
@@ -244,7 +248,7 @@ export function showSplash({ version = '3d', load, preferred = null, phone = fal
   const pad = el('section', 'sp-pad', dash);
   pad.setAttribute('aria-label', 'Your deliveries');
   const paper = el('div', 'sp-paper', pad);
-  el('h2', null, paper, 'Deliveries in Ashford County');
+  el('h2', null, paper, 'Deliveries out of Ashford');
   const list = el('ol', 'sp-jobs', paper);
   let start = null;
   const hot = (id, on) => {
@@ -257,7 +261,7 @@ export function showSplash({ version = '3d', load, preferred = null, phone = fal
     const mark = el('span', 'sp-mark', li, rec ? '✓' : i === first ? '○' : String(i + 1));
     mark.setAttribute('aria-hidden', 'true');
     const name = el('span', 'sp-jname', li, m.title);
-    if (rec) el('span', 'sp-jbest', name, `best ${timerText(rec.bestMs)}, ${(rec.bestDistance / 1000).toFixed(1)} km`);
+    if (rec) el('span', 'sp-jbest', name, `best ${timerText(rec.bestMs)}, ${milesText(rec.bestDistance)}`);
     el('span', 'sp-sr', name, rec ? ' (done)' : i === first ? ' (next)' : '');
     if (!phone) {
       const b = el('button', 'sp-jbtn', li, rec ? 'Replay' : 'Play');
@@ -362,7 +366,7 @@ export function showSplash({ version = '3d', load, preferred = null, phone = fal
 
   // The map on the passenger seat.
   const seat = el('section', 'sp-seat', dash);
-  seat.setAttribute('aria-label', 'Map of Ashford County');
+  seat.setAttribute('aria-label', 'Map of Rural Route 3, Ashford');
   const map = el('div', 'sp-map', seat);
   map.innerHTML = mapSVG({ missions: MISSION_LIST, done, next: first });
   el('div', 'sp-ring', map);

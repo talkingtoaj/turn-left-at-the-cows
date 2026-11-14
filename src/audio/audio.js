@@ -13,6 +13,7 @@
 //   audio.step(surface, jog)   one footstep ('paved' | 'dirt' | 'grass')
 //   audio.thunder(strike, ear) thunder for a lightning strike, arriving
 //   3 s per km later (src/game/thunder.js)
+//   audio.ignition()    the key-turn clunk when a mission starts
 //   audio.cue(id, vol)   one-shot now, centre (the tow chain and winch)
 //   audio.toggleMute(); audio.muted
 // The AudioContext is the page's shared one (./context.js): the start
@@ -57,6 +58,13 @@ const STEPS = {
 
 // Background chatter: locals within this range talk to each other when you
 // roll slowly past them in a town.
+const CREAKS = ['car/creak1', 'car/creak2', 'car/creak3'];
+// Farms get small sound layers: chimes and a screen door close up, a tractor
+// working a field a way off (every other farm).
+const FARM_CHIME_R = 90;
+const FARM_DOOR_R = 55;
+const FARM_TRACTOR_R = 380;
+
 const CHAT_R = 40;
 const CHAT_MAX_SPEED = 7;
 const CHAT_VOICES = 2;
@@ -84,6 +92,12 @@ export function createAudio(world, opts = {}) {
   let murmurT = 0;
   let crunchT = 0;
   let chatT = 0;
+  let layerT = 0;
+  let chimeT = 6;
+  let doorT = 15;
+  let creakT = 2;
+  let ignitionPending = false;
+  let farmNear = { d: Infinity, x: 0, y: 0, tractor: false };
 
   // Voice state.
   let talk = null; // { npcId, src, g, until }
@@ -91,6 +105,17 @@ export function createAudio(world, opts = {}) {
 
   const waterOf = (w) => (w.creeks || []).filter((c) => !w.ambient || !w.ambient.waterSounds || w.ambient.waterSounds.includes(c.id));
   let water = waterOf(world);
+
+  // One point per farm (its house, or any building), from the world data.
+  const farmsOf = (w) => {
+    const m = new Map();
+    for (const b of w.buildings || []) {
+      if (!b.farm) continue;
+      if (!m.has(b.farm) || b.kind === 'farmhouse') m.set(b.farm, b);
+    }
+    return [...m.entries()].map(([id, b], i) => ({ id, x: b.x, y: b.y, tractor: i % 2 === 0 }));
+  };
+  let farms = farmsOf(world);
 
   function gesture() {
     try {
@@ -204,6 +229,14 @@ export function createAudio(world, opts = {}) {
     const birdPan = panner(bus);
     const birdG = gain(0, birdPan);
 
+    // Small layers (ticket 26): insects and wind in grass beds, a distant
+    // tractor panned toward the nearest farm, wind at the window.
+    const insectG = gain(0, bus);
+    const windGrassG = gain(0, bus);
+    const tractorPan = panner(bus);
+    const tractorG = gain(0, tractorPan);
+    const windowG = gain(0, bus);
+
     // Damage: flat tyre flapping loop.
     const flatG = gain(0, bus);
 
@@ -226,12 +259,17 @@ export function createAudio(world, opts = {}) {
     nodes = {
       master, bus, engPan, engPos, engGain, engLp, engLayers, revG, revSrc: null, gravelG, grassG, pavedG, surfSrc: {},
       waterPan, creekG, riverG, townPan, townG, birdPan, birdG, voiceBus, started: new Set(), flatG, flatSrc: null,
+      insectG, windGrassG, tractorPan, tractorG, windowG, windowSrc: null,
       roofG, rainG, wetG, wetSrc: null, planeBus, planeVoices: [], towPan, towG, towSrc: null,
     };
 
     loadSounds(ctx, ALL_SOUNDS.filter((s) => withWeather || !s.weather).map((s) => s.id), (id, buf) => {
       bufs.set(id, buf);
       startLoop(id);
+      if (id === 'car/ignition' && ignitionPending) {
+        ignitionPending = false;
+        oneShot(id, ctx.currentTime, 0, 0.5, 1);
+      }
     });
   }
 
@@ -254,6 +292,10 @@ export function createAudio(world, opts = {}) {
     else if (id === 'weather/rain_roof') src = loopSource(id, n.roofG);
     else if (id === 'weather/rain') src = loopSource(id, n.rainG);
     else if (id === 'tyres/wet') src = n.wetSrc = loopSource(id, n.wetG);
+    else if (id === 'ambient/insects') src = loopSource(id, n.insectG);
+    else if (id === 'ambient/grass_wind') src = loopSource(id, n.windGrassG);
+    else if (id === 'ambient/tractor') src = loopSource(id, n.tractorG);
+    else if (id === 'car/window_wind') src = n.windowSrc = loopSource(id, n.windowG);
     else if (id === 'tow/engine') src = n.towSrc = loopSource(id, n.towG);
     if (src) n.started.add(id);
   }
@@ -342,6 +384,70 @@ export function createAudio(world, opts = {}) {
     } else ramp(n.gravelG.gain, 0, 0.1);
     ramp(n.grassG.gain, surface === 'grass' ? 0.5 * k : 0, 0.1);
     ramp(n.pavedG.gain, surface === 'paved' ? 0.22 * k : 0, 0.1);
+  }
+
+  // Small layers (ticket 26). s = car speed (m/s), surface = what is under the car.
+  function updateLayers(dt, car, ear, state, rain, surface, s, onFoot) {
+    const n = nodes;
+    const k = Math.min(1, s / 25);
+    const hour = state && typeof state.clockMinutes === 'number' ? state.clockMinutes / 60 : 12;
+    const day = hour > 7 && hour < 19.5 ? 1 : hour > 5.5 && hour < 21 ? 0.5 : 0.2;
+    const dry = 1 - Math.min(1, (rain && rain.rain) || 0);
+    // Wind at the open window rises with speed; none on foot.
+    ramp(n.windowG.gain, onFoot ? 0 : 0.5 * k * k, 0.2);
+    if (n.windowSrc) ramp(n.windowSrc.playbackRate, 0.85 + 0.35 * k, 0.3);
+
+    layerT -= dt;
+    if (layerT <= 0) {
+      layerT = 0.25;
+      let near = { d: Infinity, x: 0, y: 0, tractor: false };
+      for (const f of farms) {
+        const d = Math.hypot(f.x - ear.x, f.y - ear.y);
+        if (d < near.d) near = { d, x: f.x, y: f.y, tractor: f.tractor };
+      }
+      farmNear = near;
+      const tw = townLevel(ear.x, ear.y).best;
+      // Insects: warm daytime, away from towns and rain, hushed by a fast engine.
+      ramp(n.insectG.gain, 0.5 * day * dry * (1 - 0.8 * tw) * (1 - 0.6 * k), 0.8);
+      // Wind in grass: strongest when driving on grass, a little in open country.
+      ramp(n.windGrassG.gain, (surface === 'grass' ? 0.45 : 0.12) * (0.4 + 0.6 * k) * (1 - 0.7 * tw), 0.6);
+      // A tractor working a field some way off.
+      let tr = 0;
+      if (near.tractor && near.d < FARM_TRACTOR_R) tr = 0.35 * day * dry * (1 - near.d / FARM_TRACTOR_R);
+      ramp(n.tractorG.gain, tr, 0.8);
+      if (tr > 0) {
+        const r = rel(ear, near.x, near.y);
+        setPan(n.tractorPan, r.pan * Math.min(1, r.d / 60) * 0.8);
+      }
+    }
+
+    // Chimes and a screen door at a farm you are close to.
+    const fn = farmNear;
+    chimeT -= dt;
+    if (chimeT <= 0) {
+      chimeT = 7 + Math.random() * 14;
+      if (fn.d < FARM_CHIME_R && dry > 0.5) {
+        const r = rel(ear, fn.x, fn.y);
+        oneShot('ambient/chimes', ctx.currentTime, r.pan, 0.22 * (1 - fn.d / FARM_CHIME_R), 0.95 + Math.random() * 0.1, 7000);
+      }
+    }
+    doorT -= dt;
+    if (doorT <= 0) {
+      doorT = 25 + Math.random() * 35;
+      if (fn.d < FARM_DOOR_R) {
+        const r = rel(ear, fn.x, fn.y);
+        oneShot('ambient/screen_door', ctx.currentTime + 0.3, r.pan, 0.3 * (1 - fn.d / FARM_DOOR_R), 0.97 + Math.random() * 0.06, 6000);
+      }
+    }
+
+    // Body creaks on a dirt road, more often the faster you go.
+    creakT -= dt;
+    if (creakT <= 0) {
+      creakT = 1.8 + Math.random() * 3.5 - 1.2 * k;
+      if (!onFoot && surface === 'dirt' && s > 2.5) {
+        oneShot(pick(CREAKS), ctx.currentTime, (Math.random() - 0.5) * 0.4, 0.1 + 0.12 * k, 0.9 + Math.random() * 0.2, 4500);
+      }
+    }
   }
 
   function updateBirds(dt, car, amb) {
@@ -759,6 +865,7 @@ export function createAudio(world, opts = {}) {
       updateTow(ear, opts && opts.tow);
       if (!paused && !muted) {
         updateBirds(dt, ear, amb);
+        updateLayers(dt, ear, ear, state, opts && opts.rain, surface, s, onFoot);
         handleEvents(ear, amb);
       }
     },
@@ -788,6 +895,16 @@ export function createAudio(world, opts = {}) {
       if (!ctx || !nodes || ctx.state !== 'running') return;
       oneShot(id, ctx.currentTime, 0, vol, 0.97 + Math.random() * 0.06);
     },
+    // The key turns when a mission starts (src3/main.js). If the sound is
+    // still loading, it plays as soon as it arrives.
+    ignition() {
+      if (!ctx || !nodes) {
+        ignitionPending = true;
+        return;
+      }
+      if (bufs.has('car/ignition')) oneShot('car/ignition', ctx.currentTime + 0.1, 0, 0.5, 1);
+      else ignitionPending = true;
+    },
     toggleMute() {
       return setMuted(!isMuted());
     },
@@ -806,6 +923,8 @@ export function createAudio(world, opts = {}) {
     setWorld(w) {
       world = w;
       water = waterOf(w);
+      farms = farmsOf(w);
+      farmNear = { d: Infinity, x: 0, y: 0, tractor: false };
       if (nodes) for (const v of nodes.planeVoices) if (v) v.g.gain.value = 0;
       for (const c of chatter.values()) stopVoice(c, 0.1);
       chatter.clear();
