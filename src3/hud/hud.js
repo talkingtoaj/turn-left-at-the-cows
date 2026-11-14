@@ -16,6 +16,8 @@ import { openHelp } from '../../src/ui/help.js';
 import { towedText } from '../../src/game/tow.js';
 import { mountShareStrip } from '../../src/ui/mapShare.js';
 import { rememberMyMap } from '../../src/game/myMaps.js';
+import { touristTicks } from '../../src/game/tourists.js';
+import { createRadioDial } from './radioDial.js';
 
 // The HUD (a DOM/CSS port of the old 2D HUD). Shows the dash (compass, odometer,
 // clock, speed, trip timer), the talk prompt, the conversation (./talk.js), the goal line, the mission complete screen, and owns
@@ -297,7 +299,7 @@ function buildSpeedo(parent) {
 // opens the help panel) brings them back for another minute.
 const HINT_FADE_MS = 60000;
 
-export function createHUD(root, { openMap } = {}) {
+export function createHUD(root, { openMap, radio } = {}) {
   injectStyle();
   const hud = el('div', 'hud-root', root);
 
@@ -323,13 +325,14 @@ export function createHUD(root, { openMap } = {}) {
   const timerTxt = el('div', 'hud-gauge hud-cream', bezel(528, 96, 'TRIP TIME'));
   timerTxt.style.fontSize = '18px';
   const lights = buildLights(bezel(632, 108, 'CHECK'));
-  // Empty slot for the radio's tuning dial (issue 19 fills #hud-radio-slot).
+  // The radio's tuning dial lives in this slot (src3/hud/radioDial.js).
   const radioSlot = el('div', 'hud-radio-slot', inner);
   radioSlot.id = 'hud-radio-slot';
   radioSlot.dataset.label = 'RADIO';
+  const radioDial = radio ? createRadioDial(radioSlot, radio) : null;
   const devDmg = new URLSearchParams(window.location.search).has('damage') ? el('div', 'hud-dev-dmg', hud) : null;
   const hintBar = el('div', 'hud-hint', hud,
-    'Arrows/WASD drive · F get out / in · E talk · M map · C camera · B horn · N north/heading-up · K mute · H help and hints');
+    'Arrows/WASD drive · F get out / in · E talk · M map · C camera · B horn · N north/heading-up · T radio (, . tune) · K mute · H help and hints');
   let hintShownAt = performance.now();
   const showHints = () => {
     hintShownAt = performance.now();
@@ -659,6 +662,7 @@ export function createHUD(root, { openMap } = {}) {
   // Lines for the win panel's tick list. Add a row by pushing a string here.
   function winExtras(m) {
     const rows = [];
+    if (m) rows.push(...touristTicks(state, m.id));
     return rows;
   }
 
@@ -678,7 +682,7 @@ export function createHUD(root, { openMap } = {}) {
       a.appendChild(document.createTextNode(`\u201c${m.arrival.line}\u201d`));
     }
     // Extras: green-tick rows under the arrival line, empty by default. To add
-    // one, push a line of text into winExtras(m) (e.g. the tourist, issue #27).
+    // one, push a line of text into winExtras(m) (the tourist's tick is here).
     const extras = winExtras(m);
     if (extras.length) {
       const ul = el('ul', 'hud-win-extras', panel);
@@ -774,6 +778,7 @@ export function createHUD(root, { openMap } = {}) {
       markMapClosed();
     }
     updateDash();
+    if (radioDial) radioDial.update();
     updateLights();
     if (state.towing) {
       if (inDialogue()) closeDialogue();

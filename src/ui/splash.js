@@ -51,6 +51,8 @@ export const CONTROLS = [
   [['1-4'], 'Ask about an underlined name'],
   [['M'], 'Map'],
   [['N'], 'North-up / heading-up'],
+  [['T'], 'Radio on / off (off to start)'],
+  [[',', '.'], 'Tune the radio (Shift: bigger steps). Or click the dial'],
   [['K'], 'Mute'],
   [['C'], 'Camera'],
   [['B'], 'Horn'],

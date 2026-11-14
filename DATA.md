@@ -30,6 +30,7 @@ All of `src/world` and `src/game` is plain JS (no Phaser, no three). Node can im
 ## Add-on files
 
 A region can merge extra data files at build time, so a lane (masts, props, herds, tourists) does not edit the main data file.
+The mission 1 tourist is an example: `src/world/addons/tourist_fenwick.js` (a flagged local plus a `parked_car` landmark) with her words in `src/game/tourists.js`.
 
 1. Create `src/world/addons/<name>_<region>.js` exporting a plain object in the same shape as the region's data, with any subset of keys, e.g. `export const MASTS_FENWICK = { masts: [{ id: 'm1', x: 100, y: 200 }] };`. New kinds of key are fine; the build passes unknown keys through to `WORLD`.
 2. In `src/world/regions.js`, import it and add it to that region's list (`FENWICK_ADDONS` or `BRANDT_ADDONS`).

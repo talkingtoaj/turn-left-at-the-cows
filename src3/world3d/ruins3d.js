@@ -11,7 +11,7 @@
 
 import * as THREE from 'three';
 import { localToWorld, makeRng, hashString, DEG, nearestOnPolyline } from '../../src/drive/geom.js';
-import { FARM_RUIN, TRUCK, RAILWAY, ELEVATOR, WINDPUMP, railFrame } from '../../src/drive/layout.js';
+import { FARM_RUIN, TRUCK, PARKED_CAR, RAILWAY, ELEVATOR, WINDPUMP, railFrame } from '../../src/drive/layout.js';
 import { box, cyl, gable, strut } from './shapes.js';
 import { objMatrix } from './batch.js';
 import { rowPrism, Tris } from './fields3d.js';
@@ -33,6 +33,7 @@ export function buildRuin(world, terrain, batch, l) {
   switch (l.kind) {
     case 'farm_ruin': return farmRuin(terrain, batch, { ...l, trackTo: nearestRoad(world, l.x, l.y) });
     case 'rusty_truck': return rustyTruck(terrain, batch, l);
+    case 'parked_car': return parkedCar(terrain, batch, l);
     case 'railway': return railway(terrain, batch, l);
     case 'grain_elevator': return elevator(terrain, batch, l);
     case 'windpump': return windpumpTower(terrain, batch, l.x, l.y, l.id, false);
@@ -225,6 +226,33 @@ function farmRuin(terrain, batch, l) {
 }
 
 // ---------- rusty truck ----------
+
+// A visitor's estate car parked on the verge (the tourist, issue 27): turquoise
+// paint, and a suitcase on the roof.
+function parkedCar(terrain, batch, l) {
+  const a = l.angle || 0;
+  const { w, h } = PARKED_CAR;
+  const g = terrain.groundRange({ rect: { x: l.x, y: l.y, w, h, angle: a } });
+  const base = (g.min + g.max) / 2;
+  const P = (geo, lx, ly, up, color, opts = {}) => batch.place(geo, l.x, l.y, base, a, lx, ly, up, color, opts);
+  if (batch.audit) batch.audit.rect(l.id, 'car', l.x, l.y, w - 0.2, h - 0.2, a, base + 0.05, null);
+  const wheel = new THREE.CylinderGeometry(0.33, 0.33, 0.22, 10).rotateZ(Math.PI / 2).translate(0, 0.33, 0);
+  for (const [lx, ly] of [[-0.85, -1.4], [0.85, -1.4], [-0.85, 1.4], [0.85, 1.4]]) P(wheel, lx, ly, 0, 0x1c1c1c);
+  const PAINT = l.color || 0x2fa8a0;
+  P(box(1.8, 0.62, 4.6), 0, 0, 0.3, PAINT);
+  P(box(1.7, 0.55, 2.9), 0, 0.5, 0.92, PAINT); // cabin
+  P(box(1.74, 0.38, 2.5), 0, 0.5, 0.98, DARK, { cast: false }); // windows
+  P(box(1.5, 0.06, 2.7), 0, 0.5, 1.47, PAINT);
+  P(box(1.9, 0.14, 0.14), 0, -2.3, 0.4, 0xc8c8c4);
+  P(box(1.9, 0.14, 0.14), 0, 2.3, 0.4, 0xc8c8c4);
+  P(box(0.5, 0.14, 0.02), 0, 2.32, 0.62, 0xe4dfcc, { cast: false }); // plate
+  for (const s of [-1, 1]) P(box(0.3, 0.14, 0.05), s * 0.6, -2.3, 0.75, 0xfff3d0, { cast: false });
+  // Roof rack and a suitcase strapped on.
+  P(box(1.4, 0.05, 1.8), 0, 0.5, 1.53, 0x2a2a2a);
+  P(box(1.1, 0.42, 0.8), 0, 0.5, 1.58, 0xd9703c);
+  P(box(1.12, 0.06, 0.1), 0, 0.5, 1.8, 0x6a3a22);
+  return true;
+}
 
 function rustyTruck(terrain, batch, l) {
   const a = l.angle || 0;

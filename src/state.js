@@ -17,6 +17,7 @@ export const state = {
   nearLocalId: null, // id of the local you can talk to: on foot, within 3 m and facing them (round 12)
   nearRepair: null, // repair shop in reach while the car needs work (src/game/repair.js)
   nearSignId: null, // id of a sign being read: within 15 m and you face its front (learns the names on it)
+  tourists: {}, // tourist local id -> { index, right } once answered (src/game/tourists.js), per mission
   talkedTo: new Set(), // ids of locals talked to this mission (cleared per mission)
   // On foot (round 12, src3/onfoot.js and src/game/onfoot.js).
   leg: null, // 'approach' while driving over from another region (missions.js)

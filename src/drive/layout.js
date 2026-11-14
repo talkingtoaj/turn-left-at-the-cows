@@ -114,6 +114,8 @@ export const FARM_RUIN = {
 };
 // A rusting truck: its body, angle from the landmark.
 export const TRUCK = { w: 2.3, h: 5.8 };
+// A parked visitor's estate car (kind 'parked_car', issue 27): its footprint.
+export const PARKED_CAR = { w: 1.9, h: 4.7 };
 // Disused railway: the bank (bottom width, top width, height) along the
 // landmark's `points`; the halt platform and shelter beside it.
 export const RAILWAY = {
@@ -290,6 +292,8 @@ export function landmarkSolids(l, world = null) {
     for (const [lx, ly] of WINDPUMP.legs) circles.push({ x: w.x + lx, y: w.y + ly, r: WINDPUMP.legR });
   } else if (l.kind === 'rusty_truck') {
     rects.push(partRect(l.x, l.y, l.angle || 0, { lx: 0, ly: 0, ...TRUCK }));
+  } else if (l.kind === 'parked_car') {
+    rects.push(partRect(l.x, l.y, l.angle || 0, { lx: 0, ly: 0, ...PARKED_CAR }));
   } else if (l.kind === 'railway') {
     // The bank is solid (a car cannot climb it), with the platform and shelter.
     const B = RAILWAY.bank;

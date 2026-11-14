@@ -22,6 +22,7 @@
 
 import * as THREE from 'three';
 import { MISSIONS } from '../../src/game/missions.js';
+import { weatherMinutes } from '../../src/game/clock.js';
 
 export const W_OF = { sunny: 0, cloudy: 0.5, overcast: 1 };
 const CYCLE_SPEED = 15;
@@ -107,7 +108,7 @@ export function createWeatherClock(seed, param) {
       if (lastClock !== null) {
         let d = state.clockMinutes - lastClock;
         if (d < -720) d += 1440; // the clock wrapped past midnight
-        if (d > 0 && d < 60) t += d * speed;
+        if (d > 0 && d < 60) t += weatherMinutes(d) * speed;
       }
       lastClock = state.clockMinutes;
       w = sample(keys, t);
