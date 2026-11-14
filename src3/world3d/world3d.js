@@ -24,11 +24,15 @@ const SKY_TOP = 0x86acd4;
 // three.js: +x east, +z south, +y up.
 const SUN_AZ = 112; // degrees from north, clockwise
 const SUN_EL = 30;
-export const SUN_DIR = new THREE.Vector3(
-  Math.sin((SUN_AZ * Math.PI) / 180) * Math.cos((SUN_EL * Math.PI) / 180),
-  Math.sin((SUN_EL * Math.PI) / 180),
-  -Math.cos((SUN_AZ * Math.PI) / 180) * Math.cos((SUN_EL * Math.PI) / 180),
-);
+export const SUN_DIR = new THREE.Vector3();
+// One fixed sun per mission (src3/look/missionLook.js sets it). The default is
+// the old morning sun, which is also mission 1's.
+export function setSunDir(az = SUN_AZ, el = SUN_EL) {
+  const a = (az * Math.PI) / 180;
+  const e = (el * Math.PI) / 180;
+  SUN_DIR.set(Math.sin(a) * Math.cos(e), Math.sin(e), -Math.cos(a) * Math.cos(e));
+}
+setSunDir();
 
 function grassTexture() {
   const c = document.createElement('canvas');

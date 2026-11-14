@@ -82,6 +82,9 @@ export function applyOverlay(g, parent = document.getElementById('app') || docum
     gr = document.createElement('div');
     el.appendChild(gr);
   }
-  el.style.background = vig;
+  // A faint colour wash from a mission preset ([r, g, b, alpha]).
+  const w = g.wash;
+  const wash = w ? `linear-gradient(rgba(${w[0]},${w[1]},${w[2]},${w[3]}),rgba(${w[0]},${w[1]},${w[2]},${w[3]})), ` : '';
+  el.style.background = wash + vig;
   gr.style.cssText = `position:absolute;inset:0;background:${url};opacity:${g.grain.toFixed(3)};mix-blend-mode:overlay;`;
 }

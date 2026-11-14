@@ -12,6 +12,7 @@ import { freshDamage } from './damage.js';
 import { nearestOnPolyline, headingOf, localToWorld, hashString } from '../drive/geom.js';
 import { GAS } from '../drive/layout.js';
 import { milesText } from '../units.js';
+import { minutesToMs } from './clock.js';
 
 // Who drives the tow truck, per region. ids are voice ids (src/audio/voice.js).
 export const TOW_DRIVERS = {
@@ -156,7 +157,7 @@ export function applyTow(state, g, minutes) {
   car.heading = g.heading;
   car.speed = 0;
   state.clockMinutes = (state.clockMinutes + minutes) % 1440;
-  state.elapsedMs += minutes * 6000; // the clock runs 10x real time
+  state.elapsedMs += minutesToMs(minutes); // the clock runs at real speed
   state.tows = (state.tows || 0) + 1;
   state.restarts = (state.restarts || 0) + 1;
   const d = freshDamage();
