@@ -12,11 +12,12 @@ import { mergeAddons } from './addons.js';
 import { COWS_BRANDT } from './addons/cows_brandt.js';
 import { BOARDS_FENWICK } from './addons/boards_fenwick.js';
 import { BOARDS_BRANDT } from './addons/boards_brandt.js';
+import { LANE_FENWICK } from './addons/lane_fenwick.js';
 
 // Add-on data files per region. Add yours here, e.g.
 //   import { MASTS_FENWICK } from './addons/masts_fenwick.js';
 //   const FENWICK_ADDONS = [MASTS_FENWICK];
-const FENWICK_ADDONS = [BOARDS_FENWICK];
+const FENWICK_ADDONS = [LANE_FENWICK, BOARDS_FENWICK];
 const BRANDT_ADDONS = [COWS_BRANDT, BOARDS_BRANDT];
 
 export const REGIONS = {
