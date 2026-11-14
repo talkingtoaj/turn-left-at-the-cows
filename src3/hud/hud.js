@@ -27,48 +27,71 @@ import { rememberMyMap } from '../../src/game/myMaps.js';
 // Ignore M this long after the map closes, so the same keypress that
 // closed it does not open it again.
 const MAP_REOPEN_GUARD_MS = 150;
-const DASH_W = 1080; // design width of the dash; scaled down on small screens
-const ODO_CELL_H = 30;
+const DASH_W = 810; // design width of the dash; scaled down on small screens
+const DASH_H = 61; // inner height; the dash is 3px more with its edge
+const ODO_CELL_H = 26;
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 const CSS = `
-#ui > .hud-root, .hud-root { --hud-dash-h: 92px; position: absolute; inset: 0; pointer-events: none; font-family: Arial, Helvetica, sans-serif; }
+#ui > .hud-root, .hud-root { --hud-dash-h: ${DASH_H + 3}px; position: absolute; inset: 0; pointer-events: none; font-family: Arial, Helvetica, sans-serif; }
 .hud-root * { box-sizing: border-box; }
 .hud-mono { font-family: "Courier New", Courier, monospace; }
 
-.hud-dash { position: absolute; left: 0; right: 0; bottom: 0; height: var(--hud-dash-h); background: #1c1d1f;
-  border-top: 3px solid #3a3c40; box-shadow: 0 -4px 0 rgba(0,0,0,0.25); overflow: hidden; }
-.hud-dash-inner { position: absolute; left: 50%; bottom: 0; width: ${DASH_W}px; height: 89px;
+/* The dash (issue 7): slim, in the splash style. Dash #1c1d1f / #3a3c40, paper #f1ead6,
+   ink #3a3128, amber #e6b450, barn red #b3261e. Labels are Oswald, like the splash. */
+.hud-dash { position: absolute; left: 0; right: 0; bottom: 0; height: var(--hud-dash-h);
+  background: linear-gradient(#3a3c40, #1c1d1f 14px), #1c1d1f; border-top: 1px solid #4a4c51;
+  box-shadow: 0 -3px 0 rgba(0,0,0,0.25); overflow: hidden; }
+.hud-dash-inner { position: absolute; left: 50%; bottom: 0; width: ${DASH_W}px; height: ${DASH_H}px;
   transform-origin: 50% 100%; transform: translateX(-50%); }
-.hud-bezel { position: absolute; top: 7px; height: 60px; background: #2a2c30; border-radius: 8px; }
-.hud-label { position: absolute; top: 5px; left: 0; right: 0; text-align: center; font-size: 11px; color: #8a8d92; }
-.hud-gauge { position: absolute; left: 0; right: 0; top: 22px; text-align: center; color: #e6b450; font-weight: bold;
-  font-family: "Courier New", Courier, monospace; line-height: 32px; white-space: nowrap; }
-.hud-compass { position: absolute; left: 22px; top: 1px; width: 80px; height: 80px; }
+.hud-oswald { font-family: Oswald, "Arial Narrow", Impact, sans-serif; }
+.hud-bezel { position: absolute; top: 6px; height: 52px; background: #26282b; border-radius: 6px;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.55); }
+.hud-label { position: absolute; top: 3px; left: 0; right: 0; text-align: center; font: 500 9px Oswald, "Arial Narrow", sans-serif;
+  letter-spacing: 0.14em; text-transform: uppercase; color: #a89f88; }
+.hud-gauge { position: absolute; left: 0; right: 0; top: 17px; text-align: center; color: #e6b450; font-weight: 500;
+  font-family: Oswald, "Arial Narrow", Impact, sans-serif; letter-spacing: 0.04em; line-height: 30px; white-space: nowrap; }
+.hud-gauge.hud-cream { color: #f1ead6; }
+.hud-compass { position: absolute; left: 14px; top: 3px; width: 56px; height: 56px; }
 .hud-compass-card { transform-origin: 40px 40px; }
-.hud-odo { position: absolute; left: 50%; top: 19px; transform: translateX(-50%); display: flex; gap: 3px;
-  background: #0c0c0d; padding: 4px 5px; border-radius: 4px; }
-.hud-odo-cell { position: relative; width: 24px; height: ${ODO_CELL_H}px; overflow: hidden; background: #222326; }
-.hud-odo-cell.hud-frac { background: #d9d4c5; }
+.hud-odo { position: absolute; left: 50%; top: 20px; transform: translateX(-50%); display: flex; gap: 2px;
+  background: #0c0c0d; padding: 3px 4px; border-radius: 3px; }
+.hud-odo-cell { position: relative; width: 17px; height: ${ODO_CELL_H}px; overflow: hidden; background: #222326; border-radius: 1px; }
+.hud-odo-cell.hud-frac { background: #f1ead6; }
 .hud-odo-cell::after { content: ''; position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0) 22%, rgba(0,0,0,0) 78%, rgba(0,0,0,0.45)); }
+  background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0) 24%, rgba(0,0,0,0) 76%, rgba(0,0,0,0.5)); }
 .hud-odo-strip { position: absolute; left: 0; top: 0; width: 100%; will-change: transform; }
-.hud-odo-strip div { height: ${ODO_CELL_H}px; line-height: ${ODO_CELL_H}px; text-align: center; font-size: 22px;
-  font-weight: bold; color: #e8e3d3; font-family: "Courier New", Courier, monospace; }
-.hud-frac .hud-odo-strip div { color: #1c1d1f; }
-.hud-odo-dot { width: 5px; position: relative; }
-.hud-odo-dot::before { content: ''; position: absolute; left: 0; bottom: 3px; width: 4px; height: 4px;
-  border-radius: 50%; background: #d9d4c5; }
-.hud-speed { position: absolute; left: 0; right: 58px; top: 22px; text-align: right; color: #e6b450;
-  font: bold 28px "Courier New", Courier, monospace; line-height: 32px; }
-.hud-unit { position: absolute; left: 86px; top: 32px; font-size: 13px; color: #8a8d92; }
-.hud-gear { position: absolute; right: 12px; top: 5px; font-size: 11px; color: #c96a5a; font-weight: bold; }
-.hud-goal-line { position: absolute; top: 10px; right: 12px; padding: 4px 8px; background: rgba(20,21,23,0.7);
-  color: #efe6cf; font-size: 13px; white-space: nowrap; display: none; }
-.hud-hint { position: absolute; left: 0; right: 0; bottom: 2px; text-align: center; font-size: 12px; color: #8a8d92; }
+.hud-odo-strip div { height: ${ODO_CELL_H}px; line-height: ${ODO_CELL_H}px; text-align: center; font-size: 18px;
+  font-weight: 500; color: #f1ead6; font-family: Oswald, "Arial Narrow", Impact, sans-serif; }
+.hud-frac .hud-odo-strip div { color: #3a3128; }
+.hud-odo-dot { width: 4px; position: relative; }
+.hud-odo-dot::before { content: ''; position: absolute; left: 0; bottom: 2px; width: 3px; height: 3px;
+  border-radius: 50%; background: #f1ead6; }
+.hud-speedo { position: absolute; left: 350px; top: 1px; width: 60px; height: 60px; }
+.hud-needle { transform-origin: 50px 50px; transition: transform 0.12s linear; }
+.hud-gear { position: absolute; left: 350px; width: 60px; top: 44px; text-align: center; font: 500 9px Oswald, sans-serif;
+  letter-spacing: 0.1em; color: #d0614f; }
+.hud-goal-tag { position: absolute; top: 14px; left: 14px; max-width: min(320px, calc(100% - 40px)); padding: 3px 16px 5px 12px;
+  background: #f1ead6; color: #3a3128; border: 1px solid #c9bd9f; border-radius: 3px 8px 8px 3px;
+  box-shadow: 2px 3px 6px rgba(0,0,0,0.35); transform: rotate(-1.5deg); display: none;
+  font: 500 24px/1.05 Caveat, "Segoe Print", cursive; }
+.hud-goal-tag small { display: block; font: 500 9px/1 Oswald, "Arial Narrow", sans-serif; letter-spacing: 0.16em;
+  text-transform: uppercase; color: #8a7a5c; margin-bottom: 1px; }
+.hud-goal-tag::after { content: ''; position: absolute; right: 4px; top: 50%; width: 6px; height: 6px; margin-top: -3px;
+  border-radius: 50%; background: radial-gradient(circle at 35% 35%, #e0574a, #b3261e 60%, #7c1812); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.25); }
+.hud-hint { position: absolute; left: 0; right: 0; bottom: calc(var(--hud-dash-h) + 6px); text-align: center; font: 12px Oswald, "Arial Narrow", sans-serif;
+  letter-spacing: 0.06em; color: #f1ead6; text-shadow: 0 1px 3px rgba(0,0,0,0.85), 0 0 8px rgba(0,0,0,0.6);
+  opacity: 1; transition: opacity 1.6s ease; }
+.hud-hint.hud-faded { opacity: 0; }
+/* Radio slot: an empty, labelled box at the right end of the dash. Issue 19 (radio)
+   puts its tuning dial inside #hud-radio-slot. Built for a dial up to 52px across. */
+.hud-radio-slot { position: absolute; left: 746px; top: 6px; width: 58px; height: 52px; border-radius: 6px;
+  background: #26282b; box-shadow: inset 0 1px 3px rgba(0,0,0,0.55); overflow: hidden; }
+.hud-radio-slot::after { content: attr(data-label); position: absolute; left: 0; right: 0; bottom: 2px; text-align: center;
+  font: 500 9px Oswald, "Arial Narrow", sans-serif; letter-spacing: 0.14em; color: #a89f88; pointer-events: none; }
 .hud-dash { transition: transform 0.4s ease; }
-.hud-dash.hud-foot { transform: translateY(18px); background: rgba(28,29,31,0.55); border-top-color: rgba(58,60,64,0.5); }
-.hud-dash.hud-foot .hud-bezel, .hud-dash.hud-foot .hud-hint { opacity: 0.35; }
+.hud-dash.hud-foot { transform: translateY(14px); background: rgba(28,29,31,0.55); border-top-color: rgba(58,60,64,0.5); }
+.hud-dash.hud-foot .hud-bezel, .hud-dash.hud-foot .hud-radio-slot { opacity: 0.35; }
 .hud-dash.hud-foot .hud-compass { filter: drop-shadow(0 0 6px rgba(0,0,0,0.6)); }
 
 .hud-sign { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); min-width: 160px;
@@ -82,7 +105,7 @@ const CSS = `
 .hud-prompt { position: absolute; left: 50%; bottom: calc(var(--hud-dash-h) + 22px); transform: translate(-50%, 50%); padding: 6px 12px;
   background: rgba(20,21,23,0.82); color: #f0ead8; font-size: 15px; white-space: nowrap; display: none; }
 
-.hud-mailbox { position: absolute; top: 18px; left: 18px; display: none; text-align: center; }
+.hud-mailbox { position: absolute; top: 70px; left: 14px; display: none; text-align: center; }
 .hud-mailbox-box { padding: 7px 14px 6px; background: #ece4cf; color: #2c2620; border: 2px solid #5b4630; border-radius: 10px 10px 3px 3px;
   font: bold 17px Georgia, serif; letter-spacing: 0.12em; box-shadow: 3px 3px 0 rgba(0,0,0,0.3); }
 .hud-mailbox-box small { display: block; font: 10px Arial, sans-serif; letter-spacing: 0.05em; color: #7a6a55; margin-bottom: 1px; }
@@ -122,15 +145,19 @@ const CSS = `
   align-items: center; justify-content: center; gap: 10px; pointer-events: auto; cursor: zoom-out; }
 .hud-zoom canvas { display: block; box-shadow: 5px 5px 0 rgba(0,0,0,0.4); }
 .hud-zoom div { color: #ece7d8; font-size: 15px; }
-.hud-lights { position: absolute; left: 0; right: 0; top: 21px; display: grid; grid-template-columns: repeat(2, 30px);
-  gap: 3px 8px; justify-content: center; }
-.hud-light { width: 30px; height: 17px; display: block; }
-.hud-light path, .hud-light circle, .hud-light rect, .hud-light line { stroke: #3c3e43; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-.hud-light .hud-fill { fill: #3c3e43; stroke: none; }
-.hud-light.hud-on path, .hud-light.hud-on circle, .hud-light.hud-on rect, .hud-light.hud-on line { stroke: #e6a23a; filter: drop-shadow(0 0 3px rgba(230,162,58,0.8)); }
-.hud-light.hud-on .hud-fill { fill: #e6a23a; }
-.hud-light.hud-bad path, .hud-light.hud-bad circle, .hud-light.hud-bad rect, .hud-light.hud-bad line { stroke: #e0503c; filter: drop-shadow(0 0 4px rgba(224,80,60,0.9)); }
-.hud-light.hud-bad .hud-fill { fill: #e0503c; }
+.hud-lights { position: absolute; left: 0; right: 0; top: 21px; display: flex; gap: 4px; justify-content: center; }
+.hud-light { width: 22px; height: 22px; display: block; border-radius: 50%; overflow: visible;
+  background: radial-gradient(circle at 36% 30%, #4a4c52 0, #2b2d31 45%, #1a1b1d 100%);
+  box-shadow: inset 0 -2px 3px rgba(0,0,0,0.6), inset 0 1px 2px rgba(255,255,255,0.12), 0 0 0 2px #121314; }
+.hud-light path, .hud-light circle, .hud-light rect, .hud-light line { stroke: #55585e; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.hud-light .hud-fill { fill: #55585e; stroke: none; }
+.hud-light.hud-on { background: radial-gradient(circle at 36% 30%, #ffe3a0 0, #e6a23a 45%, #8a5414 100%);
+  box-shadow: inset 0 -2px 3px rgba(0,0,0,0.35), 0 0 0 2px #121314, 0 0 8px rgba(230,162,58,0.8); }
+.hud-light.hud-bad { background: radial-gradient(circle at 36% 30%, #ffb3a6 0, #e0503c 45%, #7c1812 100%);
+  box-shadow: inset 0 -2px 3px rgba(0,0,0,0.35), 0 0 0 2px #121314, 0 0 9px rgba(224,80,60,0.9); }
+.hud-light.hud-on path, .hud-light.hud-on circle, .hud-light.hud-on rect, .hud-light.hud-on line,
+.hud-light.hud-bad path, .hud-light.hud-bad circle, .hud-light.hud-bad rect, .hud-light.hud-bad line { stroke: #2a1a08; }
+.hud-light.hud-on .hud-fill, .hud-light.hud-bad .hud-fill { fill: #2a1a08; }
 .hud-light.hud-blink { animation: hud-blink 0.9s steps(2, start) infinite; }
 @keyframes hud-blink { to { visibility: hidden; } }
 .hud-dev-dmg { position: absolute; top: 44px; right: 12px; padding: 6px 9px; background: rgba(0,0,0,0.65); color: #d8f0d8;
@@ -178,7 +205,7 @@ function buildCompass(parent) {
     svg('line', {
       x1: 40 + Math.cos(rad) * r0, y1: 40 + Math.sin(rad) * r0,
       x2: 40 + Math.cos(rad) * R, y2: 40 + Math.sin(rad) * R,
-      stroke: major ? '#d9d4c5' : '#7a7d82', 'stroke-width': major ? 2 : 1,
+      stroke: major ? '#f1ead6' : '#7a7d82', 'stroke-width': major ? 2 : 1,
     }, card);
   }
   // Cardinal letters sit on the card and turn with it.
@@ -186,8 +213,8 @@ function buildCompass(parent) {
     const g = svg('g', { transform: `rotate(${a} 40 40)` }, card);
     const txt = svg('text', {
       x: 40, y: 40 - (R - 17), 'text-anchor': 'middle', 'dominant-baseline': 'central',
-      'font-family': '"Courier New", Courier, monospace', 'font-size': 13, 'font-weight': 'bold',
-      fill: t === 'N' ? '#d0614f' : '#d9d4c5',
+      'font-family': 'Oswald, "Arial Narrow", sans-serif', 'font-size': 14, 'font-weight': 'bold',
+      fill: t === 'N' ? '#d0614f' : '#f1ead6',
     }, g);
     txt.textContent = t;
   });
@@ -240,12 +267,55 @@ function buildOdometer(parent) {
   return strips;
 }
 
+// Round speedo with a needle. 0 to SPEEDO_MAX mph sweeps 270 degrees, from
+// the lower left round to the lower right. The tick marks are fixed; only the
+// needle (returned) turns. The paved top speed is about 56 mph.
+const SPEEDO_MAX = 80;
+function speedoAngle(mph) {
+  return -135 + (Math.min(Math.max(mph, 0), SPEEDO_MAX) / SPEEDO_MAX) * 270;
+}
+function buildSpeedo(parent) {
+  const s = svg('svg', { class: 'hud-speedo', viewBox: '0 0 100 100' }, parent);
+  svg('circle', { cx: 50, cy: 50, r: 47, fill: '#0f1011', stroke: '#55585e', 'stroke-width': 3 }, s);
+  svg('circle', { cx: 50, cy: 50, r: 42, fill: '#2a2c30' }, s);
+  for (let v = 0; v <= SPEEDO_MAX; v += 5) {
+    const major = v % 20 === 0;
+    const rad = ((speedoAngle(v) - 90) * Math.PI) / 180;
+    const r0 = major ? 30 : 35;
+    svg('line', {
+      x1: 50 + Math.cos(rad) * r0, y1: 50 + Math.sin(rad) * r0,
+      x2: 50 + Math.cos(rad) * 40, y2: 50 + Math.sin(rad) * 40,
+      stroke: major ? '#f1ead6' : '#7a7d82', 'stroke-width': major ? 3 : 1.5,
+    }, s);
+    if (major) {
+      const t = svg('text', {
+        x: 50 + Math.cos(rad) * 22, y: 50 + Math.sin(rad) * 22, 'text-anchor': 'middle', 'dominant-baseline': 'central',
+        'font-family': 'Oswald, "Arial Narrow", sans-serif', 'font-size': 14, fill: '#d9d4c5',
+      }, s);
+      t.textContent = String(v);
+    }
+  }
+  const mph = svg('text', {
+    x: 50, y: 76, 'text-anchor': 'middle', 'dominant-baseline': 'central',
+    'font-family': 'Oswald, "Arial Narrow", sans-serif', 'font-size': 12, 'letter-spacing': 2, fill: '#a89f88',
+  }, s);
+  mph.textContent = 'MPH';
+  const needle = svg('g', { class: 'hud-needle' }, s);
+  svg('polygon', { points: '47.5,50 52.5,50 50,12', fill: '#d0614f' }, needle);
+  svg('circle', { cx: 50, cy: 50, r: 5, fill: '#f1ead6', stroke: '#55585e', 'stroke-width': 1.5 }, s);
+  return needle;
+}
+
+// Key hints sit above the dash and fade after about a minute. H (which also
+// opens the help panel) brings them back for another minute.
+const HINT_FADE_MS = 60000;
+
 export function createHUD(root, { openMap } = {}) {
   injectStyle();
   const hud = el('div', 'hud-root', root);
 
   // ---------------------------------------------------------------- dash
-  const dash = el('div', 'hud-dash hud-mono', hud);
+  const dash = el('div', 'hud-dash hud-oswald', hud);
   const inner = el('div', 'hud-dash-inner', dash);
   const compassCard = buildCompass(inner);
 
@@ -256,24 +326,31 @@ export function createHUD(root, { openMap } = {}) {
     el('div', 'hud-label', b, label);
     return b;
   };
-  const headingTxt = el('div', 'hud-gauge', bezel(118, 120, 'HEADING'));
-  headingTxt.style.fontSize = '22px';
-  const odoStrips = buildOdometer(bezel(256, 210, 'TRIP mi'));
-  const speedBox = bezel(484, 140, 'SPEED');
-  const speedTxt = el('div', 'hud-speed', speedBox, '0');
-  el('div', 'hud-unit', speedBox, 'mph');
-  const gearTxt = el('div', 'hud-gear', speedBox);
-  const clockTxt = el('div', 'hud-gauge', bezel(642, 130, 'CLOCK'));
-  clockTxt.style.fontSize = '26px';
-  const timerTxt = el('div', 'hud-gauge', bezel(790, 150, 'TRIP TIME'));
+  const headingTxt = el('div', 'hud-gauge', bezel(80, 92, 'HEADING'));
+  headingTxt.style.fontSize = '20px';
+  const odoStrips = buildOdometer(bezel(182, 140, 'TRIP mi'));
+  const speedNeedle = buildSpeedo(inner);
+  const gearTxt = el('div', 'hud-gear', inner);
+  const clockTxt = el('div', 'hud-gauge hud-cream', bezel(424, 96, 'CLOCK'));
+  clockTxt.style.fontSize = '22px';
+  const timerTxt = el('div', 'hud-gauge hud-cream', bezel(528, 96, 'TRIP TIME'));
   timerTxt.style.fontSize = '18px';
-  const lights = buildLights(bezel(958, 104, 'WARNING'));
+  const lights = buildLights(bezel(632, 108, 'CHECK'));
+  // Empty slot for the radio's tuning dial (issue 19 fills #hud-radio-slot).
+  const radioSlot = el('div', 'hud-radio-slot', inner);
+  radioSlot.id = 'hud-radio-slot';
+  radioSlot.dataset.label = 'RADIO';
   const devDmg = new URLSearchParams(window.location.search).has('damage') ? el('div', 'hud-dev-dmg', hud) : null;
-  el('div', 'hud-hint', inner,
-    'Arrows/WASD drive · F get out / in · E talk · M map · C camera · B horn · N north/heading-up · K mute · H help');
+  const hintBar = el('div', 'hud-hint', hud,
+    'Arrows/WASD drive · F get out / in · E talk · M map · C camera · B horn · N north/heading-up · K mute · H help and hints');
+  let hintShownAt = performance.now();
+  const showHints = () => {
+    hintShownAt = performance.now();
+    hintBar.classList.remove('hud-faded');
+  };
 
   // ---------------------------------------------------------------- overlays
-  const goalLine = el('div', 'hud-goal-line hud-mono', hud);
+  const goalLine = el('div', 'hud-goal-tag', hud); // paper tag, top left
   const signBox = el('div', 'hud-sign', hud);
   const promptBox = el('div', 'hud-prompt hud-mono', hud);
   // Talking to locals (round 12): ./talk.js.
@@ -450,7 +527,7 @@ export function createHUD(root, { openMap } = {}) {
     const k = e.key.toLowerCase();
     if (k === 'e') onTalkKey();
     else if (k === 'm') onMapKey();
-    else if (k === 'h') onHelpKey();
+    else if (k === 'h') { showHints(); onHelpKey(); }
     else if (k === 'r' && state.won) window.location.reload();
     else if (e.key === 'Enter') onContinueKey();
   }
@@ -494,8 +571,18 @@ export function createHUD(root, { openMap } = {}) {
     }
 
     const { car } = state;
-    setText('speed', speedTxt, String(Math.round(mphFromMps(Math.abs(car.speed)))));
+    const mph = Math.round(mphFromMps(Math.abs(car.speed)));
+    if (last.mph !== mph) {
+      last.mph = mph;
+      speedNeedle.style.transform = `rotate(${speedoAngle(mph)}deg)`;
+    }
     setText('gear', gearTxt, car.speed < -0.2 ? 'REV' : '');
+    if (!last.hintsFaded && performance.now() - hintShownAt > HINT_FADE_MS) {
+      last.hintsFaded = true;
+      hintBar.classList.add('hud-faded');
+    } else if (last.hintsFaded && performance.now() - hintShownAt <= HINT_FADE_MS) {
+      last.hintsFaded = false;
+    }
     setText('clock', clockTxt, clockText(state.clockMinutes));
     setText('timer', timerTxt, timerText(state.elapsedMs));
 
@@ -505,7 +592,7 @@ export function createHUD(root, { openMap } = {}) {
       lastScaleW = w;
       const s = Math.min(1, w / (DASH_W + 16));
       inner.style.transform = `translateX(-50%) scale(${s})`;
-      hud.style.setProperty('--hud-dash-h', `${Math.round(92 * s)}px`);
+      hud.style.setProperty('--hud-dash-h', `${Math.round((DASH_H + 3) * s)}px`);
     }
   }
 
@@ -557,10 +644,14 @@ export function createHUD(root, { openMap } = {}) {
 
   function updateGoalLine() {
     const goal = state.won ? null : currentGoal(state);
-    const text = goal ? `Goal: ${goal.name}` : null;
+    const text = goal ? goal.name : null;
     if (text === last.goalLine) return;
     last.goalLine = text;
-    goalLine.textContent = text || '';
+    goalLine.textContent = '';
+    if (text) {
+      el('small', null, goalLine, 'Your goal');
+      goalLine.append(text);
+    }
     goalLine.style.display = text ? 'block' : 'none';
   }
 

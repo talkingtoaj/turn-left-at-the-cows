@@ -16,11 +16,12 @@
 //    asphalt and stone (shaders.js WET).
 //
 // Dev URL knobs: ?weather=sunny|cloudy|overcast|cycle &exp=<exposure> &sun=<sun scale> &sky=<sky scale> &tm=agx
-// &sat=<saturation> &tex=0 (light only) &ao=0 (no ground contact shading).
+// &sat=<saturation> &grade=0 (no colour grade; knobs g_olive g_warm g_teal g_lift g_cream g_vig g_grain, see grade.js) &tex=0 (light only) &ao=0 (no ground contact shading).
 
 import * as THREE from 'three';
 import { TEXTURES, LAYERS, SURF, surfaceOf } from './surfaces.js';
 import { buildAOMap } from './aomap.js';
+import { makeGrade, gradeGLSL, creamTint, applyOverlay } from './grade.js';
 import { patchObjects, patchTerrain, patchTrunks, patchRocks, patchWetPlants, skyMaterial, WET } from './shaders.js';
 import { createWeatherClock, keyLooks, lookAt, emptyLook } from './weather.js';
 import { cloudCover, cloudUniforms } from '../world3d/clouds.js';
@@ -157,12 +158,16 @@ export async function createLook(renderer, params) {
   // ACES, after taking a little saturation out (ACES alone makes the greens
   // glow) and warming it slightly. Inline in every shader, no extra pass.
   const sat = num('sat', 0.78);
+  const grade = makeGrade(params); // src3/look/grade.js; a mission preset can pass its own
+  const cream = creamTint(grade);
+  applyOverlay(grade);
   THREE.ShaderChunk.tonemapping_pars_fragment = THREE.ShaderChunk.tonemapping_pars_fragment.replace(
     'vec3 CustomToneMapping( vec3 color ) { return color; }',
     `vec3 CustomToneMapping( vec3 color ) {
   float l = dot( color, vec3( 0.2126, 0.7152, 0.0722 ) );
   color = mix( vec3( l ), color, ${sat.toFixed(3)} ) * vec3( 1.03, 1.0, 0.95 );
-  return ACESFilmicToneMapping( color );
+  color = ACESFilmicToneMapping( color );${gradeGLSL(grade)}
+  return color;
 }`,
   );
   renderer.toneMapping = params.get('tm') === 'agx' ? THREE.AgXToneMapping : THREE.CustomToneMapping;
@@ -252,7 +257,7 @@ export async function createLook(renderer, params) {
           sunLight.intensity = cur.sun * (1 - 0.6 * rk);
           sunLight.shadow.intensity = cur.shadow * (1 - 0.5 * rk);
           const fd = (1 - 0.38 * rk) * (1 - 0.5 * st);
-          scene.fog.color.setRGB(cur.fog[0] * fd * (1 - 0.03 * rk), cur.fog[1] * fd, cur.fog[2] * fd * (1 + 0.03 * rk), THREE.LinearSRGBColorSpace);
+          scene.fog.color.setRGB(cur.fog[0] * cream[0] * fd * (1 - 0.03 * rk), cur.fog[1] * cream[1] * fd, cur.fog[2] * cream[2] * fd * (1 + 0.03 * rk), THREE.LinearSRGBColorSpace);
           scene.background.copy(scene.fog.color);
           skyMat.uniforms.gain.value = cur.gain * (1 - 0.42 * rk) * (1 - 0.55 * st);
           skyMat.uniforms.skyMix.value = cur.skyMix;

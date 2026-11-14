@@ -81,11 +81,11 @@ export function carAtlas() {
     g.textAlign = 'center';
     g.textBaseline = 'middle';
     g.font = 'bold 15px sans-serif';
-    g.fillText('ASHFORD COUNTY', x + w / 2, y + 20);
+    g.fillText('FENWICK COUNTY', x + w / 2, y + 20);
     g.font = 'bold 58px monospace';
     g.fillText('KDR 487', x + w / 2, y + 70);
     g.font = 'bold 13px sans-serif';
-    g.fillText('1987', x + w / 2, y + 110);
+    g.fillText('1992', x + w / 2, y + 110);
     g.fillStyle = '#b8402a';
     g.fillRect(x + 14, y + 100, 28, 18); // registration sticker
     mrFill(RECTS.plate, 0.45, 0.2);

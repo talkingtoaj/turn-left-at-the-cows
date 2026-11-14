@@ -82,3 +82,18 @@ ElevenLabs spend: round 1 had 13 calls and 880 credits. Round 2 (engine set, tow
 Round 8 (rain): all five new files are Freesound CC0 (each checked as CC0 through the Freesound API by `tools/sounds/fs_get.py`, which skips anything else). No ElevenLabs calls this round: 0 credits, $0.00. The rain loops follow how hard it rains, the wet tyre hiss follows speed and wetness (most on asphalt), and a splash plays once per puddle you drive through (3D only: `createAudio(world, { weather: true })`, so the Phaser version neither loads nor plays them).
 
 Round 12 (on foot and thunder): 13 new files, all Freesound CC0 (each checked as CC0 through the Freesound API by `tools/sounds/fs_get.py`). Footsteps: three single steps each for grass, gravel (dirt roads and yards) and paved roads. Thunder: two close cracks and two far rolling rumbles; the game delays them 3 s per km and makes them quieter and duller with distance. No ElevenLabs calls this round: 0 credits, $0.00.
+
+Round 13 (sound layers, ticket 26): 10 new files, all Freesound CC0 (each checked through the Freesound API by `tools/sounds/fs_get.py`). Insects, wind in grass, a distant tractor, chimes and a screen door at farms, creaks on dirt roads, the ignition and wind at the window. The dog barks at farms use the existing dog files. No ElevenLabs calls: 0 credits.
+
+| File | Freesound id | Name | Author | URL |
+|---|---|---|---|---|
+| ambient/insects.mp3 | 515055 | Ambiance_Cicadas_Loop_01.wav (3 to 13 s) | Nox_Sound | https://freesound.org/people/Nox_Sound/sounds/515055/ |
+| ambient/grass_wind.mp3 | 593817 | In the grass.m4a (2 to 14 s) | JeanetteDominguez | https://freesound.org/people/JeanetteDominguez/sounds/593817/ |
+| ambient/tractor.mp3 | 164444 | Distant Tractor FF656.aif (6 to 18 s) | martinimeniscus | https://freesound.org/people/martinimeniscus/sounds/164444/ |
+| ambient/screen_door.mp3 | 322191 | screen door.wav | reg7783 | https://freesound.org/people/reg7783/sounds/322191/ |
+| ambient/chimes.mp3 | 398495 | wind chimes - rough.wav (8 to 14 s) | Anthousai | https://freesound.org/people/Anthousai/sounds/398495/ |
+| car/creak1.mp3 | 508278 | Old_Truck_Metal_Squeaks-Creaks-Rattle-Impact_Small_Squeaks_C (0 to 1.4 s) | dilsun | https://freesound.org/people/dilsun/sounds/508278/ |
+| car/creak2.mp3 | 508278 | Old_Truck_Metal_Squeaks-Creaks-Rattle-Impact_Small_Squeaks_C (3.5 to 5 s) | dilsun | https://freesound.org/people/dilsun/sounds/508278/ |
+| car/creak3.mp3 | 508278 | Old_Truck_Metal_Squeaks-Creaks-Rattle-Impact_Small_Squeaks_C (8 to 9.5 s) | dilsun | https://freesound.org/people/dilsun/sounds/508278/ |
+| car/ignition.mp3 | 138099 | Car Start (0.1 to 1.9 s) | snakebarney | https://freesound.org/people/snakebarney/sounds/138099/ |
+| car/window_wind.mp3 | 506910 | Ambiance_Wind_Forest_Calm_Loop_Stereo.wav (2 to 16 s) | Nox_Sound | https://freesound.org/people/Nox_Sound/sounds/506910/ |
