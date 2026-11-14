@@ -46,8 +46,8 @@ const DETAILS = {
     brief: [
       "There's a parcel for Hartley Farm on the seat beside you. No address, just the name.",
       // Line ids: brief-m1-map, brief-m1-ask
-      "Darlene's county map is in the glovebox, with a pencil and a notepad. It's five years old, and plenty has changed since.",
-      "If the map and the road disagree, believe the road. Earl at the gas station knows everybody. Ask him.",
+      "Darlene's county map is in the glovebox, with a pencil and a notepad. It's five years old, and plenty has shifted since.",
+      "Things have shifted around here, so go by what you see. Earl at the gas station knows everybody. Go ask him.",
     ],
     goalTopic: 'hartley_farm',
     startTopics: ['hartley_farm'],
@@ -62,7 +62,7 @@ const DETAILS = {
     arrivalLabel: 'Map on arrival at Hartley Farm',
     finalLabel: 'Final map: Hartley Farm',
     // Arrival line (win screen). Line id: arrival-m1
-    arrival: { name: 'Mrs Hartley', line: 'Oh, you found us. Leave it on the table, and sit down. The kettle is already hot.' },
+    arrival: { name: 'Mrs Hartley', line: "Oh, you found us. Just leave it by the door, dear. The kettle's on, but I'll bring you a cup out here." },
     // Darlene's 1987 county map, full of gaps (see county1987 in src/world/data.js).
     // You also draw your own sketch. (Mission 2 has only Mrs Hartley's map.)
     printedMaps: ['county1987'],
@@ -140,7 +140,7 @@ const DETAILS = {
     arrivalLabel: 'Map on arrival at Kestrel Field',
     finalLabel: 'Final map: Kestrel Field',
     // Arrival line (win screen). Line id: arrival-m3
-    arrival: { name: 'Ray Kessler', line: "That's the magneto. Hold the prop for me, would you? No, I'm kidding. Mostly." },
+    arrival: { name: 'Ray Kessler', line: "That's the magneto. Hold the prop for me, would you? No, I'm kidding." },
     printedMaps: [],
   }),
 };

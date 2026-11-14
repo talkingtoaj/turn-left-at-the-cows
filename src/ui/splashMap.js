@@ -121,12 +121,9 @@ export function mapSVG({ missions, done, next }) {
   <text class="mp-title" x="30" y="44">RURAL ROUTE 3 \u00b7 ASHFORD</text>
   <text class="mp-sub" x="32" y="62">AND ROUND ABOUT · NOT TO SCALE</text>
   <g fill="none" stroke-linecap="round" stroke-linejoin="round">${out.join('')}</g>
-  <g class="mp-stamp" transform="translate(636 62) rotate(-6) scale(1.2)" filter="url(#mp-ink)">
-    <rect x="-84" y="-17" width="168" height="34" rx="3" fill="none" stroke-width="3"/>
-    <rect x="-79" y="-12" width="158" height="24" rx="2" fill="none" stroke-width="1"/>
-    <text x="0" y="6" text-anchor="middle">CORRECT AS OF 1987</text>
-  </g>
-  <text class="mp-ha" x="676" y="106" transform="rotate(-6 676 106)">ha.</text>
+  <text class="mp-sub" x="756" y="62" text-anchor="end">FENWICK COUNTY HIGHWAY DEPT.</text>
+  <text class="mp-sub" x="756" y="76" text-anchor="end">REVISED 1987</text>
+  <text class="mp-ha" x="676" y="108" transform="rotate(-6 676 108)">Ha ha.</text>
   <g class="mp-north" transform="translate(782 64)"><path d="M0,22 L0,-18 M-6,-9 L0,-18 L6,-9"/><text x="-5" y="38">N</text></g>
 </svg>`;
 }
