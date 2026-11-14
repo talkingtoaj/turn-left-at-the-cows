@@ -108,7 +108,7 @@ Approx. length of each loop: about 14 minutes per station. Stations keep their o
 
 > The weather and wind, from the weather service, for the week. Highs in the upper seventies, which is cool for July. They blame a volcano in the Philippines that blew up last year.
 >
-> Winds mostly from the west, about ten miles an hour. Showers are possible. Good news for hay, bad news for anyone with laundry out.
+> Winds mostly from the west, about ten miles an hour. Showers are possible. Bring the laundry in early.
 
 #### ashford_ad_2.mp3: Ad (about 24 s)
 
@@ -251,7 +251,7 @@ Approx. length of each loop: about 14 minutes per station. Stations keep their o
 >
 > Winds mostly from the west, about ten miles an hour. The planes at the flying club east of town take off and land into the wind. A west wind means they come in from the east, low, and land going west.
 >
-> Good week for kites. Bad week for hats.
+> Hold on to your hat.
 
 #### brandt_ad_2.mp3: Ad (about 24 s)
 
