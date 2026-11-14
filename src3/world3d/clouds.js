@@ -135,7 +135,6 @@ export function buildSkyClouds(sunDir, count) {
   const p = new THREE.Vector3();
   const sc = new THREE.Vector3();
   const up = new THREE.Vector3(0, 1, 0);
-  const along = HEIGHT / sunDir.y;
   return {
     mesh,
     update(clouds, camera, visible) {
@@ -143,6 +142,7 @@ export function buildSkyClouds(sunDir, count) {
       if (!visible) return;
       let n = 0;
       const cam = camera.position;
+      const along = HEIGHT / sunDir.y; // the sun is a live vector (one per mission)
       for (const c of clouds) {
         if (n >= count) break;
         const cx = c.x + sunDir.x * along;

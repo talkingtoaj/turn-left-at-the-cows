@@ -6,7 +6,6 @@ import { takeSnapshot, copySketch } from './snapshots.js';
 import { getNpc } from './dialogue.js';
 import { resetDamage } from './damage.js';
 import { recordFinish } from './progress.js';
-import { worldKey } from '../world/world.js';
 
 // Waypoint snapshots and goal arrival. Sets state.won on arrival. Arriving
 // counts in the car or on foot (state.footPos, set while you walk).
@@ -117,10 +116,4 @@ export function jumpToMission(state, index) {
 // while driving over, else its own.
 export function missionRegion(state, m) {
   return m && m.approach && state.leg === 'approach' ? m.approach.region : m && m.region;
-}
-
-// Which build of that region the mission plays on (src/world/world.js worldKey):
-// a mission's own tourist car is in its build only.
-export function missionWorldKey(state, m) {
-  return m ? worldKey(missionRegion(state, m), m.id) : null;
 }

@@ -220,7 +220,7 @@ export function createTalk(root) {
     const id = d.npcId;
     const lines = answerTourist(state, id, i);
     if (!lines) return;
-    begin(id, lines.map((text) => ({ text, topicId: null })), { name: 'The tourist, visiting from Miami', choices: null });
+    begin(id, lines.map((text) => ({ text, topicId: null })), { name: d.title, choices: null });
   }
 
   function advance() {

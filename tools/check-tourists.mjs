@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import { regionWorld } from '../src/world/world.js';
 import { MISSIONS } from '../src/game/missions.js';
 import { TOURISTS } from '../src/game/tourists.js';
+import { Collider } from '../src/drive/collider.js';
 import { TOPIC_BY_ID } from '../src/world/topics.js';
 
 let WORLD = null; // the mission's region, set per tourist
@@ -51,7 +52,19 @@ for (const [missionId, t] of Object.entries(TOURISTS)) {
     if (c.right) assert.ok(reach < 60, `${c.id} reaches ${town.name} (${reach.toFixed(0)} m)`);
     else assert.ok(reach > 200, `${c.id} stops ${reach.toFixed(0)} m short of ${town.name}`);
   }
-  // Her car belongs to her mission only: no other mission's build has it.
+  // Her car and she belong to her mission only: solid in it, not in any other.
   if (car) assert.equal(car.onlyMission, missionId, 'the car is only in her mission');
+  const col = new Collider(WORLD, { trees: [] });
+  const spots = [[local.x, local.y, 0.2]];
+  if (car) spots.push([car.x, car.y, 0.5]);
+  for (const [x, y, r] of spots) {
+    col.mission = missionId;
+    assert.ok(col.circleHit(x, y, r), `solid in ${missionId} at ${x.toFixed(0)},${y.toFixed(0)}`);
+    for (const other of MISSIONS) {
+      if (other.id === missionId) continue;
+      col.mission = other.id;
+      assert.ok(!col.circleHit(x, y, r), `not solid in ${other.id} at ${x.toFixed(0)},${y.toFixed(0)}`);
+    }
+  }
   console.log(`check-tourists: ${missionId} ok`);
 }

@@ -35,7 +35,14 @@ export class Collider {
 
     // Solid things go into a spatial grid so each query only checks nearby ones.
     for (const b of world.buildings) this.addSolids(buildingSolids(b));
-    for (const l of world.landmarks) this.addSolids(landmarkSolids(l, world));
+    // Things that belong to one mission (`onlyMission`: a tourist, her car) are
+    // solid only while that mission plays (set `collider.mission`).
+    this.mission = null;
+    for (const l of world.landmarks) {
+      const solids = landmarkSolids(l, world);
+      if (l.onlyMission) for (const s of [...solids.rects, ...solids.circles]) s.only = l.onlyMission;
+      this.addSolids(solids);
+    }
     this.addSolids(fenceSolids(world));
     for (const t of scenery.trees) this.addCircle({ x: t.x, y: t.y, r: TREE_HIT_R, kind: 'tree' });
     // Countryside fill: bales, haystacks, rocks and power poles.
@@ -43,7 +50,7 @@ export class Collider {
     for (const p of world.dressing || []) if (p.r) this.addCircle({ x: p.x, y: p.y, r: p.r, kind: 'prop' });
     for (const l of world.powerLines || []) for (const p of l.poles) this.addCircle({ x: p.x, y: p.y, r: POLE_R, kind: 'pole' });
     if (opts.staticLocals !== false) {
-      for (const l of world.locals) this.addCircle({ x: l.x, y: l.y, r: LOCAL_HIT_R });
+      for (const l of world.locals) this.addCircle({ x: l.x, y: l.y, r: LOCAL_HIT_R, only: l.onlyMission });
     }
 
     this.intactBridges = world.bridges
@@ -101,6 +108,7 @@ export class Collider {
         const list = this.grid.get(cx * 10000 + cy);
         if (!list) continue;
         for (const s of list) {
+          if (s.only && s.only !== this.mission) continue;
           if (s.type === 'circle') {
             const dx = s.x - x;
             const dy = s.y - y;

@@ -10,7 +10,7 @@
 //
 // The mission 2 tourist (issue 28) is a lawyer on Dolan Lane, a farm drive
 // just off Highway 9 south of Millbrook. Each car has `onlyMission`, so it is
-// built only in its own mission (src/world/world.js worldKey).
+// shown, and solid, only in its own mission (hidden at run time).
 
 export const TOURIST_FENWICK = {
   locals: [

@@ -193,6 +193,11 @@ export async function createLook(renderer, params) {
   return {
     opts,
     fogK,
+    // Sets the sun for mission `index` before a region is built from it.
+    presetSun(index) {
+      const p = missionLookFor(index, forced);
+      setSunDir(p.az, p.el);
+    },
     // Reflections for the cars' paint, glass and chrome: the sunny sky above
     // a soft green-brown ground, as a PMREM map (made once, on first use).
     carEnv() {

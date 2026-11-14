@@ -12,6 +12,9 @@ import { buildKind } from './kinds.js';
 import { buildNewLandmark } from './landmarks3d.js';
 import { buildRuin, buildWindpumpWheels } from './ruins3d.js';
 import { buildAirfield, buildAirfieldBuilding } from './airfield3d.js';
+import { Batcher } from './batch.js';
+import { state } from '../../src/state.js';
+import { currentMissionId } from '../../src/game/tourists.js';
 
 const WALLS = [0xe8e2d0, 0xf1ede4, 0xe6d9a8, 0xc9d3d6, 0xd9b9a0, 0xcfd8c4];
 const ROOFS = [0x8e4b3a, 0x5a5f66, 0x6b4a3a, 0x4f6a5a, 0x7a3b3b, 0x6e6a60];
@@ -93,6 +96,20 @@ export function buildStructures(world, terrain, batch, materials, extras = {}) {
     if (l.kind === 'airfield') {
       dynamic.push(buildAirfield(world, terrain, batch, l));
       continue;
+    }
+    if (l.onlyMission) {
+      // One mission's own piece (a tourist's parked car): its own mesh, shown
+      // only while that mission plays. The region is built once for all.
+      const own = new Batcher();
+      own.audit = batch.audit;
+      own.signs = batch.signs;
+      if (buildRuin(world, terrain, own, l)) {
+        const group = own.build(materials);
+        const only = l.onlyMission;
+        group.visible = false;
+        dynamic.push({ object: group, update() { group.visible = currentMissionId(state) === only; } });
+        continue;
+      }
     }
     if (buildRuin(world, terrain, batch, l)) continue;
     if (buildNewLandmark(world, terrain, batch, l, rng)) continue;
