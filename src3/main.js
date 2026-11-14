@@ -28,6 +28,7 @@ import { buildCar } from './world3d/car3d.js';
 import { CameraRig } from './world3d/camera.js';
 import { createAmbient } from '../src/ambient/ambient.js';
 import { createAudio } from '../src/audio/audio.js';
+import { createRadio } from '../src/radio/radio.js';
 import { createAmbient3D } from './world3d/ambient3d.js';
 import { addCloudShadowsTo, cloudUniforms } from './world3d/clouds.js';
 import { campfireOf } from './world3d/landmarks3d.js';
@@ -288,7 +289,9 @@ async function followMission() {
 
 const ui = document.getElementById('ui');
 const map = createMapOverlay(ui, { onClose: () => { runtime.paused = false; state.inputLocked = false; } });
-const hud = createHUD(ui, { openMap: () => { runtime.paused = true; state.inputLocked = true; foot.release(); map.open(); } });
+const radio = createRadio();
+window.__radio = radio; // for checks
+const hud = createHUD(ui, { radio, openMap: () => { runtime.paused = true; state.inputLocked = true; foot.release(); map.open(); } });
 // Breakdowns end in a tow to the nearest garage, not a lost mission.
 // Dev: ?breakdown=1 breaks the car down at once.
 const tow = createTow(ui, { audio, rig, params });
@@ -328,6 +331,11 @@ window.addEventListener('keydown', (e) => {
     runtime.cameraMode = runtime.cameraMode === 'top' ? 'chase' : 'top';
   } else if (e.code === 'KeyN' && plain) {
     state.view.northUp = !state.view.northUp;
+  } else if (e.code === 'KeyT' && plain) {
+    radio.toggle();
+  } else if ((e.code === 'Comma' || e.code === 'Period') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    // Tune the radio: 10 kHz a step, 50 with Shift. Held keys keep stepping.
+    radio.tune((e.code === 'Comma' ? -1 : 1) * (e.shiftKey ? 50 : 10));
   }
 });
 window.addEventListener('keyup', (e) => keys.delete(e.code));
@@ -588,6 +596,7 @@ function frame(now) {
   }
   lightning.update(runtime.paused ? 0 : dt, camera, wetness.rain);
   // Sound every frame, even paused (it ducks while the map is open).
+  radio.update(dt, { region: regionId, x: ear.x, y: ear.y, paused: runtime.paused });
   audio.update(dt, state, amb, {
     paused: runtime.paused, rain: wetness, planes: planes ? planes.sound : null, tow: tow.sound,
     listener: ear, onFoot: foot.active,
@@ -858,6 +867,7 @@ export async function startGame(index = 0) {
   // The start screen made and resumed the AudioContext in its click.
   audio.wake();
   audio.ignition();
+  radio.start();
   if (currentLs) currentLs.reveal();
   index = resolveIndex(index);
   const spotName = params.get('spot');

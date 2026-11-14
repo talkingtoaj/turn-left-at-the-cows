@@ -12,8 +12,7 @@
 //   freqKhz     AM dial position in kHz (1992 US AM steps by 10)
 //   homeTown    the only town the station names
 //   mastId      id of the radio mast landmark that broadcasts it. 'mast' exists in
-//               data.js. 'mast_brandt' is NEW and must be added near Brandt
-//               (data_brandt.js or addons.js, kind 'radio_mast') by whoever builds #20/#21.
+//               data.js. 'mast_brandt' is in src/world/addons/masts_brandt.js.
 //   dj          { name, voice }  voice is a short note for ElevenLabs
 //   tagline     the line the jingle and first link use
 //   rotation    segment ids in the order the station loops them, then starts over.
