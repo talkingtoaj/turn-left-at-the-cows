@@ -5,6 +5,7 @@
 // marker, or any position.
 
 import { WORLD } from '../world/world.js';
+import { METRES_PER_MILE } from '../units.js';
 import { resolvePrintedMap } from '../game/printedMaps.js';
 import { dashedPolyline, makeRng, wobbly, wobblyCircle, drawStamp } from './draw.js';
 
@@ -379,21 +380,23 @@ function buildLegend(scene, c, g, box, s) {
   row((x, yy) => drawMapSymbol(g, 'mill', x, yy), 'Mill');
   row((x, yy) => drawMapSymbol(g, 'radio_mast', x, yy), 'Radio mast');
 
-  // Scale bar: honest. 1 km in map pixels.
+  // Scale bar: honest. One mile in map pixels (half a mile if the mile is too wide for the column).
   y += 14;
-  const km = 1000 * s;
-  const bx = box.x + (box.w - km) / 2;
+  const oneMile = METRES_PER_MILE * s;
+  const useMile = oneMile <= box.w - 16;
+  const bar = useMile ? oneMile : oneMile / 2; // bar length in map pixels
+  const bx = box.x + (box.w - bar) / 2;
   label(scene, c, box.x + box.w / 2, y, 'SCALE', { fontSize: '10px', fontStyle: 'bold' });
   y += 14;
   for (let i = 0; i < 4; i++) {
     g.fillStyle(i % 2 === 0 ? INK : 0xf4ecd4, 1);
-    g.fillRect(bx + (i * km) / 4, y, km / 4, 6);
+    g.fillRect(bx + (i * bar) / 4, y, bar / 4, 6);
   }
   g.lineStyle(1, INK, 1);
-  g.strokeRect(bx, y, km, 6);
+  g.strokeRect(bx, y, bar, 6);
   label(scene, c, bx, y + 15, '0', { fontSize: '10px' });
-  label(scene, c, bx + km / 2, y + 15, '½', { fontSize: '10px' });
-  label(scene, c, bx + km, y + 15, '1 km', { fontSize: '10px' });
+  label(scene, c, bx + bar / 2, y + 15, useMile ? '½' : '¼', { fontSize: '10px' });
+  label(scene, c, bx + bar, y + 15, useMile ? '1 mi' : '½ mi', { fontSize: '10px' });
 
   // North arrow.
   const nx = box.x + box.w / 2;

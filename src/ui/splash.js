@@ -248,7 +248,7 @@ export function showSplash({ version = '3d', load, preferred = null, phone = fal
   const pad = el('section', 'sp-pad', dash);
   pad.setAttribute('aria-label', 'Your deliveries');
   const paper = el('div', 'sp-paper', pad);
-  el('h2', null, paper, 'Deliveries in Ashford County');
+  el('h2', null, paper, 'Deliveries out of Ashford');
   const list = el('ol', 'sp-jobs', paper);
   let start = null;
   const hot = (id, on) => {

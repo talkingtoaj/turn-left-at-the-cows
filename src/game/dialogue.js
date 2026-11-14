@@ -195,12 +195,12 @@ export function askWhatsThat(npcId, topicId, state) {
 // No one to ask: a note to yourself. If someone has named it to you, it is
 // that ("St. Anne's Church, to the north-east. Something to ask about.");
 // else just what you see ("Hm, what's that? Something to the north-east,
-// a few hundred metres off."). Returns the note's text (null if the same
+// a few hundred yards off."). Returns the note's text (null if the same
 // note is already in the notebook).
 export function noteLandmark(topicId, where, state) {
   const t = TOPIC_BY_ID[topicId];
   const known = t && state.knownTopics.has(topicId);
-  const far = where.d < 150 ? 'close by' : where.d < 400 ? 'a few hundred metres off' : 'a long way off';
+  const far = where.d < 150 ? 'close by' : where.d < 400 ? 'a few hundred yards off' : 'a long way off';
   const name = known ? t.label.charAt(0).toUpperCase() + t.label.slice(1) : null;
   const text = known
     ? `${name}, to the ${where.dir}. Something to ask about.`

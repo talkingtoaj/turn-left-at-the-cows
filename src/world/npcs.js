@@ -218,7 +218,7 @@ export const NPCS = [
     fallback: ["Never heard of it. And I've heard of most things."],
     profile: {
       home: 'd_h1', work: 'd_store', routes: ['ridge_rd', 'quarry_rd', 'rt40'], yearsHere: 31, style: 'roads',
-      reliability: "Up to date. Says Quarry Road meets Route 40 'right by the river bridge'; really about 600 m west of it.",
+      reliability: "Up to date. Says Quarry Road meets Route 40 'right by the river bridge'; really about a third of a mile west of it.",
     },
   },
   {
@@ -228,7 +228,7 @@ export const NPCS = [
       toms_cabin: {
         lines: [
           "A cabin on Loon Pond? Couldn't tell you which one. I know the pond's north-east of Calder.",
-          "From here go south to Route 40, then east. Calder's maybe two kilometres along. You'll see the grain silos before anything else.",
+          "From here go south to Route 40, then east. Calder's maybe a mile and a quarter along. You'll see the grain silos before anything else.",
         ],
         unlocks: ['rt40', 'calder', 'grain_silos', 'loon_pond'],
       },
@@ -241,7 +241,7 @@ export const NPCS = [
         unlocks: ['calder', 'hwy9'],
       },
       calder: {
-        lines: ["Calder's east. About two kilometres once you hit Route 40. Look for the silos."],
+        lines: ["Calder's east. About a mile and a quarter once you hit Route 40. Look for the silos."],
         unlocks: ['grain_silos'],
       },
       quarry: {
@@ -261,7 +261,7 @@ export const NPCS = [
     fallback: ["Sorry. I'm not from around here. Four years and I still get lost."],
     profile: {
       home: 'calder', work: 'quarry', routes: ['quarry_rd', 'rt40'], yearsHere: 4, style: 'compass',
-      reliability: "Directions by compass, distances too long: Quarry Road to Calder is about 1 km, she says two.",
+      reliability: "Directions by compass, distances too long: Quarry Road to Calder is about half a mile, she says a mile and a quarter.",
     },
   },
   {
