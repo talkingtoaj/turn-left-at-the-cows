@@ -17,6 +17,7 @@ import { towedText } from '../../src/game/tow.js';
 import { mountShareStrip } from '../../src/ui/mapShare.js';
 import { rememberMyMap } from '../../src/game/myMaps.js';
 import { createRadioDial } from './radioDial.js';
+import { createRadioSubs } from './radioSubs.js';
 
 // The HUD (a DOM/CSS port of the old 2D HUD). Shows the dash (compass, odometer,
 // clock, speed, trip timer), the talk prompt, the conversation (./talk.js), the goal line, the mission complete screen, and owns
@@ -343,6 +344,7 @@ export function createHUD(root, { openMap, radio } = {}) {
   const promptBox = el('div', 'hud-prompt hud-mono', hud);
   // Talking to locals (round 12): ./talk.js.
   const talk = createTalk(hud);
+  const radioSubs = createRadioSubs(hud, radio); // top centre, ./radioSubs.js
   const winShade = el('div', 'hud-win-shade', hud);
   let zoomBox = null; // enlarged map on the complete screen
 
@@ -777,6 +779,7 @@ export function createHUD(root, { openMap, radio } = {}) {
     }
     updateDash();
     if (radioDial) radioDial.update();
+    radioSubs.update();
     updateLights();
     if (state.towing) {
       if (inDialogue()) closeDialogue();
