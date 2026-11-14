@@ -10,6 +10,7 @@ Read this before touching world data or game rules. No em dashes in code or text
 | `src/world/data.js` | AUTHORED world of region 1 (`WORLD_SOURCE`): control points, road-relative signs, everything below. Edit this. |
 | `src/world/npcs.js` | People: position, topic-based dialogue, hidden profile. |
 | `src/world/data_brandt.js`, `npcs_brandt.js` | Region 2 (Brandt, the airfield), same format. |
+| `src/world/addons.js` | `mergeAddons(source, addons)`: merges add-on data modules into a region's source (see Add-on files below). |
 | `src/world/regions.js` | `REGIONS` (id: { name, source }), `REGION_IDS`. One entry per region. |
 | `src/world/airfield.js` | Airfield layout (`AIRFIELD`, `airfieldFrame`), seeded wind, `planesFor(world)`: plane circuits by time. |
 | `src/world/topics.js` | Topic registry (`TOPICS`, `TOPIC_BY_ID`). |
@@ -25,6 +26,15 @@ Read this before touching world data or game rules. No em dashes in code or text
 | `src/game/printedMaps.js` | `printedMapsFor(state)`, `getPrintedMap(id)`, `resolvePrintedMap(def)`, clip helpers. |
 
 All of `src/world` and `src/game` is plain JS (no Phaser, no three). Node can import it, which is handy for checks.
+
+## Add-on files
+
+A region can merge extra data files at build time, so a lane (masts, props, herds, tourists) does not edit the main data file.
+
+1. Create `src/world/addons/<name>_<region>.js` exporting a plain object in the same shape as the region's data, with any subset of keys, e.g. `export const MASTS_FENWICK = { masts: [{ id: 'm1', x: 100, y: 200 }] };`. New kinds of key are fine; the build passes unknown keys through to `WORLD`.
+2. In `src/world/regions.js`, import it and add it to that region's list (`FENWICK_ADDONS` or `BRANDT_ADDONS`).
+
+Merge rules: arrays are appended after the main items, objects are shallow merged (add-on wins), other values are only used if the main data has none. Ids must stay unique across the main file and add-ons. `npm run check:world` checks the merged world.
 
 ## Units and axes
 
