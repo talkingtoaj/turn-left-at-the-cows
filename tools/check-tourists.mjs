@@ -1,0 +1,53 @@
+// Checks each mission's tourist against the world data (src/game/tourists.js).
+//   node tools/check-tourists.mjs
+// For each tourist: she exists as a flagged local on a drivable spot, her car
+// is off the road, the wanted place is not the mission goal, exactly one reply
+// is right, the right reply's roads join up and reach the place, and every
+// wrong reply's roads stop short of it.
+import assert from 'node:assert/strict';
+import { WORLD } from '../src/world/world.js';
+import { MISSIONS } from '../src/game/missions.js';
+import { TOURISTS } from '../src/game/tourists.js';
+import { TOPIC_BY_ID } from '../src/world/topics.js';
+
+const road = (id) => {
+  const r = WORLD.roads.find((q) => q.id === id);
+  assert.ok(r, `road ${id} exists`);
+  return r;
+};
+const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+const nearest = (r, p) => Math.min(...r.points.map((q) => dist(q, p)));
+const gap = (a, b) => Math.min(...a.points.map((p) => nearest(b, p)));
+
+for (const [missionId, t] of Object.entries(TOURISTS)) {
+  const m = MISSIONS.find((q) => q.id === missionId);
+  assert.ok(m, `mission ${missionId} exists`);
+  const local = WORLD.locals.find((l) => l.id === t.localId);
+  assert.ok(local && local.tourist && local.onlyMission === missionId, `${t.localId} is a tourist local for ${missionId}`);
+  assert.ok(TOPIC_BY_ID[t.placeTopic], 'place topic exists');
+  assert.notEqual(t.placeTopic, m.goalTopic, 'the place is never the mission goal');
+  const town = WORLD.towns.find((q) => q.id === t.placeTown);
+  assert.ok(town, 'place town exists');
+
+  // On a road you can drive, with her car clear of it.
+  const first = road(t.choices[0].route[0]);
+  const d = nearest(first, [local.x, local.y]);
+  assert.ok(d < 8, `tourist is ${d.toFixed(1)} m from ${first.id}`);
+  const car = WORLD.landmarks.find((l) => l.kind === 'parked_car' && dist([l.x, l.y], [local.x, local.y]) < 6);
+  if (car) {
+    const cd = nearest(first, [car.x, car.y]);
+    assert.ok(cd > first.width / 2 + 0.95, `car edge clears the road (${cd.toFixed(2)} m from the middle)`);
+  }
+
+  assert.equal(t.choices.length, 3, 'three replies');
+  assert.equal(t.choices.filter((c) => c.right).length, 1, 'exactly one right reply');
+  for (const c of t.choices) {
+    const roads = c.route.map(road);
+    assert.ok(nearest(roads[0], [local.x, local.y]) < 8, `${c.id} starts at her road`);
+    for (let i = 1; i < roads.length; i++) assert.ok(gap(roads[i - 1], roads[i]) < 15, `${c.id}: ${roads[i - 1].id} meets ${roads[i].id}`);
+    const reach = nearest(roads[roads.length - 1], [town.x, town.y]);
+    if (c.right) assert.ok(reach < 60, `${c.id} reaches ${town.name} (${reach.toFixed(0)} m)`);
+    else assert.ok(reach > 200, `${c.id} stops ${reach.toFixed(0)} m short of ${town.name}`);
+  }
+  console.log(`check-tourists: ${missionId} ok`);
+}

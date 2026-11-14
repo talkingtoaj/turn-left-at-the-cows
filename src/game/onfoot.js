@@ -145,15 +145,16 @@ export function facing(w, x, y) {
 // of you. posOf(id) gives where each one stands now. Returns
 // { id, d, facing } for the closest such local, and `near` for the closest
 // local within talk range whether you face them or not.
-export function localsAround(w, locals, posOf) {
+export function localsAround(w, locals, posOf, missionId = null) {
   let talk = null;
   let near = null;
   for (const l of locals) {
+    if (l.onlyMission && l.onlyMission !== missionId) continue; // the tourist is in her own mission only
     const p = posOf(l.id) || l;
     const d = Math.hypot(p.x - w.x, p.y - w.y);
     if (d > WALK.talkR) continue;
     const f = facing(w, p.x, p.y);
-    if (!near || d < near.d) near = { id: l.id, d, facing: f };
+    if (!l.tourist && (!near || d < near.d)) near = { id: l.id, d, facing: f };
     if (f <= WALK.talkFacing && (!talk || d < talk.d)) talk = { id: l.id, d, facing: f };
   }
   return { talk, near };

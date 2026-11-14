@@ -20,6 +20,7 @@ import { stepCar } from '../src/drive/car.js';
 import { runtime } from './runtime.js';
 import { updateGame, jumpToMission, missionRegion } from '../src/game/update.js';
 import { MISSIONS, currentMission } from '../src/game/missions.js';
+import { currentMissionId } from '../src/game/tourists.js';
 import { showLoadScreen } from '../src/ui/loadScreen.js';
 import { createHUD } from './hud/hud.js';
 import { createMapOverlay } from './map/map.js';
@@ -508,7 +509,7 @@ function frame(now) {
     // Locals wander a few metres; talk range follows where they are now.
     // You talk on foot only: within 3 m, facing them (round 12).
     if (foot.active) {
-      const around = localsAround(foot.walker, WORLD.locals, personPos);
+      const around = localsAround(foot.walker, WORLD.locals, personPos, currentMissionId(state));
       state.nearLocalId = around.talk ? around.talk.id : null;
       state.nearLocalAny = around.near ? around.near.id : null;
       state.nearCar = carGap(car, foot.walker.x, foot.walker.y) <= WALK.carReach;

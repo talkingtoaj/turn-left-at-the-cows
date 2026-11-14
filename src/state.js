@@ -18,6 +18,7 @@ export const state = {
   nearRepair: null, // repair shop in reach while the car needs work (src/game/repair.js)
   nearSignBack: null, // id of a sign in range seen from behind (blank back)
   nearSignId: null, // id of a sign within reading range (25 m), set by Drive each frame
+  tourists: {}, // tourist local id -> { index, right } once answered (src/game/tourists.js), per mission
   talkedTo: new Set(), // ids of locals talked to this mission (cleared per mission)
   // On foot (round 12, src3/onfoot.js and src/game/onfoot.js).
   leg: null, // 'approach' while driving over from another region (missions.js)

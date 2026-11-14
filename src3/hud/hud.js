@@ -16,6 +16,7 @@ import { openHelp } from '../../src/ui/help.js';
 import { towedText } from '../../src/game/tow.js';
 import { mountShareStrip } from '../../src/ui/mapShare.js';
 import { rememberMyMap } from '../../src/game/myMaps.js';
+import { touristTicks } from '../../src/game/tourists.js';
 
 // The HUD (a DOM/CSS port of the old 2D HUD). Shows the dash (compass, odometer,
 // clock, speed, trip timer), road signs, mailboxes, the talk prompt, the
@@ -721,6 +722,7 @@ export function createHUD(root, { openMap } = {}) {
   // Lines for the win panel's tick list. Add a row by pushing a string here.
   function winExtras(m) {
     const rows = [];
+    if (m) rows.push(...touristTicks(state, m.id));
     return rows;
   }
 
@@ -740,7 +742,7 @@ export function createHUD(root, { openMap } = {}) {
       a.appendChild(document.createTextNode(`\u201c${m.arrival.line}\u201d`));
     }
     // Extras: green-tick rows under the arrival line, empty by default. To add
-    // one, push a line of text into winExtras(m) (e.g. the tourist, issue #27).
+    // one, push a line of text into winExtras(m) (the tourist's tick is here).
     const extras = winExtras(m);
     if (extras.length) {
       const ul = el('ul', 'hud-win-extras', panel);

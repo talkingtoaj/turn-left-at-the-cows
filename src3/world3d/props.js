@@ -4,6 +4,8 @@ import * as THREE from 'three';
 import { distToSegment, localToWorld } from '../../src/drive/geom.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { box, cyl } from './shapes.js';
+import { state } from '../../src/state.js';
+import { currentMissionId } from '../../src/game/tourists.js';
 
 // Bearing (deg, 0 = north) from a sign to the closest point on any road.
 function bearingToRoad(world, x, y) {
@@ -100,7 +102,7 @@ export function buildLocals(world, terrain, audit = null) {
   const people = [];
   const legGeos = new Map();
   world.locals.forEach((l, i) => {
-    const look = PEOPLE[i % PEOPLE.length];
+    const look = l.look || PEOPLE[i % PEOPLE.length];
     const p = new THREE.Group();
     const add = (geo, x, y, z) => {
       const m = new THREE.Mesh(geo, personMat);
@@ -131,13 +133,14 @@ export function buildLocals(world, terrain, audit = null) {
     p.position.set(l.x, terrain.heightAt(l.x, l.y), l.y);
     if (audit) audit.circle(l.id, 'local', l.x, l.y, 0.12, terrain.heightAt(l.x, l.y), terrain.heightAt(l.x, l.y));
     group.add(p);
-    people.push({ id: l.id, obj: p, x: l.x, y: l.y, yaw: 0, legs: p.children.slice(0, 2), walk: 0 });
+    people.push({ id: l.id, only: l.onlyMission || null, obj: p, x: l.x, y: l.y, yaw: 0, legs: p.children.slice(0, 2), walk: 0 });
   });
   return {
     object: group,
     // Follow the ambient wander (amb.personPos), walk with swinging legs, and
     // turn towards the car when it is close and they are standing.
     update(car, dt, amb) {
+      const missionId = currentMissionId(state);
       for (const p of people) {
         const pos = amb && amb.personPos ? amb.personPos(p.id) : null;
         if (pos) {
@@ -148,7 +151,7 @@ export function buildLocals(world, terrain, audit = null) {
         const dy = car.y - p.y;
         const far = dx * dx + dy * dy > 250 * 250;
         // Past 350 m a person is a pixel or two in the haze.
-        p.obj.visible = dx * dx + dy * dy < 350 * 350;
+        p.obj.visible = dx * dx + dy * dy < 350 * 350 && (!p.only || p.only === missionId);
         if (far) continue;
         p.obj.position.set(p.x, terrain.heightAt(p.x, p.y), p.y);
         const moving = pos && pos.moving;

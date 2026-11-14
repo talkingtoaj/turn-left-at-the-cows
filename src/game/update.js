@@ -45,6 +45,7 @@ export function startMission(state, index) {
   state.missionStart = { x: state.car.x, y: state.car.y, heading: state.car.heading };
   resetDamage(state);
   state.tows = 0;
+  state.tourists = {};
   for (const t of m.startTopics) state.knownTopics.add(t);
   const giver = m.giverNpcId ? getNpc(m.giverNpcId) : null;
   for (const text of m.brief) {

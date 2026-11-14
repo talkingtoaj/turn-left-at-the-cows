@@ -9,11 +9,12 @@
 import { WORLD_SOURCE } from './data.js';
 import { BRANDT_SOURCE } from './data_brandt.js';
 import { mergeAddons } from './addons.js';
+import { TOURIST_FENWICK } from './addons/tourist_fenwick.js';
 
 // Add-on data files per region. Add yours here, e.g.
 //   import { MASTS_FENWICK } from './addons/masts_fenwick.js';
 //   const FENWICK_ADDONS = [MASTS_FENWICK];
-const FENWICK_ADDONS = [];
+const FENWICK_ADDONS = [TOURIST_FENWICK];
 const BRANDT_ADDONS = [];
 
 export const REGIONS = {
