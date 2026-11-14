@@ -11,6 +11,8 @@
 // reveal() shows it if the player is now waiting on it.
 
 import { injectUiStyle, el } from './style.js';
+import { milesFromMetres } from '../units.js';
+import { metIds } from '../game/progress.js';
 
 const CSS = `
 .ls-shade { position: fixed; inset: 0; z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -41,17 +43,23 @@ const CSS = `
 @media (prefers-reduced-motion: reduce) { .ls-strip, .ls-map path, .ls-map circle, .ls-map rect { transition: none; } }
 `;
 
-// Things locals say. One shows per load.
+// Things locals say. One shows per load. [line, anonymous credit, speaker id,
+// credit once met]. A null id is nobody in particular, so it stays anonymous.
 const LINES = [
-  ['Oh, you can’t miss it.', 'everyone, eventually'],
-  ['Left at the cows. Or was it right? The cows move.', 'a man at the feed store'],
-  ['Past where the old mill used to be.', 'a woman walking her dog'],
-  ['It’s about ten minutes. Maybe twenty.', 'a farmer on a fence'],
-  ['Follow the road till it stops being a road.', 'the man at the pumps'],
-  ['Big red barn. Well, it was red.', 'a lady with groceries'],
-  ['If you hit the river, you went too far.', 'a boy on a bike'],
-  ['Everybody knows where that is.', 'somebody who didn’t'],
+  ['Oh, you can’t miss it.', 'everyone, eventually', null, null],
+  ['Left at the cows. Or was it right? The cows move.', 'a man at the feed store', 'gus', 'Gus, at the store'],
+  ['Past where the old mill used to be.', 'a woman walking her dog', 'mabel', 'Mabel, out walking'],
+  ['It’s about ten minutes. Maybe twenty.', 'a farmer on a fence', 'ade', 'Ade, on the fence'],
+  ['Follow the road till it stops being a road.', 'the man at the pumps', 'earl', 'Earl, at the pumps'],
+  ['Big red barn. Well, it was red.', 'a lady with groceries', 'ames', 'Mrs Ames, with the groceries'],
+  ['If you hit the river, you went too far.', 'a boy on a bike', null, null],
+  ['Everybody knows where that is.', 'somebody who didn’t', null, null],
 ];
+
+// Credit for a quote: the name once the player has met the speaker.
+export function creditFor([, anon, id, named], met = metIds()) {
+  return id && named && met.includes(id) ? named : anon;
+}
 
 let styled = false;
 
@@ -110,7 +118,7 @@ function odometer(parent) {
     for (let n = 0; n <= 9; n++) el('span', null, strip, String(n));
     strips.push(strip);
   }
-  el('span', null, box, 'KM');
+  el('span', null, box, 'MI');
   return (value) => {
     // value 0..100.0 shown as three digits and a tenth.
     const v = Math.round(Math.max(0, Math.min(999.9, value)) * 10);
@@ -145,9 +153,9 @@ export function showLoadScreen({ title = '', region = '', kicker = 'On the road 
     m.style.strokeDashoffset = '1';
   }
   const setOdo = odometer(shade);
-  const [line, who] = LINES[Math.floor(Math.random() * LINES.length)];
-  const q = el('p', 'ls-quote', shade, `“${line}”`);
-  el('small', null, q, who);
+  const pick = LINES[Math.floor(Math.random() * LINES.length)];
+  const q = el('p', 'ls-quote', shade, `“${pick[0]}”`);
+  el('small', null, q, creditFor(pick));
   const note = el('div', 'ls-note', shade, '');
 
   // Marks draw one after another as the load goes on.
@@ -165,7 +173,7 @@ export function showLoadScreen({ title = '', region = '', kicker = 'On the road 
       draw(p);
       const moo = sheet.querySelector('.ls-moo');
       if (moo) moo.setAttribute('opacity', p > 0.9 ? '1' : '0');
-      setOdo(p * 100);
+      setOdo(milesFromMetres(p * 100000));
       if (text !== undefined) note.textContent = text;
     },
     reveal() {
