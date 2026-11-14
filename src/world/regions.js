@@ -10,12 +10,14 @@ import { WORLD_SOURCE } from './data.js';
 import { BRANDT_SOURCE } from './data_brandt.js';
 import { mergeAddons } from './addons.js';
 import { COWS_BRANDT } from './addons/cows_brandt.js';
+import { BOARDS_FENWICK } from './addons/boards_fenwick.js';
+import { BOARDS_BRANDT } from './addons/boards_brandt.js';
 
 // Add-on data files per region. Add yours here, e.g.
 //   import { MASTS_FENWICK } from './addons/masts_fenwick.js';
 //   const FENWICK_ADDONS = [MASTS_FENWICK];
-const FENWICK_ADDONS = [];
-const BRANDT_ADDONS = [COWS_BRANDT];
+const FENWICK_ADDONS = [BOARDS_FENWICK];
+const BRANDT_ADDONS = [COWS_BRANDT, BOARDS_BRANDT];
 
 export const REGIONS = {
   // Fenwick County: Ashford, Millbrook, Calder (missions 1 and 2). 6.5 x 3.2 km.
