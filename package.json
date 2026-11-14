@@ -13,7 +13,14 @@
     "check:blockers": "node tools/check-fallen.mjs",
     "check:traffic": "node tools/check-traffic.mjs",
     "check:radiosubs": "node tools/check-radio-subs.mjs",
-    "radio:bake": "node tools/radio-bake.mjs"
+    "radio:bake": "node tools/radio-bake.mjs",
+    "check:units": "node tools/check-units.mjs",
+    "check:signs": "node tools/check-sign-text.mjs",
+    "check:radio": "node tools/check-radio.mjs",
+    "check:radio-logic": "node tools/check-radio-logic.mjs",
+    "check:clock": "node tools/check-clock.mjs",
+    "check:tourists": "node tools/check-tourists.mjs",
+    "check:all": "npm run -s check:world && npm run -s check:units && npm run -s check:signs && npm run -s check:radio && npm run -s check:radio-logic && npm run -s check:radiosubs && npm run -s check:clock && npm run -s check:tourists"
   },
   "dependencies": {
     "three": "^0.186.1"
