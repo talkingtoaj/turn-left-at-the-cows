@@ -37,9 +37,37 @@ export function regionWorld(id) {
 export let WORLD = regionWorld(DEFAULT_REGION);
 export let REGION = DEFAULT_REGION;
 
-// Makes region `id` the current WORLD. Returns it.
-export function setRegion(id) {
-  WORLD = regionWorld(id);
+// Landmarks that belong to one mission only (`onlyMission`, issue 28: each
+// tourist's parked car). A region is built once with all of them; the world
+// the game plays on drops the ones from other missions. worldKey() names that
+// variant: the region id, plus the mission id when the region has landmarks
+// of that mission. Compare keys, not region ids, to know if a mission needs a
+// rebuild.
+export function worldKey(id, missionId = null) {
+  const r = REGIONS[id];
+  const mine = missionId && r && (r.source.landmarks || []).some((l) => l.onlyMission === missionId);
+  return mine ? `${id}:${missionId}` : id;
+}
+
+const variants = new Map();
+function variantWorld(id, missionId) {
+  const key = worldKey(id, missionId);
+  const full = regionWorld(id);
+  if (!full.landmarks.some((l) => l.onlyMission)) return full;
+  let w = variants.get(key);
+  if (!w) {
+    const mine = key === id ? null : missionId;
+    w = { ...full, landmarks: full.landmarks.filter((l) => !l.onlyMission || l.onlyMission === mine) };
+    variants.set(key, w);
+  }
+  return w;
+}
+
+// Makes region `id` the current WORLD. Returns it. With a missionId, the
+// landmarks of other missions are left out (see worldKey). Without one, all
+// of them are in (dev tools and checks).
+export function setRegion(id, missionId = undefined) {
+  WORLD = missionId === undefined ? regionWorld(id) : variantWorld(id, missionId);
   REGION = id;
   return WORLD;
 }

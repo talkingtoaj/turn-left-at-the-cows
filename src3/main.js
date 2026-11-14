@@ -12,14 +12,14 @@ import * as THREE from 'three';
 import { learnMentions, learnNearby } from '../src/game/dialogue.js';
 import { repairNear, needsRepair } from '../src/game/repair.js';
 import { trackRegion, collectKeep, disposeTracked } from './gpuTracker.js';
-import { WORLD, setRegion, REGIONS } from '../src/world/world.js';
+import { WORLD, setRegion, worldKey, REGIONS } from '../src/world/world.js';
 import { GAME_MIN_PER_MS } from '../src/game/clock.js';
 import { state } from '../src/state.js';
 import { generateScenery } from '../src/drive/layout.js';
 import { Collider } from '../src/drive/collider.js';
 import { stepCar } from '../src/drive/car.js';
 import { runtime } from './runtime.js';
-import { updateGame, jumpToMission, missionRegion } from '../src/game/update.js';
+import { updateGame, jumpToMission, missionRegion, missionWorldKey } from '../src/game/update.js';
 import { MISSIONS, currentMission } from '../src/game/missions.js';
 import { currentMissionId } from '../src/game/tourists.js';
 import { showLoadScreen } from '../src/ui/loadScreen.js';
@@ -118,6 +118,7 @@ const audio = createAudio(WORLD, { weather: true });
 
 // The current region's pieces (rebuilt by loadRegion).
 let regionId = null;
+let builtKey = null; // which variant of the region is built (worldKey): a mission's own tourist car shows only in its mission
 let scene = null;
 let scenery = null;
 let collider = null;
@@ -161,9 +162,9 @@ function disposeRegion() {
 // Loads run one after another; the main loop waits until none is left.
 // quiet: build behind the start screen with the load screen hidden (it is
 // revealed if the player starts while it is still going).
-function loadRegion(id, title, { quiet = false } = {}) {
+function loadRegion(id, title, { quiet = false, missionId = null } = {}) {
   loading++;
-  const run = () => buildRegion(id, title, quiet).finally(() => {
+  const run = () => buildRegion(id, title, quiet, missionId).finally(() => {
     loading--;
     last = performance.now();
   });
@@ -171,7 +172,7 @@ function loadRegion(id, title, { quiet = false } = {}) {
   return loadChain;
 }
 
-async function buildRegion(id, title, quiet = false) {
+async function buildRegion(id, title, quiet = false, missionId = null) {
   const t0 = performance.now();
   const ls = showLoadScreen({ title, region: REGIONS[id] ? REGIONS[id].name : id, hidden: quiet && !started });
   currentLs = ls;
@@ -183,8 +184,9 @@ async function buildRegion(id, title, quiet = false) {
     await step(0.02, 'Folding the old map away');
     const freed = disposeRegion();
     await step(0.08, 'Reading the county records');
-    setRegion(id);
+    setRegion(id, missionId);
     regionId = id;
+    builtKey = worldKey(id, missionId);
     gpuSet = trackRegion();
     audio.setWorld(WORLD);
     const devParams = firstLoad ? params : new URLSearchParams([...params].filter(([k]) => k !== 'spot' && k !== 'fallen'));
@@ -270,14 +272,14 @@ let following = false;
 async function followMission() {
   const m = currentMission(state);
   const want = missionRegion(state, m);
-  if (!m || want === regionId || following) return;
+  if (!m || missionWorldKey(state, m) === builtKey || following) return;
   following = true;
   runtime.paused = true;
   try {
     const crossed = m.approach && state.leg !== 'approach';
     // Over the county line you keep the speed you crossed it at.
     const speed = crossed ? state.car.speed : 0;
-    await loadRegion(want, crossed ? m.approach.crossing : m.title);
+    await loadRegion(want, crossed ? m.approach.crossing : m.title, { missionId: m.id });
     const at = state.leg === 'approach' ? m.approach.start : m.start;
     Object.assign(state.car, at, { speed });
     state.missionStart = { ...at };
@@ -429,7 +431,7 @@ function frame(now) {
   }
   // A finished mission handed over to one in another region: load it.
   const cm = currentMission(state);
-  if (cm && missionRegion(state, cm) !== regionId && !state.won) {
+  if (cm && missionWorldKey(state, cm) !== builtKey && !state.won) {
     followMission();
     return;
   }
@@ -820,8 +822,8 @@ export async function preloadMenu(index = 0, { live = true, still = false, rect 
   // A mission with an approach leg starts in that leg's region.
   const region0 = m.approach ? m.approach.region : m.region;
   const start0 = m.approach ? m.approach.start : m.start;
-  await loadRegion(region0, m.title, { quiet: true });
-  if (started || !live || regionId !== region0) return;
+  await loadRegion(region0, m.title, { quiet: true, missionId: m.id });
+  if (started || !live || builtKey !== worldKey(region0, m.id)) return;
   // The weather follows this mission's timeline (startGame sets it properly).
   state.missionIndex = index;
   menu = { at: { x: start0.x, y: start0.y }, yaw0: (start0.heading || 0) * (Math.PI / 180), t: 0, frames: 0, still, rect, onReady };
@@ -880,7 +882,7 @@ export async function startGame(index = 0) {
     Object.assign(state.car, m.start, { speed: 0 });
   }
   await loadChain;
-  if (missionRegion(state, m) !== regionId) await loadRegion(missionRegion(state, m), m.title);
+  if (missionWorldKey(state, m) !== builtKey) await loadRegion(missionRegion(state, m), m.title, { missionId: m.id });
   exitMenu();
   foot.reset();
   state.onFoot = false;
@@ -902,5 +904,5 @@ async function playMission(idOrIndex) {
   if (i < 0) return;
   jumpToMission(state, i);
   const want = missionRegion(state, MISSIONS[i]);
-  if (want !== regionId) await loadRegion(want, MISSIONS[i].title);
+  if (missionWorldKey(state, MISSIONS[i]) !== builtKey) await loadRegion(want, MISSIONS[i].title, { missionId: MISSIONS[i].id });
 }

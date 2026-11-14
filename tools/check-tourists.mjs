@@ -1,15 +1,16 @@
-// Checks each mission's tourist against the world data (src/game/tourists.js).
+// Checks each mission's tourist (in the mission's own region) against the world data (src/game/tourists.js).
 //   node tools/check-tourists.mjs
 // For each tourist: she exists as a flagged local on a drivable spot, her car
 // is off the road, the wanted place is not the mission goal, exactly one reply
 // is right, the right reply's roads join up and reach the place, and every
 // wrong reply's roads stop short of it.
 import assert from 'node:assert/strict';
-import { WORLD } from '../src/world/world.js';
+import { regionWorld } from '../src/world/world.js';
 import { MISSIONS } from '../src/game/missions.js';
 import { TOURISTS } from '../src/game/tourists.js';
 import { TOPIC_BY_ID } from '../src/world/topics.js';
 
+let WORLD = null; // the mission's region, set per tourist
 const road = (id) => {
   const r = WORLD.roads.find((q) => q.id === id);
   assert.ok(r, `road ${id} exists`);
@@ -22,12 +23,13 @@ const gap = (a, b) => Math.min(...a.points.map((p) => nearest(b, p)));
 for (const [missionId, t] of Object.entries(TOURISTS)) {
   const m = MISSIONS.find((q) => q.id === missionId);
   assert.ok(m, `mission ${missionId} exists`);
+  WORLD = regionWorld(m.region);
   const local = WORLD.locals.find((l) => l.id === t.localId);
   assert.ok(local && local.tourist && local.onlyMission === missionId, `${t.localId} is a tourist local for ${missionId}`);
   assert.ok(TOPIC_BY_ID[t.placeTopic], 'place topic exists');
   assert.notEqual(t.placeTopic, m.goalTopic, 'the place is never the mission goal');
-  const town = WORLD.towns.find((q) => q.id === t.placeTown);
-  assert.ok(town, 'place town exists');
+  const town = t.placeAt ? { name: t.placeName, x: t.placeAt[0], y: t.placeAt[1] } : WORLD.towns.find((q) => q.id === t.placeTown);
+  assert.ok(town, 'place exists');
 
   // On a road you can drive, with her car clear of it.
   const first = road(t.choices[0].route[0]);
@@ -49,5 +51,7 @@ for (const [missionId, t] of Object.entries(TOURISTS)) {
     if (c.right) assert.ok(reach < 60, `${c.id} reaches ${town.name} (${reach.toFixed(0)} m)`);
     else assert.ok(reach > 200, `${c.id} stops ${reach.toFixed(0)} m short of ${town.name}`);
   }
+  // Her car belongs to her mission only: no other mission's build has it.
+  if (car) assert.equal(car.onlyMission, missionId, 'the car is only in her mission');
   console.log(`check-tourists: ${missionId} ok`);
 }

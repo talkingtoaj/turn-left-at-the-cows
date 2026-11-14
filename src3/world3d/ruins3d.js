@@ -247,10 +247,12 @@ function parkedCar(terrain, batch, l) {
   P(box(1.9, 0.14, 0.14), 0, 2.3, 0.4, 0xc8c8c4);
   P(box(0.5, 0.14, 0.02), 0, 2.32, 0.62, 0xe4dfcc, { cast: false }); // plate
   for (const s of [-1, 1]) P(box(0.3, 0.14, 0.05), s * 0.6, -2.3, 0.75, 0xfff3d0, { cast: false });
-  // Roof rack and a suitcase strapped on.
-  P(box(1.4, 0.05, 1.8), 0, 0.5, 1.53, 0x2a2a2a);
-  P(box(1.1, 0.42, 0.8), 0, 0.5, 1.58, 0xd9703c);
-  P(box(1.12, 0.06, 0.1), 0, 0.5, 1.8, 0x6a3a22);
+  // Roof rack and a suitcase strapped on (`rack: false` leaves the roof bare).
+  if (l.rack !== false) {
+    P(box(1.4, 0.05, 1.8), 0, 0.5, 1.53, 0x2a2a2a);
+    P(box(1.1, 0.42, 0.8), 0, 0.5, 1.58, 0xd9703c);
+    P(box(1.12, 0.06, 0.1), 0, 0.5, 1.8, 0x6a3a22);
+  }
   return true;
 }
 

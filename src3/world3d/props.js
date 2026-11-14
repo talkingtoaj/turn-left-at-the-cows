@@ -168,6 +168,9 @@ export function buildLocals(world, terrain, audit = null) {
     } else {
       body.push([box(0.4, 0.06, 0.5), 0x2a2a2a, 0, 1.79, -0.12]); // cap peak
     }
+    // Something in the hand or round the neck (tourists, issue 28).
+    if (l.carry === 'briefcase') body.push([box(0.12, 0.3, 0.42), 0x4a2f1c, 0.5, 0.5, 0.04]);
+    if (l.carry === 'binoculars') body.push([box(0.3, 0.1, 0.12), 0x1c1c1c, 0, 1.35, 0.2]);
     add(mergeParts(body), 0, 0, 0);
     p.position.set(l.x, terrain.heightAt(l.x, l.y), l.y);
     if (audit) audit.circle(l.id, 'local', l.x, l.y, 0.12, terrain.heightAt(l.x, l.y), terrain.heightAt(l.x, l.y));
