@@ -113,9 +113,20 @@ export function mapSVG({ missions, done, next }) {
   });
 
   return `<svg class="sp-mapsvg" viewBox="0 0 820 470" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
-  <text class="mp-title" x="30" y="44">ASHFORD COUNTY</text>
+  <defs><filter id="mp-ink" x="-5%" y="-10%" width="110%" height="120%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7" result="n"/>
+    <feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -2.6 2.1" result="holes"/>
+    <feComposite in="SourceGraphic" in2="holes" operator="in"/>
+  </filter></defs>
+  <text class="mp-title" x="30" y="44">RURAL ROUTE 3 \u00b7 ASHFORD</text>
   <text class="mp-sub" x="32" y="62">AND ROUND ABOUT · NOT TO SCALE</text>
   <g fill="none" stroke-linecap="round" stroke-linejoin="round">${out.join('')}</g>
+  <g class="mp-stamp" transform="translate(636 62) rotate(-6) scale(1.2)" filter="url(#mp-ink)">
+    <rect x="-84" y="-17" width="168" height="34" rx="3" fill="none" stroke-width="3"/>
+    <rect x="-79" y="-12" width="158" height="24" rx="2" fill="none" stroke-width="1"/>
+    <text x="0" y="6" text-anchor="middle">CORRECT AS OF 1987</text>
+  </g>
+  <text class="mp-ha" x="676" y="106" transform="rotate(-6 676 106)">ha.</text>
   <g class="mp-north" transform="translate(782 64)"><path d="M0,22 L0,-18 M-6,-9 L0,-18 L6,-9"/><text x="-5" y="38">N</text></g>
 </svg>`;
 }
