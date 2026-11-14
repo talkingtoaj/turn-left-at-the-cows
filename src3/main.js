@@ -335,9 +335,9 @@ window.addEventListener('keydown', (e) => {
     runtime.cameraMode = runtime.cameraMode === 'top' ? 'chase' : 'top';
   } else if (e.code === 'KeyN' && plain) {
     state.view.northUp = !state.view.northUp;
-  } else if (e.code === 'KeyT' && plain) {
+  } else if (e.code === 'KeyT' && plain && !menu) {
     radio.toggle();
-  } else if ((e.code === 'Comma' || e.code === 'Period') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+  } else if (!menu && (e.code === 'Comma' || e.code === 'Period') && !e.ctrlKey && !e.metaKey && !e.altKey) {
     // Tune the radio: 10 kHz a step, 50 with Shift. Held keys keep stepping.
     radio.tune((e.code === 'Comma' ? -1 : 1) * (e.shiftKey ? 50 : 10));
   }
@@ -829,6 +829,7 @@ export async function preloadMenu(index = 0, { live = true, still = false, rect 
   if (started || !live || regionId !== region0) return;
   // The weather follows this mission's timeline (startGame sets it properly).
   state.missionIndex = index;
+  radio.setOn(false); // the start screen is quiet; the player turns it on again when driving
   menu = { at: { x: start0.x, y: start0.y }, yaw0: (start0.heading || 0) * (Math.PI / 180), t: 0, frames: 0, still, rect, onReady };
   car3d.object.visible = false;
   exposeDebug();

@@ -121,7 +121,10 @@ export function nextUnfinishedIndex(list = MISSION_LIST) {
 export function clearProgress() {
   try {
     const s = storage();
-    if (s) s.removeItem(PROGRESS_KEY);
+    if (s) {
+      s.removeItem(PROGRESS_KEY);
+      s.removeItem(MET_KEY);
+    }
   } catch (e) {
     // blocked: nothing saved anyway
   }
