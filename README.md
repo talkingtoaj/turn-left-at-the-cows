@@ -64,7 +64,9 @@ The first version of the game was a prototype made on 15 and 16 Oct 2026, before
 
 ## Credits
 
-- Design, music, radio voices and review of every line of dialogue: AJ.
-- Code and first drafts of the text: written with Claude (Anthropic).
+- Design, music and review of every line of dialogue: AJ.
+- Code and first drafts of the text: written with Claude (Anthropic). Radio script drafts: Claude, GPT and Grok.
+- Radio DJ voices, the locals' mumbling voices and some sound effects: made with ElevenLabs.
+- Some textures and signs: made with Google's Gemini image model.
 - Skies: Poly Haven (CC0). Textures: ambientCG (CC0). Trees and rocks: Quaternius (CC0). Sound effects: many Freesound artists (CC0), named in `public/sounds/SOURCES.md`.
 - Built with three.js and Vite.

@@ -67,7 +67,7 @@ I was toying with the idea of a driving game back in October, but didn't know wh
 
 ## How AI was used
 
-I used AI for this game. The code and the first drafts of the text were written with Claude. I read and reviewed every line of dialogue myself, and only lines I approved are in the game. I made the music and the radio voices myself. Some textures and signs were made with image tools. Sound effects and skies come from free CC0 sources, listed in the credits.
+I used AI for this game. Claude wrote the code and the first drafts of the text. I read every line of dialogue myself, and only lines I approved are in the game. The radio scripts were drafted with Claude, GPT and Grok, and the radio DJ voices were made with ElevenLabs. So were the locals' mumbling voices and some sound effects (engine, tires, town). A few textures and signs were made with Google's Gemini image model. I made the music. The rest of the sounds, the skies and the 3D models are free CC0 assets, listed in the credits.
 
 ## Credits and license
 

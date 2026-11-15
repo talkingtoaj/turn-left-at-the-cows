@@ -163,7 +163,7 @@ gcloud iam service-accounts add-iam-policy-binding $RUN_SA --project=$PROJECT \
 #    The site key is public; it is passed as a substitution.
 gcloud builds triggers create github --project=$PROJECT \
   --name="turn-left-at-the-cows-deploy" \
-  --repo-name="orienteering-game" --repo-owner="talkingtoaj" \
+  --repo-name="turn-left-at-the-cows" --repo-owner="talkingtoaj" \
   --branch-pattern="^main$" --build-config="cloudbuild.yaml" \
   --substitutions=_TURNSTILE_SITE_KEY="$(grep '^TURNSTILE_SITE_KEY=' ~/.env | cut -d= -f2- | tr -d '"')"
 #    (Add --service-account=projects/$PROJECT/serviceAccounts/$BUILD_SA if your
@@ -187,7 +187,7 @@ this size. Cloud Run scales to zero.
 `.github/workflows/deploy.yml` runs `cloudbuild.yaml` with `gcloud builds submit` on
 every push to main. It signs in as `turn-left-at-the-cows-deploy@lifebalance-nuxt`
 through the Workload Identity pool `github-pool` (provider `github`), limited to the
-repo `talkingtoaj/orienteering-game`; no keys are stored. The public Turnstile site
+repo `talkingtoaj/turn-left-at-the-cows` (moved from `talkingtoaj/orienteering-game` on 15 Nov 2026); no keys are stored. The public Turnstile site
 key is the repo variable `TURNSTILE_SITE_KEY`. One-time setup: create that service
 account (Cloud Build editor, Service Usage consumer, object admin on
 `gs://lifebalance-nuxt_cloudbuild`), the pool and provider, and give the repo
