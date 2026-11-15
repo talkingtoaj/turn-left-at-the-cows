@@ -226,3 +226,11 @@ export function touristTicks(state, missionId) {
   const done = t && state.tourists[t.localId];
   return done ? [t.choices[done.index].tick] : [];
 }
+
+// Whether this mission's tourist got the right way in this run (for the
+// all-player "including helping the tourist" record, src/net/records.js).
+export function touristHelped(state, missionId) {
+  const t = TOURISTS[missionId];
+  const done = t && state.tourists && state.tourists[t.localId];
+  return !!(done && done.right);
+}

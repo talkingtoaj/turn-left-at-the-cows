@@ -40,6 +40,8 @@ API at the same time, run the server as above and `API_PROXY=http://localhost:87
 | `ACTIONS_PER_HOUR` | 120 | Votes + reports per IP per hour |
 | `UPLOADS_PER_HOUR_TOTAL` | 300 | Shares per hour for the whole instance (a cost cap) |
 | `HIDE_AFTER_REPORTS` | 3 | Reports from different players that hide a map |
+| `RECORDS_PREFIX` | `records/` | Folder in the bucket for the all-player records |
+| `FINISHES_PER_HOUR` | 30 | Record submissions per IP per hour |
 
 ## API
 
@@ -52,6 +54,8 @@ API at the same time, run the server as above and `API_PROXY=http://localhost:87
 | `POST /api/maps` | Share: `{mission, region, seed, gameVersion, timeMs, km, tows, nickname, sketch, player, turnstileToken}` |
 | `POST` / `DELETE /api/maps/{mission}/{id}/vote` | Thumbs-up on / off: `{player}` |
 | `POST /api/maps/{mission}/{id}/report` | Report: `{player}` |
+| `GET /api/records` | All-player records: `{records: {m1_parcel: {best, tourist}, ...}}`, times in ms or null |
+| `POST /api/records` | A finish: `{mission, ms, tourist}`; answers that mission's `{best, tourist, new}` |
 | `GET /api/admin/maps?mission=m1_parcel[&hidden_only=false]` | Admin: hidden maps |
 | `POST /api/admin/maps/{mission}/{id}/unhide` (or `/hide`) | Admin |
 
@@ -80,6 +84,22 @@ clicks on different maps never clash, the voter list makes "one thumbs-up per
 player" exact, and there is no index to keep in step. Listing a mission lists
 its objects (names and generations) and reads only the ones whose generation
 changed since this instance last read them; the list is cached 3 s.
+
+## All-player records
+
+`mapshare/records.py`. One small object per mission,
+`gs://turn-left-at-the-cows-maps/records/<mission>.json`, holding only the
+fastest finish (`best`) and the fastest finish where the player sent the
+tourist the right way (`tourist`), each `{ms, at}`. Nothing about the player
+is kept. A finish rewrites the object only when it beats a record, with the
+same compare-and-swap as votes. Reads are cached 10 s per instance.
+
+Junk checks (the client is still trusted for the time; this is not
+cheat-proof): the mission must be one the game has; `ms` must be a whole
+number between that mission's floor (a straight line from start to goal at
+the car's top speed, see `MIN_MS`) and six hours; `tourist` must be a
+boolean; 30 finishes per IP per hour. Add a line to `MIN_MS` when a mission
+is added, or its finishes are refused.
 
 ## Safety
 
