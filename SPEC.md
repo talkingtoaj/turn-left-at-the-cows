@@ -343,7 +343,7 @@ Source: `docs/reviews/2026-11-14-critic-round-2-whimsy.md`, the owner's 1 to 5 r
 - **Voices.** Real English on air, with subtitles. Locals you can meet come on air only rarely (about one guest spot per station), talking their usual gibberish with no subtitle while the DJ answers as if it all made sense; the DJ's reply can carry a small clue.
 - **Rules.** A station names only its own home town and never gives a live "here" report. No music anywhere except the radio; never background music by area.
 - **AM sound baked in.** A tool turns the owner's files into AM-radio quality before they ship (band-pass about 300 to 3400 Hz, mono, low sample rate, low bit rate), which also makes them small. The game adds static and weak-signal muffling live. The full-quality masters stay outside `public/`.
-- **Streamed, not preloaded.** Only the tuned station loads, one segment at a time with the next fetched in the background. Stations keep their own time, so tuning back finds the station moved on.
+- **Streamed, not preloaded.** Only a station you can hear loads, one segment at a time with the next fetched in the background. Losing it (signal buried in static for 1 second, tuned away, or radio off) stops it. Getting it back after 5 seconds or more picks up 3 seconds into the next item (1 second for talk); a shorter gap carries on as if it kept playing. Each mission starts every station at the start of a random item.
 
 **Tourist**
 - One per mission at a fixed spot, easy to miss and sometimes off the main way: an easter egg. They ask the way to a place that is never the mission's goal. Three replies written the way locals talk, at least two of them sounding right.

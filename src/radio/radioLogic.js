@@ -1,7 +1,8 @@
 // Radio maths with no browser in it (safe to import from node checks).
 // The player (./radio.js) uses these; tools/check-radio-logic.mjs tests them.
 //
-//   stationClock(station, t)   which segment is on air at t seconds, and how far in
+//   startPosition / advance / resumeAfterGap   where a station is in its loop (see below)
+//   hearStep(state, clear, dt) when a station counts as heard (hysteresis)
 //   nextSegment(station, seg)  the one after it in the rotation
 //   signalAt(distanceM)        0..1, how strong a mast is this far away
 //   tuneQuality(freq, stFreq)  0..1, how well the dial sits on a station
@@ -77,23 +78,57 @@ export function loopLength(station) {
   return loopOf(station).length;
 }
 
-// Each station keeps its own clock: seconds since the game started, plus a
-// private head start so the two stations are never at the same point.
-export function stationPhase(station) {
-  let h = 0;
-  for (const c of station.id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  return (h % 997) * 3.7;
+// A station's place in its loop is { index, offset }: which item of the rotation
+// and how many seconds into it. It only moves while the station is heard.
+export const segmentAt = (station, pos) => loopOf(station).segs[pos.index];
+
+// A mission starts each station at the start of a random item. rand is
+// Math.random in the game and a fixed function in the checks.
+export function startPosition(station, rand = Math.random) {
+  const n = loopOf(station).segs.length;
+  return { index: Math.min(n - 1, Math.floor(rand() * n)), offset: 0 };
 }
 
-export function stationClock(station, tSec) {
-  const { segs, length } = loopOf(station);
-  let t = (((tSec + stationPhase(station)) % length) + length) % length;
-  for (let i = 0; i < segs.length; i++) {
-    if (t < segs[i].seconds) return { index: i, segment: segs[i], offset: t, remaining: segs[i].seconds - t };
-    t -= segs[i].seconds;
+// Move forward dt seconds, rolling into the next item (and from the last back
+// to the first) when one ends.
+export function advance(station, pos, dt) {
+  const { segs } = loopOf(station);
+  let index = pos.index;
+  let offset = pos.offset + Math.max(0, dt);
+  for (let guard = 0; offset >= segs[index].seconds && guard < 10000; guard++) {
+    offset -= segs[index].seconds;
+    index = (index + 1) % segs.length;
   }
-  const last = segs.length - 1;
-  return { index: last, segment: segs[last], offset: 0, remaining: segs[last].seconds };
+  return { index, offset };
+}
+
+// A short gap is as if it kept playing. A longer one lands in the item after
+// the one that was playing, a little way in (music and jingles 3 s, talk 1 s).
+export const GAP_CARRY_ON = 5;
+export const RESUME_IN_MUSIC = 3;
+export const RESUME_IN_TALK = 1;
+export function resumeAfterGap(station, pos, gapSec) {
+  if (gapSec < GAP_CARRY_ON) return advance(station, pos, gapSec);
+  const { segs } = loopOf(station);
+  const index = (pos.index + 1) % segs.length;
+  const seg = segs[index];
+  const into = seg.spoken ? RESUME_IN_TALK : RESUME_IN_MUSIC;
+  return { index, offset: Math.min(into, seg.seconds / 2) };
+}
+
+// Heard = radio on, dial on the station, and clear (signal x dial quality)
+// high enough. At clear 0.1 the voice is about 16% against static at 0.38 and
+// the muffle is near 1.3 kHz, so it is mostly buried. Lost when clear stays
+// under HEAR_LOST for HEAR_LOST_AFTER seconds, back at HEAR_BACK or more (the
+// gap between the two stops flicker at the edge).
+export const HEAR_LOST = 0.1;
+export const HEAR_BACK = 0.14;
+export const HEAR_LOST_AFTER = 1;
+export function hearStep(state, clear, dt) {
+  if (!state.heard) return { heard: clear >= HEAR_BACK, lowFor: 0 };
+  if (clear >= HEAR_LOST) return { heard: true, lowFor: 0 };
+  const lowFor = state.lowFor + dt;
+  return { heard: lowFor < HEAR_LOST_AFTER, lowFor };
 }
 
 export function nextSegment(station, seg) {

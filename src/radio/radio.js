@@ -18,16 +18,21 @@
 // The same event is also sent on window as the 'radio-segment' CustomEvent
 // (detail = the event above), and 'radio-off' when the tuned segment stops.
 //
-// Streaming: only the tuned station loads. The current segment and the next one
-// are fetched, one file each. Every station has its own clock (see
-// ./radioLogic.js), so tuning away and back finds it moved on. A missing file
-// (404) is dead air: quiet static for its listed length, then on to the next.
+// Streaming: only a station you can hear loads. The current segment and the next
+// one are fetched, one file each. Heard means the radio is on, the dial is on the
+// station and the signal is not buried in static (see hearStep in ./radioLogic.js).
+// Each station keeps its own place in its loop and that only moves while it is
+// heard. When you lose it nothing streams. When you get it back after a gap of
+// 5 seconds or more it picks up a little way into the item after the one that
+// was playing, so you never come back to a station that moved on without you.
+// A missing file (404) is dead air: quiet static for its listed length, then on
+// to the next.
 
 import { sharedAudioContext, unlockAudio, isMuted } from '../audio/context.js';
 import { REGIONS } from '../world/regions.js';
 import {
   STATIONS, DIAL_MIN, DIAL_MAX, DIAL_STEP, globalPos, signalAt, tuneQuality, mixFor,
-  stationClock, nextSegment,
+  nextSegment, segmentAt, startPosition, advance, resumeAfterGap, hearStep,
 } from './radioLogic.js';
 import { radioAudioUrl } from './segments.js';
 
@@ -51,7 +56,9 @@ function findMasts() {
   return out;
 }
 
-export function createRadio() {
+// opts.random: a function giving 0..1 for each station's starting item (tests pass a fixed one).
+export function createRadio(opts = {}) {
+  const random = opts.random || Math.random;
   const masts = findMasts();
   let ctx = null;
   let nodes = null;
@@ -73,8 +80,19 @@ export function createRadio() {
   let tuned = null; // station on the dial, or null
   let untunedFor = 0;
   let lastQuality = 0;
-
+  // Each station's place in its loop, and when it was last heard (null = never).
+  const pos = {};
+  const lostAt = {};
+  let hear = { station: null, heard: false, lowFor: 0 }; // the station being heard now
   const clockSeconds = () => (performance.now() - t0) / 1000;
+  function resetPositions() {
+    for (const st of STATIONS) {
+      pos[st.id] = startPosition(st, random);
+      lostAt[st.id] = null;
+    }
+    hear = { station: null, heard: false, lowFor: 0 };
+  }
+  resetPositions();
 
   // ------------------------------------------------------------ sound graph
   function noiseBuffer() {
@@ -161,7 +179,7 @@ export function createRadio() {
 
   function dropOldFiles() {
     for (const [id, e] of cache) {
-      if (e.state === 'ready' && !(active && active.segment.id === id) && !(tuned && wanted.has(id))) cache.delete(id);
+      if (e.state === 'ready' && !(active && active.segment.id === id) && !wanted.has(id)) cache.delete(id);
     }
   }
   const wanted = new Set();
@@ -201,28 +219,53 @@ export function createRadio() {
     window.dispatchEvent(new CustomEvent('radio-segment', { detail: ev }));
   }
 
-  // Keep the tuned station's sound in step with its clock.
+  // Keep the heard station's sound in step with its place in the loop.
   function follow(st) {
-    const c = stationClock(st, clockSeconds());
+    const p = pos[st.id];
+    const seg = segmentAt(st, p);
+    const next = nextSegment(st, seg);
     wanted.clear();
-    wanted.add(c.segment.id);
-    const next = nextSegment(st, c.segment);
+    wanted.add(seg.id);
     wanted.add(next.id);
-    if (!active || active.station !== st || active.segment !== c.segment) {
+    if (!active || active.station !== st || active.segment !== seg) {
       stopActive();
-      active = { station: st, segment: c.segment, src: null, dead: false };
+      active = { station: st, segment: seg, src: null, dead: false };
       dropOldFiles(); // only this one and the next stay loaded
-      const entry = fetchSegment(c.segment);
+      const entry = fetchSegment(seg);
       emit({
-        station: st, segment: c.segment, offset: c.offset, signal: signals[st.id], quality: lastQuality,
+        station: st, segment: seg, offset: p.offset, signal: signals[st.id], quality: lastQuality,
         dead: entry.state === 'dead',
       });
     }
-    const entry = cache.get(c.segment.id) || fetchSegment(c.segment);
-    if (entry.state === 'ready') startSource(entry, c.offset);
+    const entry = cache.get(seg.id) || fetchSegment(seg);
+    if (entry.state === 'ready') startSource(entry, p.offset);
     else if (entry.state === 'dead') active.dead = true;
     // The next one, ready before it is needed.
     fetchSegment(next);
+  }
+
+  // The station is not heard any more: stop it and keep only what it resumes on.
+  function lose(st) {
+    stopActive();
+    lostAt[st.id] = clockSeconds();
+    wanted.clear();
+    wanted.add(nextSegment(st, segmentAt(st, pos[st.id])).id);
+    untunedFor = 0;
+  }
+
+  // The station is heard again: work out where it picks up.
+  function regain(st) {
+    if (lostAt[st.id] != null) pos[st.id] = resumeAfterGap(st, pos[st.id], clockSeconds() - lostAt[st.id]);
+    lostAt[st.id] = null;
+  }
+
+  // Nothing is heard: after a while the files we kept are let go.
+  function idle(dt) {
+    untunedFor += dt;
+    if (untunedFor > KEEP_AFTER_UNTUNE) {
+      wanted.clear();
+      dropOldFiles();
+    }
   }
 
   // ----------------------------------------------------------- per frame
@@ -231,7 +274,10 @@ export function createRadio() {
       place = { region: opts.region || place.region, x: opts.x, y: opts.y };
       paused = !!opts.paused;
     }
-    if (!on || !nodes) return;
+    if (!on || !nodes) {
+      idle(dt);
+      return;
+    }
     if (ctx.state !== 'running') return;
     // Signal from each mast, in the shared frame.
     const me = globalPos(place.region, place.x, place.y);
@@ -251,16 +297,26 @@ export function createRadio() {
     }
     tuned = bq >= TUNED_AT ? best : null;
     lastQuality = tuned ? bq : 0;
+    // Heard or not. Tuning away counts as lost at once.
+    if (hear.station && hear.station !== tuned) {
+      if (hear.heard) lose(hear.station);
+      hear = { station: null, heard: false, lowFor: 0 };
+    }
     if (tuned) {
+      if (hear.station !== tuned) hear = { station: tuned, heard: false, lowFor: 0 };
+      const was = hear.heard;
+      const h = hearStep(hear, signals[tuned.id] * lastQuality, dt);
+      hear = { station: tuned, heard: h.heard, lowFor: h.lowFor };
+      if (was && !h.heard) lose(tuned);
+      if (!was && h.heard) regain(tuned);
+    }
+    if (hear.heard) {
       untunedFor = 0;
+      pos[tuned.id] = advance(tuned, pos[tuned.id], dt);
       follow(tuned);
     } else {
       stopActive();
-      untunedFor += dt;
-      if (untunedFor > KEEP_AFTER_UNTUNE) {
-        wanted.clear();
-        dropOldFiles();
-      }
+      idle(dt);
     }
     // Sound parameters, a few times a second.
     paramT -= dt;
@@ -289,6 +345,8 @@ export function createRadio() {
       paramT = 0;
     } else {
       on = false;
+      if (hear.heard) lose(hear.station);
+      hear = { station: null, heard: false, lowFor: 0 };
       stopActive();
       tuned = null;
       if (nodes) {
@@ -302,6 +360,10 @@ export function createRadio() {
   return {
     start() {
       t0 = performance.now();
+      stopActive();
+      wanted.clear();
+      dropOldFiles();
+      resetPositions();
     },
     update,
     setOn,
@@ -326,7 +388,7 @@ export function createRadio() {
     },
     // For the subtitles: fills `out` (no allocation) with what is on air now.
     //   out.segment  the segment, or null
-    //   out.offset   seconds into it, on the station's clock
+    //   out.offset   seconds into it, on the station's own position
     //   out.mode     'play' (its file is playing), 'dead' (file missing), 'wait' (still loading), 'off'
     //   out.clear    signal * dial quality, 0..1
     airInfo(out) {
@@ -334,9 +396,9 @@ export function createRadio() {
       out.offset = 0;
       out.mode = 'off';
       out.clear = 0;
-      if (!on || !tuned || !active) return out;
+      if (!on || !hear.heard || !active) return out;
       out.segment = active.segment;
-      out.offset = stationClock(active.station, clockSeconds()).offset;
+      out.offset = pos[active.station.id].offset;
       out.mode = active.dead ? 'dead' : active.src ? 'play' : 'wait';
       out.clear = signals[tuned.id] * lastQuality;
       return out;

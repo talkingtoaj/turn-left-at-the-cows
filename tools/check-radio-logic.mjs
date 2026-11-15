@@ -2,7 +2,8 @@
 // exists in its region's world data.
 import { STATIONS } from '../src/radio/segments.js';
 import {
-  signalAt, tuneQuality, mixFor, stationClock, loopLength, nextSegment, globalPos,
+  signalAt, tuneQuality, mixFor, loopLength, globalPos,
+  startPosition, advance, resumeAfterGap, segmentAt, hearStep, GAP_CARRY_ON, HEAR_LOST, HEAR_BACK, HEAR_LOST_AFTER,
 } from '../src/radio/radioLogic.js';
 import { REGIONS } from '../src/world/regions.js';
 
@@ -44,19 +45,67 @@ if (!(weak.voice < strong.voice && weak.lowpass < strong.lowpass && weak.noise >
 const between = mixFor(1, 0);
 if (between.voice !== 0 || !(between.noise > strong.noise)) fail('between stations');
 
-// Clocks: each station has its own, they differ, and they move on with time.
+// Positions: forward only, rolling over item ends and the loop end.
 for (const st of STATIONS) {
-  const len = loopLength(st);
-  const c0 = stationClock(st, 100);
-  const c1 = stationClock(st, 100 + len);
-  if (c0.segment.id !== c1.segment.id || Math.abs(c0.offset - c1.offset) > 1e-6) fail(st.id + ' loop');
-  const c2 = stationClock(st, 100 + c0.remaining + 0.01);
-  if (c2.segment !== nextSegment(st, c0.segment)) fail(st.id + ' next segment');
-  const c3 = stationClock(st, 100 + 600);
-  if (c3.segment.id === c0.segment.id && Math.abs(c3.offset - c0.offset) < 1) fail(st.id + ' did not move on');
+  const n = st.rotation.length;
+  const seg0 = segmentAt(st, { index: 0, offset: 0 });
+  // Rolling past an item end carries the extra seconds into the next one.
+  const r = advance(st, { index: 0, offset: seg0.seconds - 2 }, 5);
+  if (r.index !== 1 || Math.abs(r.offset - 3) > 1e-6) fail(st.id + ' roll past end ' + JSON.stringify(r));
+  // A whole loop lands back where it began.
+  const loop = advance(st, { index: 2, offset: 7 }, loopLength(st));
+  if (loop.index !== 2 || Math.abs(loop.offset - 7) > 1e-6) fail(st.id + ' full loop');
+  // Start positions: a random item, offset 0, same random gives the same spot.
+  for (const rv of [0, 0.5, 0.999999]) {
+    const p = startPosition(st, () => rv);
+    if (p.offset !== 0 || p.index !== Math.floor(rv * n)) fail(st.id + ' start ' + rv);
+  }
+  const seen = new Set();
+  for (let i = 0; i < 50; i++) seen.add(startPosition(st, () => i / 50).index);
+  if (seen.size < 2) fail(st.id + ' starts always the same');
+  // Short gap: as if it kept playing.
+  const here = { index: 1, offset: 4 };
+  const s1 = resumeAfterGap(st, here, GAP_CARRY_ON - 0.5);
+  if (s1.index !== 1 || Math.abs(s1.offset - (4 + GAP_CARRY_ON - 0.5)) > 1e-6) fail(st.id + ' short gap');
+  // Short gap that runs past the end of the item rolls into the next.
+  const seg1 = segmentAt(st, here);
+  const s2 = resumeAfterGap(st, { index: 1, offset: seg1.seconds - 1 }, 3);
+  if (s2.index !== 2 || Math.abs(s2.offset - 2) > 1e-6) fail(st.id + ' short gap roll ' + JSON.stringify(s2));
+  // Long gap: the next item, 3 s in for music and jingles, 1 s for talk.
+  for (let i = 0; i < n; i++) {
+    const s3 = resumeAfterGap(st, { index: i, offset: 2 }, 60);
+    if (s3.index !== (i + 1) % n) fail(st.id + ' long gap item ' + i);
+    const next = segmentAt(st, s3);
+    if (s3.offset !== (next.spoken ? 1 : 3)) fail(st.id + ' long gap offset ' + next.id + ' ' + s3.offset);
+  }
+  // From the last item it wraps to the first.
+  if (resumeAfterGap(st, { index: n - 1, offset: 10 }, 30).index !== 0) fail(st.id + ' wrap');
+  // Exactly at the limit counts as long.
+  if (resumeAfterGap(st, { index: 0, offset: 0 }, GAP_CARRY_ON).index !== 1) fail(st.id + ' gap at limit');
 }
-if (stationClock(STATIONS[0], 0).segment.id === stationClock(STATIONS[1], 0).segment.id.replace('brandt', 'ashford')
-  && stationClock(STATIONS[0], 0).offset === stationClock(STATIONS[1], 0).offset) fail('same clock');
+// Both kinds of item exist, so both resume offsets were checked above.
+const kinds = new Set();
+for (const st of STATIONS) for (let i = 0; i < st.rotation.length; i++) kinds.add(segmentAt(st, { index: i, offset: 0 }).spoken);
+if (kinds.size !== 2) fail('need both talk and music items to test resume offsets');
+
+// Heard: lost only after a full second below the lost level, back at the higher level.
+{
+  let h = { heard: false, lowFor: 0 };
+  h = hearStep(h, HEAR_BACK - 0.01, 0.1);
+  if (h.heard) fail('heard below back level');
+  h = hearStep(h, HEAR_BACK, 0.1);
+  if (!h.heard) fail('not heard at back level');
+  h = hearStep(h, HEAR_LOST - 0.01, 0.5);
+  if (!h.heard) fail('lost too soon');
+  h = hearStep(h, HEAR_LOST + 0.01, 0.1); // a blip above the level resets the count
+  h = hearStep(h, HEAR_LOST - 0.01, 0.6);
+  if (!h.heard) fail('blip did not reset');
+  h = hearStep(h, HEAR_LOST - 0.01, HEAR_LOST_AFTER);
+  if (h.heard) fail('not lost after a second');
+  // Between the two levels it stays lost (no flicker).
+  h = hearStep(h, (HEAR_LOST + HEAR_BACK) / 2, 0.1);
+  if (h.heard) fail('came back inside the gap');
+}
 
 console.log(bad ? bad + ' problems' : 'radio logic ok (other county signal ' + faint.toFixed(3) + ', ' + Math.round(gap) + ' m)');
 process.exit(bad ? 1 : 0);

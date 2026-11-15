@@ -44,7 +44,7 @@ Commit the new files in `public/radio/` and the changed `segments.js`.
 
 Ad reads use the DJ voice with a bit more salesman in it. The player's subtitles show the English text; the guest's gibberish is shown with no subtitle.
 
-Approx. length of each loop: about 14 minutes per station. Stations keep their own time, so tuning away and back finds them moved on.
+Approx. length of each loop: about 14 minutes per station. A station only plays while you can hear it, so nothing streams when you lose it. When you get it back after 5 seconds or more, it picks up a little way into the next item (3 seconds in for music and jingles, 1 second for talk). Missions start each station at the start of a random item.
 
 ---
 
