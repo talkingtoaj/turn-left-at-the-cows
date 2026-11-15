@@ -129,7 +129,7 @@ const CSS = `
 .hud-win-arrival b { color: #e6b450; font-style: normal; margin-right: 6px; }
 .hud-win-extras { list-style: none; margin: 0 0 14px; padding: 0; font-size: 14px; color: #d9d4c5; }
 .hud-win-extras li::before { content: '\\2713'; color: #5fbf6a; margin-right: 8px; font-weight: bold; }
-.hud-win.hud-win-wide { width: min(1240px, calc(100% - 32px)); }
+.hud-win.hud-win-wide { width: min(1240px, calc(100% - 32px)); background: #23252a; }
 .hud-shift { margin: 0 0 18px; }
 .hud-shift-pair { display: flex; flex-wrap: wrap; gap: 14px 22px; justify-content: center; align-items: flex-start; }
 .hud-shift-map h3 { margin: 0 0 6px; font: 600 15px Oswald, "Arial Narrow", sans-serif; color: #d9d4c5; letter-spacing: 0.06em; text-transform: uppercase; }

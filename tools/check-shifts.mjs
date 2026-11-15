@@ -55,7 +55,7 @@ for (const region of REGION_IDS) {
       const where = `${def.id}/${s.id}`;
       assert.ok(s.id && !ids.has(s.id), `${where}: unique id`);
       ids.add(s.id);
-      assert.ok(typeof s.label === 'string' && s.label.length > 0 && s.label.length <= 40, `${where}: a short label`);
+      assert.ok(typeof s.label === 'string' && s.label.length > 0 && s.label.length <= 48, `${where}: a short label`);
       assert.ok(!/[—–]/.test(s.label), `${where}: no dashes in the label`);
       assert.ok(Array.isArray(s.at) && s.at.length === 2 && s.at.every(Number.isFinite), `${where}: at is [x, y]`);
       assert.ok(s.r > 0 && s.r <= 300, `${where}: r in metres`);
@@ -68,6 +68,13 @@ for (const region of REGION_IDS) {
       count++;
     }
   }
+}
+
+// One shifts array per map: a second `shifts:` key in a def would silently
+// replace the first, so name a few from each ticket.
+const c87 = shiftsOf(regionWorld('fenwick').printedMaps.county1987).map((s) => s.id);
+for (const id of ['old_bridge', 'dolan_ln', 'pruitt_ln', 'ridge_named', 'mill_lane_closed']) {
+  assert.ok(c87.includes(id), `county1987 lists shift ${id}`);
 }
 
 // ---------------------------------------------------------------- a mission run

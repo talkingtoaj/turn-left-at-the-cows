@@ -883,8 +883,8 @@ export async function startGame(index = 0) {
   const spotName = params.get('spot');
   jumpToMission(state, index);
   const m = MISSIONS[index];
-  // A review spot in the mission's own region skips its approach leg.
-  if (m.approach && spotName && spotRegion(spotName) === m.region) {
+  // A review spot in the mission's own region skips its approach leg (so does ?shifts=now).
+  if (m.approach && ((spotName && spotRegion(spotName) === m.region) || params.get('shifts') === 'now')) {
     state.leg = null;
     Object.assign(state.car, m.start, { speed: 0 });
   }

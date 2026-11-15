@@ -404,10 +404,7 @@ export const WORLD_SOURCE = {
       shifts: [
         { id: 'ridge_named', label: 'County Rd 12 is now Ridge Road', at: [2300, 570], r: 50 }, // line id: T33-shift-ridge
         { id: 'mill_lane_closed', label: 'Mill Lane closed at the creek', at: [1500, 1525], r: 50 }, // line id: T33-shift-mill
-      ],
-      // Things that shifted since 1987 (src/game/shifts.js): seen by coming
-      // within r metres of at. Labels are win-screen lines.
-      shifts: [
+        // Quarry Road (built 1989) is not one: it lies east of this sheet (x > 3000).
         { id: 'old_bridge', label: 'Creek Road bridge washed out', at: [650, 1365], r: 60 }, // line id: T32-shift-old_bridge
         { id: 'dolan_ln', label: 'Dolan Lane is new', at: [2353, 883], r: 40 }, // line id: T32-shift-dolan_ln
         { id: 'pruitt_ln', label: 'Pruitt Lane is new', at: [2980, 1297], r: 40 }, // line id: T32-shift-pruitt_ln

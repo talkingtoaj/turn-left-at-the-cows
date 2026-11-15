@@ -83,7 +83,7 @@ export function renderShiftMapCanvas({ def, world = WORLD, shifts, seen, sketch 
 function drawShiftMarks(g, ctx, def, shifts, seen, labels) {
   const { frame, P } = printFrame(PAPER, def.bounds);
   const R = 17;
-  const SIZE = 25;
+  const SIZE = 23;
   const placed = [];
   const right = SHIFT_CROP.x + SHIFT_CROP.w - 6;
   const left = SHIFT_CROP.x + 6;
@@ -109,26 +109,39 @@ function drawShiftMarks(g, ctx, def, shifts, seen, labels) {
     ctx.font = `${SIZE}px ${HAND}`;
     const tw = ctx.measureText(sh.label).width + (hit ? 26 : 0);
     ctx.restore();
-    // Right of the ring, else left of it if that runs off the sheet.
-    let lx = x + R + 8;
-    let toLeft = false;
-    if (lx + tw > right) {
-      lx = x - R - 8 - tw;
-      toLeft = true;
+    // Beside the ring on the roomier side, nudged up or down until it clears
+    // the other labels and rings and stays on the sheet.
+    const box = (lx, yy) => ({ x0: lx - 3, x1: lx + tw + 3, y0: yy - SIZE * 0.5, y1: yy + SIZE * 0.5 });
+    const overlaps = (b, q) => b.x0 < q.x1 && b.x1 > q.x0 && b.y0 < q.y1 && b.y1 > q.y0;
+    const rings = shifts.map((o) => {
+      const [ox, oy] = P(o.at);
+      return { x0: ox - R - 2, x1: ox + R + 2, y0: oy - R - 2, y1: oy + R + 2 };
+    });
+    const sides = x < frame.x + frame.size / 2 ? ['r', 'l'] : ['l', 'r'];
+    let pick = null;
+    for (const dy of [0, -26, 26, -52, 52, -78, 78]) {
+      const yy = y + dy;
+      if (yy < frame.y + 12 || yy > frame.y + frame.size - 12) continue;
+      for (const side of sides) {
+        const lx = side === 'r' ? x + R + 8 : x - R - 8 - tw;
+        if (lx < left || lx + tw > right) continue;
+        const b = box(lx, yy);
+        if (placed.some((q) => overlaps(b, q)) || rings.some((q) => overlaps(b, q))) continue;
+        pick = { lx, ly: yy, toLeft: side === 'l' };
+        break;
+      }
+      if (pick) break;
     }
-    lx = Math.max(left, lx);
-    const box = (yy) => ({ x0: lx - 3, x1: lx + tw + 3, y0: yy - SIZE * 0.55, y1: yy + SIZE * 0.55 });
-    const clash = (b) => placed.some((q) => b.x0 < q.x1 && b.x1 > q.x0 && b.y0 < q.y1 && b.y1 > q.y0);
-    let ly = y;
-    for (const dy of [0, -28, 28, -56, 56, -84, 84]) {
-      const yy = Math.min(frame.y + frame.size - 10, Math.max(frame.y + 12, y + dy));
-      if (!clash(box(yy))) { ly = yy; break; }
+    if (!pick) {
+      const lx = Math.max(left, Math.min(right - tw, x + R + 8));
+      pick = { lx, ly: y, toLeft: false };
     }
-    placed.push(box(ly));
+    const { lx, ly, toLeft } = pick;
+    placed.push(box(lx, ly));
     // A short pencil lead line when the label had to move off the ring.
     if (Math.abs(ly - y) > 4) {
       g.lineStyle(1.6, hit ? RED_PENCIL : GREY, 0.8);
-      g.lineBetween(toLeft ? x - R : x + R, y, toLeft ? lx + tw : lx - 2, ly);
+      g.lineBetween(toLeft ? x - R * 0.8 : x + R * 0.8, y + Math.sign(ly - y) * R * 0.6, toLeft ? lx + tw : lx - 2, ly);
     }
     let tx = lx;
     if (hit) {
