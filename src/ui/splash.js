@@ -20,8 +20,8 @@ import { myMap } from '../game/myMaps.js';
 import { tipsEnabled, setTipsEnabled } from '../game/tips.js';
 
 export const TITLE = 'Turn Left at the Cows';
-// Tagline restored to the original after owner review (I10-splash-tagline). The subline was removed (I10-splash-subline).
-export const TAGLINE = 'There was a time before GPS, when finding your way required you to ask a local.';
+// Tagline is the owner's own words (SPEC 9p). The subline was removed (I10-splash-subline).
+export const TAGLINE = "It's 1992, you have no GPS and a map five years out of date. Things have shifted in that time. You just might need to ask directions from the locals.";
 export const PITCH = TAGLINE;
 export const PITCH_LINE = 'GeoGuessr, but you drive, and the locals might be unreliable.';
 export const SHORT_LINE = 'Get directions. Get lost. Find it anyway.';

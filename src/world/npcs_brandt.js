@@ -7,12 +7,12 @@
 export const NPCS_BRANDT = [
   {
     id: 'lou', name: 'Lou', role: 'mechanic at the Brandt garage', x: 1792, y: 1617,
-    greeting: ["Afternoon. You're not from round here. Plates give it away."],
+    greeting: ["Afternoon. You're not from around here. Plates give it away."],
     topics: {
       kestrel_field: {
         lines: [
           "The flying club? Out east of town somewhere. I fix their mower, not their planes. Never been up there myself.",
-          "Tell you what, though. You'll hear them before you see them. On a fine day they go round and round all morning.",
+          "Tell you what, though. You'll hear them before you see them. On a nice day they go around and around all morning.",
           "Head east on Route 40 and keep your window down. Out past the creek there's an orange and white checkered tank way off to the left. Can't tell you what it's for.",
         ],
         unlocks: ['planes', 'rt40'],
@@ -20,7 +20,7 @@ export const NPCS_BRANDT = [
       planes: {
         lines: [
           "Little high-wing jobs. Cubs, a Cessna or two. Up one side, along, down the other side, land, off again. Drives my dog crazy.",
-          "Funny thing. They never fly straight over the field itself, always round it. So don't drive to where they are. Drive to the middle.",
+          "Funny thing. They never fly straight over the field itself, always around it. So don't drive to where they are. Drive to the middle.",
         ],
       },
       brandt: {
@@ -49,7 +49,7 @@ export const NPCS_BRANDT = [
         lines: ["Corley? Twenty miles or so east. Bigger town. Don't bother."],
       },
       ray: {
-        lines: ["Ray Kessler. The flying fellow. Comes in for petrol for his mower and talks about wind for an hour."],
+        lines: ["Ray Kessler. The flying fellow. Comes in for gas for his mower and talks about wind for an hour."],
       },
       windsock: {
         lines: ["The orange sock thing? That's at the airfield. Never seen it myself."],
@@ -63,7 +63,7 @@ export const NPCS_BRANDT = [
   },
   {
     id: 'peg', name: 'Peg', role: 'waitress at the diner', x: 1622, y: 1619,
-    greeting: ["Sit anywhere, hon. Coffee? ...Oh, you just want to ask something. Go on then."],
+    greeting: ["Sit anywhere, hon. Coffee? ...Oh, you just want to ask something. Go ahead."],
     topics: {
       kestrel_field: {
         lines: [
@@ -76,7 +76,7 @@ export const NPCS_BRANDT = [
       windsock: {
         lines: [
           "A great orange stocking on a pole, to show the pilots the wind. Ray says they always take off and land facing into it.",
-          "Wind's mostly from the west round here. Not always.",
+          "Wind's mostly from the west around here. Not always.",
         ],
         unlocks: ['wind'],
       },
@@ -90,7 +90,7 @@ export const NPCS_BRANDT = [
         lines: ["The old co-op elevator, at the top of Station Road. Tallest thing in Brandt. You can see it from anywhere in town."],
       },
       station_rd: {
-        lines: ["Station Road's our main street, the one going north from the highway. No station any more, mind."],
+        lines: ["Station Road's our main street, the one going north from the highway. No station anymore, though."],
       },
       north_rd: {
         lines: ["North Road goes up from the elevator, past the turn for Field Lane, to the Lindgren place at the top."],
@@ -99,7 +99,7 @@ export const NPCS_BRANDT = [
         lines: ["Field Lane goes off North Road on the right, maybe half a mile up. That's the way to the airfield. Always was."],
       },
       planes: {
-        lines: ["You hear them going over all morning. I don't look up any more."],
+        lines: ["You hear them going over all morning. I don't look up anymore."],
       },
       brandt: {
         lines: ["Born here, never left. Well, Corley once. Didn't care for it."],
@@ -118,15 +118,15 @@ export const NPCS_BRANDT = [
       kestrel_field: {
         lines: [
           "Field Lane used to run on to the strip, back when it was the army's. I fenced it off in '84 after one of their planes put down in my barley. Haven't spoken to Ray Kessler since.",
-          "You'll have to go round. Back to the highway and east over the creek. Turn left at the cows. That's Pike Lane. The club gets in from that side.",
-          "Or watch the planes. Ray's lot fly round and round the field all day. Whatever's in the middle of all that circling, that's it.",
+          "You'll have to go around. Back to the highway and east over the creek. Turn left at the cows. That's Pike Lane. The club gets in from that side.",
+          "Or watch the planes. Ray's lot fly around and around the field all day. Whatever's in the middle of all that circling, that's it.",
         ],
         unlocks: ['rt40', 'planes', 'sandy_creek', 'pike_lane'],
       },
       planes: {
         lines: [
-          "Every ten minutes, round they go. Up off the strip, out over the highway, back along it, and down again.",
-          "When the wind's in the west they come in from the east, low, and land going west. Other way round when it's from the east.",
+          "Every ten minutes, around they go. Up off the strip, out over the highway, back along it, and down again.",
+          "When the wind's in the west they come in from the east, low, and land going west. Other way around when it's from the east.",
         ],
         unlocks: ['wind'],
       },
@@ -141,7 +141,7 @@ export const NPCS_BRANDT = [
         unlocks: ['hal_pike'],
       },
       dagny_farm: {
-        lines: ["Barley, a few cows, and a lot of aeroplanes. Mostly the aeroplanes."],
+        lines: ["Barley, a few cows, and a lot of airplanes. Mostly the airplanes."],
       },
       ray: {
         lines: ["Kessler. Hmph."],
@@ -158,11 +158,11 @@ export const NPCS_BRANDT = [
   },
   {
     id: 'hal', name: 'Hal Pike', role: 'sheep farmer, at his gate', x: 3279, y: 1691,
-    greeting: ["Mind the sheep if you're turning in. They've no road sense."],
+    greeting: ["Watch for the sheep if you're turning in. They've got no road sense."],
     topics: {
       kestrel_field: {
         lines: [
-          "The strip? Up my lane, past the house and the top paddock. The club's at the far end, behind their hangars. You'll see their checkered water tank on your right, by the gate.",
+          "The strip? Up my lane, past the house and the top pasture. The club's at the far end, behind their hangars. You'll see their checkered water tank on your right, by the gate.",
           "Shut the gate after you if it's shut. It never is.",
         ],
         unlocks: ['pike_lane'],
@@ -177,7 +177,7 @@ export const NPCS_BRANDT = [
         lines: ["That's me. Pike. Sheep. Since 1961."],
       },
       ray: {
-        lines: ["Ray's all right. Pays his rent for the top of the lane in whisky."],
+        lines: ["Ray's all right. Pays his rent for the top of the lane in whiskey."],
       },
       dagny_farm: {
         lines: ["Dagny's west of the strip, on Field Lane. She and Ray don't talk. Don't bring it up."],
@@ -191,12 +191,12 @@ export const NPCS_BRANDT = [
   },
   {
     id: 'ames', name: 'Mrs Ames', role: 'runs the Oakham store', x: 3924, y: 2318,
-    greeting: ["Hello, love. We close for lunch at twelve, mind."],
+    greeting: ["Hello, dear. We close for lunch at twelve, just so you know."],
     topics: {
       kestrel_field: {
         lines: [
-          "An airfield? North of the highway somewhere, I think. I've heard the planes, love, but I've never been.",
-          "If you can see them going round and round, the field's in the middle of the round, isn't it? Stands to reason.",
+          "An airfield? North of the highway somewhere, I think. I've heard the planes, dear, but I've never been.",
+          "If you can see them going around and around, the field's in the middle of it, isn't it? Stands to reason.",
           "You'd do better asking in Brandt. West on the highway.",
         ],
         unlocks: ['planes', 'brandt', 'rt40'],
@@ -219,7 +219,7 @@ export const NPCS_BRANDT = [
         unlocks: ['mallard_pond'],
       },
     },
-    fallback: ["Never heard of it, love.", "You'd have to ask someone in Brandt."],
+    fallback: ["Never heard of it, dear.", "You'd have to ask someone in Brandt."],
     profile: {
       home: 'oakham', work: 'oak_store', routes: ['oakham_rd', 'south_rd'], yearsHere: 47, style: 'landmarks',
       reliability: "Never been north of the highway; guesses well.",
@@ -230,7 +230,7 @@ export const NPCS_BRANDT = [
     greeting: ["Hello! You found us. Most people follow the noise."],
     topics: {
       kestrel_field: {
-        lines: ["Kestrel Field. Half a mile of grass, two hangars and the best kettle in the county. Built by the army in '42."],
+        lines: ["Kestrel Field. Half a mile of grass, two hangars and the best coffee in the county. Built by the army in '42."],
       },
       planes: {
         lines: [
@@ -242,10 +242,10 @@ export const NPCS_BRANDT = [
         lines: ["The sock points where the wind's going. We take off and land facing the other way, into it."],
       },
       wind: {
-        lines: ["Mostly westerly. Some days it swings round to the east and everything goes the other way."],
+        lines: ["Mostly westerly. Some days it swings around to the east and everything goes the other way."],
       },
       ray: {
-        lines: ["Crop dusting for forty years, and now I teach youngsters to go round in circles."],
+        lines: ["Crop dusting for forty years, and now I teach youngsters to go around in circles."],
       },
       dagny_farm: {
         lines: ["Ah. Dagny. We had a small disagreement about some barley. In 1984."],

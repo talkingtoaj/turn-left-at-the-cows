@@ -151,8 +151,8 @@ export const BRANDT_SOURCE = {
       // Circuits keep the noise off Brandt: downwind always south of the runway.
       circuit: { 90: 'right', 270: 'left', offset: 800 },
     },
-    { id: 'wp_dagny', kind: 'windpump', name: 'Dagny windpump', x: 2596, y: 940, clearR: 6, printed: false },
-    { id: 'wp_pike', kind: 'windpump', name: 'Pike windpump', x: 3150, y: 1440, clearR: 6, printed: false },
+    { id: 'wp_dagny', kind: 'windpump', name: 'Dagny windmill', x: 2596, y: 940, clearR: 6, printed: false },
+    { id: 'wp_pike', kind: 'windpump', name: 'Pike windmill', x: 3150, y: 1440, clearR: 6, printed: false },
   ],
 
   forests: [
@@ -225,8 +225,16 @@ export const BRANDT_SOURCE = {
       lies: [
         // Field Lane still runs through to the old army strip (fenced off in 1984).
         { type: 'extend_road', roadId: 'field_lane', points: [[2700, 935], [2900, 960]] },
-        // The club's lane up from Route 40 came later: only Pike's farm track shows.
+        // Pike Lane is left off. In 1979 it was only Hal Pike's private track
+        // to his farm, which county maps never showed; Hal let the club have
+        // the top of it after Field Lane was fenced off in 1984.
         { type: 'hide_road', roadId: 'pike_ln' },
+      ],
+      // Things that shifted since 1979 (shape owned by issue #32): seen within
+      // r metres of `at`. Labels show on the win screen.
+      shifts: [
+        { id: 'field_lane_closed', label: "Field Lane fenced off at Dagny's", at: [2478, 930], r: 60 }, // line id: T33-shift-field
+        { id: 'pike_lane_club', label: 'Pike Lane now runs on to the flying club', at: [3300, 1150], r: 70 }, // line id: T33-shift-pike
       ],
     },
   },

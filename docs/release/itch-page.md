@@ -8,7 +8,7 @@ Turn Left at the Cows
 
 ## Short description (the itch "tagline" field)
 
-There was a time before GPS, when finding your way required you to ask a local.
+It's 1992, you have no GPS and a map five years out of date. Things have shifted in that time. You just might need to ask directions from the locals.
 
 ## Pitch
 
@@ -49,10 +49,10 @@ Play on a computer with a keyboard. It runs in your browser and needs WebGL.
 
 (Check this list against what actually shipped before you submit.)
 
-- A fixed hour and sun for each mission, a warmer colour look and cream fog.
+- A fixed hour and sun for each mission, a warmer color look and cream fog.
 - Words painted on every road sign and mailbox.
 - Darlene's out-of-date map in the first mission, with gaps you can catch if you pay attention.
-- A new dash, with miles instead of metres.
+- A new dash, with miles instead of meters.
 - A radio.
 - A third mission that crosses the county line into Harlan County.
 - Tourists, and other small odd things on the road.
@@ -76,7 +76,7 @@ Code is public domain (CC0). Art, sound, music, writing and the radio audio are 
 ## Screenshots (placeholders)
 
 Paths are in the scratchpad, not the repo. Retake them late.
-- /tmp/claude-1000/-home-talkingtoaj-orca-workspaces-orienteering-game-talkingtoaj-whimsical-nostalgic-polish/fdf1024e-3a4e-4e61-9f07-f781fad63f89/scratchpad/shots/itch_1_splash.png
+- /tmp/claude-1000/-home-talkingtoaj-orca-workspaces-orienteering-game-talkingtoaj-whimsical-nostalgic-polish/fdf1024e-3a4e-4e61-9f07-f781fad63f89/scratchpad/shots/itch_1_splash.png (STALE: shows the old cow tagline, retake with the new tagline)
 - /tmp/claude-1000/-home-talkingtoaj-orca-workspaces-orienteering-game-talkingtoaj-whimsical-nostalgic-polish/fdf1024e-3a4e-4e61-9f07-f781fad63f89/scratchpad/shots/itch_2_intro_card.png
 - /tmp/claude-1000/-home-talkingtoaj-orca-workspaces-orienteering-game-talkingtoaj-whimsical-nostalgic-polish/fdf1024e-3a4e-4e61-9f07-f781fad63f89/scratchpad/shots/itch_3_hwy9.png
 - /tmp/claude-1000/-home-talkingtoaj-orca-workspaces-orienteering-game-talkingtoaj-whimsical-nostalgic-polish/fdf1024e-3a4e-4e61-9f07-f781fad63f89/scratchpad/shots/itch_4_rt40.png

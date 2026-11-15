@@ -119,7 +119,7 @@ export function mapSVG({ missions, done, next }) {
     <feComposite in="SourceGraphic" in2="holes" operator="in"/>
   </filter></defs>
   <text class="mp-title" x="30" y="44">RURAL ROUTE 3 \u00b7 ASHFORD</text>
-  <text class="mp-sub" x="32" y="62">AND ROUND ABOUT · NOT TO SCALE</text>
+  <text class="mp-sub" x="32" y="62">AND VICINITY · NOT TO SCALE</text>
   <g fill="none" stroke-linecap="round" stroke-linejoin="round">${out.join('')}</g>
   <text class="mp-sub" x="756" y="62" text-anchor="end">FENWICK COUNTY HIGHWAY DEPT.</text>
   <text class="mp-sub" x="756" y="76" text-anchor="end">REVISED 1987</text>

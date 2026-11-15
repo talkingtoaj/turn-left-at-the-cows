@@ -57,7 +57,7 @@ export const TOPICS = [
   // Places that changed: ruins and old things (landmarks in data.js).
   { id: 'voss_place', label: 'the old Voss place', kind: 'landmark', fame: 0.3, ref: { type: 'landmark', id: 'voss_place' } },
   { id: 'pruitt_truck', label: "Pruitt's old truck", kind: 'landmark', fame: 0.15, ref: { type: 'landmark', id: 'pruitt_truck' } },
-  { id: 'railway_halt', label: 'the old railway halt', kind: 'landmark', fame: 0.35, ref: { type: 'landmark', id: 'old_railway' } },
+  { id: 'railway_halt', label: 'the old railroad siding', kind: 'landmark', fame: 0.35, ref: { type: 'landmark', id: 'old_railway' }, aliases: ['Gilmore Siding'] },
   { id: 'ashford_elevator', label: 'the old grain elevator', kind: 'landmark', fame: 0.5, ref: { type: 'landmark', id: 'ashford_elevator' }, aliases: ['co-op elevator', 'the elevator'] },
 
   // Region 2, Brandt country (mission 3). 'brandt' above is this region's town.
@@ -86,21 +86,21 @@ export const TOPICS = [
   // (src/game/lookables.js). Nobody has lines for them yet: a local who
   // knows the name (by fame) just says it.
   // Windpumps at the farms.
-  { id: 'wp_hartley', label: 'the Hartley windpump', kind: 'landmark', fame: 0.45, ref: { type: 'landmark', id: 'wp_hartley' } },
-  { id: 'wp_pruitt', label: 'the Pruitt windpump', kind: 'landmark', fame: 0.3, ref: { type: 'landmark', id: 'wp_pruitt' } },
-  { id: 'wp_okafor', label: 'the Okafor windpump', kind: 'landmark', fame: 0.3, ref: { type: 'landmark', id: 'wp_okafor' } },
-  { id: 'wp_dagny', label: "Dagny's windpump", kind: 'landmark', fame: 0.35, ref: { type: 'landmark', id: 'wp_dagny' } },
-  { id: 'wp_pike', label: 'the Pike windpump', kind: 'landmark', fame: 0.35, ref: { type: 'landmark', id: 'wp_pike' } },
+  { id: 'wp_hartley', label: 'the Hartley windmill', kind: 'landmark', fame: 0.45, ref: { type: 'landmark', id: 'wp_hartley' } },
+  { id: 'wp_pruitt', label: 'the Pruitt windmill', kind: 'landmark', fame: 0.3, ref: { type: 'landmark', id: 'wp_pruitt' } },
+  { id: 'wp_okafor', label: 'the Okafor windmill', kind: 'landmark', fame: 0.3, ref: { type: 'landmark', id: 'wp_okafor' } },
+  { id: 'wp_dagny', label: "Dagny's windmill", kind: 'landmark', fame: 0.35, ref: { type: 'landmark', id: 'wp_dagny' } },
+  { id: 'wp_pike', label: 'the Pike windmill', kind: 'landmark', fame: 0.35, ref: { type: 'landmark', id: 'wp_pike' } },
   // Named rock outcrops on the hilltops (world data `outcrops`).
-  { id: 'oc_grey', label: 'the Grey Stones', kind: 'landmark', fame: 0.6, ref: { type: 'outcrop', id: 'oc_grey' } },
-  { id: 'oc_raven', label: 'Raven Crag', kind: 'landmark', fame: 0.55, ref: { type: 'outcrop', id: 'oc_raven' } },
+  { id: 'oc_grey', label: 'the Gray Stones', kind: 'landmark', fame: 0.6, ref: { type: 'outcrop', id: 'oc_grey' } },
+  { id: 'oc_raven', label: 'Raven Rock', kind: 'landmark', fame: 0.55, ref: { type: 'outcrop', id: 'oc_raven' } },
   { id: 'oc_oldmen', label: 'the Old Men', kind: 'landmark', fame: 0.5, ref: { type: 'outcrop', id: 'oc_oldmen' } },
   { id: 'oc_teeth', label: "the Giant's Teeth", kind: 'landmark', fame: 0.5, ref: { type: 'outcrop', id: 'oc_teeth' } },
   { id: 'oc_cairn', label: "Shepherd's Cairn", kind: 'landmark', fame: 0.4, ref: { type: 'outcrop', id: 'oc_cairn' } },
   { id: 'oc_whet', label: 'the Whetstones', kind: 'landmark', fame: 0.4, ref: { type: 'outcrop', id: 'oc_whet' } },
   { id: 'oc_tinker', label: "Tinker's Rocks", kind: 'landmark', fame: 0.45, ref: { type: 'outcrop', id: 'oc_tinker' } },
   { id: 'oc_anvil', label: 'the Anvil', kind: 'landmark', fame: 0.5, ref: { type: 'outcrop', id: 'oc_anvil' } },
-  { id: 'oc_gallow', label: 'Gallow Crag', kind: 'landmark', fame: 0.55, ref: { type: 'outcrop', id: 'oc_gallow' } },
+  { id: 'oc_gallow', label: 'Gallow Rock', kind: 'landmark', fame: 0.55, ref: { type: 'outcrop', id: 'oc_gallow' } },
   { id: 'oc_sisters', label: 'the Three Sisters', kind: 'landmark', fame: 0.6, ref: { type: 'outcrop', id: 'oc_sisters' } },
   { id: 'oc_hob', label: "Hob's Knob", kind: 'landmark', fame: 0.45, ref: { type: 'outcrop', id: 'oc_hob' } },
   { id: 'oc_cradle', label: 'the Cradle Stones', kind: 'landmark', fame: 0.4, ref: { type: 'outcrop', id: 'oc_cradle' } },

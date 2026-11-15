@@ -26,14 +26,14 @@ export const NPCS = [
       hartley_farm: {
         lines: [
           "Hartley Farm? Sure. Quickest way's the old Creek Road.",
-          "Go straight north out of town on the dirt road, right here by the station. About a mile and a bit.",
+          "Go straight north out of town on the dirt road, right here by the station. A little over a mile.",
           "You'll cross the old bridge over Willow Creek. Then the road bends right, past the radio mast on the hill.",
           "Keep on into Millbrook. The farm is out the northeast side of town. Big red barn. You can't miss it.",
         ],
         unlocks: ['creek_rd', 'willow_creek', 'old_bridge', 'radio_mast', 'millbrook'],
       },
       creek_rd: {
-        lines: ["Creek Road starts right here by the pumps and runs north. Dirt the whole way. Mind the potholes."],
+        lines: ["Creek Road starts right here by the pumps and runs north. Dirt the whole way. Watch for the potholes."],
         unlocks: ['willow_creek'],
       },
       millbrook: {
@@ -63,13 +63,13 @@ export const NPCS = [
       },
       ashford_elevator: {
         lines: [
-          "The old co-op elevator, at the bottom of town past the last house. Hasn't taken a load of grain since the railway closed.",
-          "Tallest thing in Ashford bar the church spire. My dad worked the scale there.",
+          "The old co-op elevator, at the bottom of town past the last house. Hasn't taken a load of grain since the railroad closed.",
+          "Tallest thing in Ashford except for the church spire. My dad worked the scale there.",
         ],
         unlocks: ['railway_halt'],
       },
       railway_halt: {
-        lines: ["The railway? Gone before my time. Ran from here up past the highway somewhere. Ask an old-timer."],
+        lines: ["The railroad? Gone before my time. Ran from here up past the highway somewhere. Ask an old-timer."],
       },
       loon_pond: {
         lines: ["Loon Pond? That's way out past Calder, over the river. Never been. Fish don't bite for me anyway."],
@@ -90,7 +90,7 @@ export const NPCS = [
         lines: [
           "The bridge? Ha. Washed out in the spring floods. County still hasn't fixed it.",
           "You'll have to go back down Creek Road, past the rusted car in the weeds on your right, to the highway and head east. Past the water tower, keep on till the road turns north and crosses the creek on the new bridge.",
-          "That takes you right up into Millbrook. And don't bother with the lane by the water tower, the one with the tyre swing in the big oak. Dead end. The old mill burned down years ago.",
+          "That takes you right up into Millbrook. And don't bother with the lane by the water tower, the one with the tire swing in the big oak. Dead end. The old mill burned down years ago.",
           "Hartley's is out the northeast side of town, at the end of its own lane. Look for the mailbox shaped like a cow.",
         ],
         unlocks: ['hwy9', 'water_tower', 'mill_lane', 'old_mill', 'millbrook'],
@@ -105,7 +105,9 @@ export const NPCS = [
         lines: ["Best trout in the county, right here. Don't you tell anyone."],
       },
       mill_lane: {
-        lines: ["Mill Lane goes up from the highway to where the mill was. Stops there. Always did, whatever the old maps say."],
+        lines: [
+          "Mill Lane goes up from the highway to where the mill was, and stops. Used to go on over the creek to Creek Road, till the quarry bought the land and put a gate across.", // line id: T33-dot-mill
+        ],
         unlocks: ['old_mill'],
       },
       old_mill: {
@@ -115,10 +117,10 @@ export const NPCS = [
         ],
       },
       hwy9: {
-        lines: ["The highway's the long way round. But it's the only way round, now."],
+        lines: ["The highway's the long way around. But it's the only way around, now."],
       },
       radio_mast: {
-        lines: ["You can see the mast from here on a clear day. North-east, on the hill. Across the water, mind."],
+        lines: ["You can see the mast from here on a clear day. North-east, on the hill. Across the water, though."],
       },
     },
     fallback: ["No idea. I just fish."],
@@ -146,7 +148,10 @@ export const NPCS = [
         lines: ["You're standing on it, dear. Forty-six years this spring."],
       },
       ridge_rd: {
-        lines: ["Ridge Road's the old road east. My grandfather drove cattle along it."],
+        lines: [
+          "Ridge Road's the old road east. My grandfather drove cattle along it.",
+          "On the county maps it was only ever County 12. They gave it a real name in '90. About time.", // line id: T33-hartley-cr12
+        ],
       },
       dunmore: {
         lines: ["Dunmore's hardly a town. Gus Lindqvist keeps the store. He'll set you right if you're lost."],
@@ -159,14 +164,14 @@ export const NPCS = [
         lines: ["Tom's been up at Loon Pond since April. Says he's fishing. I think he's hiding from his sister."],
       },
       calder: {
-        lines: ["Calder? That's the long way round, down on Route 40. No, Ridge Road's quicker."],
+        lines: ["Calder? That's the long way around, down on Route 40. No, Ridge Road's quicker."],
         unlocks: ['rt40'],
       },
       millbrook: {
         lines: ["Millbrook's just down our lane. Church Street runs right through the middle."],
       },
     },
-    fallback: ["Oh, I couldn't tell you. I don't get out that way any more."],
+    fallback: ["Oh, I couldn't tell you. I don't get out that way anymore."],
     profile: {
       home: 'hartley_farm', work: 'hartley_farm', routes: ['farm_rd', 'millbrook_st', 'ridge_rd'], yearsHere: 46, style: 'landmarks',
       reliability: "Has not driven east in about four years. Does not know the covered bridge collapsed. Mixes up Pond Road and Lookout Road (says turn left, should be straight on / right). Her sketch squashes distances.",
@@ -189,7 +194,7 @@ export const NPCS = [
         lines: ["Roof came down in February. Heavy snow. County says they'll fix it. County says a lot of things."],
       },
       quarry_rd: {
-        lines: ["Quarry Road. Watch for the gravel trucks. They don't slow down for anybody."],
+        lines: ["Quarry Road. The quarry put it in for the gravel trucks in '89. Watch for them. They don't slow down for anybody."], // line id: T33-gus-quarry
         unlocks: ['quarry', 'voss_place'],
       },
       voss_place: {
@@ -307,7 +312,7 @@ export const NPCS = [
   },
   {
     id: 'hank', name: 'Hank', role: 'runs the grain elevator', x: 4955, y: 1158,
-    greeting: ["Help you? Mind the trucks."],
+    greeting: ["Help you? Watch for the trucks."],
     topics: {
       toms_cabin: {
         lines: [
@@ -320,12 +325,12 @@ export const NPCS = [
       grain_silos: {
         lines: [
           "A hundred and fifty feet tall, those silos. You can see them from the lookout, and from most places with a view.",
-          "Before the trucks, grain went out by rail. The branch line came up from Ashford past Gilmore Halt. Closed in '59, so we built these.",
+          "Before the trucks, grain went out by rail. The branch line came up from Ashford past Gilmore Siding. Closed in '59, so we built these.",
         ],
         unlocks: ['lookout', 'railway_halt', 'ashford_elevator'],
       },
       railway_halt: {
-        lines: ["Gilmore Halt. Just a platform and a shed by the old line, east of Highway 9, south of Willow Creek. Bank's still there if you look."],
+        lines: ["Gilmore Siding. Just a platform and a shed by the old line, east of Highway 9, south of Willow Creek. Bank's still there if you look."],
       },
       ashford_elevator: {
         lines: ["Ashford's old wooden elevator. Went quiet when the trains stopped. Nobody's had the money to pull it down."],
@@ -335,10 +340,10 @@ export const NPCS = [
         unlocks: ['brandt', 'hwy9', 'millbrook'],
       },
       covered_bridge: {
-        lines: ["Covered bridge is shut. Has been since February. People still drive out there and turn round."],
+        lines: ["Covered bridge is shut. Has been since February. People still drive out there and turn around."],
       },
       ridge_rd: {
-        lines: ["Ridge Road runs west from Pond Road to the river. Goes nowhere now, with the bridge shut."],
+        lines: ["County 12 runs west from Pond Road to the river. Ridge Road, they call it now. Goes nowhere, with the bridge shut."], // line id: T33-hank-cr12
       },
       calder: {
         lines: ["Calder. Grain, gravel and gossip."],
@@ -384,7 +389,7 @@ export const NPCS = [
   },
   {
     id: 'ade', name: 'Ade', role: 'dairy farmer', x: 4890, y: 2002,
-    greeting: ["Hello there. Mind the cows. They think they own the road."],
+    greeting: ["Hello there. Watch for the cows. They think they own the road."],
     topics: {
       toms_cabin: {
         lines: ["Loon Pond? Go north on this road into Calder, then up Pond Road. You can't miss it."],
@@ -412,7 +417,7 @@ export const NPCS = [
   },
   {
     id: 'mabel', name: 'Mabel', role: 'retired teacher', x: 2972, y: 1085,
-    greeting: ["Well now. Visitors. Sit, sit. Mind the sheep."],
+    greeting: ["Well now. Visitors. Sit, sit. Watch the sheep."],
     topics: {
       toms_cabin: {
         lines: [
@@ -443,7 +448,7 @@ export const NPCS = [
       },
       railway_halt: {
         lines: [
-          "There was a railway once, you know. The branch line ran past Gilmore Halt, east of the highway and south of the creek.",
+          "There was a railroad once, you know. The branch line ran past Gilmore Siding, east of the highway and south of the creek.",
           "We took the train to Ashford for the dances. Last one ran in 1959. You can still see the bank and the old platform from Highway 9.",
         ],
         unlocks: ['ashford_elevator'],

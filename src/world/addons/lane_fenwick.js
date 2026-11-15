@@ -8,11 +8,11 @@
 // lane leaves on the same side, at nearly the same angle as the real turn
 // (Hartley Lane, on the right at the Millbrook junction), and it is the first
 // one met. It dead ends at a farmyard where the player can turn round.
-// Its tells: a mailbox with a family name plate at the lane, a farmhouse at the
-// end, and no centre line (it is a dirt lane).
+// Its tells: a shiny new mailbox with a family name plate at the lane, fresh
+// pale gravel, a farmhouse at the end, and no centre line (it is a dirt lane).
 export const LANE_FENWICK = {
   roads: [
-    { id: 'dolan_ln', name: 'Dolan Lane', type: 'dirt', width: 4.5, snapStart: 'hwy9',
+    { id: 'dolan_ln', name: 'Dolan Lane', type: 'dirt', width: 4.5, snapStart: 'hwy9', fresh: true,
       points: [[2353, 883], [2400, 871], [2450, 858], [2495, 848]] },
   ],
   buildings: [
@@ -20,6 +20,6 @@ export const LANE_FENWICK = {
     { id: 'dl_barn', kind: 'barn', x: 2536, y: 858, w: 22, h: 14, angle: 0, farm: 'dolan' },
   ],
   mailboxes: [
-    { id: 'mb_dolan', name: 'DOLAN', house: 'dl_house', roadId: 'hwy9' },
+    { id: 'mb_dolan', name: 'DOLAN', house: 'dl_house', roadId: 'hwy9', newer: true },
   ],
 };

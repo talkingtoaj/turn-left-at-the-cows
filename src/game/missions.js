@@ -47,7 +47,7 @@ const DETAILS = {
     giverNpcId: null,
     start: { x: W.start.x, y: W.start.y, heading: W.start.heading },
     brief: [
-      "There's a parcel for Hartley Farm on the seat beside you. No address, just the name.",
+      "There's a package for Hartley Farm on the seat beside you. No address, just the name.",
       // Line ids: brief-m1-map, brief-m1-ask
       "Darlene's county map is in the glovebox, with a pencil and a notepad. It's five years old, and plenty has shifted since.",
       "Things have shifted around here, so go by what you see. Earl at the gas station knows everybody. Go ask him.",
@@ -65,7 +65,7 @@ const DETAILS = {
     arrivalLabel: 'Map on arrival at Hartley Farm',
     finalLabel: 'Final map: Hartley Farm',
     // Arrival line (win screen). Line id: arrival-m1
-    arrival: { name: 'Mrs Hartley', line: "Oh, you found us. Just leave it by the door, dear. The kettle's on, I'll bring you a cup out if you like." },
+    arrival: { name: 'Mrs Hartley', line: "Oh, you found us. Just leave it by the door, dear. The coffee's on, I'll bring you a cup out if you like." },
     // Darlene's 1987 county map, full of gaps (see county1987 in src/world/data.js).
     // You draw on it: no blank sketch this mission (SPEC 9p).
     printedMaps: ['county1987'],
@@ -76,9 +76,9 @@ const DETAILS = {
     // In Hartley Farm's lane, by Mrs Hartley, facing back towards Millbrook.
     start: { x: 2624, y: 476, heading: 236 },
     brief: [
-      "Thank you for bringing that parcel, dear. Now, could I trouble you for one more?",
+      "Thank you for bringing that package, dear. Now, could I trouble you for one more?",
       "My son Tom is up at his cabin on Loon Pond, and there's no phone up there. These are his pills, and a pie. He'll have run out by now.",
-      "I've drawn you a little map. I haven't been up that way in a few years, mind. Ask me if you need the directions again.",
+      "I've drawn you a little map. I haven't been up that way in a few years, though. Ask me if you need the directions again.",
     ],
     goalTopic: 'toms_cabin',
     startTopics: ['toms_cabin', 'loon_pond'],
@@ -114,7 +114,7 @@ const DETAILS = {
     // Route 40 at the county line, driving east from Fenwick County.
     start: { x: W.start.x, y: W.start.y, heading: W.start.heading },
     brief: [
-      "Pills and a pie. Mum thinks of everything. Since you've got the car and I've got this knee, could you run one more errand?",
+      "Pills and a pie. Mom thinks of everything. Since you've got the car and I've got this knee, could you run one more errand?",
       "This magneto belongs to Ray Kessler. He flies out of a little grass airfield over Brandt way, east along Route 40. His plane won't start without it.",
       "I've only ever flown over the place, years ago, never driven there. Take Route 40 east out of Calder, over the county line, and ask in Brandt. And keep your ears open.",
     ],
@@ -145,7 +145,9 @@ const DETAILS = {
     finalLabel: 'Final map: Kestrel Field',
     // Arrival line (win screen). Line id: arrival-m3
     arrival: { name: 'Ray Kessler', line: "That's the magneto. Hold the prop for me, would you? No, I'm kidding." },
-    printedMaps: [],
+    // Harlan County's own map (region 2): its tab shows once you are over
+    // the county line, not on the Fenwick approach leg.
+    printedMaps: ['harlan1979'],
   }),
 };
 

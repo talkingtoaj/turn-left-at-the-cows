@@ -36,6 +36,7 @@ export const WORLD_SOURCE = {
   ],
 
   // type: 'paved' | 'dirt'. width in metres. curve: false keeps straight pieces.
+  // fresh: true on a dirt lane built since 1987: new pale crushed-stone gravel.
   roads: [
     {
       id: 'hwy9', name: 'Highway 9', type: 'paved', width: 9,
@@ -94,7 +95,7 @@ export const WORLD_SOURCE = {
       points: [[3350, 285], [3400, 450], [3520, 640], [3560, 800], [3540, 960], [3600, 1100], [3640, 1221]],
     },
     {
-      id: 'pruitt_ln', name: 'Pruitt Lane', type: 'dirt', width: 4.5, snapStart: 'rt40',
+      id: 'pruitt_ln', name: 'Pruitt Lane', type: 'dirt', width: 4.5, snapStart: 'rt40', fresh: true,
       points: [[2980, 1297], [2990, 1180], [2960, 1062]],
     },
     {
@@ -177,17 +178,17 @@ export const WORLD_SOURCE = {
   // 400 m off a road); the rocks themselves are seeded (src/world/scatter.js).
   // Their districts are always stony (src/world/districts.js).
   outcrops: [
-    { id: 'oc_grey', name: 'the Grey Stones', x: 2540, y: 1160 },
+    { id: 'oc_grey', name: 'the Gray Stones', x: 2540, y: 1160 },
     // Raven Crag sits on the road-facing brow of its hill, not the top: from
     // the road below (?spot=5366,1263,12) the top hid all but its stone tips.
-    { id: 'oc_raven', name: 'Raven Crag', x: 5400, y: 1100 },
+    { id: 'oc_raven', name: 'Raven Rock', x: 5400, y: 1100 },
     { id: 'oc_oldmen', name: 'the Old Men', x: 3300, y: 1100 },
     { id: 'oc_teeth', name: "the Giant's Teeth", x: 3060, y: 420 },
     { id: 'oc_cairn', name: "Shepherd's Cairn", x: 3500, y: 2120 },
     { id: 'oc_whet', name: 'the Whetstones', x: 2780, y: 2080 },
     { id: 'oc_tinker', name: "Tinker's Rocks", x: 1420, y: 1360 },
     { id: 'oc_anvil', name: 'the Anvil', x: 560, y: 1460 },
-    { id: 'oc_gallow', name: 'Gallow Crag', x: 1260, y: 2420 },
+    { id: 'oc_gallow', name: 'Gallow Rock', x: 1260, y: 2420 },
   ],
 
   // Rectangles centred on (x, y), rotated by angle. Solid.
@@ -261,15 +262,15 @@ export const WORLD_SOURCE = {
     // The branch line, closed 1959: a stretch of bank east of Highway 9 and
     // Gilmore Halt's platform (x, y is the platform). Rails lifted at the highway.
     {
-      id: 'old_railway', kind: 'railway', name: 'Gilmore Halt', x: 2530, y: 1787.4, clearR: 12, printed: false,
+      id: 'old_railway', kind: 'railway', name: 'Gilmore Siding', x: 2530, y: 1787.4, clearR: 12, printed: false,
       points: [[2445, 1790], [2600, 1795], [2800, 1805], [3000, 1822], [3160, 1846]],
     },
     // The old co-op elevator at the bottom of Ashford, empty since the railway closed.
     { id: 'ashford_elevator', kind: 'grain_elevator', name: 'Ashford grain elevator', x: 660, y: 2592, angle: 90, clearR: 18, printed: false },
     // Windpumps at the farms: tall, easy to take a bearing on.
-    { id: 'wp_hartley', kind: 'windpump', name: 'Hartley windpump', x: 2747, y: 452, clearR: 6, printed: false },
-    { id: 'wp_pruitt', kind: 'windpump', name: 'Pruitt windpump', x: 2900, y: 1064, clearR: 6, printed: false },
-    { id: 'wp_okafor', kind: 'windpump', name: 'Okafor windpump', x: 5012, y: 2004, clearR: 6, printed: false },
+    { id: 'wp_hartley', kind: 'windpump', name: 'Hartley windmill', x: 2747, y: 452, clearR: 6, printed: false },
+    { id: 'wp_pruitt', kind: 'windpump', name: 'Pruitt windmill', x: 2900, y: 1064, clearR: 6, printed: false },
+    { id: 'wp_okafor', kind: 'windpump', name: 'Okafor windmill', x: 5012, y: 2004, clearR: 6, printed: false },
   ],
 
   // Areas to scatter trees in. Keep trees at least 12 m from any road.
@@ -337,6 +338,7 @@ export const WORLD_SOURCE = {
 
   // Mailboxes beside the road at farms and houses. Placed by the build at the
   // roadside nearest `house`; `facing` (computed) points from the box to the road.
+  // newer: true draws a bright new galvanized box on a metal post (built since 1987).
   mailboxes: [
     { id: 'mb_hartley', name: 'HARTLEY', house: 'f_house', roadId: 'farm_rd' },
     { id: 'mb_pruitt', name: 'PRUITT', house: 'p_house', roadId: 'pruitt_ln' },
@@ -374,19 +376,34 @@ export const WORLD_SOURCE = {
       lies: [
         // Shows the washed-out bridge as fine.
         { type: 'bridge_intact', bridgeId: 'b_old' },
-        // Shows Mill Lane going through to Creek Road. It never did.
+        // Shows Mill Lane going on over Willow Creek to Creek Road, as it did
+        // in 1987. It used to go through until the quarry bought the land past
+        // the creek and closed it. The dead end has a gate (bd_mill_closed).
         {
           type: 'extra_road',
           road: { id: 'mill_lane_fake', name: 'Mill Lane', type: 'dirt', width: 5, snapEnd: 'creek_rd', points: [[1500, 1525], [1510, 1300], [1600, 1000], [1700, 800]] },
         },
-        // Leaves out every road and lane built since 1987.
+        // Hartley Lane is the Hartleys' private farm lane. County maps never
+        // showed it, so it is not a shift.
         { type: 'hide_road', roadId: 'farm_rd' },
+        // Leaves out the roads and lanes built since 1987 (fresh gravel on the
+        // lanes, a new mailbox at Dolan's).
         { type: 'hide_road', roadId: 'dolan_ln' },
         { type: 'hide_road', roadId: 'pruitt_ln' },
+        // The quarry dates from 1962, but this haul road was built in 1989.
         { type: 'hide_road', roadId: 'quarry_rd' },
-        { type: 'hide_road', roadId: 'ridge_rd' },
         { type: 'hide_building', id: 'dl_house' },
         { type: 'hide_building', id: 'dl_barn' },
+        // Ridge Road was always there. In 1987 it had only a number; the
+        // county named it later (the sign says Ridge Road, old-timers still
+        // say County 12).
+        { type: 'rename_road', roadId: 'ridge_rd', name: 'County Rd 12' }, // line id: T33-map-cr12
+      ],
+      // Things that shifted since 1987 (shape owned by issue #32): seen within
+      // r metres of `at`. Labels show on the win screen.
+      shifts: [
+        { id: 'ridge_named', label: 'County Rd 12 is now Ridge Road', at: [2300, 570], r: 50 }, // line id: T33-shift-ridge
+        { id: 'mill_lane_closed', label: 'Mill Lane closed at the creek', at: [1500, 1525], r: 50 }, // line id: T33-shift-mill
       ],
       // Things that shifted since 1987 (src/game/shifts.js): seen by coming
       // within r metres of at. Labels are win-screen lines.
