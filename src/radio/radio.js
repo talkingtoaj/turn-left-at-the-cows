@@ -66,9 +66,10 @@ import { radioAudioUrl } from './segments.js';
 // measure -18.4 dBFS through the radio's 3.6 kHz lowpass, with no master
 // gain or compressor after them. -18.4 + 20 log10(0.46) = -25.1 dBFS, 2 dB
 // over the engine. The game's compressor can only make the engine quieter.
-// The owner turned it down (15 Nov 2026): full volume is now 60% of that
-// 0.46 (about 4.4 dB quieter), and it still starts at 70% on the knob.
-const LEVEL = 0.46 * 0.6;
+// The owner tuned it (15 Nov 2026): down to 60% of that 0.46, then up by
+// half again, so full volume is 90% of it (about 1 dB quieter). It still
+// starts at 70% on the knob.
+const LEVEL = 0.46 * 0.6 * 1.5;
 const PAUSE_DUCK = 0.15;
 const NOISE_LEVEL = 0.2;
 const TUNED_AT = 0.04; // dial quality at which a station counts as tuned (and loads)
