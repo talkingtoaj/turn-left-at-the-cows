@@ -1,14 +1,34 @@
-// The car radio: on when you set off (T switches it off), two AM stations, static between
-// them, signal that fades with distance from each mast. It is the only music
-// and talk in the game (SPEC 9o "Radio").
+// The car radio: on when you set off (T switches it on and off), two AM
+// stations, static between them, signal that fades with distance from each
+// mast. It is the only music and talk in the game (SPEC 9o "Radio").
 //
 //   const radio = createRadio();
 //   radio.start();                          game clock zero (when a mission starts)
-//   radio.update(dt, { region, x, y, paused });   every frame
-//   radio.toggle() / radio.setOn(bool)      power
-//   radio.tune(deltaKhz) / radio.setFreq(khz)
-//   radio.state                             { on, freq, tuned, signals, segment, dead, ... }
+//   radio.setStation(id)                    put it on a station now (the home station at mission start)
+//   radio.update(dt, { region, x, y, paused, inCar });   every frame
+//   radio.toggle() / radio.setOn(bool)      power (the volume is kept)
+//   radio.setVolume(0..1) / radio.nudgeVolume(delta)   turning it up also switches it on
+//   radio.crackle(strike)                   a lightning strike, the moment it happens
+//   radio.state                             { on, volume, freq, tuned, target, signals, segment, dead, ... }
 //   radio.onSegment(fn) -> unsubscribe      fn(event) when a segment starts on the tuned station
+//
+// No tuning by the player. The radio tunes itself (autoTuneStep in
+// ./radioLogic.js): it stays on its station while that is heard, and once it
+// is lost and another station would be heard, the needle sweeps across the
+// dial by itself in about a second and lands on that one. The frequency moving
+// between stations gives the tuning static on its own. Signal is distance only
+// from each mast, so driving to the other county the station fades into
+// static, then there is a stretch where neither comes in, then it finds the
+// other one.
+//
+// Volume: 0 to 1, starts at 0.7 and is kept in localStorage. At 0 the lamp is
+// dark as if off. Out of the car (inCar false) the radio fades out in a
+// quarter second and then counts as not heard; back in it fades in again.
+// The global mute (../audio/context.js) silences it, crackles included.
+//
+// Lightning: a strike crackles on the radio at once (radio waves travel with
+// the flash; the thunder sound comes later): loud and about half a second when
+// close, a faint tick when far. Only while the radio is on and can be heard.
 //
 // Segment event (the hook for subtitles and guest spots, ticket #21):
 //   { station, segment, offset, signal, quality, dead }
@@ -19,30 +39,63 @@
 // (detail = the event above), and 'radio-off' when the tuned segment stops.
 //
 // Streaming: only a station you can hear loads. The current segment and the next
-// one are fetched, one file each. Heard means the radio is on, the dial is on the
-// station and the signal is not buried in static (see hearStep in ./radioLogic.js).
-// Each station keeps its own place in its loop and that only moves while it is
-// heard. When you lose it nothing streams. When you get it back after a gap of
-// 5 seconds or more it picks up a little way into the item after the one that
-// was playing, so you never come back to a station that moved on without you.
-// A missing file (404) is dead air: quiet static for its listed length, then on
-// to the next.
+// one are fetched, one file each. Heard means the radio is on, turned up, you are
+// in the car, the dial is on the station and the signal is not buried in static
+// (see hearStep in ./radioLogic.js). Each station keeps its own place in its loop
+// and that only moves while it is heard. When you lose it nothing streams. When
+// you get it back after a gap of 5 seconds or more it picks up a little way into
+// the item after the one that was playing, so you never come back to a station
+// that moved on without you. A missing file (404) is dead air: quiet static for
+// its listed length, then on to the next.
 
 import { sharedAudioContext, unlockAudio, isMuted } from '../audio/context.js';
 import { REGIONS } from '../world/regions.js';
 import {
-  STATIONS, DIAL_MIN, DIAL_MAX, DIAL_STEP, globalPos, signalAt, tuneQuality, mixFor,
-  nextSegment, segmentAt, startPosition, advance, resumeAfterGap, hearStep,
+  STATIONS, globalPos, signalAt, tuneQuality, mixFor, nextSegment, segmentAt, startPosition, advance,
+  resumeAfterGap, hearStep, autoTuneStep, sweepFreq, SWEEP_SECONDS, volumeGain, VOLUME_START, crackleFor,
 } from './radioLogic.js';
 import { radioAudioUrl } from './segments.js';
 
-const LEVEL = 0.9; // radio loudness against the game's other sounds
+// Loudness at 100% volume: about 2 dB over the loudest sound around you.
+// Measured (ffmpeg volumedetect, mean level) against the engine at full
+// throttle, the loudest layer in ../audio/audio.js: its loops are -18.4 dBFS
+// (also through its 2.6 kHz lowpass), engGain at most 0.32 + 0.21 + 0.21 =
+// 0.74 (-2.6 dB), and the game's master gain 0.5 (-6 dB), so about -27 dBFS
+// at the speakers. (Creek or river right beside you, at 0.9, is the same
+// within 0.2 dB; the heaviest rain on the roof is about -34.) The radio files are baked to -18 LUFS (tools/radio-bake.mjs) and
+// measure -18.4 dBFS through the radio's 3.6 kHz lowpass, with no master
+// gain or compressor after them. -18.4 + 20 log10(0.46) = -25.1 dBFS, 2 dB
+// over the engine. The game's compressor can only make the engine quieter.
+const LEVEL = 0.46;
 const PAUSE_DUCK = 0.15;
 const NOISE_LEVEL = 0.2;
 const TUNED_AT = 0.04; // dial quality at which a station counts as tuned (and loads)
 const KEEP_AFTER_UNTUNE = 30; // seconds a station's loaded files stay after you tune away
 const GIVE_UP_AFTER = 2; // a station whose first files are all missing stops asking
 const PARAM_EVERY = 0.1; // seconds between sound parameter updates
+const FADE_OUT = 0.25; // seconds to fade out when you get out of the car (or turn it down to 0)
+const FADE_TC = FADE_OUT / 4; // time constant for that fade (about 2% left after FADE_OUT)
+const VOLUME_KEY = 'askalocal.radioVolume';
+
+// The volume knob is remembered between visits. Storage can be blocked: then
+// it starts at VOLUME_START every visit.
+function readVolume() {
+  try {
+    const raw = globalThis.localStorage?.getItem(VOLUME_KEY);
+    if (raw == null || raw === '') return VOLUME_START;
+    const v = Number(raw);
+    return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : VOLUME_START;
+  } catch (e) {
+    return VOLUME_START;
+  }
+}
+function saveVolume(v) {
+  try {
+    globalThis.localStorage?.setItem(VOLUME_KEY, String(v));
+  } catch (e) {
+    // Storage blocked: remember for this visit only.
+  }
+}
 
 // Mast spots in the shared frame, from the regions' own world data.
 function findMasts() {
@@ -63,7 +116,12 @@ export function createRadio(opts = {}) {
   let ctx = null;
   let nodes = null;
   let on = false;
+  let volume = readVolume();
+  let inCar = true;
+  let quietFor = 0; // seconds since it stopped being audible (out of the car or at 0)
   let freq = 800; // between the two stations
+  let tune = { station: null, hear: {} }; // where the auto-tune wants to be (autoTuneStep)
+  let sweep = null; // { from, to, t } while the needle moves to a new station
   let t0 = performance.now();
   let place = { region: 'fenwick', x: 0, y: 0 };
   let paused = false;
@@ -139,8 +197,41 @@ export function createRadio(opts = {}) {
     voiceG.gain.value = 0;
     voiceLp.connect(voiceG);
     voiceG.connect(out);
-    nodes = { out, noiseG, voiceLp, voiceG };
+    // Lightning crackles go through the same AM band as the static.
+    const crackHp = ctx.createBiquadFilter();
+    crackHp.type = 'highpass';
+    crackHp.frequency.value = 300;
+    const crackLp = ctx.createBiquadFilter();
+    crackLp.type = 'lowpass';
+    crackLp.frequency.value = 5000;
+    crackHp.connect(crackLp);
+    crackLp.connect(out);
+    nodes = { out, noiseG, voiceLp, voiceG, crackHp };
     return true;
+  }
+
+  // A burst of crackle: short bursts of noise at random strengths and sharp
+  // pops, fading out over `seconds`. Made fresh each time so no two sound alike.
+  function crackleBuffer(seconds) {
+    const sr = ctx.sampleRate;
+    const n = Math.max(16, Math.floor(seconds * sr));
+    const b = ctx.createBuffer(1, n, sr);
+    const d = b.getChannelData(0);
+    const attack = sr * 0.002;
+    let amp = 1;
+    let left = 0;
+    for (let i = 0; i < n; i++) {
+      if (left <= 0) {
+        amp = Math.random() < 0.65 ? 0.4 + Math.random() * 0.6 : Math.random() * 0.15;
+        left = sr * (0.003 + Math.random() * 0.025);
+      }
+      left--;
+      let v = (Math.random() * 2 - 1) * amp * 0.6;
+      if (Math.random() < 0.003) v += (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.5);
+      d[i] = v * Math.min(1, i / attack) * Math.pow(1 - i / n, 1.5);
+    }
+    d[Math.min(n - 1, Math.floor(attack))] += 0.9; // it always starts with a tick
+    return b;
   }
 
   const ramp = (param, v, tc = 0.08) => param.setTargetAtTime(v, ctx.currentTime, tc);
@@ -273,6 +364,10 @@ export function createRadio(opts = {}) {
     if (opts) {
       place = { region: opts.region || place.region, x: opts.x, y: opts.y };
       paused = !!opts.paused;
+      if (opts.inCar !== undefined && !!opts.inCar !== inCar) {
+        inCar = !!opts.inCar;
+        paramT = 0; // start the fade now
+      }
     }
     if (!on || !nodes) {
       idle(dt);
@@ -284,6 +379,29 @@ export function createRadio(opts = {}) {
     for (const st of STATIONS) {
       const m = masts.find((k) => k.station === st);
       signals[st.id] = m ? signalAt(Math.hypot(m.x - me.x, m.y - me.y)) : 0;
+    }
+    // Audible: in the car and turned up. Getting out (or turning it to 0)
+    // fades it out first, then it counts as not heard.
+    const want = inCar && volume > 0;
+    quietFor = want ? 0 : quietFor + dt;
+    const audible = quietFor < FADE_OUT;
+    // The radio tunes itself while it can be heard. A radio left quiet starts
+    // fresh when it comes back, so it finds a station at once.
+    if (audible) {
+      const next = autoTuneStep(tune, signals, dt);
+      if (next.station && next.station !== tune.station) {
+        const st = STATIONS.find((k) => k.id === next.station);
+        sweep = { from: freq, to: st.freqKhz, t: 0 };
+      }
+      tune = next;
+    } else if (Object.keys(tune.hear).length) {
+      tune = { station: tune.station, hear: {} };
+    }
+    if (sweep) {
+      sweep.t += dt;
+      freq = sweepFreq(sweep.from, sweep.to, sweep.t);
+      if (sweep.t >= SWEEP_SECONDS) sweep = null;
+      paramT = 0; // the static follows the needle closely
     }
     // The station the dial sits on.
     let best = null;
@@ -297,12 +415,12 @@ export function createRadio(opts = {}) {
     }
     tuned = bq >= TUNED_AT ? best : null;
     lastQuality = tuned ? bq : 0;
-    // Heard or not. Tuning away counts as lost at once.
-    if (hear.station && hear.station !== tuned) {
+    // Heard or not. Tuning away (or not being audible) counts as lost at once.
+    if (hear.station && (hear.station !== tuned || !audible)) {
       if (hear.heard) lose(hear.station);
       hear = { station: null, heard: false, lowFor: 0 };
     }
-    if (tuned) {
+    if (tuned && audible) {
       if (hear.station !== tuned) hear = { station: tuned, heard: false, lowFor: 0 };
       const was = hear.heard;
       const h = hearStep(hear, signals[tuned.id] * lastQuality, dt);
@@ -332,7 +450,33 @@ export function createRadio(opts = {}) {
     ramp(nodes.noiseG.gain, mix.noise * NOISE_LEVEL * (deadAir ? 0.7 : 1));
     ramp(nodes.voiceG.gain, deadAir ? 0 : mix.voice * flutter);
     ramp(nodes.voiceLp.frequency, mix.lowpass);
-    ramp(nodes.out.gain, isMuted() ? 0 : LEVEL * (paused ? PAUSE_DUCK : 1), 0.2);
+    ramp(nodes.out.gain, isMuted() || !want ? 0 : LEVEL * volumeGain(volume) * (paused ? PAUSE_DUCK : 1), FADE_TC);
+  }
+
+  // Volume 0..1, kept to whole percents. Turning it up switches the radio on.
+  function setVolume(v) {
+    v = Math.round(Math.min(1, Math.max(0, Number(v) || 0)) * 100) / 100;
+    if (v === volume) return volume;
+    const up = v > volume;
+    volume = v;
+    saveVolume(volume);
+    paramT = 0;
+    if (up && !on) setOn(true);
+    return volume;
+  }
+
+  // Lightning: a crackle now, through the radio's volume (and the mute).
+  function crackle(strike) {
+    if (!strike || !on || !nodes || !inCar || volume <= 0 || ctx.state !== 'running') return;
+    const c = crackleFor(strike.km, strike.power);
+    const src = ctx.createBufferSource();
+    src.buffer = crackleBuffer(c.seconds);
+    const g = ctx.createGain();
+    g.gain.value = c.level;
+    src.connect(g);
+    g.connect(nodes.crackHp);
+    src.onended = () => g.disconnect();
+    src.start();
   }
 
   function setOn(v) {
@@ -343,6 +487,8 @@ export function createRadio(opts = {}) {
       if (ctx.state === 'suspended') ctx.resume();
       on = true;
       paramT = 0;
+      quietFor = 0;
+      tune = { station: tune.station, hear: {} };
     } else {
       on = false;
       if (hear.heard) lose(hear.station);
@@ -370,18 +516,22 @@ export function createRadio(opts = {}) {
     toggle() {
       return setOn(!on);
     },
-    // Move the dial. Steps land on multiples of DIAL_STEP.
-    tune(delta) {
-      const f = freq + delta;
-      freq = Math.min(DIAL_MAX, Math.max(DIAL_MIN, delta % DIAL_STEP === 0 ? Math.round(f / DIAL_STEP) * DIAL_STEP : f));
+    // Put the radio on a station now, with no sweep (the home station when a
+    // mission starts). The auto-tune carries on from there.
+    setStation(id) {
+      const st = STATIONS.find((k) => k.id === id);
+      if (!st) return null;
+      tune = { station: st.id, hear: {} };
+      sweep = null;
+      freq = st.freqKhz;
       paramT = 0;
-      return freq;
+      return st;
     },
-    setFreq(f) {
-      freq = Math.min(DIAL_MAX, Math.max(DIAL_MIN, f));
-      paramT = 0;
-      return freq;
+    setVolume,
+    nudgeVolume(delta) {
+      return setVolume(volume + delta);
     },
+    crackle,
     onSegment(fn) {
       listeners.add(fn);
       return () => listeners.delete(fn);
@@ -396,7 +546,7 @@ export function createRadio(opts = {}) {
       out.offset = 0;
       out.mode = 'off';
       out.clear = 0;
-      if (!on || !hear.heard || !active) return out;
+      if (!on || !inCar || volume <= 0 || !hear.heard || !active) return out;
       out.segment = active.segment;
       out.offset = pos[active.station.id].offset;
       out.mode = active.dead ? 'dead' : active.src ? 'play' : 'wait';
@@ -406,6 +556,13 @@ export function createRadio(opts = {}) {
     stations: STATIONS,
     get on() {
       return on;
+    },
+    // The lamp: on and turned up.
+    get lit() {
+      return on && volume > 0;
+    },
+    get volume() {
+      return volume;
     },
     get freq() {
       return freq;
@@ -419,7 +576,8 @@ export function createRadio(opts = {}) {
     // For checks: what is on air for the tuned station.
     get state() {
       return {
-        on, freq, tuned: tuned ? tuned.id : null, signals: { ...signals },
+        on, volume, inCar, freq, tuned: tuned ? tuned.id : null, target: tune.station, sweeping: !!sweep,
+        signals: { ...signals },
         segment: active ? active.segment.id : null, dead: !!(active && active.dead),
         loaded: [...cache.entries()].filter(([, e]) => e.state === 'ready').map(([id]) => id),
         loading: [...cache.entries()].filter(([, e]) => e.state === 'loading').map(([id]) => id),

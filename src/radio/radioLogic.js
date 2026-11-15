@@ -3,6 +3,10 @@
 //
 //   startPosition / advance / resumeAfterGap   where a station is in its loop (see below)
 //   hearStep(state, clear, dt) when a station counts as heard (hysteresis)
+//   autoTuneStep(tune, signals, dt)  which station the radio should be on (it tunes itself)
+//   sweepFreq(from, to, t)     the needle part way through a sweep to a new station
+//   volumeGain(volume)         0..1 knob to 0..1 gain (squared, so the knob feels even)
+//   crackleFor(km, power)      how loud and long a lightning crackle is on the radio
 //   nextSegment(station, pos)  the item after this place in the rotation
 //   signalAt(distanceM)        0..1, how strong a mast is this far away
 //   tuneQuality(freq, stFreq)  0..1, how well the dial sits on a station
@@ -10,6 +14,7 @@
 //   globalPos(region, x, y)    a point in the one shared map of the counties
 
 import { STATIONS, SEGMENTS } from './segments.js';
+import { THUNDER } from '../game/thunder.js';
 
 export const DIAL_MIN = 540;
 export const DIAL_MAX = 1600;
@@ -129,6 +134,60 @@ export function hearStep(state, clear, dt) {
   if (clear >= HEAR_LOST) return { heard: true, lowFor: 0 };
   const lowFor = state.lowFor + dt;
   return { heard: lowFor < HEAR_LOST_AFTER, lowFor };
+}
+
+// The radio tunes itself: it stays on its station while that is heard, and when
+// it is not heard but another station would be, it moves to that one (the
+// strongest, if more than one). When none comes in it stays put on static.
+// Each station's own heard state uses hearStep on its signal alone (distance
+// only), so the same levels and the 1 second hold apply, and it cannot flip
+// back and forth at an edge: leaving a station needs it under HEAR_LOST for a
+// full second and the new one at HEAR_BACK or more.
+//   tune = { station: id or null, hear: { [id]: { heard, lowFor } } }
+//   signals = { [id]: 0..1 }
+// Returns a new tune. Start with { station: home id, hear: {} }.
+export function autoTuneStep(tune, signals, dt) {
+  const hear = {};
+  for (const st of STATIONS) {
+    hear[st.id] = hearStep((tune.hear && tune.hear[st.id]) || { heard: false, lowFor: 0 }, signals[st.id] || 0, dt);
+  }
+  let station = tune.station;
+  if (!station || !hear[station] || !hear[station].heard) {
+    let best = null;
+    for (const st of STATIONS) {
+      if (st.id === station || !hear[st.id].heard) continue;
+      if (!best || (signals[st.id] || 0) > (signals[best] || 0)) best = st.id;
+    }
+    if (best) station = best;
+  }
+  return { station, hear };
+}
+
+// The needle sweeps to a new station in about a second, easing in and out.
+// t is seconds since the sweep began.
+export const SWEEP_SECONDS = 1;
+export function sweepFreq(from, to, t) {
+  const x = Math.min(1, Math.max(0, t / SWEEP_SECONDS));
+  return from + (to - from) * x * x * (3 - 2 * x);
+}
+
+// Volume knob (0..1) to gain (0..1). Squared, so each step of the knob sounds
+// about as big as the last: 70% is 6 dB down, 50% is 12 dB down.
+export const VOLUME_START = 0.7;
+export function volumeGain(volume) {
+  const v = Math.min(1, Math.max(0, Number(volume) || 0));
+  return v * v;
+}
+
+// A lightning strike crackles on the radio the moment it happens (radio waves
+// are as fast as the flash; the thunder comes later). Close: loud, about half
+// a second. Far: a faint tick.
+//   level   0..1 against the radio's own loudness
+//   seconds how long it lasts
+export function crackleFor(km, power = 1) {
+  const k = Math.min(1, Math.max(0, (THUNDER.MAX_KM - km) / (THUNDER.MAX_KM - THUNDER.MIN_KM)));
+  const near = k * k;
+  return { level: (power || 1) * (0.06 + 0.94 * near), seconds: 0.03 + 0.47 * near };
 }
 
 // Takes a position, not a segment: the jingle comes up more than once a loop.

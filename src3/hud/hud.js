@@ -333,7 +333,7 @@ export function createHUD(root, { openMap, radio } = {}) {
   const radioDial = radio ? createRadioDial(radioSlot, radio) : null;
   const devDmg = new URLSearchParams(window.location.search).has('damage') ? el('div', 'hud-dev-dmg', hud) : null;
   const hintBar = el('div', 'hud-hint', hud,
-    'Arrows/WASD drive · F get out / in · E talk · M map · C camera · B horn · N north/heading-up · T radio (, . tune) · K mute · H help and hints');
+    'Arrows/WASD drive · F get out / in · E talk · M map · C camera · B horn · N north/heading-up · T radio (, . volume) · K mute · H help and hints');
   let hintShownAt = performance.now();
   const showHints = () => {
     hintShownAt = performance.now();

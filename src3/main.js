@@ -339,8 +339,8 @@ window.addEventListener('keydown', (e) => {
   } else if (e.code === 'KeyT' && plain && !menu) {
     radio.toggle();
   } else if (!menu && (e.code === 'Comma' || e.code === 'Period') && !e.ctrlKey && !e.metaKey && !e.altKey) {
-    // Tune the radio: 10 kHz a step, 50 with Shift. Held keys keep stepping.
-    radio.tune((e.code === 'Comma' ? -1 : 1) * (e.shiftKey ? 50 : 10));
+    // Radio volume: 10% a step. Held keys keep stepping. (It tunes itself.)
+    radio.nudgeVolume(e.code === 'Comma' ? -0.1 : 0.1);
   }
 });
 window.addEventListener('keyup', (e) => keys.delete(e.code));
@@ -596,12 +596,13 @@ function frame(now) {
     }
     for (const s of thunder.update(wetness.t * 6, wetness.rain)) {
       lightning.strike(s, ear);
+      radio.crackle(s); // at once: radio waves come with the flash
       audio.thunder(s, ear);
     }
   }
   lightning.update(runtime.paused ? 0 : dt, camera, wetness.rain);
   // Sound every frame, even paused (it ducks while the map is open).
-  radio.update(dt, { region: regionId, x: ear.x, y: ear.y, paused: runtime.paused });
+  radio.update(dt, { region: regionId, x: ear.x, y: ear.y, paused: runtime.paused, inCar: !foot.active });
   audio.update(dt, state, amb, {
     paused: runtime.paused, rain: wetness, planes: planes ? planes.sound : null, tow: tow.sound,
     listener: ear, onFoot: foot.active,
@@ -891,7 +892,7 @@ export async function startGame(index = 0) {
   // The radio is on when you set off, tuned to the home station of the county
   // you start in (the start screen keeps it quiet).
   const home = STATIONS.find((s) => s.id === (missionRegion(state, m) === 'brandt' ? 'brandt' : 'ashford'));
-  if (home) radio.setFreq(home.freqKhz);
+  if (home) radio.setStation(home.id);
   radio.setOn(true);
   exitMenu();
   foot.reset();

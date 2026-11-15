@@ -7,6 +7,7 @@
 //   dead air      (file missing) no subtitles, unless the dev flag ?radiosubs=1 is on. Then the
 //                 scripts show in full over the static so they can be read in game before the
 //                 owner's audio exists. Players never see subtitles over silence.
+//   out of the car the card hides (and at volume 0): radio.airInfo reports 'off' then
 // Look: the same dark card and cream text as the locals' talk box (./talk.js), smaller, at the top
 // centre so it stays clear of the dash, the hint line and the talk box at the bottom.
 //
