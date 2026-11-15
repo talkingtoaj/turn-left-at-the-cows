@@ -73,6 +73,8 @@ body[data-world="live"] .sp-paint { opacity: 0; }
 .sp-jobs li.is-hot { background: rgba(230,180,80,0.25); }
 .sp-mark { font: 24px/1 Caveat, cursive; color: #4a4a48; text-align: center; }
 .sp-jobs .done .sp-mark { color: #2f6a35; }
+.sp-jobs li.locked { opacity: 0.45; }
+.sp-jobs li.locked .sp-mark { color: #4a4a48; display: flex; justify-content: center; }
 .sp-jname { font: 23px/1.05 Caveat, "Segoe Print", cursive; color: #3a3128; }
 .sp-jbest { display: block; font: 18px/1 Caveat, cursive; color: #4a4a48; }
 .sp-jbtn { padding: 3px 10px; font: 500 13px Oswald, "Arial Narrow", sans-serif !important; letter-spacing: 0.08em; text-transform: uppercase;

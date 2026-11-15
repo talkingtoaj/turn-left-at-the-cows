@@ -91,6 +91,9 @@ export function renderHowTo(parent, version) {
 // ---------- pictures (inline SVG, decorative) ----------
 
 // The painted country seen through the windshield before the live world is in.
+// A small padlock for jobs that aren't open yet.
+const PADLOCK = '<svg viewBox="0 0 16 18" width="15" height="17"><path d="M4.5 8V5.5a3.5 3.5 0 0 1 7 0V8" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="2" y="8" width="12" height="9" rx="1.5" fill="currentColor"/></svg>';
+
 const PAINTED = `<svg viewBox="0 0 1200 300" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
   <path d="M0,150 C160,110 300,140 460,120 C640,96 780,130 960,110 C1060,100 1140,112 1200,104 L1200,300 L0,300 Z" fill="#9db08a"/>
   <path d="M0,190 C200,160 360,180 560,168 C760,156 900,176 1200,160 L1200,300 L0,300 Z" fill="#d9b45a"/>
@@ -223,14 +226,19 @@ export function showSplash({ version = '3d', load, preferred = null, phone = fal
   };
   MISSION_LIST.forEach((m, i) => {
     const rec = done[m.id];
-    const li = el('li', rec ? 'done' : null, list);
+    // A job opens once the one before it is done (or it's the one Continue plays).
+    const locked = !rec && i !== first && i > 0 && !done[MISSION_LIST[i - 1].id];
+    const li = el('li', rec ? 'done' : locked ? 'locked' : null, list);
     li.dataset.mission = m.id;
-    const mark = el('span', 'sp-mark', li, rec ? '✓' : i === first ? '○' : String(i + 1));
+    const mark = el('span', 'sp-mark', li, rec ? '✓' : i === first ? '○' : locked ? '' : String(i + 1));
+    if (locked) mark.innerHTML = PADLOCK;
     mark.setAttribute('aria-hidden', 'true');
     const name = el('span', 'sp-jname', li, m.title);
     if (rec) el('span', 'sp-jbest', name, `best ${timerText(rec.bestMs)}, ${milesText(rec.bestDistance)}`);
-    el('span', 'sp-sr', name, rec ? ' (done)' : i === first ? ' (next)' : '');
-    if (!phone) {
+    el('span', 'sp-sr', name, rec ? ' (done)' : i === first ? ' (next)' : locked ? ' (locked: finish the one before it first)' : '');
+    if (locked) {
+      el('span', null, li);
+    } else if (!phone) {
       const b = el('button', 'sp-jbtn', li, rec ? 'Replay' : 'Play');
       b.type = 'button';
       b.dataset.mission = m.id;
