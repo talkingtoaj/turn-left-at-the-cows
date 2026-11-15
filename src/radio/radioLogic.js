@@ -3,7 +3,7 @@
 //
 //   startPosition / advance / resumeAfterGap   where a station is in its loop (see below)
 //   hearStep(state, clear, dt) when a station counts as heard (hysteresis)
-//   nextSegment(station, seg)  the one after it in the rotation
+//   nextSegment(station, pos)  the item after this place in the rotation
 //   signalAt(distanceM)        0..1, how strong a mast is this far away
 //   tuneQuality(freq, stFreq)  0..1, how well the dial sits on a station
 //   mixFor(signal, quality)    voice level, static level and muffle for the sound
@@ -131,10 +131,10 @@ export function hearStep(state, clear, dt) {
   return { heard: lowFor < HEAR_LOST_AFTER, lowFor };
 }
 
-export function nextSegment(station, seg) {
+// Takes a position, not a segment: the jingle comes up more than once a loop.
+export function nextSegment(station, pos) {
   const { segs } = loopOf(station);
-  const i = station.rotation.indexOf(seg.id);
-  return segs[(i + 1) % segs.length];
+  return segs[(pos.index + 1) % segs.length];
 }
 
 export { STATIONS };

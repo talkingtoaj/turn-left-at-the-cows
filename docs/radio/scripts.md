@@ -53,7 +53,7 @@ Approx. length of each loop: about 14 minutes per station. A station only plays 
 - Home town: Ashford. Mast id: `mast` (the existing mast).
 - DJ: Dewey Halloran. Older man, slow and dry, a little gravel, easygoing.
 - Tagline: "Ashford's own, on the hill."
-- Loop order: ashford_jingle, ashford_link_1, ashford_intro_1, ashford_music_1, ashford_farm, ashford_ad_1, ashford_intro_2, ashford_music_2, ashford_link_2, ashford_swap, ashford_intro_3, ashford_music_3, ashford_weather, ashford_ad_2, ashford_traffic, ashford_notices, ashford_intro_4, ashford_music_4, ashford_guest, ashford_link_4
+- Loop order: ashford_jingle, ashford_link_1, ashford_intro_1, ashford_music_1, ashford_jingle, ashford_farm, ashford_ad_1, ashford_intro_2, ashford_music_2, ashford_jingle, ashford_link_2, ashford_swap, ashford_intro_3, ashford_music_3, ashford_jingle, ashford_weather, ashford_ad_2, ashford_traffic, ashford_notices, ashford_intro_4, ashford_music_4, ashford_guest, ashford_link_4 (the jingle also plays after songs 1 to 3, so once between every two songs)
 
 ### Music (your songs, baked)
 
@@ -246,7 +246,7 @@ Each plays right before its song. Pending your review (line review ids I18-<file
 - Home town: Brandt. Mast id: `mast_brandt` (new mast, needs adding near Brandt).
 - DJ: Rocky Tillman. Woman in her thirties, bright and quick, big laugh, small-town warm.
 - Tagline: "The tallest voice in Brandt."
-- Loop order: brandt_jingle, brandt_link_1, brandt_intro_1, brandt_music_1, brandt_farm, brandt_ad_1, brandt_intro_2, brandt_music_2, brandt_link_2, brandt_swap, brandt_intro_3, brandt_music_3, brandt_weather, brandt_ad_2, brandt_thought, brandt_notices, brandt_intro_4, brandt_music_4, brandt_guest, brandt_link_3
+- Loop order: brandt_jingle, brandt_link_1, brandt_intro_1, brandt_music_1, brandt_jingle, brandt_farm, brandt_ad_1, brandt_intro_2, brandt_music_2, brandt_jingle, brandt_link_2, brandt_swap, brandt_intro_3, brandt_music_3, brandt_jingle, brandt_weather, brandt_ad_2, brandt_thought, brandt_notices, brandt_intro_4, brandt_music_4, brandt_guest, brandt_link_3 (the jingle also plays after songs 1 to 3, so once between every two songs)
 
 ### Music (your songs, baked)
 
@@ -257,6 +257,8 @@ Each plays right before its song. Pending your review (line review ids I18-<file
 - **brandt_music_4.mp3** (song, 240 s). Sunday Afternoon Jazz, by The Tin Shed Boys. The master runs almost 9 minutes; the bake fades it out at 4.
 
 ### Spoken pieces (record these in ElevenLabs)
+
+Rocky's takes use the ElevenLabs v3 model with acting cues (her v2 takes sounded stilted). The text with cues for each piece is in `src/radio/acting.js`: paste that instead of the plain script. The words are the same.
 
 #### brandt_link_1.mp3: DJ link (about 13 s)
 

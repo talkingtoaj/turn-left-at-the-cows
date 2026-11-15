@@ -16,7 +16,9 @@
 //   dj          { name, voice }  voice is a short note for ElevenLabs
 //   tagline     the line the jingle and first link use
 //   rotation    segment ids in the order the station loops them, then starts over.
-//               Every segment of the station appears exactly once.
+//               Every segment of the station appears exactly once, except the
+//               jingle, which also plays after each of songs 1 to 3 (so once
+//               between every two songs, counting the loop around).
 //
 // SEGMENTS (array), each:
 //   id          'ashford_link_1' (station_kind_n)
@@ -68,8 +70,8 @@ export const STATIONS = [
     dj: { name: 'Dewey Halloran', voice: 'Older man, slow and dry, a little gravel, easygoing' },
     tagline: "Ashford's own, on the hill.",
     rotation: [
-      'ashford_jingle', 'ashford_link_1', 'ashford_intro_1', 'ashford_music_1', 'ashford_farm', 'ashford_ad_1',
-      'ashford_intro_2', 'ashford_music_2', 'ashford_link_2', 'ashford_swap', 'ashford_intro_3', 'ashford_music_3', 'ashford_weather',
+      'ashford_jingle', 'ashford_link_1', 'ashford_intro_1', 'ashford_music_1', 'ashford_jingle', 'ashford_farm', 'ashford_ad_1',
+      'ashford_intro_2', 'ashford_music_2', 'ashford_jingle', 'ashford_link_2', 'ashford_swap', 'ashford_intro_3', 'ashford_music_3', 'ashford_jingle', 'ashford_weather',
       'ashford_ad_2', 'ashford_traffic', 'ashford_notices', 'ashford_intro_4', 'ashford_music_4', 'ashford_guest',
       'ashford_link_4',
     ],
@@ -84,8 +86,8 @@ export const STATIONS = [
     dj: { name: 'Rocky Tillman', voice: 'Woman in her thirties, bright and quick, big laugh, small-town warm' },
     tagline: 'The tallest voice in Brandt.',
     rotation: [
-      'brandt_jingle', 'brandt_link_1', 'brandt_intro_1', 'brandt_music_1', 'brandt_farm', 'brandt_ad_1',
-      'brandt_intro_2', 'brandt_music_2', 'brandt_link_2', 'brandt_swap', 'brandt_intro_3', 'brandt_music_3', 'brandt_weather',
+      'brandt_jingle', 'brandt_link_1', 'brandt_intro_1', 'brandt_music_1', 'brandt_jingle', 'brandt_farm', 'brandt_ad_1',
+      'brandt_intro_2', 'brandt_music_2', 'brandt_jingle', 'brandt_link_2', 'brandt_swap', 'brandt_intro_3', 'brandt_music_3', 'brandt_jingle', 'brandt_weather',
       'brandt_ad_2', 'brandt_thought', 'brandt_notices', 'brandt_intro_4', 'brandt_music_4', 'brandt_guest',
       'brandt_link_3',
     ],

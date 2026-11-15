@@ -4,6 +4,7 @@
 // no time-of-day words, known kinds only, one new kind (traffic or thought) per station,
 // no banned words (honest, second only to the elevator).
 import { STATIONS, SEGMENTS } from '../src/radio/segments.js';
+import { ACTING } from '../src/radio/acting.js';
 
 let bad = 0;
 const fail = (m) => { console.error('FAIL', m); bad++; };
@@ -12,12 +13,29 @@ const KINDS = ['link', 'farm', 'swap', 'weather', 'ad', 'notices', 'guest', 'tra
 const others = ['Millbrook', 'Calder', 'Dunmore', 'Oakham', 'Corley'];
 const otherTowns = { ashford: ['Brandt', ...others], brandt: ['Ashford', ...others] };
 
+// Acting cues may add [tags] and change punctuation, never the words.
+const words = (t) => t.replace(/\[[^\]]*\]/g, ' ').toLowerCase().replace(/[^a-z0-9'~]+/g, ' ').trim();
+for (const [id, text] of Object.entries(ACTING)) {
+  const seg = SEGMENTS.find((s) => s.id === id);
+  if (!seg || !seg.spoken) { fail('acting cue for unknown spoken piece ' + id); continue; }
+  if (words(text) !== words(seg.subtitle)) fail(id + ' acting text has different words from the subtitle');
+  if (text.split('\n\n').length !== seg.subtitle.split('\n\n').length) fail(id + ' acting text paragraphs differ');
+}
+
 for (const st of STATIONS) {
   const segs = SEGMENTS.filter((s) => s.station === st.id);
   if (segs.length !== 20) fail(st.id + ' has ' + segs.length + ' segments');
   if (segs.filter((s) => s.spoken).length !== 15) fail(st.id + ' spoken count');
   if (segs.filter((s) => !s.spoken).length !== 5) fail(st.id + ' music count');
-  if ([...st.rotation].sort().join() !== segs.map((s) => s.id).sort().join()) fail(st.id + ' rotation mismatch');
+  if ([...new Set(st.rotation)].sort().join() !== segs.map((s) => s.id).sort().join()) fail(st.id + ' rotation mismatch');
+  for (const id of st.rotation) if (!id.endsWith('_jingle') && st.rotation.filter((x) => x === id).length !== 1) fail(id + ' plays more than once');
+  // A jingle between every two songs, counting the loop around.
+  const songAt = st.rotation.map((id, i) => (id.includes('_music_') ? i : -1)).filter((i) => i >= 0);
+  songAt.forEach((a, k) => {
+    const b = songAt[(k + 1) % songAt.length];
+    const span = b > a ? st.rotation.slice(a + 1, b) : [...st.rotation.slice(a + 1), ...st.rotation.slice(0, b)];
+    if (!span.includes(st.id + '_jingle')) fail(st.id + ' no jingle after ' + st.rotation[a]);
+  });
   for (let n = 1; n <= 4; n++) {
     const song = segs.find((s) => s.id === st.id + '_music_' + n);
     const intro = segs.find((s) => s.id === st.id + '_intro_' + n);

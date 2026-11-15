@@ -3,7 +3,7 @@
 import { STATIONS } from '../src/radio/segments.js';
 import {
   signalAt, tuneQuality, mixFor, loopLength, globalPos,
-  startPosition, advance, resumeAfterGap, segmentAt, hearStep, GAP_CARRY_ON, HEAR_LOST, HEAR_BACK, HEAR_LOST_AFTER,
+  startPosition, advance, resumeAfterGap, segmentAt, nextSegment, hearStep, GAP_CARRY_ON, HEAR_LOST, HEAR_BACK, HEAR_LOST_AFTER,
 } from '../src/radio/radioLogic.js';
 import { REGIONS } from '../src/world/regions.js';
 
@@ -44,6 +44,14 @@ const weak = mixFor(0.05, 1);
 if (!(weak.voice < strong.voice && weak.lowpass < strong.lowpass && weak.noise > strong.noise)) fail('weak mix');
 const between = mixFor(1, 0);
 if (between.voice !== 0 || !(between.noise > strong.noise)) fail('between stations');
+
+// The item after each place in the loop, the repeated jingle included.
+for (const st of STATIONS) {
+  const n = st.rotation.length;
+  for (let i = 0; i < n; i++) {
+    if (nextSegment(st, { index: i, offset: 0 }).id !== st.rotation[(i + 1) % n]) fail(st.id + ' next after ' + i);
+  }
+}
 
 // Positions: forward only, rolling over item ends and the loop end.
 for (const st of STATIONS) {

@@ -223,13 +223,13 @@ export function createRadio(opts = {}) {
   function follow(st) {
     const p = pos[st.id];
     const seg = segmentAt(st, p);
-    const next = nextSegment(st, seg);
+    const next = nextSegment(st, p);
     wanted.clear();
     wanted.add(seg.id);
     wanted.add(next.id);
-    if (!active || active.station !== st || active.segment !== seg) {
+    if (!active || active.station !== st || active.segment !== seg || active.index !== p.index) {
       stopActive();
-      active = { station: st, segment: seg, src: null, dead: false };
+      active = { station: st, segment: seg, index: p.index, src: null, dead: false };
       dropOldFiles(); // only this one and the next stay loaded
       const entry = fetchSegment(seg);
       emit({
@@ -249,7 +249,7 @@ export function createRadio(opts = {}) {
     stopActive();
     lostAt[st.id] = clockSeconds();
     wanted.clear();
-    wanted.add(nextSegment(st, segmentAt(st, pos[st.id])).id);
+    wanted.add(nextSegment(st, pos[st.id]).id);
     untunedFor = 0;
   }
 
