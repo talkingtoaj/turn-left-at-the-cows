@@ -35,6 +35,8 @@ Commit the new files in `public/radio/` and the changed `segments.js`.
 
 ## Voices to set up in ElevenLabs
 
+The game now plays ElevenLabs takes for every spoken piece (baked 2026-11-15, approved by the owner after the full-loop preview). Dewey: eleven_multilingual_v2. Rocky: eleven_v3 with the cues in `src/radio/acting.js`. The masters sit in `../radio-masters`, outside the repo.
+
 | Voice | Station | Notes | ElevenLabs voice (owner's pick, 2026-11-15) |
 |---|---|---|---|
 | Dewey Halloran | Radio Ashford | Older man, slow and dry, a little gravel, easygoing | Spuds Oxley - Grandpa (`NOpBlnGInO9m6vDvFkFC`) |

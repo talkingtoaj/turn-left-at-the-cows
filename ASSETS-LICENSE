@@ -2,7 +2,7 @@ Assets license: all rights reserved
 
 Copyright (c) 2026 AJ. All rights reserved.
 
-The following are NOT covered by the MIT license in the LICENSE file. You may
+The following are NOT covered by the CC0 dedication in the LICENSE file. You may
 not copy, reuse, redistribute or sell them without written permission:
 
   - the art and look of the game made for this project (the painted splash
@@ -15,6 +15,9 @@ not copy, reuse, redistribute or sell them without written permission:
     scripts, the tow lines, the win-screen lines, the notebook lines, the
     intro note and the taglines
   - the title "Turn Left at the Cows" and its characters
+
+Most of these files are not in this repository (see assets.txt). The writing
+is in the code files, but it is still covered by this notice, not by CC0.
 
 Third-party material keeps its own terms. The sky maps, textures, 3D models
 and sound effects we use from other people are CC0 (public domain) and

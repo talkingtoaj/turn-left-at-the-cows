@@ -119,6 +119,16 @@ gcloud storage buckets describe gs://$BUCKET --project=$PROJECT \
   || gcloud storage buckets create gs://$BUCKET --project=$PROJECT \
        --location=us-central1 --uniform-bucket-level-access --public-access-prevention
 
+# 2b. Our own art and sound (assets.txt): a second private bucket, not in git.
+#     The build reads it (cloudbuild.yaml step 'assets'); the owner uploads with
+#     `npm run assets:push`. Separate from the maps bucket, which holds player data.
+ASSETS=turn-left-at-the-cows-assets
+gcloud storage buckets describe gs://$ASSETS --project=$PROJECT \
+  || gcloud storage buckets create gs://$ASSETS --project=$PROJECT \
+       --location=us-central1 --uniform-bucket-level-access --public-access-prevention
+gcloud storage buckets add-iam-policy-binding gs://$ASSETS \
+  --member=serviceAccount:$BUILD_SA --role=roles/storage.objectViewer
+
 # 3. Artifact Registry repo for the images
 gcloud artifacts repositories create turn-left-at-the-cows --repository-format=docker \
   --location=$REGION --project=$PROJECT
