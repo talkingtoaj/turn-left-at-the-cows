@@ -23,6 +23,11 @@ export const VOICE_GENDER = {
   // Tow truck drivers (src/game/tow.js).
   tow_wade: 'm',
   tow_junie: 'f',
+  // Brandt (src/world/npcs_brandt.js).
+  dagny: 'f',
+  peg: 'f',
+  ames: 'f',
+  hal: 'm',
 };
 
 // Tourists (src/game/tourists.js) get a picked voice and pitch, so each one
@@ -32,6 +37,12 @@ const VOICE_PICK = {
   tourist_miami: { gender: 'f', n: 3, rate: 1.1 },
   tourist_lawyer: { gender: 'm', n: 1, rate: 0.9 },
   tourist_spotter: { gender: 'm', n: 2, rate: 1.04 },
+  // Lou, low and gruff (he is also the Brandt radio guest).
+  lou: { gender: 'm', n: 2, rate: 0.88 },
+  // Peg and Bev work at the same diner, so they get different voices; Dagny
+  // would otherwise share Peg's.
+  peg: { gender: 'f', n: 3, rate: 1.08 },
+  dagny: { gender: 'f', n: 2, rate: 0.94 },
 };
 
 function hash(s) {
