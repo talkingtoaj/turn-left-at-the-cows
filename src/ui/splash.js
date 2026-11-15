@@ -15,6 +15,8 @@ import { timerText } from '../hud/format.js';
 import { milesText } from '../units.js';
 import { unlockAudio, isMuted, setMuted, onMuteChange } from '../audio/context.js';
 import { available as mapsAvailable } from '../net/mapsApi.js';
+import { getRecords, recordRows } from '../net/records.js';
+import { touristFor } from '../game/tourists.js';
 import { myMap } from '../game/myMaps.js';
 import { tipsEnabled, setTipsEnabled } from '../game/tips.js';
 
@@ -253,6 +255,19 @@ export function showSplash({ version = '3d', load, preferred = null, phone = fal
     }
   });
   if (!canSaveProgress()) el('p', 'sp-savenote', paper, 'Progress can’t be saved in this window.');
+
+  // All-player records (src/net/records.js) under each job's name, only when
+  // the server answers and someone has set one.
+  getRecords().then((all) => {
+    if (!all || !root.isConnected) return;
+    MISSION_LIST.forEach((m) => {
+      const name = list.querySelector(`li[data-mission="${m.id}"] .sp-jname`);
+      if (!name) return;
+      for (const [k, ms] of recordRows(all[m.id], !!touristFor(m.id))) {
+        el('span', 'sp-jrec', name, `${k}: ${timerText(ms)}`);
+      }
+    });
+  });
 
   // Finished jobs get a "Maps" link to other drivers' maps (src/ui/mapShare.js,
   // loaded on click), only when the map server answers.

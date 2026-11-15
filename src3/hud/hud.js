@@ -18,7 +18,8 @@ import { openHelp } from '../../src/ui/help.js';
 import { towedText } from '../../src/game/tow.js';
 import { mountShareStrip } from '../../src/ui/mapShare.js';
 import { rememberMyMap } from '../../src/game/myMaps.js';
-import { touristTicks } from '../../src/game/tourists.js';
+import { touristTicks, touristFor, touristHelped } from '../../src/game/tourists.js';
+import { submitFinish, getRecords, recordRows } from '../../src/net/records.js';
 import { createRadioDial } from './radioDial.js';
 
 // The HUD (a DOM/CSS port of the old 2D HUD). Shows the dash (compass, odometer,
@@ -114,6 +115,8 @@ const CSS = `
 .hud-win-stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 28px; margin-bottom: 16px; font-size: 16px; }
 .hud-win-stats span span:first-child { color: #8a8d92; margin-right: 8px; }
 .hud-win-stats span span:last-child { color: #d9d4c5; font-weight: bold; }
+.hud-win-records { margin-top: -10px; font-size: 14px; }
+.hud-win-records:empty { display: none; }
 .hud-win-maps { display: flex; flex-wrap: wrap; gap: 18px; justify-content: center; align-items: flex-start; }
 .hud-win-col h3 { margin: 0 0 8px; font-size: 13px; color: #8a8d92; font-weight: normal; letter-spacing: 0.08em; text-transform: uppercase; }
 .hud-thumbs { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; max-width: 560px; }
@@ -360,6 +363,7 @@ export function createHUD(root, { openMap, radio } = {}) {
   let mapOpen = false;
   let mapClosedAt = -Infinity;
   let winShown = false;
+  let winRecords = Promise.resolve(null); // this mission's all-player records (showWin)
   let promptText = null;
   let card = null; // mission card while it shows
   let help = null; // how-to-play panel while it shows
@@ -749,6 +753,19 @@ export function createHUD(root, { openMap, radio } = {}) {
       el('span', null, r, k);
       el('span', null, r, v);
     }
+    // All-player records (src/net/records.js), filled in when the server
+    // answers. No server or no record yet: nothing shows.
+    if (m) {
+      const recBox = el('div', 'hud-win-stats hud-win-records hud-mono', panel);
+      winRecords.then((rec) => {
+        if (!recBox.isConnected) return;
+        for (const [k, ms] of recordRows(rec, !!touristFor(m.id))) {
+          const r = el('span', null, recBox);
+          el('span', null, r, k);
+          el('span', null, r, timerText(ms));
+        }
+      });
+    }
     if (m) {
       const maps = el('div', 'hud-win-maps', panel);
       const left = el('div', 'hud-win-col', maps);
@@ -799,6 +816,13 @@ export function createHUD(root, { openMap, radio } = {}) {
     winShown = true;
     if (inDialogue()) closeDialogue();
     state.inputLocked = true;
+    // Count this finish toward the all-player records (fire and forget); the
+    // answer holds this mission's records, this run included.
+    const m = currentMission(state);
+    winRecords = m
+      ? submitFinish({ mission: m.id, ms: state.elapsedMs, tourist: touristHelped(state, m.id) })
+        .then((rec) => rec || getRecords().then((all) => (all && all[m.id]) || null))
+      : Promise.resolve(null);
     buildWin();
   }
 

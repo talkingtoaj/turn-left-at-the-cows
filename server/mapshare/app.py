@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 from .config import Settings
 from .maps import MAX_NICKNAME, BadRequest, Busy, MapStore, NotFound, check_player, clean_upload
 from .ratelimit import RateLimiter
+from .records import RecordStore, clean_finish
 from .static import make_static_handler
 from .storage import Storage, make_storage
 from .turnstile import TurnstileVerifier
@@ -51,6 +52,8 @@ def create_app(settings: Settings | None = None, storage: Storage | None = None,
     upload_ip = RateLimiter(settings.uploads_per_hour)
     upload_all = RateLimiter(settings.uploads_per_hour_total)
     action_ip = RateLimiter(settings.actions_per_hour)
+    records = RecordStore(storage, settings.records_prefix)
+    finish_ip = RateLimiter(settings.finishes_per_hour)
 
     if settings.using_test_turnstile and os.environ.get("K_SERVICE"):
         log.warning("TURNSTILE_SECRET_KEY is not set: using Cloudflare's always-pass test key")
@@ -59,6 +62,7 @@ def create_app(settings: Settings | None = None, storage: Storage | None = None,
     app.add_middleware(GZipMiddleware, minimum_size=1000)
     app.state.settings = settings
     app.state.store = store
+    app.state.records = records
 
     @app.middleware("http")
     async def headers(request: Request, call_next):
@@ -166,6 +170,22 @@ def create_app(settings: Settings | None = None, storage: Storage | None = None,
     @app.post("/api/maps/{mission}/{map_id}/report")
     async def report(request: Request, mission: str, map_id: str):
         return await action(request, mission, map_id, "report")
+
+    # All-player records (records.py): the fastest finish per mission, and the
+    # fastest where the player also sent the tourist the right way.
+    @app.get("/api/records")
+    def get_records():
+        return _ok({"records": records.all()})
+
+    @app.post("/api/records")
+    async def post_finish(request: Request):
+        mission, ms, tourist = clean_finish(await read_json(request))
+        if not finish_ip.allow(client_ip(request, trust_proxy)):
+            return _err(429, "rate_limited", "Slow down a little.")
+        out = await run_in_threadpool(records.submit, mission, ms, tourist)
+        if out["new"]:
+            log.info("record mission=%s ms=%s new=%s", mission, ms, ",".join(out["new"]))
+        return _ok(out)
 
     # Admin: needs ADMIN_TOKEN (header "Authorization: Bearer <token>").
     def admin_ok(request: Request) -> bool:
