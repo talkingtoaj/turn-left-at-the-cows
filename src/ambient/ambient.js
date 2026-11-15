@@ -437,7 +437,9 @@ export function createAmbient(world, scenery) {
       const pi = near.length && rng() < 0.6 ? near[Math.floor(rng() * near.length)] : ti;
       const t = trees[pi];
       const a = rng() * Math.PI * 2;
-      const rr = t.r * R(0.15, 0.7);
+      // Near the crown: the CC0 tree models are narrower than r up top, so a
+      // wider spot put birds on the steep sides of the canopy.
+      const rr = t.r * R(0.05, 0.3);
       b._px = t.x + Math.cos(a) * rr;
       b._py = t.y + Math.sin(a) * rr;
       b._pz = perchZ(t) * R(0.85, 1.0);

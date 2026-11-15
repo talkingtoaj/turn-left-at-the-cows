@@ -66,7 +66,9 @@ import { radioAudioUrl } from './segments.js';
 // measure -18.4 dBFS through the radio's 3.6 kHz lowpass, with no master
 // gain or compressor after them. -18.4 + 20 log10(0.46) = -25.1 dBFS, 2 dB
 // over the engine. The game's compressor can only make the engine quieter.
-const LEVEL = 0.46;
+// The owner turned it down (15 Nov 2026): full volume is now 60% of that
+// 0.46 (about 4.4 dB quieter), and it still starts at 70% on the knob.
+const LEVEL = 0.46 * 0.6;
 const PAUSE_DUCK = 0.15;
 const NOISE_LEVEL = 0.2;
 const TUNED_AT = 0.04; // dial quality at which a station counts as tuned (and loads)
@@ -75,7 +77,8 @@ const GIVE_UP_AFTER = 2; // a station whose first files are all missing stops as
 const PARAM_EVERY = 0.1; // seconds between sound parameter updates
 const FADE_OUT = 0.25; // seconds to fade out when you get out of the car (or turn it down to 0)
 const FADE_TC = FADE_OUT / 4; // time constant for that fade (about 2% left after FADE_OUT)
-const VOLUME_KEY = 'askalocal.radioVolume';
+// v2: the knob's scale changed (LEVEL above), so old saved volumes start over at 70%.
+const VOLUME_KEY = 'askalocal.radioVolume2';
 
 // The volume knob is remembered between visits. Storage can be blocked: then
 // it starts at VOLUME_START every visit.

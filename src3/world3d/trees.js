@@ -107,6 +107,72 @@ export function treeModelFor(t) {
   return hashString(`${t.x | 0},${t.y | 0}`) % 2 ? MODELS.oakA : MODELS.oakB;
 }
 
+// Top of a model's canopy, as a grid of heights over its footprint (model
+// units: a tree of radius r is the model scaled by r). Made once per model by
+// casting rays straight down; cells with no canopy take the nearest one's height.
+const TOP_N = 24;
+const topMaps = new Map();
+function topMapOf(geo) {
+  let tm = topMaps.get(geo);
+  if (tm) return tm;
+  geo.computeBoundingBox();
+  const bb = geo.boundingBox;
+  const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+  const ray = new THREE.Raycaster();
+  const down = new THREE.Vector3(0, -1, 0);
+  const o = new THREE.Vector3();
+  const h = new Float32Array(TOP_N * TOP_N).fill(NaN);
+  const x0 = bb.min.x;
+  const z0 = bb.min.z;
+  const dx = (bb.max.x - x0) / TOP_N;
+  const dz = (bb.max.z - z0) / TOP_N;
+  for (let j = 0; j < TOP_N; j++) {
+    for (let i = 0; i < TOP_N; i++) {
+      o.set(x0 + (i + 0.5) * dx, bb.max.y + 1, z0 + (j + 0.5) * dz);
+      ray.set(o, down);
+      const hit = ray.intersectObject(mesh, false)[0];
+      if (hit) h[j * TOP_N + i] = hit.point.y;
+    }
+  }
+  // Fill the gaps from the nearest cell with canopy.
+  const filled = Float32Array.from(h);
+  for (let k = 0; k < h.length; k++) {
+    if (!Number.isNaN(h[k])) continue;
+    const ki = k % TOP_N;
+    const kj = (k / TOP_N) | 0;
+    let best = Infinity;
+    for (let m = 0; m < h.length; m++) {
+      if (Number.isNaN(h[m])) continue;
+      const d = (m % TOP_N - ki) ** 2 + (((m / TOP_N) | 0) - kj) ** 2;
+      if (d < best) {
+        best = d;
+        filled[k] = h[m];
+      }
+    }
+  }
+  tm = { h: filled, x0, z0, dx, dz };
+  topMaps.set(geo, tm);
+  return tm;
+}
+
+// Height (world y) of the top of tree t's canopy above the point (x, y), for
+// birds perched on it. ground: the ground height at the trunk. Null with
+// ?trees=old (callers fall back to their own shape).
+export function canopyTopAt(t, x, y, ground) {
+  const geo = treeModelFor(t);
+  if (!geo) return null;
+  const tm = topMapOf(geo);
+  // Undo the instance's turn (tint * 2 pi about up) and scale (r).
+  const a = -t.tint * Math.PI * 2;
+  const wx = (x - t.x) / t.r;
+  const wz = (y - t.y) / t.r;
+  const lx = Math.cos(a) * wx + Math.sin(a) * wz;
+  const lz = -Math.sin(a) * wx + Math.cos(a) * wz;
+  const i = Math.max(0, Math.min(TOP_N - 1, Math.floor((lx - tm.x0) / tm.dx)));
+  const j = Math.max(0, Math.min(TOP_N - 1, Math.floor((lz - tm.z0) / tm.dz)));
+  return ground - 0.15 * t.r + tm.h[j * TOP_N + i] * t.r;
+}
+
 // One shape's instances, sorted by cell, plus its output meshes.
 function makeSet(geo, farGeo, mat, list, cellOf, nCells, casts) {
   const n = list.length;

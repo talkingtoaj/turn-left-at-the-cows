@@ -8,6 +8,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { DEG } from '../../src/drive/geom.js';
 import { createTraffic3D } from './traffic3d.js';
 import { box } from './shapes.js';
+import { canopyTopAt } from './trees.js';
 import { buildSkyClouds, updateCloudUniforms } from './clouds.js';
 import { FOG_COLOR } from './world3d.js';
 
@@ -350,9 +351,18 @@ export function createAmbient3D(scene, opts) {
         if (!near(b.x, b.y, BIRD_R)) continue;
         const t = trees[b.perchTree];
         let y;
-        if (!b.flying && t) y = groundAt(t.x, t.y) + canopyTop(t, Math.hypot(b.x - t.x, b.y - t.y)) + 0.02;
-        else {
-          const k = t ? canopyTop(t, t.r * 0.4) / (perchZ(t) * 0.93) : 1;
+        if (!b.flying && t) {
+          const g = groundAt(t.x, t.y);
+          const top = canopyTopAt(t, b.x, b.y, g);
+          y = (top ?? g + canopyTop(t, Math.hypot(b.x - t.x, b.y - t.y))) + 0.02;
+        } else {
+          // Landing: scaled so the glide ends on the canopy the bird sits on.
+          let k = 1;
+          if (t) {
+            const g = groundAt(t.x, t.y);
+            const top = canopyTopAt(t, t.x + t.r * 0.4, t.y, g);
+            k = (top != null ? top - g : canopyTop(t, t.r * 0.4)) / (perchZ(t) * 0.93);
+          }
           y = groundAt(b.x, b.y) + b.z * Math.max(1, k);
         }
         e.set(0, -b.heading * DEG, 0);

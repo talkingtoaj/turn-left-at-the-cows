@@ -593,8 +593,10 @@ export function buildPowerLines(world, terrain, batch) {
       batch.place(arm, p.x, p.y, base, ang, 0, 0, ARM_UP - 0.12, 0x4d3b2a);
       const pts = [];
       for (const lx of [-ARM_HALF, 0, ARM_HALF]) {
-        const up = lx === 0 ? POLE_H : ARM_UP;
-        if (lx !== 0) batch.place(ins, p.x, p.y, base, ang, lx, 0, up, 0x9aa3ab, { cast: false });
+        // The pole stands 0.3 m into the ground, so its top is POLE_H - 0.3
+        // up; the middle wire sits on an insulator there, not in the air.
+        const up = lx === 0 ? POLE_H - 0.3 : ARM_UP;
+        batch.place(ins, p.x, p.y, base, ang, lx, 0, up, 0x9aa3ab, { cast: false });
         const r = ang * DEG;
         pts.push([p.x + Math.cos(r) * lx, base + up + 0.2, p.y + Math.sin(r) * lx]);
       }

@@ -26,6 +26,18 @@ export function createStats(renderer, enabled) {
     + 'font:12px/1.35 monospace;color:#e8ffe8;background:rgba(0,0,0,0.6);padding:5px 8px;border-radius:4px;white-space:pre';
   document.body.appendChild(el);
 
+  // Which GPU the browser draws with. "SwiftShader", "llvmpipe" or "Basic
+  // Render" means software drawing (hardware acceleration off): very slow.
+  let gpu = '?';
+  try {
+    const gl = renderer.getContext();
+    const ext = gl.getExtension('WEBGL_debug_renderer_info');
+    gpu = String(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER));
+  } catch (e) {
+    // Some browsers hide it.
+  }
+  if (/swiftshader|llvmpipe|software|basic render/i.test(gpu)) gpu += '  << SOFTWARE: turn on hardware acceleration';
+
   let frames = 0;
   let acc = 0;
   let cpuAcc = 0;
@@ -62,6 +74,7 @@ export function createStats(renderer, enabled) {
         `calls ${last.calls}  tris ${(last.tris / 1000).toFixed(0)}k`,
         `shadow ${shadow.calls} calls  ${(shadow.tris / 1000).toFixed(0)}k tris  ${shadowRuns}/${frames} frames`,
         extra ? extra() : '',
+        `gpu ${gpu.slice(0, 90)}`,
       ].join('\n');
       frames = 0;
       acc = 0;

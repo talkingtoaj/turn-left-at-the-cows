@@ -601,8 +601,10 @@ function frame(now) {
     }
   }
   lightning.update(runtime.paused ? 0 : dt, camera, wetness.rain);
-  // Sound every frame, even paused (it ducks while the map is open).
-  radio.update(dt, { region: regionId, x: ear.x, y: ear.y, paused: runtime.paused, inCar: !foot.active });
+  // Sound every frame, even paused (it ducks while the map is open). The radio
+  // gets real time, not the capped step: its clips play in real time, so below
+  // 20 fps a capped clock fell behind and left silence after each clip.
+  radio.update(Math.min(rawMs, 10000) / 1000, { region: regionId, x: ear.x, y: ear.y, paused: runtime.paused, inCar: !foot.active });
   audio.update(dt, state, amb, {
     paused: runtime.paused, rain: wetness, planes: planes ? planes.sound : null, tow: tow.sound,
     listener: ear, onFoot: foot.active,
