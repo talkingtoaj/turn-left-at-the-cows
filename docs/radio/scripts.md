@@ -254,7 +254,7 @@ Each plays right before its song. Pending your review (line review ids I18-<file
 - **brandt_music_1.mp3** (song, 151.6 s). Sunday Mornin' Rush, by General Davie Wigglebottom the Third.
 - **brandt_music_2.mp3** (song, 258.6 s). Deacon Dan Can Dance, by Davie Brown.
 - **brandt_music_3.mp3** (song, 276.7 s). Don't Make Me Wait, by Alicia Havernstein.
-- **brandt_music_4.mp3** (song, 530 s). Saturday Afternoon, by The Tin Shed Boys.
+- **brandt_music_4.mp3** (song, 240 s). Sunday Afternoon Jazz, by The Tin Shed Boys. The master runs almost 9 minutes; the bake fades it out at 4.
 
 ### Spoken pieces (record these in ElevenLabs)
 
@@ -440,4 +440,4 @@ Each plays right before its song. Pending your review (line review ids I18-<file
 
 **Voice notes:** Rocky: woman in her thirties, bright and quick, big laugh, small-town warm. Mid-western American. Talks like she is grinning. Song intro. Friendly and quick. Read the names straight, no comment on them.
 
-> A long one now, from the Tin Shed Boys. Saturday Afternoon.
+> From the Tin Shed Boys, Sunday Afternoon Jazz.

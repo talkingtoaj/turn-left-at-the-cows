@@ -85,7 +85,9 @@ for (const seg of SEGMENTS) {
   const dir = path.join(outRoot, seg.station);
   fs.mkdirSync(dir, { recursive: true });
   const out = path.join(dir, seg.file);
-  const r = run('ffmpeg', ['-y', '-v', 'error', '-i', m.full, '-vn', '-af', FILTER,
+  // A long master can be cut short with a fade (segment field fadeOutAt).
+  const cut = seg.fadeOutAt ? 'atrim=0:' + seg.fadeOutAt + ',afade=t=out:st=' + (seg.fadeOutAt - 8) + ':d=8,' : '';
+  const r = run('ffmpeg', ['-y', '-v', 'error', '-i', m.full, '-vn', '-af', cut + FILTER,
     '-ac', '1', '-ar', '22050', '-c:a', 'libmp3lame', '-b:a', BITRATE, '-map_metadata', '-1', out]);
   if (r.status !== 0) {
     failed++;

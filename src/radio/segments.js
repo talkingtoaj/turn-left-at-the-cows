@@ -27,7 +27,9 @@
 //   spoken      true for the 15 spoken pieces, false for the 5 music slots
 //   title, artist  music only: the owner's own song (made-up names). The DJ says
 //               them in the 'intro' piece just before the song, and the radio's
-//               music card shows them. Jingles have no title.
+//               docs list them. The game shows no card for music. Jingles have no title.
+//   fadeOutAt   optional, music only: the AM tool cuts the master here (seconds)
+//               with an 8 s fade out.
 //   file        file name the owner records to, MP3, in the owner's masters folder.
 //               The AM tool writes the same name into public/.
 //   seconds     length in seconds. A guess until `npm run radio:bake -- <dir> --write-durations`
@@ -100,8 +102,8 @@ function spoken(id, station, kind, seconds, speaker, voiceNotes, subtitle) {
     id, station, kind, spoken: true, file: id + '.mp3', seconds, speaker, subtitle, voiceNotes, scriptKey: id,
   };
 }
-function music(id, station, kind, seconds, brief, title = '', artist = '') {
-  return { id, station, kind, spoken: false, file: id + '.mp3', seconds, speaker: '', subtitle: '', voiceNotes: brief, title, artist };
+function music(id, station, kind, seconds, brief, title = '', artist = '', extra = {}) {
+  return { id, station, kind, spoken: false, file: id + '.mp3', seconds, speaker: '', subtitle: '', voiceNotes: brief, title, artist, ...extra };
 }
 const DEWEY_INTRO = DEWEY_VOICE + 'Song intro. Plain and warm. Read the names straight, no comment on them.';
 const ROCKY_INTRO = ROCKY_VOICE + 'Song intro. Friendly and quick. Read the names straight, no comment on them.';
@@ -219,9 +221,10 @@ export const SEGMENTS = [
   // Line review id: I18-brandt_intro_4
   spoken("brandt_intro_4", "brandt", "intro", 5, ROCKY,
     ROCKY_INTRO,
-    "A long one now, from the Tin Shed Boys. Saturday Afternoon."),
-  music("brandt_music_4", "brandt", "music", 530,
-    "The owner's own song.", "Saturday Afternoon", "The Tin Shed Boys"),
+    "From the Tin Shed Boys, Sunday Afternoon Jazz."),
+  music("brandt_music_4", "brandt", "music", 240.1,
+    "The owner's own song. The master runs almost 9 minutes; the bake fades it out at 4.",
+    "Sunday Afternoon Jazz", "The Tin Shed Boys", { fadeOutAt: 240 }),
   spoken("brandt_guest", "brandt", 'guest', 45, "Rocky Tillman and Lou (gibberish)",
     ROCKY_VOICE + "Guest spot. Lou is gruff and short, a low mutter. His lines are made-up sounds with real sentence rhythm, not a real language. Record Lou as a second voice (man, low, gruff, grumpy but kind). Leave a 3 to 4 second gap after each Rocky line where Lou speaks. Rocky does not translate or repeat what Lou says. She just carries on.",
     "Lou from the garage is here, dropping off a part for the transmitter. Lou, say hello.\n\n~ Mm. Hrmph. Gorra nash, bidda lunk, ottle ottle rum. Hnh.\n\nGood to see you too. Lou, people keep asking me how to find the flying club. I tell them the planes go round and round the field on a fine day, and they never fly over the middle. So you drive to the middle of the circle.\n\n~ Hnh. Gorra nash.\n\nI thought so.\n\n~ Bidda lunk. Hrmph.\n\nThanks, Lou. That's Lou's Garage, here in Brandt, if your car needs looking at."),
