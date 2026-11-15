@@ -69,7 +69,7 @@ import { radioAudioUrl } from './segments.js';
 // The owner tuned it (15 Nov 2026): down to 60% of that 0.46, then up by
 // half twice, so full volume is 1.35 x it (about 2.6 dB louder). It still
 // starts at 70% on the knob.
-const LEVEL = 0.46 * 0.6 * 1.5 * 1.5;
+const LEVEL = 0.46 * 0.6 * 1.5 * 1.5 * 1.5;
 const PAUSE_DUCK = 0.15;
 const NOISE_LEVEL = 0.2;
 const TUNED_AT = 0.04; // dial quality at which a station counts as tuned (and loads)

@@ -1,5 +1,5 @@
 // Radio subtitle maths with no browser in it (safe to import from node checks).
-// The subtitle HUD (src3/hud/radioSubs.js) uses these; tools/check-radio-subs.mjs tests them.
+// The radio subtitle HUD was removed (owner: not needed); tools/check-radio-subs.mjs still tests these.
 //
 //   subtitleCues(seg)          the segment's English lines as timed cues
 //   cueIndexAt(cues, t)        which cue is on at t seconds into the segment
