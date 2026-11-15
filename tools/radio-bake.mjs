@@ -120,7 +120,9 @@ if (flag('--write-durations')) {
   let n = 0;
   for (const { seg, d } of results) {
     if (d == null) continue;
-    const re = new RegExp("((?:spoken|music)\\('" + seg.id + "', '" + seg.station + "', '" + seg.kind + "', )[0-9.]+");
+    // segments.js uses both quote styles, so match either.
+    const q = "[\"']";
+    const re = new RegExp('((?:spoken|music)\\(' + q + seg.id + q + ', ' + q + seg.station + q + ', ' + q + seg.kind + q + ', )[0-9.]+');
     const next = src.replace(re, '$1' + Math.round(d * 10) / 10);
     if (next !== src) n++;
     src = next;

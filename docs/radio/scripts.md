@@ -53,15 +53,15 @@ Approx. length of each loop: about 14 minutes per station. A station only plays 
 - Home town: Ashford. Mast id: `mast` (the existing mast).
 - DJ: Dewey Halloran. Older man, slow and dry, a little gravel, easygoing.
 - Tagline: "Ashford's own, on the hill."
-- Loop order: ashford_jingle, ashford_link_1, ashford_music_1, ashford_farm, ashford_ad_1, ashford_music_2, ashford_link_2, ashford_swap, ashford_music_3, ashford_weather, ashford_ad_2, ashford_traffic, ashford_notices, ashford_music_4, ashford_guest, ashford_link_4
+- Loop order: ashford_jingle, ashford_link_1, ashford_intro_1, ashford_music_1, ashford_farm, ashford_ad_1, ashford_intro_2, ashford_music_2, ashford_link_2, ashford_swap, ashford_intro_3, ashford_music_3, ashford_weather, ashford_ad_2, ashford_traffic, ashford_notices, ashford_intro_4, ashford_music_4, ashford_guest, ashford_link_4
 
-### Music slots (you make these)
+### Music (your songs, baked)
 
-- **ashford_jingle.mp3** (jingle, about 8 s). Station ID sting, about 8 seconds. Twangy electric guitar and a plucked banjo, a quick little rising run that ends on a happy chord. No singing. Worn and warm, like a tune the hardware store has played for forty years.
-- **ashford_music_1.mp3** (music, about 130 s). About 2 minutes. Slow country waltz in 3/4. Dusty slide guitar, brushed drums, upright bass, a lonely fiddle on the tune. Mood: a porch at sundown. Instrumental, no vocals.
-- **ashford_music_2.mp3** (music, about 125 s). About 2 minutes. Upbeat 1992 country line-dance shuffle in 4/4. Twangy electric guitar, handclaps, a steady kick-and-snare, a fiddle break. Mood: church hall floor on a Saturday. Instrumental.
-- **ashford_music_3.mp3** (music, about 135 s). About 2 minutes. Old-time gospel hymn feel, slow 4/4. Wheezy pump organ and a small choir humming "ooh" with no words, soft acoustic guitar. Mood: the church on a quiet Sunday. Instrumental plus hum only.
-- **ashford_music_4.mp3** (music, about 125 s). About 2 minutes. Honky-tonk piano and fiddle, bouncy 2-beat two-step. A bit of brush snare and a walking bass. Mood: a Saturday night that is going fine. Instrumental.
+- **ashford_jingle.mp3** (jingle, 10 s). Station ID, sung by a small group (line review I18-ashford_jingle-b): Ten-ten, W-H-A-Y. Ashford's own, on the hill.
+- **ashford_music_1.mp3** (song, 150.3 s). The Perfect Snore, by Lily Poptart.
+- **ashford_music_2.mp3** (song, 197.3 s). We Never Fight, by Bert Humpford and his long-time sweetheart Lady Penelope.
+- **ashford_music_3.mp3** (song, 270 s). Pastor's Kid, by Chris Bretherwait.
+- **ashford_music_4.mp3** (song, 249.9 s). Every Trail Leads Home, by Freddie and the Poodles.
 
 ### Spoken pieces (record these in ElevenLabs)
 
@@ -205,20 +205,56 @@ Approx. length of each loop: about 14 minutes per station. A station only plays 
 
 ---
 
+### Song intros (record these in ElevenLabs)
+
+Each plays right before its song. Pending your review (line review ids I18-<file name>).
+
+#### ashford_intro_1.mp3: Song intro (about 5 s)
+
+**Speaker:** Dewey Halloran
+
+**Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Song intro. Plain and warm. Read the names straight, no comment on them.
+
+> Here's Lily Poptart, The Perfect Snore.
+
+#### ashford_intro_2.mp3: Song intro (about 5 s)
+
+**Speaker:** Dewey Halloran
+
+**Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Song intro. Plain and warm. Read the names straight, no comment on them.
+
+> Back to the records. This is Bert Humpford and his long-time sweetheart, Lady Penelope, with We Never Fight.
+
+#### ashford_intro_3.mp3: Song intro (about 5 s)
+
+**Speaker:** Dewey Halloran
+
+**Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Song intro. Plain and warm. Read the names straight, no comment on them.
+
+> Chris Bretherwait now, with Pastor's Kid.
+
+#### ashford_intro_4.mp3: Song intro (about 5 s)
+
+**Speaker:** Dewey Halloran
+
+**Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Song intro. Plain and warm. Read the names straight, no comment on them.
+
+> This one's for Ruth and Andrew. Freddie and the Poodles, Every Trail Leads Home.
+
 ## Brandt 1340 (WBRT, 1340 AM)
 
 - Home town: Brandt. Mast id: `mast_brandt` (new mast, needs adding near Brandt).
 - DJ: Rocky Tillman. Woman in her thirties, bright and quick, big laugh, small-town warm.
 - Tagline: "The tallest voice in Brandt."
-- Loop order: brandt_jingle, brandt_link_1, brandt_music_1, brandt_farm, brandt_ad_1, brandt_music_2, brandt_link_2, brandt_swap, brandt_music_3, brandt_weather, brandt_ad_2, brandt_thought, brandt_notices, brandt_music_4, brandt_guest, brandt_link_3
+- Loop order: brandt_jingle, brandt_link_1, brandt_intro_1, brandt_music_1, brandt_farm, brandt_ad_1, brandt_intro_2, brandt_music_2, brandt_link_2, brandt_swap, brandt_intro_3, brandt_music_3, brandt_weather, brandt_ad_2, brandt_thought, brandt_notices, brandt_intro_4, brandt_music_4, brandt_guest, brandt_link_3
 
-### Music slots (you make these)
+### Music (your songs, baked)
 
-- **brandt_jingle.mp3** (jingle, about 8 s). Station ID sting, about 8 seconds. Bright, bouncy: a snare roll, a jangly guitar chord, a little organ riff going up. No singing. Sounds like a diner jukebox playing the first bar of a happy song.
-- **brandt_music_1.mp3** (music, about 130 s). About 2 minutes. Early rock and roll shuffle, 12-bar blues feel. Twangy guitar, honky piano, brushed drums, a sax solo in the middle. Mood: the diner jukebox on a busy afternoon. Instrumental.
-- **brandt_music_2.mp3** (music, about 125 s). About 2 minutes. Easy 1992 soft-pop, mid-tempo 4/4. Warm electric piano, clean guitar, light drum machine, a small synth pad. Mood: windows down on the highway. Instrumental.
-- **brandt_music_3.mp3** (music, about 135 s). About 2 minutes. Polka, quick 2/4 oompah. Accordion lead, tuba bass, snare on the off beat, a clarinet answering the tune. Mood: a grain elevator picnic. Instrumental.
-- **brandt_music_4.mp3** (music, about 125 s). About 2 minutes. Slow twangy ballad, 6/8. Steel guitar, a soft snare, warm bass, a little bell. Mood: nobody in the diner but the last piece of pie. Instrumental.
+- **brandt_jingle.mp3** (jingle, 10.9 s). Station ID, sung by a small group (line review I18-brandt_jingle-b): Thirteen-forty, W-B-R-T. The tallest voice in Brandt.
+- **brandt_music_1.mp3** (song, 151.6 s). Sunday Mornin' Rush, by General Davie Wigglebottom the Third.
+- **brandt_music_2.mp3** (song, 258.6 s). Deacon Dan Can Dance, by Davie Brown.
+- **brandt_music_3.mp3** (song, 276.7 s). Don't Make Me Wait, by Alicia Havernstein.
+- **brandt_music_4.mp3** (song, 530 s). Saturday Afternoon, by The Tin Shed Boys.
 
 ### Spoken pieces (record these in ElevenLabs)
 
@@ -369,3 +405,39 @@ Approx. length of each loop: about 14 minutes per station. A station only plays 
 > The phones are lit up again. One caller says that someday you'll pick any song, any time, no DJ needed. He thinks it'll come through the phone line, or maybe through the air. He wasn't sure about that part.
 >
 > Ha, ha. Sure, sir. They'll always need ol' Rocky... right?
+
+### Song intros (record these in ElevenLabs)
+
+Each plays right before its song. Pending your review (line review ids I18-<file name>).
+
+#### brandt_intro_1.mp3: Song intro (about 5 s)
+
+**Speaker:** Rocky Tillman
+
+**Voice notes:** Rocky: woman in her thirties, bright and quick, big laugh, small-town warm. Mid-western American. Talks like she is grinning. Song intro. Friendly and quick. Read the names straight, no comment on them.
+
+> Let's start with General Davie Wigglebottom the Third, and Sunday Mornin' Rush.
+
+#### brandt_intro_2.mp3: Song intro (about 5 s)
+
+**Speaker:** Rocky Tillman
+
+**Voice notes:** Rocky: woman in her thirties, bright and quick, big laugh, small-town warm. Mid-western American. Talks like she is grinning. Song intro. Friendly and quick. Read the names straight, no comment on them.
+
+> Here's Davie Brown with Deacon Dan Can Dance.
+
+#### brandt_intro_3.mp3: Song intro (about 5 s)
+
+**Speaker:** Rocky Tillman
+
+**Voice notes:** Rocky: woman in her thirties, bright and quick, big laugh, small-town warm. Mid-western American. Talks like she is grinning. Song intro. Friendly and quick. Read the names straight, no comment on them.
+
+> Alicia Havernstein next. This is Don't Make Me Wait.
+
+#### brandt_intro_4.mp3: Song intro (about 5 s)
+
+**Speaker:** Rocky Tillman
+
+**Voice notes:** Rocky: woman in her thirties, bright and quick, big laugh, small-town warm. Mid-western American. Talks like she is grinning. Song intro. Friendly and quick. Read the names straight, no comment on them.
+
+> A long one now, from the Tin Shed Boys. Saturday Afternoon.

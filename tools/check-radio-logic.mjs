@@ -53,8 +53,9 @@ for (const st of STATIONS) {
   const r = advance(st, { index: 0, offset: seg0.seconds - 2 }, 5);
   if (r.index !== 1 || Math.abs(r.offset - 3) > 1e-6) fail(st.id + ' roll past end ' + JSON.stringify(r));
   // A whole loop lands back where it began.
-  const loop = advance(st, { index: 2, offset: 7 }, loopLength(st));
-  if (loop.index !== 2 || Math.abs(loop.offset - 7) > 1e-6) fail(st.id + ' full loop');
+  const half = segmentAt(st, { index: 2, offset: 0 }).seconds / 2;
+  const loop = advance(st, { index: 2, offset: half }, loopLength(st));
+  if (loop.index !== 2 || Math.abs(loop.offset - half) > 1e-6) fail(st.id + ' full loop');
   // Start positions: a random item, offset 0, same random gives the same spot.
   for (const rv of [0, 0.5, 0.999999]) {
     const p = startPosition(st, () => rv);

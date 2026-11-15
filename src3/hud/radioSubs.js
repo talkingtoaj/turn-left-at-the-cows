@@ -91,7 +91,8 @@ export function createRadioSubs(root, radio) {
     if (reach === 'none') return hide();
     if (!seg.spoken) {
       const n = /_(\d)$/.exec(seg.id);
-      const slot = (KIND_NAME[seg.kind] || 'music') + (n ? ' ' + n[1] : '');
+      const slot = seg.title ? seg.title + ', ' + seg.artist
+        : (KIND_NAME[seg.kind] || 'music') + (n ? ' ' + n[1] : '');
       return show(seg.id, 'rsub-music', '', '♪ ' + slot + (dead ? ' (no audio yet)' : ''));
     }
     const cues = subtitleCues(seg);

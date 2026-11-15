@@ -1,4 +1,5 @@
-// Checks the radio segment list: 16 segments per station (11 spoken, 5 music),
+// Checks the radio segment list: 20 segments per station (15 spoken, 5 music),
+// each song has a title and artist and its intro plays right before it and names it,
 // rotation covers each once, files unique, no dashes, no other town named,
 // no time-of-day words, known kinds only, one new kind (traffic or thought) per station,
 // no banned words (honest, second only to the elevator).
@@ -7,16 +8,25 @@ import { STATIONS, SEGMENTS } from '../src/radio/segments.js';
 let bad = 0;
 const fail = (m) => { console.error('FAIL', m); bad++; };
 const files = new Set();
-const KINDS = ['link', 'farm', 'swap', 'weather', 'ad', 'notices', 'guest', 'traffic', 'thought', 'jingle', 'music'];
+const KINDS = ['link', 'farm', 'swap', 'weather', 'ad', 'notices', 'guest', 'traffic', 'thought', 'intro', 'jingle', 'music'];
 const others = ['Millbrook', 'Calder', 'Dunmore', 'Oakham', 'Corley'];
 const otherTowns = { ashford: ['Brandt', ...others], brandt: ['Ashford', ...others] };
 
 for (const st of STATIONS) {
   const segs = SEGMENTS.filter((s) => s.station === st.id);
-  if (segs.length !== 16) fail(st.id + ' has ' + segs.length + ' segments');
-  if (segs.filter((s) => s.spoken).length !== 11) fail(st.id + ' spoken count');
+  if (segs.length !== 20) fail(st.id + ' has ' + segs.length + ' segments');
+  if (segs.filter((s) => s.spoken).length !== 15) fail(st.id + ' spoken count');
   if (segs.filter((s) => !s.spoken).length !== 5) fail(st.id + ' music count');
   if ([...st.rotation].sort().join() !== segs.map((s) => s.id).sort().join()) fail(st.id + ' rotation mismatch');
+  for (let n = 1; n <= 4; n++) {
+    const song = segs.find((s) => s.id === st.id + '_music_' + n);
+    const intro = segs.find((s) => s.id === st.id + '_intro_' + n);
+    if (!song || !intro) { fail(st.id + ' song or intro ' + n + ' missing'); continue; }
+    if (!song.title || !song.artist) fail(song.id + ' needs a title and artist');
+    if (st.rotation.indexOf(intro.id) !== st.rotation.indexOf(song.id) - 1) fail(intro.id + ' must play right before ' + song.id);
+    const said = intro.subtitle.toLowerCase();
+    if (!said.includes(song.title.toLowerCase())) fail(intro.id + ' does not say the title');
+  }
   const extra = segs.filter((s) => s.kind === 'traffic' || s.kind === 'thought').length;
   if (extra !== 1) fail(st.id + ' needs exactly one traffic or thought piece, has ' + extra);
   for (const s of segs) {

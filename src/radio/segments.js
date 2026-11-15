@@ -22,9 +22,12 @@
 //   id          'ashford_link_1' (station_kind_n)
 //   station     station id
 //   kind        'link' | 'farm' | 'swap' | 'weather' | 'ad' | 'notices' | 'guest'
-//               | 'traffic' | 'thought'                                          (spoken)
+//               | 'traffic' | 'thought' | 'intro'                                (spoken)
 //               'jingle' | 'music'                                                  (music)
-//   spoken      true for the 11 spoken pieces, false for the 5 music slots
+//   spoken      true for the 15 spoken pieces, false for the 5 music slots
+//   title, artist  music only: the owner's own song (made-up names). The DJ says
+//               them in the 'intro' piece just before the song, and the radio's
+//               music card shows them. Jingles have no title.
 //   file        file name the owner records to, MP3, in the owner's masters folder.
 //               The AM tool writes the same name into public/.
 //   seconds     length in seconds. A guess until `npm run radio:bake -- <dir> --write-durations`
@@ -39,7 +42,9 @@
 //
 // Rules the scripts follow (SPEC 9o): own home town only, never a live "here"
 // report, no "today / tonight / this morning" (the player can tune in at any
-// clock time), July 1992, no real song or artist names.
+// clock time), July 1992. Songs are the owner's own, with made-up titles and
+// artists; each one has a short DJ intro ('intro', id <station>_intro_<n>) that
+// plays right before <station>_music_<n>.
 
 // Where the AM tool writes baked files and where the radio player streams them
 // from. Folder under public/, one subfolder per station. URL for a segment:
@@ -61,9 +66,9 @@ export const STATIONS = [
     dj: { name: 'Dewey Halloran', voice: 'Older man, slow and dry, a little gravel, easygoing' },
     tagline: "Ashford's own, on the hill.",
     rotation: [
-      'ashford_jingle', 'ashford_link_1', 'ashford_music_1', 'ashford_farm', 'ashford_ad_1',
-      'ashford_music_2', 'ashford_link_2', 'ashford_swap', 'ashford_music_3', 'ashford_weather',
-      'ashford_ad_2', 'ashford_traffic', 'ashford_notices', 'ashford_music_4', 'ashford_guest',
+      'ashford_jingle', 'ashford_link_1', 'ashford_intro_1', 'ashford_music_1', 'ashford_farm', 'ashford_ad_1',
+      'ashford_intro_2', 'ashford_music_2', 'ashford_link_2', 'ashford_swap', 'ashford_intro_3', 'ashford_music_3', 'ashford_weather',
+      'ashford_ad_2', 'ashford_traffic', 'ashford_notices', 'ashford_intro_4', 'ashford_music_4', 'ashford_guest',
       'ashford_link_4',
     ],
   },
@@ -77,9 +82,9 @@ export const STATIONS = [
     dj: { name: 'Rocky Tillman', voice: 'Woman in her thirties, bright and quick, big laugh, small-town warm' },
     tagline: 'The tallest voice in Brandt.',
     rotation: [
-      'brandt_jingle', 'brandt_link_1', 'brandt_music_1', 'brandt_farm', 'brandt_ad_1',
-      'brandt_music_2', 'brandt_link_2', 'brandt_swap', 'brandt_music_3', 'brandt_weather',
-      'brandt_ad_2', 'brandt_thought', 'brandt_notices', 'brandt_music_4', 'brandt_guest',
+      'brandt_jingle', 'brandt_link_1', 'brandt_intro_1', 'brandt_music_1', 'brandt_farm', 'brandt_ad_1',
+      'brandt_intro_2', 'brandt_music_2', 'brandt_link_2', 'brandt_swap', 'brandt_intro_3', 'brandt_music_3', 'brandt_weather',
+      'brandt_ad_2', 'brandt_thought', 'brandt_notices', 'brandt_intro_4', 'brandt_music_4', 'brandt_guest',
       'brandt_link_3',
     ],
   },
@@ -95,35 +100,49 @@ function spoken(id, station, kind, seconds, speaker, voiceNotes, subtitle) {
     id, station, kind, spoken: true, file: id + '.mp3', seconds, speaker, subtitle, voiceNotes, scriptKey: id,
   };
 }
-function music(id, station, kind, seconds, brief) {
-  return { id, station, kind, spoken: false, file: id + '.mp3', seconds, speaker: '', subtitle: '', voiceNotes: brief };
+function music(id, station, kind, seconds, brief, title = '', artist = '') {
+  return { id, station, kind, spoken: false, file: id + '.mp3', seconds, speaker: '', subtitle: '', voiceNotes: brief, title, artist };
 }
+const DEWEY_INTRO = DEWEY_VOICE + 'Song intro. Plain and warm. Read the names straight, no comment on them.';
+const ROCKY_INTRO = ROCKY_VOICE + 'Song intro. Friendly and quick. Read the names straight, no comment on them.';
 
 export const SEGMENTS = [
   // ------------------------------------------------------------ Radio Ashford
-  music("ashford_jingle", "ashford", "jingle", 8,
-    "Station ID sting, about 8 seconds. Twangy electric guitar and a plucked banjo, a quick little rising run that ends on a happy chord. No singing. Worn and warm, like a tune the hardware store has played for forty years."),
+  music("ashford_jingle", "ashford", "jingle", 10,
+    "Station ID, sung by a small group (line review I18-ashford_jingle-b): Ten-ten, W-H-A-Y. Ashford's own, on the hill."),
   spoken("ashford_link_1", "ashford", "link", 16, DEWEY,
     DEWEY_VOICE + "Opening link. Unhurried. Pause after the call sign.",
     "WHAY, Radio Ashford, ten ten on your AM dial. Ashford's own, on the hill. This is Dewey Halloran.\n\nI've got records, a farm report, and a freshly brewed pot of coffee. So stay with me."),
-  music("ashford_music_1", "ashford", "music", 130,
-    "About 2 minutes. Slow country waltz in 3/4. Dusty slide guitar, brushed drums, upright bass, a lonely fiddle on the tune. Mood: a porch at sundown. Instrumental, no vocals."),
+  // Line review id: I18-ashford_intro_1
+  spoken("ashford_intro_1", "ashford", "intro", 5, DEWEY,
+    DEWEY_INTRO,
+    "Here's Lily Poptart, The Perfect Snore."),
+  music("ashford_music_1", "ashford", "music", 150.3,
+    "The owner's own song.", "The Perfect Snore", "Lily Poptart"),
   spoken("ashford_farm", "ashford", "farm", 42, DEWEY,
     DEWEY_VOICE + "Farm report. Read the prices flat and serious like the numbers matter. Slow down and get warmer for the Vern Sutter news.",
     "Farm report. Corn is two dollars and thirty cents a bushel. Wheat, three-twenty. Soybeans, five-sixty. Hogs are forty-six a hundredweight, fat cattle seventy-four. That's the last board the co-op grain elevator phoned in.\n\nWheat has been slow in the cool weather, still green in some of the low ground. Vern Sutter had surgery and couldn't get his cut, so St. Anne's and two other churches brought combines and got his wheat in before the rain. His wife said they finished before supper. If you need a hand with a field, call the station."),
   spoken("ashford_ad_1", "ashford", "ad", 19, DEWEY,
     DEWEY_VOICE + "Ad. A touch more salesman than usual, but still Dewey: he thinks ads are a little silly.",
     "This farm report is brought to you by Earl's Gas and Garage on Main Street in Ashford. Regular gas is a dollar five a gallon. Earl also has night crawlers, cold pop, fan belts, and someone on duty for repairs until six."),
-  music("ashford_music_2", "ashford", "music", 125,
-    "About 2 minutes. Upbeat 1992 country line-dance shuffle in 4/4. Twangy electric guitar, handclaps, a steady kick-and-snare, a fiddle break. Mood: church hall floor on a Saturday. Instrumental."),
+  // Line review id: I18-ashford_intro_2
+  spoken("ashford_intro_2", "ashford", "intro", 5, DEWEY,
+    DEWEY_INTRO,
+    "Back to the records. This is Bert Humpford and his long-time sweetheart, Lady Penelope, with We Never Fight."),
+  music("ashford_music_2", "ashford", "music", 197.3,
+    "The owner's own song.", "We Never Fight", "Bert Humpford and his long-time sweetheart Lady Penelope"),
   spoken("ashford_link_2", "ashford", "link", 12, DEWEY,
     DEWEY_VOICE + "Link about the Olympics. Mildly grumpy and fond at the same time.",
     "The Barcelona Olympics begin later this month, and the American basketball team will have professional players for the first time. They're calling it the Dream Team."),
   spoken("ashford_swap", "ashford", "swap", 33, DEWEY,
     DEWEY_VOICE + "Swap shop. Read like a very serious list. Deadpan on \"slightly used\".",
     "Swap Shop. Call the station, or tell Earl at the pumps and he'll pass it along.\n\nFirst up, a caller wants to trade a slightly used manure spreader for a VCR. His words: slightly used. There's also a two-bottom plow in good shape. The owner would like a rowboat.\n\nWanted, one left work boot, size ten, brown. And five kittens are free to a good home.\n\nThat's Swap Shop for this week."),
-  music("ashford_music_3", "ashford", "music", 135,
-    "About 2 minutes. Old-time gospel hymn feel, slow 4/4. Wheezy pump organ and a small choir humming \"ooh\" with no words, soft acoustic guitar. Mood: the church on a quiet Sunday. Instrumental plus hum only."),
+  // Line review id: I18-ashford_intro_3
+  spoken("ashford_intro_3", "ashford", "intro", 5, DEWEY,
+    DEWEY_INTRO,
+    "Chris Bretherwait now, with Pastor's Kid."),
+  music("ashford_music_3", "ashford", "music", 270,
+    "The owner's own song.", "Pastor's Kid", "Chris Bretherwait"),
   spoken("ashford_weather", "ashford", "weather", 21, DEWEY,
     DEWEY_VOICE + "Weather and wind. A forecast for the week, not a live report. Dry on \"why\".",
     "Cool for July through most of the week, with afternoon highs in the upper seventies and nights near fifty-five. Some forecasters still blame last year's volcano in the Philippines. West winds around ten miles an hour, with a chance of scattered showers Wednesday and again late Friday."),
@@ -136,8 +155,12 @@ export const SEGMENTS = [
   spoken("ashford_notices", "ashford", "notices", 42, DEWEY,
     DEWEY_VOICE + "Local notices and birthdays. A warm, slow read, like he is reading off the back of an envelope.",
     "St. Anne's youth group will hold a car wash Saturday from nine until two in the church lot. Proceeds help send eight young people on their summer mission trip. Cars are four dollars, pickups five, and extra donations are welcome.\n\nThe library needs volunteers to carry boxes Thursday evening. Call Mrs. Talbot before five. The Fenwick County blood drive is Tuesday at the school gym; appointments are helpful, though walk-ins will be taken.\n\nBirthday wishes go to Ruth Bell, seventy-eight, and Andrew Keene, twelve. Ruth's family says there will be cake after supper."),
-  music("ashford_music_4", "ashford", "music", 125,
-    "About 2 minutes. Honky-tonk piano and fiddle, bouncy 2-beat two-step. A bit of brush snare and a walking bass. Mood: a Saturday night that is going fine. Instrumental."),
+  // Line review id: I18-ashford_intro_4
+  spoken("ashford_intro_4", "ashford", "intro", 5, DEWEY,
+    DEWEY_INTRO,
+    "This one's for Ruth and Andrew. Freddie and the Poodles, Every Trail Leads Home."),
+  music("ashford_music_4", "ashford", "music", 249.9,
+    "The owner's own song.", "Every Trail Leads Home", "Freddie and the Poodles"),
   spoken("ashford_guest", "ashford", 'guest', 45, "Dewey Halloran and Earl (gibberish)",
     DEWEY_VOICE + "Guest spot. Earl is the flattest man in the county: mumbling, low, no ups and downs, short bursts. His lines are made-up sounds with real sentence rhythm, not a real language. Record Earl as a second voice (older man, flat, mumbly). Leave a 3 to 4 second gap after each Dewey line where Earl speaks. Dewey does not translate or repeat what Earl says. He just carries on.",
     "I've got Earl in the studio, from the pumps on Main Street. Earl, say hello to everybody.\n\n~ Mm. Nuh-hmm. Dannow poddle, ressa ka lun bo. Hmf.\n\nWell, it's good to have you. Earl, I keep telling folks that Mill Lane only goes up as far as where the old mill was, and it stops there. They still drive up it looking for a way through.\n\n~ Woomba. Heh. Ressa ka, ressa ka lun.\n\nThat's what I keep saying.\n\n~ Hmf. Dannow.\n\nAll right, Earl. Thanks for coming in. That's Earl, from Earl's Gas and Garage on Main Street."),
@@ -146,29 +169,41 @@ export const SEGMENTS = [
     "The paper says experts think tractors will drive themselves someday. Orville Dahl called the station to say his already does. The brakes went out in April, and he calls it a runaway success.\n\nWe'll have another record, then I'll be back."),
 
   // ------------------------------------------------------------- Brandt 1340
-  music("brandt_jingle", "brandt", "jingle", 8,
-    "Station ID sting, about 8 seconds. Bright, bouncy: a snare roll, a jangly guitar chord, a little organ riff going up. No singing. Sounds like a diner jukebox playing the first bar of a happy song."),
+  music("brandt_jingle", "brandt", "jingle", 10.9,
+    "Station ID, sung by a small group (line review I18-brandt_jingle-b): Thirteen-forty, W-B-R-T. The tallest voice in Brandt."),
   spoken("brandt_link_1", "brandt", "link", 13, ROCKY,
     ROCKY_VOICE + "Opening link. Big energy but still friendly, like she is talking across the counter.",
     "You're on WBRT, Brandt thirteen-forty, the tallest voice in Brandt. I'm Rocky Tillman.\n\nI've got records, the farm report, and several new items for Swap Shop. Stay with us."),
-  music("brandt_music_1", "brandt", "music", 130,
-    "About 2 minutes. Early rock and roll shuffle, 12-bar blues feel. Twangy guitar, honky piano, brushed drums, a sax solo in the middle. Mood: the diner jukebox on a busy afternoon. Instrumental."),
+  // Line review id: I18-brandt_intro_1
+  spoken("brandt_intro_1", "brandt", "intro", 5, ROCKY,
+    ROCKY_INTRO,
+    "Let's start with General Davie Wigglebottom the Third, and Sunday Mornin' Rush."),
+  music("brandt_music_1", "brandt", "music", 151.6,
+    "The owner's own song.", "Sunday Mornin' Rush", "General Davie Wigglebottom the Third"),
   spoken("brandt_farm", "brandt", "farm", 33, ROCKY,
     ROCKY_VOICE + "Farm report. Reads the numbers fast and proud, slows down for the fax machine.",
     "Brandt Co-op is bidding two dollars twenty-five for corn, five dollars fifty-eight for soybeans, and three dollars thirty-seven for wheat. Butcher hogs are around forty-three fifty, and choice steers are holding near seventy-four.\n\nThe elevator asks wheat trucks to use the south scale until further notice. The office also has a new fax machine. Calvin Roark faxed a picture of his prize hog to the feed counter just to see if it works."),
   spoken("brandt_ad_1", "brandt", "ad", 20, ROCKY,
     ROCKY_VOICE + "Ad for the diner. Sales voice, a bit loud on purpose, then drops to normal on the last line.",
     "Peg's diner in Brandt serves breakfast from six, with eggs, sausage, biscuits, and coffee kept hot. Lunch includes meat loaf, chicken-fried steak, and a vegetable plate. Pie this week is apple, cherry, or coconut cream. Whole pies may be ordered one day ahead."),
-  music("brandt_music_2", "brandt", "music", 125,
-    "About 2 minutes. Easy 1992 soft-pop, mid-tempo 4/4. Warm electric piano, clean guitar, light drum machine, a small synth pad. Mood: windows down on the highway. Instrumental."),
+  // Line review id: I18-brandt_intro_2
+  spoken("brandt_intro_2", "brandt", "intro", 5, ROCKY,
+    ROCKY_INTRO,
+    "Here's Davie Brown with Deacon Dan Can Dance."),
+  music("brandt_music_2", "brandt", "music", 258.6,
+    "The owner's own song.", "Deacon Dan Can Dance", "Davie Brown"),
   spoken("brandt_link_2", "brandt", "link", 24, ROCKY,
     ROCKY_VOICE + "Link about the Olympics. Cheerful and a bit silly.",
     "The Olympics start in Barcelona later this month. Lou's got a television going in the bay at the garage, set on a crate. People are asking about the basketball, with the pros in it. You can hear it from the lot if the door's up. I'll get down for some of it."),
   spoken("brandt_swap", "brandt", "swap", 28, ROCKY,
     ROCKY_VOICE + "Swap shop. Speak it like a game show host who is a little worried about the items.",
     "Swap shop. Leave a note at the garage or the diner. I'll read them on the air.\n\nCarl Bemis has a boom pole for a three-point hitch. He wants truck chains.\n\nRuth Keller has a girl's bike, twenty-inch wheels, needs a tube. She'll trade for a playpen.\n\nA window fan that works, for canning jars. No name on the note. Ask Peg."),
-  music("brandt_music_3", "brandt", "music", 135,
-    "About 2 minutes. Polka, quick 2/4 oompah. Accordion lead, tuba bass, snare on the off beat, a clarinet answering the tune. Mood: a grain elevator picnic. Instrumental."),
+  // Line review id: I18-brandt_intro_3
+  spoken("brandt_intro_3", "brandt", "intro", 5, ROCKY,
+    ROCKY_INTRO,
+    "Alicia Havernstein next. This is Don't Make Me Wait."),
+  music("brandt_music_3", "brandt", "music", 276.7,
+    "The owner's own song.", "Don't Make Me Wait", "Alicia Havernstein"),
   spoken("brandt_weather", "brandt", "weather", 37, ROCKY,
     ROCKY_VOICE + "Weather and wind. A forecast for the week, not a live report. Matter-of-fact, clear on the planes line.",
     "The week stays cooler than usual, with highs from seventy-six to eighty and west winds near ten miles an hour. A shower may pass through Wednesday night, with better drying weather afterward.\n\nA note for anyone watching the flying club east of Brandt: airplanes take off and land into the wind. With a west wind, they'll approach low from the east and land going west. That is normal traffic for the field, though livestock owners nearby may want to keep gates secured."),
@@ -181,8 +216,12 @@ export const SEGMENTS = [
   spoken("brandt_notices", "brandt", "notices", 40, ROCKY,
     ROCKY_VOICE + "Local notices and birthdays. Warm and a little fast, then slow on the last birthday.",
     "St. Luke's will hold its annual pie auction Friday at seven in the fellowship hall. Pie donations may be brought in after four, and coffee will be provided.\n\nBrandt Co-op reminds growers that the south scale opens at six during wheat harvest. The north scale remains closed for repairs.\n\nA black-and-white farm dog named Patch is missing from the Miller place. He has a red collar and is friendly. Leave word at the diner if seen.\n\nBirthday wishes go to Helen Ward, sixty-six, and Tommy Reese, nine."),
-  music("brandt_music_4", "brandt", "music", 125,
-    "About 2 minutes. Slow twangy ballad, 6/8. Steel guitar, a soft snare, warm bass, a little bell. Mood: nobody in the diner but the last piece of pie. Instrumental."),
+  // Line review id: I18-brandt_intro_4
+  spoken("brandt_intro_4", "brandt", "intro", 5, ROCKY,
+    ROCKY_INTRO,
+    "A long one now, from the Tin Shed Boys. Saturday Afternoon."),
+  music("brandt_music_4", "brandt", "music", 530,
+    "The owner's own song.", "Saturday Afternoon", "The Tin Shed Boys"),
   spoken("brandt_guest", "brandt", 'guest', 45, "Rocky Tillman and Lou (gibberish)",
     ROCKY_VOICE + "Guest spot. Lou is gruff and short, a low mutter. His lines are made-up sounds with real sentence rhythm, not a real language. Record Lou as a second voice (man, low, gruff, grumpy but kind). Leave a 3 to 4 second gap after each Rocky line where Lou speaks. Rocky does not translate or repeat what Lou says. She just carries on.",
     "Lou from the garage is here, dropping off a part for the transmitter. Lou, say hello.\n\n~ Mm. Hrmph. Gorra nash, bidda lunk, ottle ottle rum. Hnh.\n\nGood to see you too. Lou, people keep asking me how to find the flying club. I tell them the planes go round and round the field on a fine day, and they never fly over the middle. So you drive to the middle of the circle.\n\n~ Hnh. Gorra nash.\n\nI thought so.\n\n~ Bidda lunk. Hrmph.\n\nThanks, Lou. That's Lou's Garage, here in Brandt, if your car needs looking at."),
