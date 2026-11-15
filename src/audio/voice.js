@@ -28,6 +28,7 @@ export const VOICE_GENDER = {
   peg: 'f',
   ames: 'f',
   hal: 'm',
+  ray: 'm',
 };
 
 // Tourists (src/game/tourists.js) get a picked voice and pitch, so each one

@@ -35,12 +35,12 @@ Commit the new files in `public/radio/` and the changed `segments.js`.
 
 ## Voices to set up in ElevenLabs
 
-| Voice | Station | Notes |
-|---|---|---|
-| Dewey Halloran | Radio Ashford | Older man, slow and dry, a little gravel, easygoing |
-| Rocky Tillman | Brandt 1340 | Woman in her thirties, bright and quick, big laugh, small-town warm |
-| Earl | Radio Ashford guest spot | Older man, flat, mumbly, no ups and downs. Gibberish only. |
-| Lou | Brandt 1340 guest spot | Man, low and gruff, grumpy but kind. Gibberish only. |
+| Voice | Station | Notes | ElevenLabs voice (owner's pick, 2026-11-15) |
+|---|---|---|---|
+| Dewey Halloran | Radio Ashford | Older man, slow and dry, a little gravel, easygoing | Spuds Oxley - Grandpa (`NOpBlnGInO9m6vDvFkFC`) |
+| Rocky Tillman | Brandt 1340 | Woman in her thirties, bright and quick, big laugh, small-town warm | Leslie - Sassy Cowgirl (`sIiRahyxBt2egNH9gWXf`) |
+| Earl | Radio Ashford guest spot | Gibberish only | Not recorded: his lines are cut from his in-game voice (`public/sounds/voices/m2.mp3` at 0.95 speed) and dropped into the gaps in Dewey's take. |
+| Lou | Brandt 1340 guest spot | Gibberish only | Not recorded: same as Earl, from `m2.mp3` at 0.88 speed. |
 
 Ad reads use the DJ voice with a bit more salesman in it. The player's subtitles show the English text; the guest's gibberish is shown with no subtitle.
 
