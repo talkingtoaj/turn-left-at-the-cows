@@ -792,6 +792,78 @@ export function createAudio(world, opts = {}) {
     if (n.towSrc) ramp(n.towSrc.playbackRate, 0.92 + 0.3 * (tow.throttle || 0), 0.25);
   }
 
+  // Other vehicles' horns (amb.horns, see HONK in src/ambient/trafficRules.js):
+  // one voice per vehicle, held down for as long as it sounds. The 0.73 s
+  // honk plays from its start, then loops its steady middle (cut at rising
+  // zero crossings so the seam does not click), so a short beep and a 10 s
+  // lean are the same sound held for longer. Panned and quieter with
+  // distance like the other world sounds; each vehicle a slightly different
+  // pitch.
+  const horns = new Map(); // id -> { src, g, lp, out }
+  let hornLoop = null;
+  function hornBounds(buf) {
+    const d = buf.getChannelData(0);
+    const sr = buf.sampleRate;
+    const up = (t) => {
+      for (let i = Math.floor(t * sr); i < d.length - 1; i++) if (d[i] <= 0 && d[i + 1] > 0) return i / sr;
+      return t;
+    };
+    return { start: up(0.22), end: up(0.5) };
+  }
+  function hornPitch(id) {
+    let h = 0;
+    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+    return 0.86 + (h % 1000) / 1000 * 0.22;
+  }
+  function releaseHorn(v) {
+    const t = ctx.currentTime;
+    v.g.gain.cancelScheduledValues(t);
+    v.g.gain.setTargetAtTime(0, t, 0.04);
+    v.src.stop(t + 0.3);
+  }
+  function updateHorns(ear, amb) {
+    const list = (amb && amb.horns) || [];
+    const buf = bufs.get('car/horn');
+    const on = new Set();
+    for (const h of list) {
+      const r = rel(ear, h.x, h.y);
+      if (r.d > 400 || !buf) continue;
+      on.add(h.id);
+      const vol = 0.9 / (1 + r.d / 25);
+      const lp = Math.max(1500, 12000 - r.d * 30);
+      let v = horns.get(h.id);
+      if (!v) {
+        if (!hornLoop) hornLoop = hornBounds(buf);
+        const out = panner(nodes.bus);
+        setPanNow(out, r.pan);
+        const f = filter('lowpass', lp, 0.5, out);
+        const g = gain(vol, f);
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.loop = true;
+        src.loopStart = hornLoop.start;
+        src.loopEnd = hornLoop.end;
+        src.playbackRate.value = hornPitch(h.id);
+        src.connect(g);
+        src.start(ctx.currentTime);
+        src.onended = () => out.disconnect();
+        horns.set(h.id, (v = { src, g, lp: f, out }));
+      }
+      ramp(v.g.gain, vol, 0.05);
+      ramp(v.lp.frequency, lp, 0.1);
+      setPan(v.out, r.pan);
+    }
+    for (const [id, v] of horns) {
+      if (on.has(id)) continue;
+      releaseHorn(v);
+      horns.delete(id);
+    }
+  }
+  function silenceHorns() {
+    for (const v of horns.values()) releaseHorn(v);
+    horns.clear();
+  }
+
   function handleEvents(car, amb) {
     if (!amb || !amb.events) return;
     for (const e of amb.events) {
@@ -867,7 +939,8 @@ export function createAudio(world, opts = {}) {
         updateBirds(dt, ear, amb);
         updateLayers(dt, ear, ear, state, opts && opts.rain, surface, s, onFoot);
         handleEvents(ear, amb);
-      }
+        updateHorns(ear, amb);
+      } else silenceHorns();
     },
     // One footstep on foot: the ground's own sound, a little different each time.
     step(surface, jog = false) {

@@ -12,6 +12,7 @@ import {
 } from '../drive/geom.js';
 import {
   TRAFFIC, relTo, inLane, playerSpeedCap, seenByPlayer, respawnReason, goodRespawn,
+  HONK, hornOn, honkStage, stepBlocked, turnPose, turnLength,
 } from './trafficRules.js';
 
 // Level of detail: things within NEAR_R of the player get full updates.
@@ -200,6 +201,10 @@ export function createAmbient(world, scenery) {
     cs.seg = undefined;
     cs.skip = 0;
     cs.stuckT = 0;
+    if (cs.honk) cs.honk.t = cs.honk.clearT = 0;
+    cs.leave = null;
+    c.horn = false;
+    c.turning = false;
     const t = carTarget(cs);
     c.x = t.x;
     c.y = t.y;
@@ -217,8 +222,15 @@ export function createAmbient(world, scenery) {
   }
   const nCars = 10;
   for (let i = 0; i < nCars; i++) {
-    const c = { id: `car${i}`, x: 0, y: 0, heading: 0, speed: 0, color: CAR_COLORS[i % CAR_COLORS.length], onDirt: false };
-    const cs = { n: null, s: 0, dir: 1, seg: 0, skip: 0, cruise: R(0.85, 1.1), relocT: R(1, 3), stuckT: 0 };
+    const c = {
+      id: `car${i}`, x: 0, y: 0, heading: 0, speed: 0, color: CAR_COLORS[i % CAR_COLORS.length], onDirt: false,
+      horn: false, // additive: its horn is sounding now (see HONK)
+      turning: false, // additive: turning round or backing up, across both lanes
+    };
+    const cs = {
+      n: null, s: 0, dir: 1, seg: 0, skip: 0, cruise: R(0.85, 1.1), relocT: R(1, 3), stuckT: 0,
+      honk: { t: 0, clearT: 0 }, leave: null,
+    };
     const sp = pickSpawn();
     if (!sp) continue;
     placeCar(c, cs, sp);
@@ -260,33 +272,47 @@ export function createAmbient(world, scenery) {
   }
 
   function stepCar(c, cs, dt, player, onFoot) {
+    if (cs.leave) {
+      stepLeave(c, cs, dt, player);
+      return;
+    }
     const n = cs.n;
     const surface = n.road.type === 'paved' ? 'paved' : 'dirt';
     c.onDirt = surface === 'dirt';
     let target = (surface === 'paved' ? 14 : 8.5) * cs.cruise;
     if (inTown(c.x, c.y)) target = Math.min(target, 9);
+    // The lowest cap the player sets (them, or their parked car): when it
+    // holds the car at a standstill, the car honks (see HONK below).
+    let capP = Infinity;
 
     // The player (in the car or on foot): stop only when they are in this
     // car's own lane ahead. A car in the other lane is passed, a little slower.
     if (player && Math.abs(player.x - c.x) < 50 && Math.abs(player.y - c.y) < 50) {
       const r = relTo(c.x, c.y, c.heading, player.x, player.y);
-      target = Math.min(target, playerSpeedCap(r.along, r.lat, onFoot));
+      capP = playerSpeedCap(r.along, r.lat, onFoot);
+      target = Math.min(target, capP);
     }
     // Hazards on the road (livestock, a tractor, a deer, the parked car):
     // slow down and wait when one is in this car's lane.
     for (const o of obstacles) {
       if (Math.abs(o.x - c.x) > 30 || Math.abs(o.y - c.y) > 30) continue;
       const r = relTo(c.x, c.y, c.heading, o.x, o.y);
-      if (r.along > 0 && inLane(r.along, r.lat, o.r || 0)) target = Math.min(target, Math.max(0, (r.along - 8) * 0.6));
+      if (r.along > 0 && inLane(r.along, r.lat, o.r || 0)) {
+        const cap = Math.max(0, (r.along - 8) * 0.6);
+        target = Math.min(target, cap);
+        if (o.player) capP = Math.min(capP, cap);
+      }
     }
     // Don't drive into other traffic going the same way (cars coming the
-    // other way keep to their own lane and pass).
+    // other way keep to their own lane and pass). A car turning round
+    // blocks both lanes.
     for (const o of cars) {
       if (o === c) continue;
       if (Math.abs(o.x - c.x) > 30 || Math.abs(o.y - c.y) > 30) continue;
-      if (Math.abs(angDiff(c.heading, o.heading)) > 70) continue;
+      if (!o.turning && Math.abs(angDiff(c.heading, o.heading)) > 70) continue;
       const r = relTo(c.x, c.y, c.heading, o.x, o.y);
-      if (r.along > 0 && r.along < 18 && Math.abs(r.lat) < TRAFFIC.halfW * 2 + TRAFFIC.margin) {
+      const lat = o.turning ? n.road.width / 2 + 1.5 : TRAFFIC.halfW * 2 + TRAFFIC.margin;
+      if (r.along > 0 && r.along < 18 && Math.abs(r.lat) < lat) {
         target = Math.min(target, Math.max(0, (r.along - 8) * 0.8));
       }
     }
@@ -305,6 +331,16 @@ export function createAmbient(world, scenery) {
     // How long it has stood still (see maybeRespawn).
     if (c.speed < 0.3) cs.stuckT += dt;
     else if (c.speed > 1) cs.stuckT = 0;
+    // Held up by the player: honk, ever longer, then lean on the horn, then
+    // turn round (see HONK). Clear for a moment and the count starts over.
+    const blocked = capP < HONK.capBelow && c.speed < HONK.speed;
+    const bt = stepBlocked(cs.honk, blocked, dt);
+    c.horn = blocked && hornOn(bt);
+    if (blocked && honkStage(bt) === 'turn') {
+      cs.leave = { mode: 'back', t: 0, backed: 0, checkT: 0, px: player.x, py: player.y };
+      c.horn = false;
+      return;
+    }
 
     const prev = cs.s;
     cs.s += cs.dir * c.speed * dt;
@@ -355,6 +391,124 @@ export function createAmbient(world, scenery) {
     else c.heading = turnToward(c.heading, t.h, 90 * dt);
     c.x = nx;
     c.y = ny;
+  }
+
+  // ---------- Turning round when the player will not move ----------
+  // After leaning on the horn the car gives up and goes back the way it
+  // came: a three-point turn (turnPose) where it stands when there is room.
+  // Where there is not (on a bridge, by a fallen tree's gap, the player or
+  // another car in the way, traffic coming) it backs up slowly along its
+  // own lane, up to LEAVE.backMax m, and turns as soon as there is room.
+  // When it cannot back up either (a car right behind, the road's end) it
+  // waits quietly and tries again; it drives on as normal once the player
+  // has moved LEAVE.releaseR m from where they held it up.
+  const LEAVE = { backSpeed: 2, backMax: 40, clearR: 3.4, trafficR: 40, releaseR: 15 };
+
+  // Frame of a turn starting at s on the car's road: origin on the centre line.
+  function turnFrame(cs) {
+    const p = roadPoint(cs.n, cs.s, {});
+    const fx = p.dx * cs.dir;
+    const fy = p.dy * cs.dir;
+    return { x: p.x, y: p.y, fx, fy, rx: -fy, ry: fx, h: headingOf(fx, fy), w: cs.n.road.width };
+  }
+  function turnAt(F, t) {
+    const q = turnPose(F.w, t);
+    return { x: F.x + F.fx * q.u + F.rx * q.v, y: F.y + F.fy * q.u + F.ry * q.v, h: (F.h + q.h + 360) % 360, q };
+  }
+  // Room to turn here: not on a bridge or by a road block, no moving
+  // traffic near, and nothing (player, parked car, hazard, stopped car)
+  // within clearR of the car's path.
+  function turnClear(c, cs, player) {
+    const n = cs.n;
+    if (n.blocks.some((b) => Math.abs(b - cs.s) < 15)) return false;
+    for (const b of world.bridges) if (Math.hypot(b.x - c.x, b.y - c.y) < (b.length || 20) / 2 + 6) return false;
+    const things = [];
+    if (player) things.push(player);
+    for (const o of obstacles) if (Math.abs(o.x - c.x) < 20 && Math.abs(o.y - c.y) < 20) things.push(o);
+    for (const o of cars) {
+      if (o === c) continue;
+      const d = Math.hypot(o.x - c.x, o.y - c.y);
+      if (d < LEAVE.trafficR && (o.speed > 1 || o.turning)) return false;
+      if (d < 20) things.push(o);
+    }
+    const F = turnFrame(cs);
+    const L = turnLength();
+    for (let t = 0; t <= L; t += 0.3) {
+      const p = turnAt(F, t);
+      for (const o of things) if (Math.hypot(o.x - p.x, o.y - p.y) < LEAVE.clearR + (o.r || 0)) return false;
+    }
+    return true;
+  }
+  // Room to back up: not at the road's start, no car close behind in this lane.
+  function backClear(c, cs) {
+    if (cs.leave.backed >= LEAVE.backMax) return false;
+    if ((cs.dir > 0 ? cs.s : cs.n.len - cs.s) < 8) return false;
+    for (const o of cars) {
+      if (o === c || Math.abs(o.x - c.x) > 20 || Math.abs(o.y - c.y) > 20) continue;
+      const r = relTo(c.x, c.y, c.heading, o.x, o.y);
+      if (r.along < 0 && r.along > -9 && Math.abs(r.lat) < TRAFFIC.halfW * 2 + TRAFFIC.margin) return false;
+    }
+    return true;
+  }
+  function stepLeave(c, cs, dt, player) {
+    const L = cs.leave;
+    c.horn = false;
+    if (L.mode === 'turn') {
+      L.t += dt;
+      const p = turnAt(L.F, L.t);
+      c.speed = Math.hypot(p.x - c.x, p.y - c.y) / dt;
+      c.x = p.x;
+      c.y = p.y;
+      c.heading = p.h;
+      cs.stuckT = 0;
+      if (p.q.done) {
+        // Back on the road, in the other lane, going the other way.
+        cs.s = Math.max(0, Math.min(cs.n.len, cs.s + cs.dir * p.q.u));
+        cs.dir = -cs.dir;
+        cs.seg = undefined;
+        cs.skip = 10;
+        cs.leave = null;
+        cs.honk.t = cs.honk.clearT = 0;
+        c.turning = false;
+        c.speed = 0;
+      }
+      return;
+    }
+    if (player && Math.hypot(player.x - L.px, player.y - L.py) > LEAVE.releaseR) {
+      // The player has moved on: carry on as before.
+      cs.leave = null;
+      cs.honk.t = cs.honk.clearT = 0;
+      c.turning = false;
+      return;
+    }
+    L.checkT -= dt;
+    if (L.checkT <= 0) {
+      L.checkT = 0.25;
+      if (turnClear(c, cs, player)) {
+        L.mode = 'turn';
+        L.t = 0;
+        L.F = turnFrame(cs);
+        c.turning = true;
+        return;
+      }
+      if (L.mode === 'back' && !backClear(c, cs)) L.mode = 'hold';
+      else if (L.mode === 'hold' && backClear(c, cs)) L.mode = 'back';
+    }
+    if (L.mode === 'back') {
+      // Reverse slowly along its own lane, still facing the player.
+      const step = LEAVE.backSpeed * dt;
+      cs.s = Math.max(0, Math.min(cs.n.len, cs.s - cs.dir * step));
+      L.backed += step;
+      c.speed = LEAVE.backSpeed;
+      cs.stuckT = 0;
+      const t = carTarget(cs);
+      c.x = t.x;
+      c.y = t.y;
+      c.heading = turnToward(c.heading, t.h, 60 * dt);
+    } else {
+      c.speed = 0;
+      cs.stuckT += dt;
+    }
   }
 
   // Take a car away and put it back on a road out of the player's sight
@@ -960,7 +1114,8 @@ export function createAmbient(world, scenery) {
     playerSurface: 'paved', // additive: surface under the player car ('paved'|'dirt'|'grass')
     flocks, // additive (internal-ish): bird groups
     surfaceAt, // additive: road surface lookup
-    obstacles, // additive: [{ x, y, r }] hazards traffic waits behind (the caller refills it)
+    obstacles, // additive: [{ x, y, r, player? }] hazards traffic waits behind (the caller refills it); player: true for the parked car, which traffic honks at
+    horns: [], // additive: [{ id, x, y }] vehicles sounding their horn this frame (traffic, then hazards add theirs)
     time: 0,
 
     // Additive: extra places traffic turns around (fallen trees across a
@@ -996,10 +1151,12 @@ export function createAmbient(world, scenery) {
       const wy = fwdY(wind.dir) * wind.speed;
 
       // Traffic (everywhere, cheap).
+      amb.horns.length = 0;
       for (let i = 0; i < cars.length; i++) {
         stepCar(cars[i], carState[i], dt, player, !!(state && state.onFoot));
         maybeRespawn(cars[i], carState[i], dt, player);
         const c = cars[i];
+        if (c.horn) amb.horns.push({ id: c.id, x: c.x, y: c.y });
         if (c.onDirt && c.speed > 3 && (c.x - px) ** 2 + (c.y - py) ** 2 < nearSq) emitDust(c.x, c.y, c.heading, c.speed, dt, carDustAcc[i]);
       }
 
