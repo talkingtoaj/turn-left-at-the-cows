@@ -12,7 +12,7 @@ The review page is https://claude.ai/artifact/ESMREZbJDS4Zv4DWrZ6XoF. Its databa
 
 ### Issue tracker
 
-Issues live in GitHub Issues on `talkingtoaj/orienteering-game`, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+Issues live in GitHub Issues on `talkingtoaj/turn-left-at-the-cows` (moved from the old private repo `orienteering-game` on 2026-11-15, same numbers), via the `gh` CLI. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
