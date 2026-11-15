@@ -36,6 +36,7 @@ export const WORLD_SOURCE = {
   ],
 
   // type: 'paved' | 'dirt'. width in metres. curve: false keeps straight pieces.
+  // fresh: true on a dirt lane built since 1987: new pale crushed-stone gravel.
   roads: [
     {
       id: 'hwy9', name: 'Highway 9', type: 'paved', width: 9,
@@ -94,7 +95,7 @@ export const WORLD_SOURCE = {
       points: [[3350, 285], [3400, 450], [3520, 640], [3560, 800], [3540, 960], [3600, 1100], [3640, 1221]],
     },
     {
-      id: 'pruitt_ln', name: 'Pruitt Lane', type: 'dirt', width: 4.5, snapStart: 'rt40',
+      id: 'pruitt_ln', name: 'Pruitt Lane', type: 'dirt', width: 4.5, snapStart: 'rt40', fresh: true,
       points: [[2980, 1297], [2990, 1180], [2960, 1062]],
     },
     {
@@ -337,6 +338,7 @@ export const WORLD_SOURCE = {
 
   // Mailboxes beside the road at farms and houses. Placed by the build at the
   // roadside nearest `house`; `facing` (computed) points from the box to the road.
+  // newer: true draws a bright new galvanized box on a metal post (built since 1987).
   mailboxes: [
     { id: 'mb_hartley', name: 'HARTLEY', house: 'f_house', roadId: 'farm_rd' },
     { id: 'mb_pruitt', name: 'PRUITT', house: 'p_house', roadId: 'pruitt_ln' },
@@ -374,19 +376,34 @@ export const WORLD_SOURCE = {
       lies: [
         // Shows the washed-out bridge as fine.
         { type: 'bridge_intact', bridgeId: 'b_old' },
-        // Shows Mill Lane going through to Creek Road. It never did.
+        // Shows Mill Lane going on over Willow Creek to Creek Road, as it did
+        // in 1987. It used to go through until the quarry bought the land past
+        // the creek and closed it. The dead end has a gate (bd_mill_closed).
         {
           type: 'extra_road',
           road: { id: 'mill_lane_fake', name: 'Mill Lane', type: 'dirt', width: 5, snapEnd: 'creek_rd', points: [[1500, 1525], [1510, 1300], [1600, 1000], [1700, 800]] },
         },
-        // Leaves out every road and lane built since 1987.
+        // Hartley Lane is the Hartleys' private farm lane. County maps never
+        // showed it, so it is not a shift.
         { type: 'hide_road', roadId: 'farm_rd' },
+        // Leaves out the roads and lanes built since 1987 (fresh gravel on the
+        // lanes, a new mailbox at Dolan's).
         { type: 'hide_road', roadId: 'dolan_ln' },
         { type: 'hide_road', roadId: 'pruitt_ln' },
+        // The quarry dates from 1962, but this haul road was built in 1989.
         { type: 'hide_road', roadId: 'quarry_rd' },
-        { type: 'hide_road', roadId: 'ridge_rd' },
         { type: 'hide_building', id: 'dl_house' },
         { type: 'hide_building', id: 'dl_barn' },
+        // Ridge Road was always there. In 1987 it had only a number; the
+        // county named it later (the sign says Ridge Road, old-timers still
+        // say County 12).
+        { type: 'rename_road', roadId: 'ridge_rd', name: 'County Rd 12' }, // line id: T33-map-cr12
+      ],
+      // Things that shifted since 1987 (shape owned by issue #32): seen within
+      // r metres of `at`. Labels show on the win screen.
+      shifts: [
+        { id: 'ridge_named', label: 'County Rd 12 is now Ridge Road', at: [2300, 570], r: 50 }, // line id: T33-shift-ridge
+        { id: 'mill_lane_closed', label: 'Mill Lane closed at the creek', at: [1500, 1525], r: 50 }, // line id: T33-shift-mill
       ],
     },
     hartley_sketch: {

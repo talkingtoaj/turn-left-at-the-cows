@@ -7,7 +7,7 @@
 //   extra_road { road }             a road that does not exist (built like a real road)
 //   bridge_intact { bridgeId }      a broken bridge shown as fine
 //   simplify_road { roadId, keep }  road drawn as `keep` straight pieces
-//   rename_road { roadId, name }    road given the wrong name
+//   rename_road { roadId, name }    road under another name (wrong, or the old one)
 //   extend_road { roadId, points }  road drawn going further than it does
 //   extra_place { place }           { id, name, x, y, symbol? } that is not there
 //   extra_lake { lake }             { id, name, polygon } in the wrong place

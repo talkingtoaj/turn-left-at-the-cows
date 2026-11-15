@@ -141,7 +141,9 @@ const DETAILS = {
     finalLabel: 'Final map: Kestrel Field',
     // Arrival line (win screen). Line id: arrival-m3
     arrival: { name: 'Ray Kessler', line: "That's the magneto. Hold the prop for me, would you? No, I'm kidding." },
-    printedMaps: [],
+    // Harlan County's own map (region 2): its tab shows once you are over
+    // the county line, not on the Fenwick approach leg.
+    printedMaps: ['harlan1979'],
   }),
 };
 

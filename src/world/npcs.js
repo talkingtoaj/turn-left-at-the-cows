@@ -105,7 +105,9 @@ export const NPCS = [
         lines: ["Best trout in the county, right here. Don't you tell anyone."],
       },
       mill_lane: {
-        lines: ["Mill Lane goes up from the highway to where the mill was. Stops there. Always did, whatever the old maps say."],
+        lines: [
+          "Mill Lane goes up from the highway to where the mill was, and stops. Used to go on over the creek to Creek Road, till the quarry bought the land and put a gate across.", // line id: T33-dot-mill
+        ],
         unlocks: ['old_mill'],
       },
       old_mill: {
@@ -146,7 +148,10 @@ export const NPCS = [
         lines: ["You're standing on it, dear. Forty-six years this spring."],
       },
       ridge_rd: {
-        lines: ["Ridge Road's the old road east. My grandfather drove cattle along it."],
+        lines: [
+          "Ridge Road's the old road east. My grandfather drove cattle along it.",
+          "On the county maps it was only ever County 12. They gave it a proper name in '90. About time.", // line id: T33-hartley-cr12
+        ],
       },
       dunmore: {
         lines: ["Dunmore's hardly a town. Gus Lindqvist keeps the store. He'll set you right if you're lost."],
@@ -189,7 +194,7 @@ export const NPCS = [
         lines: ["Roof came down in February. Heavy snow. County says they'll fix it. County says a lot of things."],
       },
       quarry_rd: {
-        lines: ["Quarry Road. Watch for the gravel trucks. They don't slow down for anybody."],
+        lines: ["Quarry Road. The quarry put it in for the gravel trucks in '89. Watch for them. They don't slow down for anybody."], // line id: T33-gus-quarry
         unlocks: ['quarry', 'voss_place'],
       },
       voss_place: {
@@ -338,7 +343,7 @@ export const NPCS = [
         lines: ["Covered bridge is shut. Has been since February. People still drive out there and turn round."],
       },
       ridge_rd: {
-        lines: ["Ridge Road runs west from Pond Road to the river. Goes nowhere now, with the bridge shut."],
+        lines: ["County 12 runs west from Pond Road to the river. Ridge Road, they call it now. Goes nowhere, with the bridge shut."], // line id: T33-hank-cr12
       },
       calder: {
         lines: ["Calder. Grain, gravel and gossip."],

@@ -149,6 +149,7 @@ function placeMailbox(src, roads, buildings) {
   const y = q.y + (dy / l) * off;
   return {
     id: src.id, name: src.name, house: src.house, roadId: src.roadId,
+    ...(src.newer ? { newer: true } : {}),
     x: Math.round(x * 100) / 100,
     y: Math.round(y * 100) / 100,
     facing: Math.round(headingOf(-dx, -dy)), // door looks at the road
