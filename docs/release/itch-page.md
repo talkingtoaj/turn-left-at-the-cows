@@ -59,7 +59,7 @@ Play on a computer with a keyboard. It runs in your browser and needs WebGL.
 
 ## Theme: SHIFT
 
-Your map is from 1987. It's 1992. Since then the Creek Road bridge washed out, County Rd 12 got a name, and the quarry closed Mill Lane. New farm lanes aren't on the map, and some locals haven't driven those roads in years. You find each shift by driving into it. When you deliver, the game sets the old map beside the real county and circles every change.
+Your map is from 1987. It's 1992. Since then the Creek Road bridge washed out, new farm lanes aren't on the map, and some locals haven't driven those roads in years. You find each shift by driving into it. When you deliver, the game sets the old map beside the real county and circles every change.
 
 ## A note on the prototype
 
