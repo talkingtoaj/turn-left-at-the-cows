@@ -35,10 +35,19 @@ export function globalPos(region, x, y) {
 }
 
 // Distance (m) to signal. About 0.86 at 1 km, 0.23 at 5.5 km (the far end of
-// Fenwick from the Ashford mast), 0.03 at 27 km (the other county).
+// Fenwick from the Ashford mast), then it drops off fast between SIGNAL_LOST_FROM
+// and SIGNAL_LOST_AT: past that, nothing at all, just static (owner, 15 Nov:
+// you lose the station driving between the counties, 22 km apart).
 export const SIGNAL_RANGE = 2500;
+export const SIGNAL_LOST_FROM = 7000;
+export const SIGNAL_LOST_AT = 8500;
 export function signalAt(d) {
-  return 1 / (1 + Math.pow(Math.max(0, d) / SIGNAL_RANGE, 1.5));
+  d = Math.max(0, d);
+  if (d >= SIGNAL_LOST_AT) return 0;
+  const base = 1 / (1 + Math.pow(d / SIGNAL_RANGE, 1.5));
+  if (d <= SIGNAL_LOST_FROM) return base;
+  const x = (SIGNAL_LOST_AT - d) / (SIGNAL_LOST_AT - SIGNAL_LOST_FROM);
+  return base * x * x * (3 - 2 * x);
 }
 
 // The dial sits on a station within this many kHz and the voice comes through.

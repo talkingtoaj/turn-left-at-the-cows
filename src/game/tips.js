@@ -35,6 +35,8 @@ export const TIP_CONTEXT = {
   driveTime: 0, // seconds driven this mission
   busy: false, // a dialogue, the map or a card is up (most tips wait)
   shiftAge: Infinity, // seconds since you last came on something the printed map has wrong
+  radioOn: false, // the car radio is on and you're in the car
+  radioSignal: 1, // 0..1, the strongest station's signal here (0: out of range, only static)
 };
 
 export const TIPS = [
@@ -42,6 +44,15 @@ export const TIPS = [
   { id: 'map_wrong', max: 2, secs: 11,
     text: 'It looks like the map is wrong. Press M to view and mark changes on the map, then try to find a local to get directions from.',
     when: (c) => !c.busy && c.shiftAge < 20 },
+  // The owner's words (15 Nov 2026), "each town" changed to "each county":
+  // only Ashford and Brandt have stations. Line ids T21-tip-radio-weak and
+  // T21-tip-radio-lost on the review page.
+  { id: 'radio_weak', max: 1, secs: 10,
+    text: 'The further you get from the radio tower, the weaker the signal. Each county has its own station. Can you find them all?',
+    when: (c) => !c.busy && !c.onFoot && c.radioOn && c.radioSignal > 0 && c.radioSignal < 0.5 },
+  { id: 'radio_lost', max: 1, secs: 8,
+    text: 'Signal lost as you travel between counties.',
+    when: (c) => !c.busy && !c.onFoot && c.radioOn && c.radioSignal === 0 },
   { id: 'get_out', max: 3, text: 'Stop and press F to get out and talk.',
     when: (c) => !c.onFoot && !c.busy && c.driveLocalD < 30 },
   { id: 'walk_up', max: 3, text: 'Walk up to them, face them and press E to talk.',

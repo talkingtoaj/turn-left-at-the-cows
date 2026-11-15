@@ -708,6 +708,10 @@ function updateTips(dt) {
     }
   }
   c.carD = foot.active ? carGap(car, foot.walker.x, foot.walker.y) : Infinity;
+  c.radioOn = radio.on && !foot.active;
+  let sig = 0;
+  for (const k in radio.signals) sig = Math.max(sig, radio.signals[k]);
+  c.radioSignal = sig;
   const now = performance.now() / 1000;
   const nShifts = state.shiftsSeen ? state.shiftsSeen.size : 0;
   if (nShifts > shiftTip.n) shiftTip.at = now;

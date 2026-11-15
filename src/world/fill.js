@@ -466,8 +466,9 @@ function makeCoverage(world, fields, props) {
   };
 }
 
-// True if the wire span a-b crosses any road centre line.
-export function spanCrossesRoad(world, a, b) {
+// True if the wire span a-b crosses a road centre line (only road `onlyId`
+// when given).
+export function spanCrossesRoad(world, a, b, onlyId = null) {
   const minX = Math.min(a.x, b.x);
   const maxX = Math.max(a.x, b.x);
   const minY = Math.min(a.y, b.y);
@@ -475,6 +476,7 @@ export function spanCrossesRoad(world, a, b) {
   const pa = [a.x, a.y];
   const pb = [b.x, b.y];
   for (const r of world.roads) {
+    if (onlyId && r.id !== onlyId) continue;
     const pts = r.points;
     for (let i = 0; i < pts.length - 1; i++) {
       const p = pts[i];
@@ -538,8 +540,9 @@ function makePowerLines(world, fields, props) {
       if (!best || poles.length > best.length) best = poles;
     }
     // Split where poles are missing for a long way (a river crossing, a town
-    // square), and wherever a span would cross a road (own road included):
-    // every line keeps to one side and never wires over a junction.
+    // square), and where a span would cross its own road, so every line keeps
+    // to one side. Spans over a side road at a junction are fine (owner,
+    // 15 Nov: the wires stopped short at Old River Road).
     let cur = [];
     const flush = () => {
       if (cur.length >= 2) lines.push({ id: `pl_${road.id}_${lines.filter((l) => l.roadId === road.id).length}`, roadId: road.id, poles: cur.map(({ x, y }) => ({ x, y })) });
@@ -547,7 +550,7 @@ function makePowerLines(world, fields, props) {
     };
     for (const p of best) {
       const prev = cur[cur.length - 1];
-      if (prev && (p.along - prev.along > POLE_STEP * 2.6 || spanCrossesRoad(world, prev, p))) flush();
+      if (prev && (p.along - prev.along > POLE_STEP * 2.6 || spanCrossesRoad(world, prev, p, road.id))) flush();
       cur.push(p);
     }
     flush();

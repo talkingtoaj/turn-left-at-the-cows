@@ -2,7 +2,7 @@
 // exists in its region's world data.
 import { STATIONS } from '../src/radio/segments.js';
 import {
-  signalAt, tuneQuality, mixFor, loopLength, globalPos,
+  signalAt, SIGNAL_LOST_AT, tuneQuality, mixFor, loopLength, globalPos,
   startPosition, advance, resumeAfterGap, segmentAt, nextSegment, hearStep, GAP_CARRY_ON, HEAR_LOST, HEAR_BACK, HEAR_LOST_AFTER,
   autoTuneStep, sweepFreq, SWEEP_SECONDS, volumeGain, VOLUME_START, crackleFor,
 } from '../src/radio/radioLogic.js';
@@ -32,8 +32,11 @@ for (const st of STATIONS) {
   if (found !== 1) fail(st.mastId + ' found ' + found + ' times');
 }
 const gap = Math.hypot(pos.ashford.x - pos.brandt.x, pos.ashford.y - pos.brandt.y);
-const faint = signalAt(gap);
-if (!(faint < 0.06 && faint > 0.005)) fail('other county signal ' + faint);
+// Between the counties the signal is gone: only static.
+if (signalAt(gap) !== 0) fail('other county signal ' + signalAt(gap));
+if (signalAt(gap / 2) !== 0) fail('halfway between the counties: ' + signalAt(gap / 2));
+if (!(signalAt(6500) > 0.15)) fail('still faint at 6.5 km: ' + signalAt(6500));
+if (!(signalAt(7800) < signalAt(7000) * 0.6)) fail('no fast drop-off past 7 km');
 
 // Dial: right on a station is clear, a little off is partly, far off is static.
 const a = STATIONS[0];
@@ -230,5 +233,5 @@ if (kinds.size !== 2) fail('need both talk and music items to test resume offset
   }
 }
 
-console.log(bad ? bad + ' problems' : 'radio logic ok (other county signal ' + faint.toFixed(3) + ', ' + Math.round(gap) + ' m)');
+console.log(bad ? bad + ' problems' : 'radio logic ok (counties ' + Math.round(gap) + ' m apart, signal lost past ' + SIGNAL_LOST_AT + ' m)');
 process.exit(bad ? 1 : 0);
