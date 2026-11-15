@@ -12,7 +12,7 @@ It's 1992, you have no GPS and a map five years out of date. Things have shifted
 
 ## Pitch
 
-It's July 1992 and you're covering Darlene's mail route with her county map from 1987. The map is wrong in places. Ask a local, read the signs, draw your own map, and find your way. The locals are friendly. They are not always right.
+July 1992. You're covering Darlene's rural mail route while her wrist heals, and all you have is her county map from 1987. There's no GPS, and the roads have changed since then. Pencil your notes onto her map and ask the locals the way.
 
 ## How to play
 
@@ -59,7 +59,7 @@ Play on a computer with a keyboard. It runs in your browser and needs WebGL.
 
 ## Theme: SHIFT
 
-The theme is SHIFT. The county has shifted since 1987, so Darlene's map is out of date: roads have moved, a bridge has washed out, and a farm lane shows up where the map says there is none. You are also covering a shift. Darlene hurt her wrist, so you're the one carrying her mail. Nothing here stays where the map left it.
+Your map is from 1987. It's 1992. Since then the Creek Road bridge washed out, County Rd 12 got a name, and the quarry closed Mill Lane. New farm lanes aren't on the map, and some locals haven't driven those roads in years. You find each shift by driving into it. When you deliver, the game sets the old map beside the real county and circles every change.
 
 ## A note on the prototype
 
