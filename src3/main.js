@@ -858,6 +858,7 @@ function exposeDebug() {
   window.__tips = tips;
   window.__lightning = lightning;
   window.__thunder = thunder;
+  window.__radio = radio;
   // Dev: play a mission now, building its region if need be (memory checks):
   // await __playMission('m3_airfield').
   window.__playMission = playMission;
