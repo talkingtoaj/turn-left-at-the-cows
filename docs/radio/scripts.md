@@ -71,75 +71,79 @@ Approx. length of each loop: about 14 minutes per station. Stations keep their o
 
 **Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Opening link. Unhurried. Pause after the call sign.
 
+**Source:** A Claude
+
 > WHAY, Radio Ashford, ten ten on your AM dial. Ashford's own, on the hill. This is Dewey Halloran.
 >
 > I've got records, a farm report, and a freshly brewed pot of coffee. So stay with me.
 
-#### ashford_farm.mp3: Farm report (about 40 s)
+#### ashford_farm.mp3: Farm report (about 42 s)
 
 **Speaker:** Dewey Halloran
 
 **Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Farm report. Read the prices flat and serious like the numbers matter. Slow down and get warmer for the Vern Sutter news.
 
-> Time for the farm report. Corn is a little over two dollars a bushel. Soybeans, a little under six. Hogs are steady and cattle are steady, and so are the people who raise them, mostly.
+**Source:** D Grok fresh
+
+> Farm report. Corn is two dollars and thirty cents a bushel. Wheat, three-twenty. Soybeans, five-sixty. Hogs are forty-six a hundredweight, fat cattle seventy-four. That's the last board the co-op grain elevator phoned in.
 >
-> Hay is up, because it rained when it shouldn't have.
->
-> Vern Sutter is home from the hospital and doing fine. His wheat was ready and the rain was coming, so three churches sent combines. They got every acre in before the first drop. Vern says thank you, and the coffee is on him.
+> Wheat has been slow in the cool weather, still green in some of the low ground. Vern Sutter had surgery and couldn't get his cut, so St. Anne's and two other churches brought combines and got his wheat in before the rain. His wife said they finished before supper. If you need a hand with a field, call the station.
 
 #### ashford_ad_1.mp3: Ad (about 19 s)
 
 **Speaker:** Dewey Halloran
 
-**Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Ad. A touch more salesman than usual, but still Dewey: he thinks ads are a little silly. Smile on "do not mix them up".
+**Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Ad. A touch more salesman than usual, but still Dewey: he thinks ads are a little silly.
 
-> Earl's Gas and Garage, on Main Street. Regular gas, a dollar and five cents a gallon. Pop in the cooler. Worms in the other cooler. Please do not mix them up.
->
-> Earl's. If you can see the pumps, you've found it.
+**Source:** C GPT fresh
 
-#### ashford_link_2.mp3: DJ link (about 27 s)
+> This farm report is brought to you by Earl's Gas and Garage on Main Street in Ashford. Regular gas is a dollar five a gallon. Earl also has night crawlers, cold pop, fan belts, and someone on duty for repairs until six.
+
+#### ashford_link_2.mp3: DJ link (about 12 s)
 
 **Speaker:** Dewey Halloran
 
 **Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Link about the Olympics. Mildly grumpy and fond at the same time.
 
-> The Olympics start in Barcelona this month, and they say the American basketball team is made of professionals. Pros, in the Olympics. In my day you needed a day job to get in.
->
-> I'll be watching at the Millers'. Theirs is the only television that gets Channel 6. Mrs. Miller says I can come over if I bring a pie.
+**Source:** C GPT fresh
 
-#### ashford_swap.mp3: Swap shop (about 34 s)
+> The Barcelona Olympics begin later this month, and the American basketball team will have professional players for the first time. They're calling it the Dream Team.
+
+#### ashford_swap.mp3: Swap shop (about 33 s)
 
 **Speaker:** Dewey Halloran
 
-**Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Swap shop. Read like a very serious list. Deadpan on "slightly used". A tiny pause before "Gerald".
+**Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Swap shop. Read like a very serious list. Deadpan on "slightly used".
 
-> Swap shop. Call the station, or tell Earl at the pumps and he'll tell me.
->
-> First up. A caller wants to trade a slightly used manure spreader for a VCR. His words: slightly used. Next, a two-bottom plow, good shape, wants a rowboat.
->
-> Wanted, one left boot, size ten, brown. Please don't ask about the right one. And last, five kittens, free, all of them named Gerald.
->
-> That's the swap shop. Fair trades only.
+**Source:** B GPT edit
 
-#### ashford_weather.mp3: Weather and wind report (about 23 s)
+> Swap Shop. Call the station, or tell Earl at the pumps and he'll pass it along.
+>
+> First up, a caller wants to trade a slightly used manure spreader for a VCR. His words: slightly used. There's also a two-bottom plow in good shape. The owner would like a rowboat.
+>
+> Wanted, one left work boot, size ten, brown. And five kittens are free to a good home.
+>
+> That's Swap Shop for this week.
+
+#### ashford_weather.mp3: Weather and wind report (about 21 s)
 
 **Speaker:** Dewey Halloran
 
 **Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Weather and wind. A forecast for the week, not a live report. Dry on "why".
 
-> The weather and wind, from the weather service, for the week. Highs in the upper seventies, which is cool for July. They blame a volcano in the Philippines that blew up last year.
->
-> Winds mostly from the west, about ten miles an hour. Showers are possible. Bring the laundry in early.
+**Source:** C GPT fresh
 
-#### ashford_ad_2.mp3: Ad (about 21 s)
+> Cool for July through most of the week, with afternoon highs in the upper seventies and nights near fifty-five. Some forecasters still blame last year's volcano in the Philippines. West winds around ten miles an hour, with a chance of scattered showers Wednesday and again late Friday.
+
+#### ashford_ad_2.mp3: Ad (about 16 s)
 
 **Speaker:** Dewey Halloran
 
-**Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Ad. Same sales voice as the first ad. A sigh on "and sigh".
+**Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Ad. Same sales voice as the first ad.
 
-> Hendricks Hardware and Feed, out on Highway 9. We sell nails, rope, chicken wire, and every kind of bucket. Bring your broken thing and Mr. Hendricks will look at it and sigh. He can usually fix it.
->
-> Hendricks. We have a new shipment of garden hoses.
+**Source:** D Grok fresh
+
+> Hendricks Hardware and Feed, out on Highway 9. Baling twine, salt blocks, and steel fence posts came in. If you need a gate or a hinge they don't have, they can order it. Ask for Don.
 
 #### ashford_traffic.mp3: Traffic report (about 15 s)
 
@@ -147,49 +151,57 @@ Approx. length of each loop: about 14 minutes per station. Stations keep their o
 
 **Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Traffic report. Read it like a serious bulletin, with a straight face. Let "three cars" land with a pause before it.
 
-> Traffic report. Combine on Highway 9, backup is nine miles long. That's three cars, folks.
->
-> If you're one of the three, the combine will pull over at the next driveway. They always do.
+**Source:** C GPT fresh
 
-#### ashford_notices.mp3: Local notices and birthdays (about 44 s)
+> A combine is moving north on Highway 9, and the backup is nine miles long. That's three cars, folks. Give him room at the bridge, and everyone should get through without any trouble.
+
+#### ashford_notices.mp3: Local notices and birthdays (about 42 s)
 
 **Speaker:** Dewey Halloran
 
-**Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Local notices and birthdays. A warm, slow read, like he is reading off the back of an envelope. Laugh a little on "eleven years".
+**Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Local notices and birthdays. A warm, slow read, like he is reading off the back of an envelope.
 
-> Local notices. The youth group at St. Anne's is washing cars in the church lot on Saturday. It's by donation, and the money goes to their mission trip. Mrs. Miller is back from her sister's. And the school board will not meet this month, because nobody can find the key.
->
-> Birthdays. Happy birthday to Martha Ruggles, who is eighty-one. Happy birthday to Tommy Pratt, who is seven and wants it known that he is nearly eight.
->
-> And happy birthday to the man at the pumps, who says he is forty-nine. He has said so for eleven years.
+**Source:** C GPT fresh
 
-#### ashford_guest.mp3: Guest spot (about 48 s)
+> St. Anne's youth group will hold a car wash Saturday from nine until two in the church lot. Proceeds help send eight young people on their summer mission trip. Cars are four dollars, pickups five, and extra donations are welcome.
+>
+> The library needs volunteers to carry boxes Thursday evening. Call Mrs. Talbot before five. The Fenwick County blood drive is Tuesday at the school gym; appointments are helpful, though walk-ins will be taken.
+>
+> Birthday wishes go to Ruth Bell, seventy-eight, and Andrew Keene, twelve. Ruth's family says there will be cake after supper.
+
+#### ashford_guest.mp3: Guest spot (about 45 s)
 
 **Speaker:** Dewey Halloran and Earl (gibberish)
 
-**Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Guest spot. Earl is the flattest man in the county: mumbling, low, no ups and downs, short bursts. His lines are made-up sounds with real sentence rhythm, not a real language. Record Earl as a second voice (older man, flat, mumbly). Leave a 3 to 4 second gap after each Dewey line where Earl speaks. Dewey answers as if every word made sense.
+**Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Guest spot. Earl is the flattest man in the county: mumbling, low, no ups and downs, short bursts. His lines are made-up sounds with real sentence rhythm, not a real language. Record Earl as a second voice (older man, flat, mumbly). Leave a 3 to 4 second gap after each Dewey line where Earl speaks. Dewey does not translate or repeat what Earl says. He just carries on.
 
-> I've got a visitor. Earl, from the pumps on Main Street. Earl, say hello.
+**Source:** New (owner: the DJ must not interpret the local)
+
+> I've got Earl in the studio, from the pumps on Main Street. Earl, say hello to everybody.
 >
 > ~ Mm. Nuh-hmm. Dannow poddle, ressa ka lun bo. Hmf.
 >
-> Is that right? Folks, Earl says the pumps are open till six, and the coffee is free if you bring your own cup. Is that right, Earl?
+> Well, it's good to have you. Earl, I keep telling folks that Mill Lane only goes up as far as where the old mill was, and it stops there. They still drive up it looking for a way through.
 >
-> ~ Woomba. Heh.
+> ~ Woomba. Heh. Ressa ka, ressa ka lun.
 >
-> He says it is. And Earl says to stay off Mill Lane. It goes up from the highway to where the mill used to be, and it stops there. It always has.
+> That's what I keep saying.
 >
-> Thanks, Earl. Come back any time. Maybe bring a cup.
+> ~ Hmf. Dannow.
+>
+> All right, Earl. Thanks for coming in. That's Earl, from Earl's Gas and Garage on Main Street.
 
-#### ashford_link_4.mp3: DJ link (about 18 s)
+#### ashford_link_4.mp3: DJ link (about 19 s)
 
 **Speaker:** Dewey Halloran
 
 **Voice notes:** Dewey: older man, slow, dry, a little gravel, easygoing. Mid-western American. Small smile in the voice, long pauses between sentences. Link about tractors. Dry. Let the last joke sit, no laugh.
 
+**Source:** B GPT edit
+
 > The paper says experts think tractors will drive themselves someday. Orville Dahl called the station to say his already does. The brakes went out in April, and he calls it a runaway success.
 >
-> More music, then back with me.
+> We'll have another record, then I'll be back.
 
 ---
 
@@ -210,69 +222,77 @@ Approx. length of each loop: about 14 minutes per station. Stations keep their o
 
 ### Spoken pieces (record these in ElevenLabs)
 
-#### brandt_link_1.mp3: DJ link (about 18 s)
+#### brandt_link_1.mp3: DJ link (about 13 s)
 
 **Speaker:** Rocky Tillman
 
-**Voice notes:** Rocky: woman in her thirties, bright and quick, big laugh, small-town warm. Mid-western American. Talks like she is grinning. Opening link. Big energy but still friendly, like she is talking across the counter. Laugh on "stiff".
+**Voice notes:** Rocky: woman in her thirties, bright and quick, big laugh, small-town warm. Mid-western American. Talks like she is grinning. Opening link. Big energy but still friendly, like she is talking across the counter.
+
+**Source:** B GPT edit
 
 > You're on WBRT, Brandt thirteen-forty, the tallest voice in Brandt. I'm Rocky Tillman.
 >
-> I've got records, the farm report, and a swap shop that is getting out of hand. Don't touch that dial. Seriously, it's stiff, you'll break it.
+> I've got records, the farm report, and several new items for Swap Shop. Stay with us.
 
-#### brandt_farm.mp3: Farm report (about 37 s)
+#### brandt_farm.mp3: Farm report (about 33 s)
 
 **Speaker:** Rocky Tillman
 
 **Voice notes:** Rocky: woman in her thirties, bright and quick, big laugh, small-town warm. Mid-western American. Talks like she is grinning. Farm report. Reads the numbers fast and proud, slows down for the fax machine.
 
-> Farm report, Brandt style. Corn is around two twenty a bushel. Soybeans, just under six. Wheat, about three forty. Hogs are up a little, cattle are flat, and milk is thirteen dollars a hundredweight.
->
-> The co-op elevator asks that trucks line up on the right side of the road. And the co-op got a fax machine. Somebody faxed a picture of his prize hog to the feed store, just to see if it works. The feed store says it came through fine.
+**Source:** C GPT fresh
 
-#### brandt_ad_1.mp3: Ad (about 24 s)
+> Brandt Co-op is bidding two dollars twenty-five for corn, five dollars fifty-eight for soybeans, and three dollars thirty-seven for wheat. Butcher hogs are around forty-three fifty, and choice steers are holding near seventy-four.
+>
+> The elevator asks wheat trucks to use the south scale until further notice. The office also has a new fax machine. Calvin Roark faxed a picture of his prize hog to the feed counter just to see if it works.
+
+#### brandt_ad_1.mp3: Ad (about 20 s)
 
 **Speaker:** Rocky Tillman
 
 **Voice notes:** Rocky: woman in her thirties, bright and quick, big laugh, small-town warm. Mid-western American. Talks like she is grinning. Ad for the diner. Sales voice, a bit loud on purpose, then drops to normal on the last line.
 
-> The diner in Brandt. Pie of the day, coffee all day, and Peg will tell you your business before you tell it to her.
->
-> Try the apple pie with cream on top, the way Ray Kessler has it. Sit anywhere. Peg says that is the only rule, and she doesn't like it either.
+**Source:** C GPT fresh
 
-#### brandt_link_2.mp3: DJ link (about 23 s)
+> Peg's diner in Brandt serves breakfast from six, with eggs, sausage, biscuits, and coffee kept hot. Lunch includes meat loaf, chicken-fried steak, and a vegetable plate. Pie this week is apple, cherry, or coconut cream. Whole pies may be ordered one day ahead.
+
+#### brandt_link_2.mp3: DJ link (about 24 s)
 
 **Speaker:** Rocky Tillman
 
 **Voice notes:** Rocky: woman in her thirties, bright and quick, big laugh, small-town warm. Mid-western American. Talks like she is grinning. Link about the Olympics. Cheerful and a bit silly.
 
-> The Olympics start in Barcelona this month, and I have decided to cheer for everybody. Even the person who comes last in the long jump. Especially that person.
->
-> The garage in Brandt already has a television going in the bay. If you need an oil change, expect to watch some gymnastics.
+**Source:** D Grok fresh
 
-#### brandt_swap.mp3: Swap shop (about 27 s)
+> The Olympics start in Barcelona later this month. Lou's got a television going in the bay at the garage, set on a crate. People are asking about the basketball, with the pros in it. You can hear it from the lot if the door's up. I'll get down for some of it.
+
+#### brandt_swap.mp3: Swap shop (about 28 s)
 
 **Speaker:** Rocky Tillman
 
 **Voice notes:** Rocky: woman in her thirties, bright and quick, big laugh, small-town warm. Mid-western American. Talks like she is grinning. Swap shop. Speak it like a game show host who is a little worried about the items.
 
-> Swap shop. Leave a note at the garage or the diner and I'll read it out.
->
-> This week. A pickup bed, no truck attached, wants a truck. A saddle, hardly sat in. A ladder, because a man bought one and can't remember why. A tuba, one owner, one lung.
->
-> And a pie safe, free to anyone who can carry it.
+**Source:** D Grok fresh
 
-#### brandt_weather.mp3: Weather and wind report (about 35 s)
+> Swap shop. Leave a note at the garage or the diner. I'll read them on the air.
+>
+> Carl Bemis has a boom pole for a three-point hitch. He wants truck chains.
+>
+> Ruth Keller has a girl's bike, twenty-inch wheels, needs a tube. She'll trade for a playpen.
+>
+> A window fan that works, for canning jars. No name on the note. Ask Peg.
+
+#### brandt_weather.mp3: Weather and wind report (about 37 s)
 
 **Speaker:** Rocky Tillman
 
 **Voice notes:** Rocky: woman in her thirties, bright and quick, big laugh, small-town warm. Mid-western American. Talks like she is grinning. Weather and wind. A forecast for the week, not a live report. Matter-of-fact, clear on the planes line.
 
-> Weather and wind, from the weather service, for the week. Cool for July, highs in the low seventies, and a lot of folks are digging their sweaters out of the cedar chest.
+**Source:** C GPT fresh
+
+> The week stays cooler than usual, with highs from seventy-six to eighty and west winds near ten miles an hour. A shower may pass through Wednesday night, with better drying weather afterward.
 >
-> Winds mostly from the west, about ten miles an hour. The planes at the flying club east of town take off and land into the wind. A west wind means they come in from the east, low, and land going west.
->
-> Hold on to your hat.
+> A note for anyone watching the flying club east of Brandt: airplanes take off and land into the wind. With a west wind, they'll approach low from the east and land going west. That is normal traffic for the field, though livestock owners nearby may want to keep gates secured.
 
 #### brandt_ad_2.mp3: Ad (about 17 s)
 
@@ -280,56 +300,72 @@ Approx. length of each loop: about 14 minutes per station. Stations keep their o
 
 **Voice notes:** Rocky: woman in her thirties, bright and quick, big laugh, small-town warm. Mid-western American. Talks like she is grinning. Ad for the garage. Same sales voice as the first ad. Warm on "we like noises".
 
+**Source:** A Claude
+
 > Lou's Garage. We fix what you drove in on. Tires, brakes, oil, belts. If your car is making a noise, do the noise for us. We like noises.
 >
 > Lou's, in Brandt. If it has wheels, bring it.
 
-#### brandt_thought.mp3: Thought for the Road (about 28 s)
+#### brandt_thought.mp3: Thought for the Road (about 26 s)
 
 **Speaker:** Rocky Tillman
 
 **Voice notes:** Rocky: woman in her thirties, bright and quick, big laugh, small-town warm. Mid-western American. Talks like she is grinning. Thought for the Road. Rocky drops the big energy: softer, slower, no grin. Reads the pastor's word plainly, like a note she respects.
 
-> Thought for the Road. It's a short word from Pastor Dale Weber of the Brandt Community Church, and he drops it off every week.
->
-> He says, even on the roads you know best, you can't see over the next hill. He finds that a comfort, because God can. He's looking after you, and the fellow coming the other way. Drive safe, folks.
+**Source:** B GPT edit
 
-#### brandt_notices.mp3: Local notices and birthdays (about 42 s)
+> Time for Thought for the Road, a short word Pastor Dale Weber of Brandt Community Church drops off each week.
+>
+> He writes, even on a road you know well, you can't see over the next hill. He finds comfort in knowing God can. He's looking after you, and the fellow coming the other way.
+>
+> Drive safely, folks.
+
+#### brandt_notices.mp3: Local notices and birthdays (about 40 s)
 
 **Speaker:** Rocky Tillman
 
 **Voice notes:** Rocky: woman in her thirties, bright and quick, big laugh, small-town warm. Mid-western American. Talks like she is grinning. Local notices and birthdays. Warm and a little fast, then slow on the last birthday.
 
-> Local notices. St. Luke's holds its pie auction on Sunday. If you plan to bid, bring cash and bring a fork. The elevator asks everyone to stop leaving old tires by the scale. Lost, a brown dog named Biscuit. He doesn't answer to anything else.
->
-> Birthdays. Happy birthday to Wendell Olsen, who is sixty-two. Happy birthday to Josie Lindgren, who is six, asked for a pony, got a bicycle, and says that is fine.
->
-> And happy birthday to Lou at the garage, who said no party. Peg is bringing a cake anyway.
+**Source:** C GPT fresh
 
-#### brandt_guest.mp3: Guest spot (about 46 s)
+> St. Luke's will hold its annual pie auction Friday at seven in the fellowship hall. Pie donations may be brought in after four, and coffee will be provided.
+>
+> Brandt Co-op reminds growers that the south scale opens at six during wheat harvest. The north scale remains closed for repairs.
+>
+> A black-and-white farm dog named Patch is missing from the Miller place. He has a red collar and is friendly. Leave word at the diner if seen.
+>
+> Birthday wishes go to Helen Ward, sixty-six, and Tommy Reese, nine.
+
+#### brandt_guest.mp3: Guest spot (about 45 s)
 
 **Speaker:** Rocky Tillman and Lou (gibberish)
 
-**Voice notes:** Rocky: woman in her thirties, bright and quick, big laugh, small-town warm. Mid-western American. Talks like she is grinning. Guest spot. Lou is gruff and short, a low mutter. His lines are made-up sounds with real sentence rhythm, not a real language. Record Lou as a second voice (man, low, gruff, grumpy but kind). Leave a 3 to 4 second gap after each Rocky line where Lou speaks. Rocky answers as if every word made sense.
+**Voice notes:** Rocky: woman in her thirties, bright and quick, big laugh, small-town warm. Mid-western American. Talks like she is grinning. Guest spot. Lou is gruff and short, a low mutter. His lines are made-up sounds with real sentence rhythm, not a real language. Record Lou as a second voice (man, low, gruff, grumpy but kind). Leave a 3 to 4 second gap after each Rocky line where Lou speaks. Rocky does not translate or repeat what Lou says. She just carries on.
 
-> I have a visitor. Lou from the garage dropped off a part, and I told him he's not leaving until he says hello. Lou, you're on.
+**Source:** New (owner: the DJ must not interpret the local)
+
+> Lou from the garage is here, dropping off a part for the transmitter. Lou, say hello.
 >
 > ~ Mm. Hrmph. Gorra nash, bidda lunk, ottle ottle rum. Hnh.
 >
-> Is that right? Folks, Lou says you'll hear the flying club planes long before you see them. He says they go round and round the field on a fine day, and they never fly right over the middle.
+> Good to see you too. Lou, people keep asking me how to find the flying club. I tell them the planes go round and round the field on a fine day, and they never fly over the middle. So you drive to the middle of the circle.
 >
-> So if you are ever trying to find them, don't drive to where they are. Drive to the middle. Did I get that right, Lou?
+> ~ Hnh. Gorra nash.
 >
-> ~ Hnh.
+> I thought so.
 >
-> He says I did. Thanks, Lou. Now go home.
+> ~ Bidda lunk. Hrmph.
+>
+> Thanks, Lou. That's Lou's Garage, here in Brandt, if your car needs looking at.
 
-#### brandt_link_3.mp3: DJ link (about 21 s)
+#### brandt_link_3.mp3: DJ link (about 22 s)
 
 **Speaker:** Rocky Tillman
 
 **Voice notes:** Rocky: woman in her thirties, bright and quick, big laugh, small-town warm. Mid-western American. Talks like she is grinning. Link with the caller. Cheerful at first. The laugh after "Ha, ha" is nervous and a little too long. Small pause before "right?".
 
-> The phones are lit up again. One caller says that someday you'll pick any song, any time, no DJ needed. He says it will come through the phone line, or maybe the air, he wasn't sure.
+**Source:** B GPT edit
+
+> The phones are lit up again. One caller says that someday you'll pick any song, any time, no DJ needed. He thinks it'll come through the phone line, or maybe through the air. He wasn't sure about that part.
 >
 > Ha, ha. Sure, sir. They'll always need ol' Rocky... right?
