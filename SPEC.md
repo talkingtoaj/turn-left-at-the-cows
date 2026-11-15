@@ -299,7 +299,7 @@ Source: `docs/reviews/2026-11-14-critic-round-2-whimsy.md`, the owner's 1 to 5 r
 - **The player is the relief carrier,** covering Darlene's rural mail route in their own car while her wrist heals. Missions are favours for people on the route.
 - **Intro card,** shown once after Start and before mission 1's card, on a note in Darlene's style, readable again from Help. The owner's text: "Darlene asked if you can cover her shift, but she only had a map for you five years out of date. 'This'll help,' she claimed, 'but the county's shifted since then. If you get lost, just ask a local. They'll know the way.'"
 - **Names.** Region 1 is Fenwick County, region 2 is Harlan County, Ashford is a town. The splash map title "ASHFORD COUNTY" becomes **"RURAL ROUTE 3 · ASHFORD"** (supersedes the world name in 9l).
-- **Theme (Game Off, SHIFT).** Main angle: the maps are out of date. Second: you're covering a shift. Splash map: a printer's stamp "CORRECT AS OF 1987" with Darlene's pencilled "ha." beside it. Tagline: "Everything's shifted since 1987. Even the cows." Subline: "You're covering Darlene's mail route with her old county map. Ask a local. Don't trust the cows." (Wording goes through the review rule.)
+- **Theme (Game Off, SHIFT).** Main angle: the maps are out of date. Second: you're covering a shift. Splash map: a printer's stamp "CORRECT AS OF 1987" with Darlene's pencilled "ha." beside it. Tagline: see 9p (the cow tagline and subline are dropped).
 
 **Maps**
 - **Mission 1 gives Darlene's map** (`county1987`) with lots of gaps: roads and lanes built since 1987 left off, the washed-out bridge shown as fine, Mill Lane drawn through. This reverses the 7 Nov choice that mission 1 starts with no map. The mission 1 brief is rewritten to match.
@@ -385,3 +385,16 @@ Source: `docs/reviews/2026-11-14-critic-round-2-whimsy.md`, the owner's 1 to 5 r
 | H. Release | | secret scan, license, README, itch page, AI note, public on 28 Nov, submit on 29 Nov |
 
 Critical path: radio scripts (C, 19 Nov), then recording (owner, 24 Nov), then wiring in (E, 25 to 26 Nov). If we fall behind, drop in this order: props, sound layers, the mission 3 tourist, radio guest spots.
+
+### 9p. Fix the map: playing the shift (LOCKED, 15 Nov 2026, after critic round 3)
+Source: `docs/reviews/2026-11-15-critic-round-3-theme.md`. All five critics said the shift was told on cards, not played. The owner's framing: "the world has shifted, the map is out of date; there was a time before GPS."
+
+- **Mission 1: you draw on Darlene's map.** Mission 1 has one map tab, Darlene's 1987 map, and the pencil, stamps and eraser work on it (no blank sketch that mission). Missions 2 and 3 keep the blank sketch to draw from scratch, with their printed map to look at only. Your finished mission 1 map is Darlene's map with your marks.
+- **Things that shifted.** Each printed map that is out of date lists its *shifts*: real changes in the world since it was printed, each with a short label, where it is, and how close you must come to count it as seen (simple distance, in the car or on foot). The player sees a shift by coming near it; their pencil marks are not graded. Only true changes count, not map-printing mistakes or bad directions.
+- **Win screen (and the marketing screenshot).** For a mission whose printed map has shifts, the win screen shows the printed map (in mission 1 with your marks) beside the same county as it really is in 1992, with each shift circled and its label, ticked if you saw it. A count reads "Things that shifted: 3 of 5". Missions without shifts keep today's win screen. A dev URL flag opens this screen straight away for screenshots.
+- **Road names (real early 1990s history).** Counties gave names to roads that went by numbers. Darlene's 1987 map shows Ridge Road as a county road number; the 1992 sign says Ridge Road; some locals still use the old number. This replaces hiding Ridge Road (Mrs Hartley's grandfather drove cattle on it, so it was always there).
+- **Each shift is believable and visible.** Quarry Road is a haul road built in 1989 (the quarry is older). Mill Lane used to go through to Creek Road until the quarry closed it ("It never did" is wrong). New lanes since 1987 get a tell you can see (fresh gravel, a newer mailbox). Private farm lanes that county maps never showed (Hartley Lane) are not shifts.
+- **Mission 3 gets the 1979 Harlan County map** (`harlan1979`, tab "Old county map") instead of no map, with its own shifts.
+- **Tagline** (the owner's words, splash, itch short description and page meta): "It's 1992, you have no GPS and a map five years out of date. Things have shifted in that time. You just might need to ask directions from the locals." The cow tagline and the "Even the cows" README line are gone.
+- **American English is the standard** for every word the player sees or hears (Mom, railroad, tire, "watch for"). Identifiers and docs may stay as they are. Changed lines go through the review rule as edits.
+- Not chosen: dating the bad-direction traps, an extra shift placed near the start of mission 1, rewriting the mission 1 brief and theme paragraph, the splash stamp wording.

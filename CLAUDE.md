@@ -6,6 +6,8 @@ A browser driving game (three.js) about finding your way with out-of-date maps, 
 
 Every new line of dialogue or story (locals, radio scripts, tow lines, win-screen lines, notebook lines, intro, taglines) first gets a pass with the remove-ai-style skill, then goes to the owner for review in an artifact. Only approved lines ship. See SPEC 9o.
 
+The game is set in the rural Midwest, so every word the player sees or hears is American English (Mom, railroad, tire, "watch for"). See SPEC 9p.
+
 The review page is https://claude.ai/artifact/ESMREZbJDS4Zv4DWrZ6XoF. Its database collection `lines` holds one doc per line, id `T<ticket>-<line id>`, with `ticket` (GitHub issue number), `ticketTitle`, `speaker`, `where`, `old`, `new`, `note`, `order` and `status`. To submit lines, write those fields with `status: "pending"` (ArtifactData batch). The owner sets `status` to `approved`, `edited` (their text is in `final`) or `rejected` (their reason is in `ownerNote`). To read back, query the collection: ship `final` when it is set, else `new`, and only for `approved` or `edited` lines. Keep a line's id in a code comment beside the line so edits can be applied later.
 
 ## Agent skills
