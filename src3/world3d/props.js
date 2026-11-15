@@ -164,7 +164,6 @@ export function buildLocals(world, terrain, audit = null) {
     ];
     if (/fish/i.test(l.role || '')) {
       body.push([cyl(0.025, 3.2, 4), 0x3a2a1a, 0.4, 1.0, -0.2, -0.9]);
-      body.push([cyl(0.22, 0.4, 8, 0.26), 0x8a8f96, 0.7, 0, 0.5]);
     } else {
       body.push([box(0.4, 0.06, 0.5), 0x2a2a2a, 0, 1.79, -0.12]); // cap peak
     }
@@ -173,6 +172,16 @@ export function buildLocals(world, terrain, audit = null) {
     if (l.carry === 'binoculars') body.push([box(0.3, 0.1, 0.12), 0x1c1c1c, 0, 1.35, 0.2]);
     add(mergeParts(body), 0, 0, 0);
     p.position.set(l.x, terrain.heightAt(l.x, l.y), l.y);
+    if (/fish/i.test(l.role || '')) {
+      // The bucket stands on the ground beside her, at that spot's own height
+      // (on the sloping bank, her height buried it), and does not turn with her.
+      const bx = l.x + 0.7;
+      const by = l.y + 0.5;
+      const bucket = new THREE.Mesh(mergeParts([[cyl(0.22, 0.4, 8, 0.26), 0x8a8f96, 0, 0, 0]]), personMat);
+      bucket.position.set(bx, terrain.heightAt(bx, by) - 0.04, by);
+      bucket.castShadow = true;
+      group.add(bucket);
+    }
     if (audit) audit.circle(l.id, 'local', l.x, l.y, 0.12, terrain.heightAt(l.x, l.y), terrain.heightAt(l.x, l.y));
     group.add(p);
     people.push({ id: l.id, only: l.onlyMission || null, obj: p, x: l.x, y: l.y, yaw: 0, legs: p.children.slice(0, 2), walk: 0 });

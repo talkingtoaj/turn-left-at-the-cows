@@ -14,7 +14,6 @@ import { loadProgress, nextUnfinishedIndex, canSaveProgress } from '../game/prog
 import { timerText } from '../hud/format.js';
 import { milesText } from '../units.js';
 import { unlockAudio, isMuted, setMuted, onMuteChange } from '../audio/context.js';
-import { soundBytes } from '../audio/sounds.js';
 import { available as mapsAvailable } from '../net/mapsApi.js';
 import { myMap } from '../game/myMaps.js';
 import { tipsEnabled, setTipsEnabled } from '../game/tips.js';
@@ -137,12 +136,6 @@ const COMPASS = `<svg class="sp-compass" viewBox="0 0 88 88" aria-hidden="true">
   <circle cx="44" cy="44" r="3" fill="#3a3128"/>
 </svg>`;
 
-const KEY = `<svg viewBox="0 0 48 48" aria-hidden="true">
-  <circle cx="24" cy="24" r="10" fill="#55575c"/>
-  <g transform="translate(24 24)"><rect x="-3" y="-17" width="6" height="18" rx="1.5" fill="#c9ccd1"/>
-  <rect x="-8" y="-24" width="16" height="10" rx="4" fill="#e6b450"/></g>
-</svg>`;
-
 // ---------- small helpers ----------
 
 function readFlag(key) {
@@ -157,32 +150,6 @@ function writeFlag(key) {
     globalThis.localStorage?.setItem(key, '1');
   } catch (e) {
     // fine
-  }
-}
-
-// Turning the key: a short burst of the idle engine (after a real click).
-async function engineBurst() {
-  const ctx = unlockAudio();
-  if (!ctx || isMuted()) return;
-  try {
-    const ab = await soundBytes('engine/idle');
-    const buf = await new Promise((res, rej) => ctx.decodeAudioData(ab.slice(0), res, rej));
-    const g = ctx.createGain();
-    g.connect(ctx.destination);
-    const s = ctx.createBufferSource();
-    s.buffer = buf;
-    s.loop = true;
-    s.connect(g);
-    const t = ctx.currentTime;
-    g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(0.5, t + 0.12);
-    g.gain.setTargetAtTime(0, t + 1.3, 0.25);
-    s.playbackRate.setValueAtTime(1.3, t);
-    s.playbackRate.setTargetAtTime(1, t + 0.15, 0.25);
-    s.start(t);
-    s.stop(t + 2.6);
-  } catch (e) {
-    // No sound: the key is only for fun.
   }
 }
 
@@ -309,16 +276,6 @@ export function showSplash({ version = '3d', load, preferred = null, phone = fal
     const big = allDone ? 'Drive again' : anyDone ? 'Continue' : 'Play';
     el('b', null, btn, big);
     el('small', null, btn, `${first + 1}. ${MISSION_LIST[first].title}`);
-    const key = el('button', 'sp-key', go);
-    key.type = 'button';
-    key.title = 'Turn the key';
-    key.setAttribute('aria-label', 'Turn the key (engine sound)');
-    key.innerHTML = KEY;
-    key.addEventListener('click', () => {
-      key.classList.add('on');
-      setTimeout(() => key.classList.remove('on'), 1600);
-      engineBurst();
-    });
   } else {
     const box = el('div', 'sp-phone', go);
     el('strong', null, box, 'Made for keyboard on a laptop or desktop');

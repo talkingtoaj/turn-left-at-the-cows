@@ -466,7 +466,13 @@ export function createHazards(world, scenery, opts = {}) {
     let target = h.cruise;
     // Pulled over after a honk: onto the verge and slow, then back.
     const w = h.r.road.width;
-    const pullTo = h.pullT > 0 ? w * 0.26 + 1 : 0;
+    // At the end of its road it pulls right off onto the verge and stays
+    // there (out of the lane, so traffic behind gets past), and is removed
+    // once the player is away. It used to stop in the lane and hold up
+    // every car behind it for good.
+    const toEnd = h.dir > 0 ? h.r.len - h.s : h.s;
+    if (toEnd < 14) h.parked = true;
+    const pullTo = h.parked ? w * 0.26 + 3 : h.pullT > 0 ? w * 0.26 + 1 : 0;
     if (h.pullT > 0) {
       h.pullT -= dt;
       target = Math.min(target, HORN.pullSpeed[v.kind] || 3);
@@ -481,7 +487,6 @@ export function createHazards(world, scenery, opts = {}) {
     if (Math.hypot(px, py) < 5.5) target = 0;
     else if (along > 0 && along < 16 && lat < 3.2) target = Math.min(target, Math.max(0, (along - 7) * 0.5));
     // Slow near the road ends, then stop there.
-    const toEnd = h.dir > 0 ? h.r.len - h.s : h.s;
     if (toEnd < 30) target = Math.min(target, Math.max(0, (toEnd - 6) * 0.2));
     const acc = target > v.speed ? 1.2 : 4;
     v.speed += Math.max(-acc * dt, Math.min(acc * dt, target - v.speed));
@@ -492,6 +497,8 @@ export function createHazards(world, scenery, opts = {}) {
     placeVehicle(h);
     // Ease the heading so corners do not snap.
     v.heading = turnToward(hPrev, v.heading, 60 * dt);
+    // Far enough onto the verge that traffic no longer waits for it.
+    v.parked = !!h.parked && h.pull > 2.4;
   }
 
   // ---------- horn ----------
@@ -619,7 +626,7 @@ export function createHazards(world, scenery, opts = {}) {
         else if (h.members) stepHerd(h, dt, car);
         else if (h.v) stepVehicle(h, dt, car);
         const d = Math.hypot(h.x - car.x, h.y - car.y);
-        if (d > T.cleanupR || (h.kind === 'deer' && h.phase === 'gone' && d > 120)) remove(h);
+        if (d > T.cleanupR || (h.kind === 'deer' && h.phase === 'gone' && d > 120) || (h.v && h.v.parked && d > 90)) remove(h);
       }
 
       // Traffic waits for animals and slow vehicles on the road.
@@ -627,7 +634,7 @@ export function createHazards(world, scenery, opts = {}) {
         const ob = amb.obstacles;
         ob.length = 0;
         for (const a of animals) ob.push({ x: a.x, y: a.y, r: a.kind === 'cow' ? 0.9 : 0.5 });
-        for (const v of vehicles) ob.push({ x: v.x, y: v.y, r: 1.4 });
+        for (const v of vehicles) if (!v.parked) ob.push({ x: v.x, y: v.y, r: 1.4 });
       }
     },
 

@@ -331,33 +331,54 @@ const BUILDERS = {
     return null;
   },
 
-  // A rusted car left in the weeds: no glass, one wheel off, grass up round it.
+  // A rusted car left in the weeds: a faded 1950s sedan, no glass, the front
+  // left wheel off (lying in the grass) so it sits down on that corner, rust
+  // through the paint, and weeds up round it. Front is local -y.
   junk_car(c) {
     const { p, terrain, P } = c;
-    const f = footing(terrain, { rect: { x: p.x, y: p.y, w: 2.0, h: 4.6, angle: p.heading } });
+    const f = footing(terrain, { rect: { x: p.x, y: p.y, w: 2.0, h: 4.8, angle: p.heading } });
     c.base = f.base;
-    c.audit('junk_car', 'rect', { w: 2.0, h: 4.6 }, f);
+    c.audit('junk_car', 'rect', { w: 2.0, h: 4.8 }, f);
+    const paint = 0x5f7a86; // faded blue
     const rust = 0x8a4a2a;
-    const tilt = new THREE.Matrix4().makeRotationZ(0.05);
-    P(box(1.8, 0.7 + f.drop, 4.3), 0, 0, -f.drop + 0.1, rust, { extra: tilt });
-    P(box(1.7, 0.65, 1.8), 0, 0.8, 0.8, 0x7a3f24, { extra: tilt }); // cabin
-    P(box(1.74, 0.35, 1.5), 0, 0.8, 0.95, 0x1c2024, { extra: tilt, cast: false }); // no glass: dark gap
-    P(box(1.5, 0.08, 1.7), 0, 0.8, 1.45, 0x6f6a60, { extra: tilt }); // roof
-    for (const ly of [-1.3, 1.3]) P(new THREE.TorusGeometry(0.3, 0.13, 5, 10).rotateY(Math.PI / 2), 0.92, ly, 0.38, 0x222222, { cast: false });
-    P(box(1.5, 0.12, 1.2), 0, -1.3, 0.8, 0x7d4325, { extra: new THREE.Matrix4().makeRotationX(-0.45) }); // hood propped open
-    P(box(1.6, 0.14, 0.3), 0, -2.0, 0.2, 0x9a9890, { cast: false }); // bumper
-    P(new THREE.TorusGeometry(0.28, 0.12, 5, 10).rotateX(Math.PI / 2), -1.6, 0.4, 0.1, 0x222222, { cast: false }); // wheel in the grass
-    // Weeds: dry blades standing round it, and a thin sapling through the hood.
+    const dark = 0x1c2024;
+    const chrome = 0x9a9890;
+    // Down on the corner with the missing wheel.
+    const tilt = new THREE.Matrix4().makeRotationZ(0.06).multiply(new THREE.Matrix4().makeRotationX(-0.035));
+    const T = { extra: tilt };
+    // Body: one long low box, filled down to the ground on a slope.
+    P(box(1.8, 0.5 + f.drop, 4.6), 0, 0, -f.drop + 0.3, paint, T);
+    // Cabin: a sloped frustum, dark all round (the glass is long gone), with a roof.
+    const cabin = new THREE.CylinderGeometry(0.75, 1, 0.5, 4, 1).rotateY(Math.PI / 4).scale(1.16, 1, 1.41).translate(0, 0.25, 0);
+    P(cabin, 0, 0.25, 0.8, dark, T);
+    P(box(1.26, 0.07, 1.5), 0, 0.25, 1.3, paint, T);
+    // Hood (rust through it) and trunk lid, a hair proud of the body.
+    P(box(1.6, 0.04, 1.4), 0, -1.45, 0.8, rust, T);
+    P(box(1.6, 0.04, 0.9), 0, 1.75, 0.8, 0x6f6252, T);
+    // Rust patches along the sides.
+    for (const [lx, ly, len] of [[0.905, -1.1, 0.9], [0.905, 1.6, 0.6], [-0.905, 0.4, 1.1], [-0.905, -1.7, 0.5]]) {
+      P(box(0.02, 0.28, len), lx, ly, 0.38, rust, { ...T, cast: false });
+    }
+    // Chrome bumpers, a grille and two headlights at the front.
+    P(box(1.86, 0.15, 0.16), 0, -2.36, 0.32, chrome, { ...T, cast: false });
+    P(box(1.86, 0.15, 0.16), 0, 2.36, 0.32, chrome, { ...T, cast: false });
+    P(box(1.1, 0.24, 0.04), 0, -2.31, 0.5, 0x2a2a2a, { ...T, cast: false });
+    for (const lx of [-0.66, 0.66]) {
+      P(new THREE.CylinderGeometry(0.12, 0.12, 0.06, 8).rotateX(Math.PI / 2), lx, -2.31, 0.62, 0xcfc9b4, { ...T, cast: false });
+    }
+    // Three wheels, tucked under the body; the fourth lies in the grass.
+    const wheel = () => new THREE.TorusGeometry(0.27, 0.11, 5, 10).rotateY(Math.PI / 2);
+    for (const [lx, ly] of [[0.82, -1.5], [0.82, 1.5], [-0.82, 1.5]]) P(wheel(), lx, ly, 0.36, 0x222222, { cast: false });
+    P(new THREE.TorusGeometry(0.27, 0.11, 5, 10).rotateX(Math.PI / 2), -1.7, -1.9, 0.1, 0x222222, { cast: false });
+    // Weeds: dry blades standing round it.
     let s = 31;
     const r = () => ((s = (s * 16807) % 2147483647) / 2147483647);
     for (let i = 0; i < 18; i++) {
       const ang = r() * 6.28;
       const rad = 1.0 + r() * 1.7;
-      const hh = 0.6 + r() * 0.8;
+      const hh = 0.5 + r() * 0.6;
       P(cone(0.1 + r() * 0.08, hh, 4), Math.cos(ang) * rad, Math.sin(ang) * rad * 1.5, -0.05, r() > 0.5 ? 0x9a9a5c : 0x6f8a46, { cast: false });
     }
-    P(cyl(0.03, 2.0, 4, 0.015), 0, -1.3, 0.3, 0x4a3a28, { cast: false });
-    P(new THREE.IcosahedronGeometry(0.4, 0), 0, -1.3, 2.2, 0x5d8f45, { cast: false });
     return null;
   },
 

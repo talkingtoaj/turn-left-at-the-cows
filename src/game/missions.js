@@ -49,8 +49,10 @@ const DETAILS = {
     brief: [
       "There's a package for Hartley Farm on the seat beside you. No address, just the name.",
       // Line ids: brief-m1-map, brief-m1-ask
-      "Darlene's county map is in the glovebox, with a pencil and a notepad. It's five years old, and plenty has shifted since.",
-      "Things have shifted around here, so go by what you see. Earl at the gas station knows everybody. Go ask him.",
+      // Owner cut the two "shifted" sentences (15 Nov 2026): Darlene's note
+      // just before this card already says it.
+      "Darlene's county map is in the glovebox, with a pencil and a notepad.",
+      "Earl at the gas station knows everybody. Go ask him.",
     ],
     goalTopic: 'hartley_farm',
     startTopics: ['hartley_farm'],
