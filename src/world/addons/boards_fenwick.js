@@ -8,7 +8,7 @@ export const BOARDS_FENWICK = {
     // Pruitt farm, sheep field gate on the west side of Pruitt Lane.
     { id: 'bd_eggs', look: 0, x: 2965.7, y: 1110, faces: 112, mount: 'gate', lines: ['EGGS $1 A DOZEN.', 'Leave money in the tin.'] },
     // Hartley Lane, a leaning stake by the farmhouse.
-    { id: 'bd_slow', look: 1, x: 2600, y: 489, faces: 238, mount: 'stake', lines: ['SLOW.', 'Children playing.'] },
+    { id: 'bd_slow', look: 1, x: 2598.2, y: 486.1, faces: 238, mount: 'stake', lines: ['SLOW.', 'Children playing.'] },
     // A gate across the end of Mill Lane, by the old mill. The lane used to go
     // on over Willow Creek to Creek Road until the quarry bought the land and
     // closed it (Darlene's 1987 map still shows it going through).

@@ -717,9 +717,9 @@ function updateTips(dt) {
 }
 
 // ---------- start screen backdrop ----------
-// While the start screen is up the world drifts slowly behind its
-// windshield: the camera stands above the mission's start and turns about
-// 1 degree a second. No car, no sound, no clock (so no weather change);
+// While the start screen is up the world shows behind its windshield: set
+// shots (MENU_SHOTS) where the region has them, else the camera stands above
+// the mission's start and turns about 1 degree a second. No car, no sound, no clock (so no weather change);
 // ambient life, the mast light and planes keep going. About 30 frames a
 // second, drawn only into the windshield's rectangle. `still` (reduced
 // motion, or a device too slow for it) draws a few frames and stops.
@@ -730,6 +730,51 @@ let menu = null;
 const menuFocus = new THREE.Vector3();
 const menuLook = new THREE.Vector3();
 
+// Set shots for the start screen, per region (owner's picks): the camera
+// circles slowly round a target, then cuts to the next. A region with none
+// gets the old slow turn above the mission start. World metres; bearing is
+// a compass bearing from the target out to the camera; `pan` turns the view
+// left (degrees) so the target sits right of the sign; `storm` pours rain
+// and throws lightning while it is on screen. ?menushot=<id> holds one (dev).
+const MENU_SHOTS = {
+  fenwick: [
+    { id: 'church', at: [470, 2440], lookUp: 10, dist: 46, up: 2, bearing: 150, sweep: 14, secs: 15, fov: 40, pan: 24 },
+    { id: 'mill', at: [1530, 1500], lookUp: 4, dist: 30, up: 1.8, bearing: 120, sweep: 10, secs: 15, fov: 40, pan: 24, storm: true },
+  ],
+};
+
+// Points the camera for shot `sh` at t seconds into it; true if it applied.
+function aimMenuShot(sh, t) {
+  const b = (sh.bearing + sh.sweep * (t / sh.secs - 0.5)) * (Math.PI / 180);
+  const [tx, ty] = sh.at;
+  const cx = tx + Math.sin(b) * sh.dist;
+  const cy = ty - Math.cos(b) * sh.dist;
+  const gt = groundAt(tx, ty);
+  camera.position.set(cx, Math.max(groundAt(cx, cy), gt) + sh.up, cy);
+  // Toward the target, turned left by `pan`.
+  const a = Math.atan2(tx - cx, -(ty - cy)) - (sh.pan || 0) * (Math.PI / 180);
+  const d = sh.dist;
+  menuLook.set(cx + Math.sin(a) * d, gt + sh.lookUp, cy - Math.cos(a) * d);
+  camera.up.set(0, 1, 0);
+  camera.lookAt(menuLook);
+  menuFocus.set(tx, gt, ty);
+}
+
+// The storm shot: heavy rain, wet ground and a strike every few seconds,
+// ahead of the camera. Put back as it was when the shot or the menu ends.
+function menuWeather(on) {
+  if (on && !menu.savedWet) {
+    menu.savedWet = { rain: wetness.rain, wet: wetness.wet, puddle: wetness.puddle };
+    wetness.rain = 1;
+    wetness.wet = 1;
+    wetness.puddle = 0.8;
+    menu.nextStrike = 1.2;
+  } else if (!on && menu.savedWet) {
+    Object.assign(wetness, menu.savedWet);
+    menu.savedWet = null;
+  }
+}
+
 function menuFrame(now) {
   const rawMs = now - last;
   if (menu.done || rawMs < 30) return;
@@ -737,16 +782,33 @@ function menuFrame(now) {
   const dt = Math.min(rawMs, 100) / 1000;
   const t0 = performance.now();
   if (!menu.still) menu.t += dt;
-  const yaw = menu.yaw0 + menu.t * MENU_TURN;
-  const { x, y } = menu.at;
-  const gy = groundAt(x, y);
-  const fx = Math.sin(yaw);
-  const fz = -Math.cos(yaw);
-  camera.position.set(x, gy + MENU_UP, y);
-  menuLook.set(x + fx * 100, gy + MENU_UP + Math.tan(MENU_PITCH) * 100, y + fz * 100);
-  camera.up.set(0, 1, 0);
-  camera.lookAt(menuLook);
-  menuFocus.set(x + fx * 45, gy, y + fz * 45);
+  const shots = MENU_SHOTS[regionId] || [];
+  let shot = null;
+  if (shots.length) {
+    const pinned = shots.findIndex((sh) => sh.id === params.get('menushot'));
+    if (pinned >= 0) menu.shot = pinned;
+    shot = shots[menu.shot % shots.length];
+    menu.shotT += menu.still ? 0 : dt;
+    if (menu.shotT > shot.secs && pinned < 0) {
+      menu.shot++;
+      menu.shotT = 0;
+      shot = shots[menu.shot % shots.length];
+      menu.freshShadows = 3; // shadows for the new place
+    }
+    menuWeather(!!shot.storm);
+    aimMenuShot(shot, menu.shotT);
+  } else {
+    const yaw = menu.yaw0 + menu.t * MENU_TURN;
+    const { x, y } = menu.at;
+    const gy = groundAt(x, y);
+    const fx = Math.sin(yaw);
+    const fz = -Math.cos(yaw);
+    camera.position.set(x, gy + MENU_UP, y);
+    menuLook.set(x + fx * 100, gy + MENU_UP + Math.tan(MENU_PITCH) * 100, y + fz * 100);
+    camera.up.set(0, 1, 0);
+    camera.lookAt(menuLook);
+    menuFocus.set(x + fx * 45, gy, y + fz * 45);
+  }
   // Draw only where the windshield is.
   const r = menu.rect ? menu.rect() : null;
   const W = window.innerWidth;
@@ -756,26 +818,39 @@ function menuFrame(now) {
   const vh = r ? Math.max(1, r.h) : H;
   const vy = r ? H - r.y - vh : 0; // WebGL counts from the bottom
   const aspect = vw / vh;
-  if (camera.aspect !== aspect || camera.fov !== 55) {
+  const fov = shot && shot.fov ? shot.fov : 55;
+  if (camera.aspect !== aspect || camera.fov !== fov) {
     camera.aspect = aspect;
-    camera.fov = 55;
+    camera.fov = fov;
     camera.updateProjectionMatrix();
   }
   camera.far = 640;
   camera.updateProjectionMatrix();
   camera.updateMatrixWorld();
-  scene.fog.near = 220 * (look ? look.fogK.near : 1);
-  scene.fog.far = 620 * (look ? look.fogK.far : 1);
+  scene.fog.near = 220 * (1 - 0.45 * wetness.rain) * (look ? look.fogK.near : 1);
+  scene.fog.far = 620 * (1 - 0.25 * wetness.rain) * (look ? look.fogK.far : 1);
 
   amb.update(dt, state);
   if (planes) planes.update(state.clockMinutes * 60 + menu.t, camera, scene.fog.color, wetness.rain, listener);
-  if (look) look.update(state, wetness.rain, wetness.wet);
+  // Lightning in the storm shot, a little to one side of the view.
+  if (shot && shot.storm && !menu.still) {
+    menu.nextStrike -= dt;
+    if (menu.nextStrike <= 0) {
+      menu.nextStrike = 4 + Math.random() * 4;
+      const view = (Math.atan2(menuLook.x - camera.position.x, -(menuLook.z - camera.position.z)) * 180) / Math.PI;
+      lightning.strike({ km: 1.2 + Math.random() * 1.8, bearing: view + (Math.random() - 0.5) * 50, power: 1.2, t: menu.t }, { x: camera.position.x, y: camera.position.z });
+    }
+  }
+  if (lightning) lightning.update(dt, camera, wetness.rain);
+  if (look) look.update(state, wetness.rain, wetness.wet, lightning ? lightning.storm : 0);
+  if (rain3d) rain3d.update(dt, now / 1000, camera, wetness.rain, scene.fog.color);
   world3d.puddles.update(wetness.puddle, wetness.rain, now / 1000, scene.fog.color);
   world3d.update(now / 1000, dt, state.car, menuFocus, 110, camera, amb);
   amb3d.update(amb, dt, camera, menuFocus, scene.fog, 1, renderer, dh.hz.animals);
   // The sun never moves and the camera barely does: the shadow map needs
   // only an occasional refresh.
-  renderer.shadowMap.autoUpdate = menu.frames < 3 || menu.frames % 20 === 0;
+  renderer.shadowMap.autoUpdate = menu.frames < 3 || (menu.freshShadows || 0) > 0 || menu.frames % 20 === 0;
+  if (menu.freshShadows > 0) menu.freshShadows--;
   renderer.setViewport(vx, vy, vw, vh);
   renderer.setScissor(vx, vy, vw, vh);
   renderer.setScissorTest(true);
@@ -796,6 +871,7 @@ function menuFrame(now) {
 
 function exitMenu() {
   if (!menu) return;
+  menuWeather(false);
   menu = null;
   renderer.setScissorTest(false);
   renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
@@ -841,7 +917,7 @@ export async function preloadMenu(index = 0, { live = true, still = false, rect 
   // The weather follows this mission's timeline (startGame sets it properly).
   state.missionIndex = index;
   radio.setOn(false); // the start screen is quiet; startGame switches it back on
-  menu = { at: { x: start0.x, y: start0.y }, yaw0: (start0.heading || 0) * (Math.PI / 180), t: 0, frames: 0, still, rect, onReady };
+  menu = { at: { x: start0.x, y: start0.y }, yaw0: (start0.heading || 0) * (Math.PI / 180), t: 0, frames: 0, still, rect, onReady, shot: 0, shotT: 0, savedWet: null, nextStrike: 0 };
   car3d.object.visible = false;
   exposeDebug();
   startLoop();

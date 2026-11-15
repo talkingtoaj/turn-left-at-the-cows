@@ -319,19 +319,33 @@ export function showSplash({ version = '3d', load, preferred = null, phone = fal
   showMute();
   const unMute = onMuteChange(showMute);
   mute.addEventListener('click', () => setMuted(!isMuted()));
-  if (!phone) el('span', 'sp-hint', small, 'Enter to start · K mutes');
 
   // The map on the passenger seat.
   const seat = el('section', 'sp-seat', dash);
-  seat.setAttribute('aria-label', 'Map of Rural Route 3, Ashford');
+  seat.setAttribute('aria-label', 'Darlene’s 1987 map of Fenwick County');
   const map = el('div', 'sp-map', seat);
-  map.innerHTML = mapSVG({ missions: MISSION_LIST, done, next: first });
-  el('div', 'sp-ring', map);
-  map.insertAdjacentHTML('beforeend', PENCIL + COMPASS);
-  map.querySelectorAll('.mp-m').forEach((g) => {
+  // Darlene's 1987 map (src3/map/splashMap1987.js) once the world data has
+  // loaded; the plain pencil sketch if it can't.
+  const marks = el('div', 'sp-marks', map);
+  const hookMarks = () => marks.querySelectorAll('.mp-m').forEach((g) => {
     g.addEventListener('mouseenter', () => hot(g.dataset.mission, true));
     g.addEventListener('mouseleave', () => hot(g.dataset.mission, false));
   });
+  const sketchMap = () => {
+    marks.innerHTML = mapSVG({ missions: MISSION_LIST, done, next: first });
+    hookMarks();
+  };
+  import('../../src3/map/splashMap1987.js').then((m) => {
+    if (!root.isConnected) return;
+    const cv = m.mapCanvas(Math.max(600, Math.round(map.clientWidth * 1.25)));
+    cv.className = 'sp-mapcv';
+    map.classList.add('sp-1987');
+    marks.replaceChildren(cv);
+    marks.insertAdjacentHTML('beforeend', m.marksSVG({ missions: MISSION_LIST, done, next: first }));
+    hookMarks();
+  }).catch(sketchMap);
+  el('div', 'sp-ring', map);
+  map.insertAdjacentHTML('beforeend', PENCIL + COMPASS);
   const note = el('button', 'sp-note', map, 'How to play →');
   note.type = 'button';
   note.setAttribute('aria-hidden', 'true');

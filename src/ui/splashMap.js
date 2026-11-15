@@ -35,7 +35,7 @@ export const MAP_SPOTS = {
 const ASHFORD = F(600, 2420);
 const EAST = [ASHFORD, [190, 318], [320, 280], [450, 250], [560, 232], [680, 222], [800, 214]];
 
-function rng(seed) {
+export function rng(seed) {
   let s = seed >>> 0 || 1;
   return () => {
     s = (s * 1664525 + 1013904223) >>> 0;
@@ -44,7 +44,7 @@ function rng(seed) {
 }
 
 // A smooth pencil line through points, with a little hand wobble.
-function pencil(pts, r, wob = 1.6) {
+export function pencil(pts, r, wob = 1.6) {
   const p = pts.map(([x, y]) => [x + (r() - 0.5) * wob, y + (r() - 0.5) * wob]);
   let d = `M${p[0][0].toFixed(1)},${p[0][1].toFixed(1)}`;
   for (let i = 1; i < p.length; i++) {
@@ -57,7 +57,7 @@ function pencil(pts, r, wob = 1.6) {
 }
 
 // A pencil circle that overshoots where it started, as people draw them.
-function ring(cx, cy, rx, ry, r) {
+export function ring(cx, cy, rx, ry, r) {
   const pts = [];
   const a0 = r() * Math.PI * 2;
   for (let i = 0; i <= 26; i++) {
@@ -68,7 +68,7 @@ function ring(cx, cy, rx, ry, r) {
   return pencil(pts, r, 0.6);
 }
 
-const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+export const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
 
 export function mapSVG({ missions, done, next }) {
   const r = rng(7);

@@ -116,6 +116,12 @@ body[data-world="live"] .sp-paint { opacity: 0; }
     radial-gradient(ellipse at 15% 10%, rgba(255,252,240,0.9), transparent 55%),
     radial-gradient(ellipse at 85% 95%, rgba(216,204,180,0.95), transparent 60%); }
 .sp-mapsvg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.sp-marks { position: absolute; inset: 0; }
+/* Darlene's printed sheet (960x640 map units, PAPER 840x576): fills the card. */
+.sp-map.sp-1987 { aspect-ratio: 840 / 576; max-width: calc((100vh - 42vh - 60px) * 840 / 576); background: #e6d6ab; }
+.sp-mapcv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; border-radius: 2px; }
+.sp-1987 .sp-note { left: auto; right: 4%; bottom: auto; top: 64%; }
+.sp-1987 .sp-ring { right: 6%; bottom: 14%; }
 .mp-title { font: bold 22px "Libre Baskerville", Georgia, serif; letter-spacing: 0.12em; fill: #3a3128; }
 .mp-sub { font: 10px "Libre Baskerville", Georgia, serif; letter-spacing: 0.2em; fill: #4a4a48; }
 .mp-county { font: 12px "Libre Baskerville", Georgia, serif; letter-spacing: 0.3em; fill: #8a7f6c; }
@@ -166,6 +172,7 @@ body[data-world="live"] .sp-paint { opacity: 0; }
 @media (max-height: 640px) and (min-width: 761px) {
   .sp { grid-template-rows: minmax(150px, 36vh) 1fr; }
   .sp-map { max-width: calc((100vh - 36vh - 50px) * 820 / 470); }
+  .sp-map.sp-1987 { max-width: calc((100vh - 36vh - 50px) * 840 / 576); }
   .sp-play b { font-size: 24px; }
   .sp-play { padding: 9px 20px; }
   .sp-sign h1 { font-size: 30px; }
@@ -181,7 +188,7 @@ body[data-world="live"] .sp-paint { opacity: 0; }
   .sp-local { display: none; }
   .sp-dash { display: flex; flex-direction: column; padding: 16px 16px 40px; }
   .sp-paper { overflow: visible; }
-  .sp-map { max-width: 100%; transform: none; }
+  .sp-map, .sp-map.sp-1987 { max-width: 100%; transform: none; }
   .sp-compass { width: 64px; height: 64px; right: -6px; bottom: -18px; }
   .sp-howto { position: fixed; inset: 10px; }
   .sp-note { display: none; }
