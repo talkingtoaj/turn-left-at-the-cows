@@ -17,11 +17,22 @@
 //   move { what: 'landmark'|'town'|'place', id, dx, dy }
 //   scale { about: [x, y], sx, sy } whole map stretched (bad sense of distance)
 
-import { WORLD } from '../world/world.js';
+import { WORLD, regionWorld, REGION_IDS } from '../world/world.js';
 import { currentMission } from './missions.js';
 
 export function getPrintedMap(id) {
   return WORLD.printedMaps[id] || null;
+}
+
+// A printed map by id in any region: { def, world }, the current region
+// first (a sketch drawn on a map may be looked at from another region).
+export function findPrintedMap(id) {
+  if (WORLD.printedMaps[id]) return { def: WORLD.printedMaps[id], world: WORLD };
+  for (const r of REGION_IDS) {
+    const w = regionWorld(r);
+    if (w.printedMaps[id]) return { def: w.printedMaps[id], world: w };
+  }
+  return null;
 }
 
 // Printed maps the player has in the current mission (definitions, in order).

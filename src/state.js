@@ -46,7 +46,9 @@ export const state = {
     stamps: [], // [{ kind, x, y }]
     labels: [], // [{ text, x, y }]
   },
+  // sketch.base: printed map id the sketch is drawn on (missions with sketchOn), else none.
   sketchEpoch: 0, // bumped when the sketch is replaced by a fresh page (new mission)
+  shiftsSeen: new Set(), // `${mapId}:${shiftId}` seen this mission run (src/game/shifts.js)
   snapshots: [], // [{ missionId, label, sketch, clockMinutes, odometer, elapsedMs, kind }]
   sketchArchive: [], // [{ missionId, sketch }] finished missions' sketches
 

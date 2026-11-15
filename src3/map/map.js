@@ -1,6 +1,8 @@
 // Map overlay for the three.js version: a DOM layer with one Canvas2D canvas.
 // It is a port of the old 2D map screen (removed Nov 2026) and works the same:
-//  - "My sketch": the player draws their own map from what locals said.
+//  - "My sketch": the player draws their own map from what locals said. In a
+//    mission with sketchOn (mission 1) they draw on that printed map instead,
+//    and its tab takes the sketch tab's place (SPEC 9p).
 //  - "Old county map": the printed 1987 map built from WORLD, with its lies.
 // Everything is laid out on a 960x640 logical surface that is scaled to fit
 // the window. Sketch data lives in state.sketch in the same format (and the
@@ -9,7 +11,7 @@
 
 import { state } from '../../src/state.js';
 import { buildOldMap } from '../../src/map/oldMap.js';
-import { printedMapsFor } from '../../src/game/printedMaps.js';
+import { printedMapsFor, findPrintedMap } from '../../src/game/printedMaps.js';
 import { topicLabel } from '../../src/game/dialogue.js';
 import { MISSIONS, currentMission } from '../../src/game/missions.js';
 import { myMap } from '../../src/game/myMaps.js';
@@ -55,9 +57,13 @@ function earlierSketches() {
 // maps from earlier missions. Rebuilt on every open (the mission may have
 // changed). The tabs share the room left of the Notebook button.
 let TABS = [];
+// The printed map the sketch is drawn on ({ def, world }), or null (blank sheet).
+const sketchBase = (sketch) => (sketch && sketch.base ? findPrintedMap(sketch.base) : null);
 function buildTabs() {
+  // Mission 1 draws on Darlene's map (SPEC 9p): its tab is the sketch tab.
+  const base = sketchBase(state.sketch);
   const extra = [
-    ...printedMapsFor(state).map((def) => ({
+    ...printedMapsFor(state).filter((def) => !base || def !== base.def).map((def) => ({
       id: 'map:' + def.id,
       def,
       text: def.tabLabel || def.title,
@@ -76,7 +82,9 @@ function buildTabs() {
   const room = NOTE_BTN.x - 8 - x0;
   const w = extra.length ? Math.min(206, Math.floor(room / extra.length) - 8) : 0;
   TABS = [
-    { id: 'sketch', text: 'My sketch', x: PAPER.x + 20, w: 140, fill: SKETCH_PAPER, font: HAND },
+    base
+      ? { id: 'sketch', text: base.def.tabLabel || base.def.title, x: PAPER.x + 20, w: 140, fill: OLD_PAPER, font: SERIF }
+      : { id: 'sketch', text: 'My sketch', x: PAPER.x + 20, w: 140, fill: SKETCH_PAPER, font: HAND },
     ...extra.map((t, i) => ({ ...t, x: x0 + i * (w + 8), w })),
   ];
 }
@@ -320,17 +328,33 @@ export function createMapOverlay(root, { onClose } = {}) {
     });
   }
 
-  function buildMapCache(tabDef) {
+  function buildMapCache(tabDef, world) {
     const c = document.createElement('canvas');
     c.width = canvas.width;
     c.height = canvas.height;
     const cc = c.getContext('2d');
     cc.setTransform(k, 0, 0, k, 0, 0);
     const fake = makeFakeScene(cc);
-    buildOldMap(fake.scene, fake.container, PAPER, tabDef.def);
+    buildOldMap(fake.scene, fake.container, PAPER, tabDef.def, world);
     fake.flushTexts();
     mapCache.set(tabDef.id, c);
     return c;
+  }
+
+  // Paints a pre-rendered printed map over the whole canvas.
+  function blitMap(id, def, world) {
+    const cache = mapCache.get(id) || buildMapCache({ id, def }, world);
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(cache, 0, 0);
+    ctx.restore();
+  }
+
+  // The sheet under a sketch: the printed map it is drawn on, else blank paper.
+  function paintSheet(sketch) {
+    const base = sketchBase(sketch);
+    if (base) blitMap('base:' + base.def.id, base.def, base.world);
+    else paintSketchPaper(g, ctx);
   }
 
   function drawStroke(stroke) {
@@ -349,7 +373,7 @@ export function createMapOverlay(root, { onClose } = {}) {
   }
 
   function drawSketch() {
-    paintSketchPaper(g, ctx);
+    paintSheet(state.sketch);
     drawSketchItems(g, ctx, state.sketch);
     if (current) drawStroke(current);
     if (typing) {
@@ -451,15 +475,12 @@ export function createMapOverlay(root, { onClose } = {}) {
       drawSketch();
     } else if (tab.startsWith('old:')) {
       // An earlier mission's map: look only.
-      paintSketchPaper(g, ctx);
-      drawSketchItems(g, ctx, TABS.find((t) => t.id === tab).sketch);
+      const sk = TABS.find((t) => t.id === tab).sketch;
+      paintSheet(sk);
+      drawSketchItems(g, ctx, sk);
     } else {
       const tabDef = TABS.find((t) => t.id === tab);
-      const cache = mapCache.get(tab) || buildMapCache(tabDef);
-      ctx.save();
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.drawImage(cache, 0, 0);
-      ctx.restore();
+      blitMap(tab, tabDef.def);
     }
     drawTabs();
     drawNoteButton();

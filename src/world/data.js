@@ -388,6 +388,13 @@ export const WORLD_SOURCE = {
         { type: 'hide_building', id: 'dl_house' },
         { type: 'hide_building', id: 'dl_barn' },
       ],
+      // Things that shifted since 1987 (src/game/shifts.js): seen by coming
+      // within r metres of at. Labels are win-screen lines.
+      shifts: [
+        { id: 'old_bridge', label: 'Creek Road bridge washed out', at: [650, 1365], r: 60 }, // line id: T32-shift-old_bridge
+        { id: 'dolan_ln', label: 'Dolan Lane is new', at: [2353, 883], r: 40 }, // line id: T32-shift-dolan_ln
+        { id: 'pruitt_ln', label: 'Pruitt Lane is new', at: [2980, 1297], r: 40 }, // line id: T32-shift-pruitt_ln
+      ],
     },
     hartley_sketch: {
       id: 'hartley_sketch',

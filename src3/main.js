@@ -903,6 +903,8 @@ export async function startGame(index = 0) {
     Object.assign(state.car, spot, { speed: 0 });
     state.missionStart = { x: spot.x, y: spot.y, heading: spot.heading };
   }
+  // Dev: ?shifts=now opens the win screen with sample marks (src3/devShifts.js).
+  if (params.get('shifts') === 'now') (await import('./devShifts.js')).fakeShiftRun(state);
   last = performance.now();
   startLoop();
   // The sharp sky downloads now and swaps in when it is here (SPEC 9n).

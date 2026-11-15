@@ -9,7 +9,9 @@ import { createTalk } from './talk.js';
 import { currentMission, currentGoal, nextMission, MISSIONS } from '../../src/game/missions.js';
 import { finishMission } from '../../src/game/update.js';
 import { compassHeading, warningLights, PARTS } from '../../src/game/damage.js';
-import { renderSketchCanvas, renderPrintedMapCanvas, trueMapDef } from '../map/sketchRender.js';
+import { renderSketchCanvas, renderPrintedMapCanvas, trueMapDef, renderShiftMapCanvas, SHIFT_CROP } from '../map/sketchRender.js';
+import { printedMapsFor } from '../../src/game/printedMaps.js';
+import { mapWithShifts, shiftTally, shiftCountText, realMapDef, PRESENT_YEAR } from '../../src/game/shifts.js';
 import { openMissionCard } from '../../src/ui/missionCard.js';
 import { openIntroCard, introSeen } from '../../src/ui/introCard.js';
 import { openHelp } from '../../src/ui/help.js';
@@ -127,6 +129,14 @@ const CSS = `
 .hud-win-arrival b { color: #e6b450; font-style: normal; margin-right: 6px; }
 .hud-win-extras { list-style: none; margin: 0 0 14px; padding: 0; font-size: 14px; color: #d9d4c5; }
 .hud-win-extras li::before { content: '\\2713'; color: #5fbf6a; margin-right: 8px; font-weight: bold; }
+.hud-win.hud-win-wide { width: min(1240px, calc(100% - 32px)); }
+.hud-shift { margin: 0 0 18px; }
+.hud-shift-pair { display: flex; flex-wrap: wrap; gap: 14px 22px; justify-content: center; align-items: flex-start; }
+.hud-shift-map h3 { margin: 0 0 6px; font: 600 15px Oswald, "Arial Narrow", sans-serif; color: #d9d4c5; letter-spacing: 0.06em; text-transform: uppercase; }
+.hud-shift-map h3 small { color: #e6b450; font-size: 15px; margin-left: 6px; }
+.hud-shift-map canvas { display: block; cursor: zoom-in; border-radius: 3px; box-shadow: 4px 5px 0 rgba(0,0,0,0.4); outline: 1px solid rgba(255,255,255,0.08); }
+.hud-shift-map canvas:hover { outline: 2px solid #e6b450; }
+.hud-shift-count { margin-top: 12px; font: 600 22px Oswald, "Arial Narrow", sans-serif; color: #e6b450; letter-spacing: 0.03em; }
 .hud-win-foot { margin-top: 16px; font-size: 14px; color: #d9d4c5; }
 .hud-win-row { display: flex; justify-content: space-between; padding: 0 50px; font-size: 17px; line-height: 30px; }
 .hud-win-row span:first-child { color: #8a8d92; }
@@ -635,9 +645,10 @@ export function createHUD(root, { openMap, radio } = {}) {
   // ---------------------------------------------------------------- complete screen
   const truthCache = new Map(); // mission id -> canvas
 
-  function zoomCanvas(make, caption) {
+  // aspect: the canvas's width over height (default the map paper's).
+  function zoomCanvas(make, caption, aspect = 840 / 576) {
     closeZoom();
-    const maxW = Math.min(window.innerWidth * 0.92, ((window.innerHeight - 80) * 840) / 576);
+    const maxW = Math.min(window.innerWidth * 0.92, (window.innerHeight - 80) * aspect);
     zoomBox = el('div', 'hud-zoom', hud);
     const c = make(Math.max(200, Math.floor(maxW)));
     c.style.width = Math.floor(maxW) + 'px';
@@ -668,10 +679,46 @@ export function createHUD(root, { openMap, radio } = {}) {
     return rows;
   }
 
+  // Things that shifted (SPEC 9p): the printed map (with your marks when you
+  // drew on it) beside the same sheet as it really is now, each shift
+  // circled, labelled and ticked if you saw it, and the count.
+  function buildShiftCompare(panel, def) {
+    const tally = shiftTally(def, state.shiftsSeen);
+    const seen = new Set(tally.rows.filter((r) => r.seen).map((r) => r.shift.id));
+    const shifts = tally.rows.map((r) => r.shift);
+    const marks = state.sketch.base === def.id ? state.sketch : null;
+    const now = realMapDef(def);
+    const year = (def.title.match(/\b1[89]\d\d\b/) || [''])[0];
+    // As big as fits: two side by side, with the heading and count above the dash.
+    const dash = parseFloat(getComputedStyle(hud).getPropertyValue('--hud-dash-h')) || 0;
+    const panelW = Math.min(1240, window.innerWidth - 32) - 48;
+    const byH = (window.innerHeight - dash - 24 - 250) * (SHIFT_CROP.w / SHIFT_CROP.h);
+    const w = Math.round(Math.max(260, Math.min(600, (panelW - 22) / 2, byH)));
+    const wrap = el('div', 'hud-shift', panel);
+    const pair = el('div', 'hud-shift-pair', wrap);
+    const side = (title, sub, make) => {
+      const col = el('div', 'hud-shift-map', pair);
+      const h = el('h3', null, col, title);
+      if (sub) el('small', null, h, sub);
+      const c = make(w);
+      c.style.width = w + 'px';
+      col.appendChild(c);
+      c.addEventListener('click', () => zoomCanvas(make, `${title}${sub ? ' ' + sub : ''}`, SHIFT_CROP.w / SHIFT_CROP.h));
+    };
+    // line id: T32-shift-head-old (the map's tab name and its year)
+    side(def.tabLabel || 'The old map', year,
+      (cw) => renderShiftMapCanvas({ def, shifts, seen, sketch: marks }, cw));
+    // line id: T32-shift-head-now
+    side('As it really is,', String(PRESENT_YEAR),
+      (cw) => renderShiftMapCanvas({ def: now, shifts, seen, labels: true }, cw));
+    el('div', 'hud-shift-count', wrap, shiftCountText(tally.seen, tally.total));
+  }
+
   function buildWin() {
     winShade.textContent = '';
     const m = currentMission(state);
-    const panel = el('div', 'hud-win', winShade);
+    const shiftDef = m ? mapWithShifts(printedMapsFor(state)) : null;
+    const panel = el('div', shiftDef ? 'hud-win hud-win-wide' : 'hud-win', winShade);
     const goal = currentGoal(state);
     el('h2', null, panel, `You made it to ${goal ? goal.name : 'the end'}`);
     if (m) el('div', 'hud-win-sub', panel, m.title);
@@ -690,6 +737,7 @@ export function createHUD(root, { openMap, radio } = {}) {
       const ul = el('ul', 'hud-win-extras', panel);
       for (const text of extras) el('li', null, ul, text);
     }
+    if (shiftDef) buildShiftCompare(panel, shiftDef);
     const stats = el('div', 'hud-win-stats hud-mono', panel);
     const rows = [
       ['Trip time', timerText(state.elapsedMs)],
@@ -714,17 +762,20 @@ export function createHUD(root, { openMap, radio } = {}) {
       // The final map is saved when you continue; show it as it is now.
       thumb(thumbs, state.sketch, m.finalLabel, 'now (M to finish it)');
 
-      const right = el('div', 'hud-win-col', maps);
-      el('h3', null, right, 'The real map');
-      const def = trueMapDef(m);
-      let c = truthCache.get(m.id);
-      if (!c) {
-        c = renderPrintedMapCanvas(def, 380);
-        truthCache.set(m.id, c);
+      // With shifts, the real map is already shown above, beside the old one.
+      if (!shiftDef) {
+        const right = el('div', 'hud-win-col', maps);
+        el('h3', null, right, 'The real map');
+        const def = trueMapDef(m);
+        let c = truthCache.get(m.id);
+        if (!c) {
+          c = renderPrintedMapCanvas(def, 380);
+          truthCache.set(m.id, c);
+        }
+        const t = el('div', 'hud-truth', right);
+        t.appendChild(c);
+        t.addEventListener('click', () => zoomCanvas((w) => renderPrintedMapCanvas(def, w), 'The real map'));
       }
-      const t = el('div', 'hud-truth', right);
-      t.appendChild(c);
-      t.addEventListener('click', () => zoomCanvas((w) => renderPrintedMapCanvas(def, w), 'The real map'));
 
       // Shared maps (src/ui/mapShare.js): share yours, see other drivers'.
       // Your map is also kept in the browser for the start screen's Maps page.

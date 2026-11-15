@@ -16,6 +16,9 @@
 //   finalLabel: snapshot label taken when the player closes the win screen
 //   arrival: { name, line } who you delivered to and the one line they say on the win screen
 //   printedMaps: ids into WORLD.printedMaps the player has during this mission
+//   sketchOn: optional printed map id the player draws on instead of a blank
+//     sketch (SPEC 9p: mission 1 draws on Darlene's map). Its tab replaces
+//     "My sketch"; the sketch remembers it as sketch.base.
 //   approach: optional first leg in another region, driven before the
 //     mission's own region: { region, start: { x, y, heading }, exit(x, y) }.
 //     exit says when the car has left that region (the load screen then
@@ -64,8 +67,9 @@ const DETAILS = {
     // Arrival line (win screen). Line id: arrival-m1
     arrival: { name: 'Mrs Hartley', line: "Oh, you found us. Just leave it by the door, dear. The kettle's on, I'll bring you a cup out if you like." },
     // Darlene's 1987 county map, full of gaps (see county1987 in src/world/data.js).
-    // You also draw your own sketch. (Mission 2 has only Mrs Hartley's map.)
+    // You draw on it: no blank sketch this mission (SPEC 9p).
     printedMaps: ['county1987'],
+    sketchOn: 'county1987',
   }),
   m2_cabin: ({ place, bridge, town }) => ({
     giverNpcId: 'hartley',

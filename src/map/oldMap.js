@@ -154,14 +154,25 @@ function drawDirt(g, pts) {
 
 // Builds the whole printed map into `container`, filling `paper` ({x, y, w, h}).
 // `def` is a printed map definition; defaults to the 1987 county map.
-export function buildOldMap(scene, container, paper, def = WORLD.printedMaps.county1987) {
-  const data = resolvePrintedMap(def);
+// Where a print-style map puts its area on the paper: the square frame and
+// world metres -> paper. Shared with the win screen's shift circles.
+export function printFrame(paper, bounds) {
+  const frame = { x: paper.x + 34, y: paper.y + 52, size: 500 };
+  const s = frame.size / Math.max(bounds.w, bounds.h);
+  const P = ([wx, wy]) => [frame.x + (wx - bounds.x) * s, frame.y + (wy - bounds.y) * s];
+  return { frame, s, P };
+}
+
+// world: the region the map belongs to (default the current one), so a map
+// from another region (your mission 1 map, seen in mission 3) still draws.
+export function buildOldMap(scene, container, paper, def = WORLD.printedMaps.county1987, world = WORLD) {
+  const data = resolvePrintedMap(def, world);
   if (def.style === 'hand') {
     buildHandMap(scene, container, paper, data);
     return;
   }
   const B = data.bounds;
-  const rnd = makeRng(WORLD.seed);
+  const rnd = makeRng(world.seed);
   const g = scene.add.graphics();
   container.add(g);
 
@@ -191,9 +202,7 @@ export function buildOldMap(scene, container, paper, def = WORLD.printedMaps.cou
   }, [0, 0.5]);
 
   // Map frame: a square holding the map's area (def.bounds).
-  const frame = { x: paper.x + 34, y: paper.y + 52, size: 500 };
-  const s = frame.size / Math.max(B.w, B.h);
-  const P = ([wx, wy]) => [frame.x + (wx - B.x) * s, frame.y + (wy - B.y) * s];
+  const { frame, s, P } = printFrame(paper, B);
   const pts = (arr) => arr.map(P);
 
   g.fillStyle(0xeee2c0, 1);

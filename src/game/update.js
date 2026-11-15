@@ -6,6 +6,8 @@ import { takeSnapshot, copySketch } from './snapshots.js';
 import { getNpc } from './dialogue.js';
 import { resetDamage } from './damage.js';
 import { recordFinish } from './progress.js';
+import { printedMapsFor } from './printedMaps.js';
+import { noteShiftsSeen } from './shifts.js';
 
 // Waypoint snapshots and goal arrival. Sets state.won on arrival. Arriving
 // counts in the car or on foot (state.footPos, set while you walk).
@@ -16,6 +18,8 @@ export function updateGame(state, _dt) {
   if (state.leg === 'approach') return;
   const at = state.footPos || state.car;
   const { x, y } = at;
+  // Things that shifted since the mission's printed maps were printed (SPEC 9p).
+  noteShiftsSeen(state.shiftsSeen, printedMapsFor(state), x, y);
   for (const wp of m.waypoints) {
     const key = `${m.id}:${wp.id}`;
     if (state.waypointsReached.has(key)) continue;
@@ -47,6 +51,10 @@ export function startMission(state, index) {
   resetDamage(state);
   state.tows = 0;
   state.tourists = {};
+  state.shiftsSeen = new Set();
+  // Mission 1 draws on Darlene's map (SPEC 9p); the others on a blank sketch.
+  if (m.sketchOn) state.sketch.base = m.sketchOn;
+  else delete state.sketch.base;
   for (const t of m.startTopics) state.knownTopics.add(t);
   const giver = m.giverNpcId ? getNpc(m.giverNpcId) : null;
   for (const text of m.brief) {
