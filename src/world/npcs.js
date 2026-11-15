@@ -150,7 +150,7 @@ export const NPCS = [
       ridge_rd: {
         lines: [
           "Ridge Road's the old road east. My grandfather drove cattle along it.",
-          "On the county maps it was only ever County 12. They gave it a proper name in '90. About time.", // line id: T33-hartley-cr12
+          "On the county maps it was only ever County 12. They gave it a real name in '90. About time.", // line id: T33-hartley-cr12
         ],
       },
       dunmore: {
