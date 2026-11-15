@@ -2,6 +2,18 @@
 
 Status: draft for the owner. The pitch, theme paragraph, AI note and prototype note are in `lines/issue29.json` for review (ids `itch-pitch`, `itch-theme`, `itch-ai-note`, `itch-prototype-note`). The screenshots are placeholders. Other tickets are still changing the look, so retake them before submitting.
 
+## Form fields (itch "Create new project")
+
+- Kind of project: HTML. Upload a zip of `docs/release/itch-embed/index.html` and tick "This file will be played in the browser". It frames the live game, so the itch page always plays the latest deploy and shared maps keep working.
+- Embed options: viewport 1280 x 720, fullscreen button on, "click to launch" (not auto start: the game is heavy and needs a click for sound), mobile friendly off.
+- Pricing: $0 or donate (nothing is downloaded, so no one sees a donate prompt before playing).
+- Cover: 630 x 500, the 1987 vs 1992 win screen under the title.
+- Genre: Adventure.
+- Tags (10): driving, exploration, maps, navigation, low-poly, 3d, atmospheric, cozy, singleplayer, retro.
+- AI disclosure: Yes.
+- Community: Comments.
+- Custom noun, app store links, trailer: blank.
+
 ## Title
 
 Turn Left at the Cows

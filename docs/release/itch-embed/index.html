@@ -1,0 +1,20 @@
+<!doctype html>
+<!-- The itch.io "HTML" upload: zip this one file. It frames the live game
+     (Cloud Run), so the itch page always plays the latest deploy, and the
+     game's server (shared maps) keeps working. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Turn Left at the Cows</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #1c1d1f; overflow: hidden; }
+  iframe { display: block; width: 100%; height: 100%; border: 0; }
+</style>
+</head>
+<body>
+<iframe src="https://turn-left-at-the-cows-xvomomqttq-uc.a.run.app/?from=itch"
+  allow="autoplay; fullscreen; gamepad; clipboard-write"
+  allowfullscreen title="Turn Left at the Cows"></iframe>
+</body>
+</html>
