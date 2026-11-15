@@ -1,6 +1,6 @@
 # Turn Left at the Cows
 
-A browser driving game. It is July 1992. You are covering Darlene's rural mail route while her wrist heals, and all you have is her county map from 1987. Everything has shifted since then. Even the cows.
+A browser driving game. It is July 1992. You are covering Darlene's rural mail route while her wrist heals, and all you have is her county map from 1987. Everything has shifted since then.
 
 You get lost on purpose, then find your way: ask the locals, read the signs, listen for planes and bells, and draw your own map. The locals are friendly. They are not always right.
 

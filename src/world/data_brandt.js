@@ -151,8 +151,8 @@ export const BRANDT_SOURCE = {
       // Circuits keep the noise off Brandt: downwind always south of the runway.
       circuit: { 90: 'right', 270: 'left', offset: 800 },
     },
-    { id: 'wp_dagny', kind: 'windpump', name: 'Dagny windpump', x: 2596, y: 940, clearR: 6, printed: false },
-    { id: 'wp_pike', kind: 'windpump', name: 'Pike windpump', x: 3150, y: 1440, clearR: 6, printed: false },
+    { id: 'wp_dagny', kind: 'windpump', name: 'Dagny windmill', x: 2596, y: 940, clearR: 6, printed: false },
+    { id: 'wp_pike', kind: 'windpump', name: 'Pike windmill', x: 3150, y: 1440, clearR: 6, printed: false },
   ],
 
   forests: [

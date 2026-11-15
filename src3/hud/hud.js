@@ -226,7 +226,7 @@ const LIGHT_ICONS = {
   // Compass: ring with a needle.
   compass: '<circle cx="15" cy="9" r="7"/><path d="M15 3.5 L17.2 9 L15 14.5 L12.8 9 Z"/><circle class="hud-fill" cx="15" cy="9" r="1"/>',
 };
-const LIGHT_TITLES = { tyres: 'Tyre', engine: 'Engine', steering: 'Steering', compass: 'Compass' };
+const LIGHT_TITLES = { tyres: 'Tire', engine: 'Engine', steering: 'Steering', compass: 'Compass' };
 
 function buildLights(parent) {
   const box = el('div', 'hud-lights', parent);

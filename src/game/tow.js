@@ -35,7 +35,7 @@ export const TOW_LINES = [
   'Seen worse. Fella last spring drove into a pond. Said it looked like a road.',
   "Lucky I was passing. Well, I'm always passing. Only tow truck this side of the county line.",
   'Sounds like she just needs a rest. And a new everything.',
-  "Folks get lost round here all the time. Signs point wherever the wind left 'em.",
+  "Folks get lost around here all the time. Signs point wherever the wind left 'em.",
   "Sit tight. I'll have you in {town} before the coffee's cold.",
 ];
 
@@ -52,7 +52,7 @@ export const TOW_TALK_LINES = [
 
 const CAUSE_TEXT = {
   engine: 'The engine coughs, rattles and dies.',
-  tyres: 'The tyre is in shreds. You are going nowhere on that.',
+  tyres: 'The tire is in shreds. You are going nowhere on that.',
   steering: 'Something in the steering snapped. The wheel just spins.',
 };
 export const causeText = (cause) => CAUSE_TEXT[cause] || CAUSE_TEXT.engine;

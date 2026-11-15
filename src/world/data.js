@@ -177,17 +177,17 @@ export const WORLD_SOURCE = {
   // 400 m off a road); the rocks themselves are seeded (src/world/scatter.js).
   // Their districts are always stony (src/world/districts.js).
   outcrops: [
-    { id: 'oc_grey', name: 'the Grey Stones', x: 2540, y: 1160 },
+    { id: 'oc_grey', name: 'the Gray Stones', x: 2540, y: 1160 },
     // Raven Crag sits on the road-facing brow of its hill, not the top: from
     // the road below (?spot=5366,1263,12) the top hid all but its stone tips.
-    { id: 'oc_raven', name: 'Raven Crag', x: 5400, y: 1100 },
+    { id: 'oc_raven', name: 'Raven Rock', x: 5400, y: 1100 },
     { id: 'oc_oldmen', name: 'the Old Men', x: 3300, y: 1100 },
     { id: 'oc_teeth', name: "the Giant's Teeth", x: 3060, y: 420 },
     { id: 'oc_cairn', name: "Shepherd's Cairn", x: 3500, y: 2120 },
     { id: 'oc_whet', name: 'the Whetstones', x: 2780, y: 2080 },
     { id: 'oc_tinker', name: "Tinker's Rocks", x: 1420, y: 1360 },
     { id: 'oc_anvil', name: 'the Anvil', x: 560, y: 1460 },
-    { id: 'oc_gallow', name: 'Gallow Crag', x: 1260, y: 2420 },
+    { id: 'oc_gallow', name: 'Gallow Rock', x: 1260, y: 2420 },
   ],
 
   // Rectangles centred on (x, y), rotated by angle. Solid.
@@ -261,15 +261,15 @@ export const WORLD_SOURCE = {
     // The branch line, closed 1959: a stretch of bank east of Highway 9 and
     // Gilmore Halt's platform (x, y is the platform). Rails lifted at the highway.
     {
-      id: 'old_railway', kind: 'railway', name: 'Gilmore Halt', x: 2530, y: 1787.4, clearR: 12, printed: false,
+      id: 'old_railway', kind: 'railway', name: 'Gilmore Siding', x: 2530, y: 1787.4, clearR: 12, printed: false,
       points: [[2445, 1790], [2600, 1795], [2800, 1805], [3000, 1822], [3160, 1846]],
     },
     // The old co-op elevator at the bottom of Ashford, empty since the railway closed.
     { id: 'ashford_elevator', kind: 'grain_elevator', name: 'Ashford grain elevator', x: 660, y: 2592, angle: 90, clearR: 18, printed: false },
     // Windpumps at the farms: tall, easy to take a bearing on.
-    { id: 'wp_hartley', kind: 'windpump', name: 'Hartley windpump', x: 2747, y: 452, clearR: 6, printed: false },
-    { id: 'wp_pruitt', kind: 'windpump', name: 'Pruitt windpump', x: 2900, y: 1064, clearR: 6, printed: false },
-    { id: 'wp_okafor', kind: 'windpump', name: 'Okafor windpump', x: 5012, y: 2004, clearR: 6, printed: false },
+    { id: 'wp_hartley', kind: 'windpump', name: 'Hartley windmill', x: 2747, y: 452, clearR: 6, printed: false },
+    { id: 'wp_pruitt', kind: 'windpump', name: 'Pruitt windmill', x: 2900, y: 1064, clearR: 6, printed: false },
+    { id: 'wp_okafor', kind: 'windpump', name: 'Okafor windmill', x: 5012, y: 2004, clearR: 6, printed: false },
   ],
 
   // Areas to scatter trees in. Keep trees at least 12 m from any road.

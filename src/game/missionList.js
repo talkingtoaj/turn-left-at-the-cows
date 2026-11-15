@@ -5,7 +5,7 @@
 // rest of each mission (brief, goal, waypoints) in the same order.
 
 export const MISSION_LIST = [
-  { id: 'm1_parcel', title: 'A Parcel for Hartley Farm', region: 'fenwick', startMinutes: 9 * 60 },
+  { id: 'm1_parcel', title: 'A Package for Hartley Farm', region: 'fenwick', startMinutes: 9 * 60 },
   { id: 'm2_cabin', title: "Tom's Pills", region: 'fenwick', startMinutes: 16 * 60 },
   { id: 'm3_airfield', title: "A Part for Ray's Plane", region: 'brandt', startMinutes: 18 * 60 + 30 },
 ];
