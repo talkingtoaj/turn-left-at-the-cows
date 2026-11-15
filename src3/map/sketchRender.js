@@ -85,8 +85,10 @@ function drawShiftMarks(g, ctx, def, shifts, seen, labels) {
   const R = 17;
   const SIZE = 23;
   const placed = [];
-  const right = SHIFT_CROP.x + SHIFT_CROP.w - 6;
-  const left = SHIFT_CROP.x + 6;
+  // Inside the printed frame, not just the crop: on a wide map (Harlan) the
+  // crop is wider than the frame and a label could hang off the sheet.
+  const right = Math.min(SHIFT_CROP.x + SHIFT_CROP.w, frame.x + frame.size) - 6;
+  const left = Math.max(SHIFT_CROP.x, frame.x) + 6;
   shifts.forEach((sh, i) => {
     const rnd = makeRng(1000 + i * 37);
     const [x, y] = P(sh.at);
@@ -117,17 +119,19 @@ function drawShiftMarks(g, ctx, def, shifts, seen, labels) {
       const [ox, oy] = P(o.at);
       return { x0: ox - R - 2, x1: ox + R + 2, y0: oy - R - 2, y1: oy + R + 2 };
     });
-    const sides = x < frame.x + frame.size / 2 ? ['r', 'l'] : ['l', 'r'];
+    // 'c': centred above or below the ring, for a label too long to sit beside it.
+    const sides = x < frame.x + frame.size / 2 ? ['r', 'l', 'c'] : ['l', 'r', 'c'];
     let pick = null;
-    for (const dy of [0, -26, 26, -52, 52, -78, 78]) {
+    for (const dy of [0, -26, 26, -52, 52, -78, 78, 104, -104, 130, -130, 156, 182, 208]) {
       const yy = y + dy;
       if (yy < frame.y + 12 || yy > frame.y + frame.size - 12) continue;
       for (const side of sides) {
-        const lx = side === 'r' ? x + R + 8 : x - R - 8 - tw;
+        if (side === 'c' && Math.abs(dy) < 26) continue;
+        const lx = side === 'r' ? x + R + 8 : side === 'l' ? x - R - 8 - tw : Math.max(left, Math.min(right - tw, x - tw / 2));
         if (lx < left || lx + tw > right) continue;
         const b = box(lx, yy);
         if (placed.some((q) => overlaps(b, q)) || rings.some((q) => overlaps(b, q))) continue;
-        pick = { lx, ly: yy, toLeft: side === 'l' };
+        pick = { lx, ly: yy, toLeft: side === 'l', centre: side === 'c' };
         break;
       }
       if (pick) break;
@@ -136,12 +140,14 @@ function drawShiftMarks(g, ctx, def, shifts, seen, labels) {
       const lx = Math.max(left, Math.min(right - tw, x + R + 8));
       pick = { lx, ly: y, toLeft: false };
     }
-    const { lx, ly, toLeft } = pick;
+    const { lx, ly, toLeft, centre } = pick;
     placed.push(box(lx, ly));
     // A short pencil lead line when the label had to move off the ring.
     if (Math.abs(ly - y) > 4) {
       g.lineStyle(1.6, hit ? RED_PENCIL : GREY, 0.8);
-      g.lineBetween(toLeft ? x - R * 0.8 : x + R * 0.8, y + Math.sign(ly - y) * R * 0.6, toLeft ? lx + tw : lx - 2, ly);
+      const dir = Math.sign(ly - y);
+      if (centre) g.lineBetween(x, y + dir * (R + 2), Math.max(lx + 4, Math.min(lx + tw - 4, x)), ly - dir * SIZE * 0.5);
+      else g.lineBetween(toLeft ? x - R * 0.8 : x + R * 0.8, y + dir * R * 0.6, toLeft ? lx + tw : lx - 2, ly);
     }
     let tx = lx;
     if (hit) {

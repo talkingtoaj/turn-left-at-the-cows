@@ -50,6 +50,6 @@ function sampleMarks(sketch, def) {
   if (farm) {
     const [fx, fy] = at(farm.x, farm.y);
     sketch.stamps.push({ kind: 'house', x: fx + 2, y: fy + 12, color: PENCIL });
-    sketch.labels.push({ text: 'parcel!', x: fx + 14, y: fy + 26, color: PENCIL });
+    sketch.labels.push({ text: 'package!', x: fx + 14, y: fy + 26, color: PENCIL });
   }
 }
