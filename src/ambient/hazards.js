@@ -18,7 +18,7 @@
 //   const hz = createHazards(world, scenery, { rngSeed })
 //   hz.update(dt, state, amb)          // after amb.update, when not paused
 //   hz.animals   [{ id, kind: 'cow'|'sheep'|'deer', x, y, heading, moving, running }]
-//   hz.vehicles  [{ id, kind: 'tractor'|'truck', x, y, heading, speed, color }]
+//   hz.vehicles  [{ id, kind: 'tractor'|'truck', x, y, heading, speed, color, horn }]
 //   hz.debris    [{ id, kind: 'branch'|'log', x, y, angle, len, hl, hw, r }]  (surface events)
 //   hz.fallen    [{ id, roadId, at, x, y, heading, h, solidLen, solids, crown, extent, ... }] (fixed fallen trees)
 //   hz.pushSolids(x, y, range, out)    // solid circles near (x, y) for collider.dynamic
@@ -27,6 +27,7 @@
 //   hz.honk(car)                       // the player sounded the horn (see HORN)
 //   hz.reset()                         // clears moving hazards and debris (mission restart)
 //   hz.events    this frame's [{ type: 'moo', x, y }] (merged into amb.events by the caller)
+//   Vehicles sounding their horn are added to amb.horns (see HONK in trafficRules.js).
 //
 // Units: metres, seconds, headings in degrees (0 north, clockwise), y south.
 
@@ -35,6 +36,7 @@ import {
   bbox, centroid, headingOf,
 } from '../drive/geom.js';
 import { fallenShape } from '../world/fallenTrees.js';
+import { HONK, hornOn, honkStage, stepBlocked, turnPose, turnLength } from './trafficRules.js';
 
 export const HAZARD_KINDS = ['cows', 'sheep', 'tractor', 'truck', 'deer', 'branch', 'log'];
 
@@ -461,8 +463,51 @@ export function createHazards(world, scenery, opts = {}) {
     if (done) h.phase = 'gone';
   }
 
+  // Held up by the player for good (see HONK): a three-point turn and back
+  // the way it came, or, with no room to turn, onto the verge to wait.
+  function turnFrame(h) {
+    const p = at(h.r, h.s);
+    const fx = p.dx * h.dir;
+    const fy = p.dy * h.dir;
+    return { x: p.x, y: p.y, fx, fy, rx: -fy, ry: fx, h: headingOf(fx, fy), w: h.r.road.width };
+  }
+  function turnAt(F, t) {
+    const q = turnPose(F.w, t);
+    return { x: F.x + F.fx * q.u + F.rx * q.v, y: F.y + F.fy * q.u + F.ry * q.v, h: (F.h + q.h + 360) % 360, q };
+  }
+  function roomToTurn(h, car) {
+    if (nearBridge(h.v.x, h.v.y)) return false;
+    const F = turnFrame(h);
+    for (let t = 0; t <= turnLength(); t += 0.3) {
+      const p = turnAt(F, t);
+      if (Math.hypot(car.x - p.x, car.y - p.y) < 4) return false;
+      for (const o of vehicles) if (o !== h.v && Math.hypot(o.x - p.x, o.y - p.y) < 5) return false;
+    }
+    return true;
+  }
+  function stepTurn(h, dt) {
+    const v = h.v;
+    h.turnT += dt;
+    const p = turnAt(h.turnF, h.turnT);
+    v.speed = Math.hypot(p.x - v.x, p.y - v.y) / dt;
+    v.x = h.x = p.x;
+    v.y = h.y = p.y;
+    v.heading = p.h;
+    if (!p.q.done) return;
+    h.s = Math.max(0, Math.min(h.r.len, h.s + h.dir * p.q.u));
+    h.dir = -h.dir;
+    h.turnF = null;
+    h.pull = 0;
+    v.speed = 0;
+    h.honk.t = h.honk.clearT = 0;
+  }
+
   function stepVehicle(h, dt, car) {
     const v = h.v;
+    if (h.turnF) {
+      stepTurn(h, dt);
+      return;
+    }
     let target = h.cruise;
     // Pulled over after a honk: onto the verge and slow, then back.
     const w = h.r.road.width;
@@ -484,13 +529,38 @@ export function createHazards(world, scenery, opts = {}) {
     const py = car.y - v.y;
     const along = px * fx + py * fy;
     const lat = Math.abs(px * fy - py * fx);
-    if (Math.hypot(px, py) < 5.5) target = 0;
-    else if (along > 0 && along < 16 && lat < 3.2) target = Math.min(target, Math.max(0, (along - 7) * 0.5));
+    // byPlayer: the player (or their parked car) holds it at a standstill.
+    let byPlayer = false;
+    if (Math.hypot(px, py) < 5.5) {
+      target = 0;
+      byPlayer = along > 0;
+    } else if (along > 0 && along < 16 && lat < 3.2) {
+      const cap = Math.max(0, (along - 7) * 0.5);
+      target = Math.min(target, cap);
+      byPlayer = cap < HONK.capBelow;
+    }
+    if (h.gaveUp) target = 0;
     // Slow near the road ends, then stop there.
     if (toEnd < 30) target = Math.min(target, Math.max(0, (toEnd - 6) * 0.2));
     const acc = target > v.speed ? 1.2 : 4;
     v.speed += Math.max(-acc * dt, Math.min(acc * dt, target - v.speed));
     if (v.speed < 0.02 && target === 0) v.speed = 0;
+    // Honk, longer each time, lean on it, then turn round (or give up and
+    // pull onto the verge when there is no room). Pulled over or parked at
+    // a road end it has no reason to honk.
+    h.honk = h.honk || { t: 0, clearT: 0 };
+    const blocked = byPlayer && v.speed < HONK.speed && !h.parked && !(h.pullT > 0);
+    const bt = stepBlocked(h.honk, blocked, dt);
+    v.horn = blocked && hornOn(bt);
+    if (blocked && honkStage(bt) === 'turn') {
+      v.horn = false;
+      if (roomToTurn(h, car)) {
+        h.turnF = turnFrame(h);
+        h.turnT = 0;
+        return;
+      }
+      h.parked = h.gaveUp = true;
+    }
     h.s += h.dir * v.speed * dt;
     h.s = Math.max(0, Math.min(h.r.len, h.s));
     const hPrev = v.heading;
@@ -636,6 +706,7 @@ export function createHazards(world, scenery, opts = {}) {
         for (const a of animals) ob.push({ x: a.x, y: a.y, r: a.kind === 'cow' ? 0.9 : 0.5 });
         for (const v of vehicles) if (!v.parked) ob.push({ x: v.x, y: v.y, r: 1.4 });
       }
+      if (amb && amb.horns) for (const v of vehicles) if (v.horn) amb.horns.push({ id: v.id, x: v.x, y: v.y });
     },
 
     // Solid circles within `range` of (x, y), appended to `out` (collider.dynamic).

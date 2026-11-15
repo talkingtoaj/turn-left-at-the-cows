@@ -5,7 +5,9 @@
 //     oncoming car in the other lane (it may ease off, never stop),
 //   - the car count stays the same,
 //   - no car turns round in, or waits at, a fixed fallen tree's gap,
-//   - no car stands stuck for long far from the player.
+//   - no car stands stuck for long far from the player,
+//   - a car the player holds up honks on the backoff schedule (HONK), then
+//     turns round with a three-point turn that keeps to the road.
 //
 //   npm run check:traffic
 //
@@ -17,6 +19,7 @@ import { createAmbient } from '../src/ambient/ambient.js';
 import { fallenShape } from '../src/world/fallenTrees.js';
 import {
   TRAFFIC, relTo, inLane, playerSpeedCap, seenByPlayer, respawnReason, goodRespawn,
+  HONK, hornOn, honkStage, stepBlocked, turnPose, turnLength, TURN,
 } from '../src/ambient/trafficRules.js';
 
 let fails = 0;
@@ -63,9 +66,77 @@ check(respawnReason(200, 30, true) === null, 'stuck car in sight stays a while')
 check(respawnReason(200, TRAFFIC.stuckMaxT + 1, true) === 'stuck', 'stuck car moves in the end');
 check(goodRespawn(500, false) && !goodRespawn(500, true) && !goodRespawn(300, false) && !goodRespawn(900, false), 'goodRespawn');
 
+// ---------- Honk backoff ----------
+// Sample the horn every 10 ms over a 60 s block: the bursts it sounds.
+{
+  const runs = [];
+  let on = false;
+  for (let i = 0; i <= 6000; i++) {
+    const t = i / 100;
+    const h = hornOn(t);
+    if (h && !on) runs.push({ at: t, len: 0 });
+    if (h) runs[runs.length - 1].len = t - runs[runs.length - 1].at + 0.01;
+    on = h;
+  }
+  const near = (a, b) => Math.abs(a - b) < 0.03;
+  const starts = runs.map((r) => r.at);
+  // 4 s: 1 beep. 8 s: 2. 16 s: 3, the last long. 32 s: a solid 10 s lean.
+  const want = [4, 8, 8.55, 16, 16.6, 17.2, 32];
+  check(runs.length === want.length && want.every((w, k) => near(starts[k], w)), `horn starts ${starts.join(', ')}`);
+  const lens = runs.map((r) => r.len);
+  check(lens.length === want.length && near(lens[6], HONK.leanLen), `lean lasts ${lens[6]} s`);
+  check(lens[5] > lens[4] * 2, 'third burst ends in a long honk');
+  check(!hornOn(3.99) && !hornOn(12) && !hornOn(25) && !hornOn(42.01), 'quiet between bursts and after the lean');
+  check(honkStage(2) === 'wait' && honkStage(5) === 'honk' && honkStage(33) === 'lean' && honkStage(42) === 'turn', 'honk stages');
+  // Each gap at least doubles until the lean (backoff).
+  const bursts = HONK.bursts.map((b) => b.at).concat(HONK.leanAt);
+  for (let k = 2; k < bursts.length; k++) check(bursts[k] - bursts[k - 1] >= 2 * (bursts[k - 1] - bursts[k - 2]) - 1e-9, `backoff gap ${k}`);
+  // The count: runs while blocked, survives a blink of clear, resets after grace.
+  const st = { t: 0, clearT: 0 };
+  for (let i = 0; i < 100; i++) stepBlocked(st, true, 0.1);
+  check(Math.abs(st.t - 10) < 1e-6, 'blocked count runs');
+  stepBlocked(st, false, HONK.grace / 2);
+  stepBlocked(st, true, 0.1);
+  check(st.t > 10, 'a blink of clear does not reset');
+  for (let i = 0; i < 20; i++) stepBlocked(st, false, 0.1);
+  check(st.t === 0, 'clear for the grace time resets');
+}
+
+// ---------- Three-point turn ----------
+// Ends in the other lane facing back, never goes past 4 m ahead (the player
+// is TRAFFIC.stopGap ahead), keeps the car's corners on the road plus a
+// metre of verge, and moves smoothly.
+for (const w of [4.5, 6, 7, 9]) {
+  const L = turnLength();
+  const end = turnPose(w, L + 1);
+  check(end.done && Math.abs(end.v + w / 4) < 1e-6 && Math.abs(end.h + 180) < 1e-6, `turn ends in the other lane facing back (w ${w})`);
+  check(Math.abs(turnPose(w, 0).v - w / 4) < 1e-6, `turn starts in the lane (w ${w})`);
+  let prev = turnPose(w, 0);
+  let maxU = -Infinity;
+  let worstEdge = 0;
+  let worstStep = 0;
+  for (let t = 0.05; t <= L; t += 0.05) {
+    const q = turnPose(w, t);
+    maxU = Math.max(maxU, q.u);
+    worstStep = Math.max(worstStep, Math.hypot(q.u - prev.u, q.v - prev.v));
+    const cu = Math.cos(q.h * Math.PI / 180);
+    const cv = Math.sin(q.h * Math.PI / 180);
+    for (const [a, b] of [[2.2, 0.9], [2.2, -0.9], [-2.2, 0.9], [-2.2, -0.9]]) {
+      const v = q.v + cv * a + cu * b;
+      worstEdge = Math.max(worstEdge, Math.abs(v) - w / 2);
+    }
+    prev = q;
+  }
+  check(maxU < TRAFFIC.stopGap - 5, `turn reaches ${maxU.toFixed(1)} m ahead (w ${w})`);
+  check(worstEdge < 1.5, `turn puts a corner ${worstEdge.toFixed(2)} m off the road (w ${w})`);
+  check(worstStep < 0.4, `turn jumps ${worstStep.toFixed(2)} m in a step (w ${w})`);
+}
+check(TURN.legs.length === 3, 'three legs');
+
 // ---------- Simulation per region ----------
 const DT = 0.05;
 const SIM = 600; // s
+let allTurns = 0;
 for (const id of REGION_IDS) {
   const world = setRegion(id);
   const scenery = generateScenery(world);
@@ -88,11 +159,17 @@ for (const id of REGION_IDS) {
   let worstStuck = 0;
   let inGap = 0;
   let oncomingStops = 0;
+  let hornFrames = 0;
+  let turns = 0;
+  const wasTurning = new Map();
   for (let t = 0; t < SIM; t += DT) {
     amb.obstacles.length = 0;
     amb.update(DT, state);
     check(amb.cars.length === n0, `${id}: car count changed`);
+    hornFrames += amb.horns.length;
     for (const c of amb.cars) {
+      if (wasTurning.get(c.id) && !c.turning) turns++;
+      wasTurning.set(c.id, c.turning);
       const d = Math.hypot(c.x - car.x, c.y - car.y);
       const s = c.speed < 0.3 ? (stuck.get(c.id) || 0) + DT : 0;
       stuck.set(c.id, s);
@@ -109,9 +186,13 @@ for (const id of REGION_IDS) {
   check(worstStuck < TRAFFIC.stuckMaxT + 5, `${id}: a car stood stuck ${worstStuck.toFixed(0)} s far from the player`);
   check(inGap === 0, `${id}: cars went into a fallen tree's gap (${inGap} frames)`);
   check(oncomingStops === 0, `${id}: cars stopped for the player in the other lane (${oncomingStops} frames)`);
+  allTurns += turns;
   const near = amb.cars.filter((c) => Math.hypot(c.x - car.x, c.y - car.y) < TRAFFIC.farR).length;
-  console.log(`${id}: ${n0} cars, ${near} within ${TRAFFIC.farR} m after ${SIM} s, longest far stuck ${worstStuck.toFixed(1)} s, ${fallen.length} fallen trees`);
+  console.log(`${id}: ${n0} cars, ${near} within ${TRAFFIC.farR} m after ${SIM} s, longest far stuck ${worstStuck.toFixed(1)} s, ${fallen.length} fallen trees, horn ${(hornFrames * DT).toFixed(1)} s, ${turns} turned round`);
 }
+
+// The parked player blocks some car somewhere: it must have turned round.
+check(allTurns > 0, 'no car turned round for the parked player in any region');
 
 if (fails) {
   console.log(`${fails} check(s) failed`);

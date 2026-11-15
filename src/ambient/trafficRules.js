@@ -70,3 +70,114 @@ export function respawnReason(d, stuckT, seen, T = TRAFFIC) {
 export function goodRespawn(d, seen, T = TRAFFIC) {
   return d > T.spawnR[0] && d < T.spawnR[1] && !seen;
 }
+
+// ---------- Honking at the player ----------
+// A car the player holds up (their car, them on foot, or the parked car in
+// its lane) honks with backoff. `blockedT` is seconds it has stood blocked.
+// Bursts start at `at` s, the marks doubling (4, 8, 16), and each has more
+// beeps than the last, the third ending in a long one. At `leanAt` it leans
+// on the horn for `leanLen` s, then turns round (see turnPose).
+// `grace`: s it must be clear before the count starts again, so a car
+// creeping up a metre does not reset it.
+export const HONK = {
+  bursts: [
+    { at: 4, beeps: [0.35] },
+    { at: 8, beeps: [0.35, 0.35] },
+    { at: 16, beeps: [0.4, 0.4, 1.1] },
+  ],
+  gap: 0.2, // s between beeps in a burst
+  leanAt: 32,
+  leanLen: 10,
+  grace: 1,
+  speed: 0.5, // m/s: slower than this...
+  capBelow: 1, // ...with the player's speed cap (playerSpeedCap) below this counts as blocked
+};
+
+// Is the horn sounding after `blockedT` s blocked?
+export function hornOn(blockedT, H = HONK) {
+  if (blockedT >= H.leanAt) return blockedT < H.leanAt + H.leanLen;
+  for (const b of H.bursts) {
+    let t = blockedT - b.at;
+    if (t < 0) break;
+    for (const len of b.beeps) {
+      if (t < len) return true;
+      t -= len + H.gap;
+      if (t < 0) break;
+    }
+  }
+  return false;
+}
+
+// 'wait' (before the first honk), 'honk' (short bursts), 'lean', or 'turn'
+// (time to turn round).
+export function honkStage(blockedT, H = HONK) {
+  if (blockedT >= H.leanAt + H.leanLen) return 'turn';
+  if (blockedT >= H.leanAt) return 'lean';
+  return blockedT >= H.bursts[0].at ? 'honk' : 'wait';
+}
+
+// Step a car's honk count, st = { t, clearT }. Returns st.t.
+export function stepBlocked(st, blocked, dt, H = HONK) {
+  if (blocked) {
+    st.t += dt;
+    st.clearT = 0;
+  } else {
+    st.clearT += dt;
+    if (st.clearT >= H.grace) st.t = 0;
+  }
+  return st.t;
+}
+
+// A three-point turn on a road `w` m wide, in the car's own frame at the
+// start: u metres ahead along the road, v metres right of the centre line,
+// h degrees turned (negative = left). Forward on left lock to the far side,
+// back on right lock to the near side, forward into the other lane facing
+// back the way it came. The car centre keeps `edgeIn` m inside each edge,
+// so only a corner reaches the verge. It goes at most 3 m forward, so it
+// turns short of the player who stopped it (stopGap ahead).
+export const TURN = {
+  edgeIn: 1.3,
+  legs: [2.6, 2.2, 2.6], // s per leg
+};
+function turnKeys(w) {
+  const e = w / 2 - TURN.edgeIn;
+  return [
+    { u: 0, v: w / 4, h: 0 },
+    { u: 1.5, v: -e, h: -95, rev: false },
+    { u: 3, v: e, h: -150, rev: true },
+    { u: -1.5, v: -w / 4, h: -180, rev: false },
+  ];
+}
+export const turnLength = () => TURN.legs.reduce((a, b) => a + b, 0);
+
+// Pose `t` s into the turn: { u, v, h, reverse, done }.
+export function turnPose(w, t) {
+  const K = turnKeys(w);
+  let i = 0;
+  while (i < TURN.legs.length - 1 && t > TURN.legs[i]) t -= TURN.legs[i++];
+  const x = Math.max(0, Math.min(1, t / TURN.legs[i]));
+  const s = x * x * (3 - 2 * x); // eases to a stop at each keyframe
+  const a = K[i];
+  const b = K[i + 1];
+  const dir = b.rev ? -1 : 1;
+  const L = Math.hypot(b.u - a.u, b.v - a.v);
+  // Hermite curve whose ends point the way the car faces (backwards when
+  // reversing), so it moves like a car instead of sliding sideways.
+  const au = Math.cos(a.h * DEG) * dir * L;
+  const av = Math.sin(a.h * DEG) * dir * L;
+  const bu = Math.cos(b.h * DEG) * dir * L;
+  const bv = Math.sin(b.h * DEG) * dir * L;
+  const s2 = s * s;
+  const s3 = s2 * s;
+  const h00 = 2 * s3 - 3 * s2 + 1;
+  const h10 = s3 - 2 * s2 + s;
+  const h01 = -2 * s3 + 3 * s2;
+  const h11 = s3 - s2;
+  return {
+    u: h00 * a.u + h10 * au + h01 * b.u + h11 * bu,
+    v: h00 * a.v + h10 * av + h01 * b.v + h11 * bv,
+    h: a.h + (b.h - a.h) * s,
+    reverse: !!b.rev,
+    done: i === TURN.legs.length - 1 && x >= 1,
+  };
+}
