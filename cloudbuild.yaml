@@ -10,6 +10,7 @@ substitutions:
   _SERVICE_NAME: turn-left-at-the-cows
   _RUNTIME_SA: turn-left-at-the-cows-run
   _MAPS_BUCKET: turn-left-at-the-cows-maps
+  _ASSETS_BUCKET: turn-left-at-the-cows-assets
   _MAPS_PREFIX: maps/
   _TURNSTILE_SITE_KEY: ""
   _SITE_URL: "https://cows.talkingtoaj.info"
@@ -19,6 +20,13 @@ options:
   machineType: E2_HIGHCPU_8
 
 steps:
+  # Our own art and sound are not in git (assets.txt): copy them from the
+  # private bucket into public/ before the image is built.
+  - id: assets
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args: ["storage", "rsync", "--recursive", "gs://${_ASSETS_BUCKET}/public", "public"]
+
   - id: build
     name: gcr.io/cloud-builders/docker
     env: ["DOCKER_BUILDKIT=1"]

@@ -364,7 +364,7 @@ Source: `docs/reviews/2026-11-14-critic-round-2-whimsy.md`, the owner's 1 to 5 r
 
 **Game Off 2026** (theme SHIFT; submissions close 1 Dec 13:37 PST)
 - We enter. The entry says plainly that 15 and 16 Oct were a prototype and November is the jam work, and says how AI was used.
-- MIT license for the code; art, sound, music and writing all rights reserved.
+- Public domain (CC0) for the code; art, sound, music and writing all rights reserved.
 - 28 Nov: a full secret scan (gitleaks), LICENSE and README, then the repo goes public only on the owner's go-ahead. Submit on itch.io on 29 Nov.
 
 **Work lanes.** One branch per lane; each item becomes a ticket. Lanes that add world data each use their own data file so branches don't collide in `data.js`.

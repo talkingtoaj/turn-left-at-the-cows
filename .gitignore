@@ -2,3 +2,20 @@ node_modules/
 dist/
 *.log
 .DS_Store
+
+# Our own art and sound: in the private bucket, not in git (see assets.txt).
+/public/radio/
+/public/sounds/voices/
+/public/sounds/tow/
+/public/look/signs/
+/public/look/tex/rust.webp
+/public/og.jpg
+/public/sounds/engine/idle.mp3
+/public/sounds/engine/mid.mp3
+/public/sounds/engine/high.mp3
+/public/sounds/tyres/paved.mp3
+/public/sounds/tyres/grass.mp3
+/public/sounds/tyres/shrub.mp3
+/public/sounds/town/murmur.mp3
+/public/sounds/damage/flat_tyre.mp3
+/public/sounds/damage/crash.mp3

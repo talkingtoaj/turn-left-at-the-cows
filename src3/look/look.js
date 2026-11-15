@@ -99,7 +99,10 @@ async function loadTextures(renderer) {
   const normal = new Uint8Array(SIZE * SIZE * 4 * n);
   await Promise.all(TEXTURES.map(async (t, i) => {
     const off = i * SIZE * SIZE * 4;
-    detailLayer(await loadPixels(`${BASE}tex/${t.name}.webp`), albedo, off, t);
+    // Our own textures are not in the public repo (assets.txt): a clone without
+    // them gets plain grey there instead of no 3D look at all.
+    const px = await loadPixels(`${BASE}tex/${t.name}.webp`).catch(() => new Uint8ClampedArray(SIZE * SIZE * 4).fill(128));
+    detailLayer(px, albedo, off, t);
     if (t.normal) normal.set(await loadPixels(`${BASE}tex/${t.name}_n.webp`), off);
     else for (let k = 0; k < SIZE * SIZE; k++) normal.set([128, 128, 255, 255], off + k * 4);
   }));

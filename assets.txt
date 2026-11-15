@@ -1,0 +1,20 @@
+# Our own art and sound (all rights reserved, see ASSETS-LICENSE). They are not
+# in git: they live in the private bucket gs://turn-left-at-the-cows-assets at
+# the same paths, the deploy build copies them in, and `npm run assets` pulls
+# them for local work. The game still runs without them (silent radio and
+# voices, plain signs). One path per line; a path ending in / is a folder.
+public/radio/
+public/sounds/voices/
+public/sounds/tow/
+public/look/signs/
+public/look/tex/rust.webp
+public/og.jpg
+public/sounds/engine/idle.mp3
+public/sounds/engine/mid.mp3
+public/sounds/engine/high.mp3
+public/sounds/tyres/paved.mp3
+public/sounds/tyres/grass.mp3
+public/sounds/tyres/shrub.mp3
+public/sounds/town/murmur.mp3
+public/sounds/damage/flat_tyre.mp3
+public/sounds/damage/crash.mp3
