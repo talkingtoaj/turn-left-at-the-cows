@@ -346,30 +346,46 @@ const BUILDERS = {
     // Down on the corner with the missing wheel.
     const tilt = new THREE.Matrix4().makeRotationZ(0.06).multiply(new THREE.Matrix4().makeRotationX(-0.035));
     const T = { extra: tilt };
-    // Body: one long low box, filled down to the ground on a slope.
-    P(box(1.8, 0.5 + f.drop, 4.6), 0, 0, -f.drop + 0.3, paint, T);
+    // Wheels sit under the body, not on its side: the upper body rides
+    // above them, and the lower sills leave a gap (the arch) round each one.
+    const WY = 1.45; // axle, along the car
+    const WR = 0.4; // tire outer radius
+    const BOT = 0.34; // sill bottom
+    const MID = 0.64; // where the sills meet the upper body
+    const TOP = 1.0; // body top (hood and trunk)
+    P(box(1.8, TOP - MID, 4.6), 0, 0, MID, paint, T);
+    // Sills: front overhang, between the wheels, rear overhang (to the ground on a slope).
+    const sill = (y0, y1) => P(box(1.74, MID - BOT + f.drop, y1 - y0), 0, (y0 + y1) / 2, BOT - f.drop, paint, T);
+    sill(-2.3, -WY - WR - 0.05);
+    sill(-WY + WR + 0.05, WY - WR - 0.05);
+    sill(WY + WR + 0.05, 2.3);
+    // Dark wheel wells, so the arches read as holes.
+    for (const ly of [-WY, WY]) P(box(1.5, MID - 0.25, WR * 2 + 0.1), 0, ly, 0.25, dark, { ...T, cast: false });
     // Cabin: a sloped frustum, dark all round (the glass is long gone), with a roof.
     const cabin = new THREE.CylinderGeometry(0.75, 1, 0.5, 4, 1).rotateY(Math.PI / 4).scale(1.16, 1, 1.41).translate(0, 0.25, 0);
-    P(cabin, 0, 0.25, 0.8, dark, T);
-    P(box(1.26, 0.07, 1.5), 0, 0.25, 1.3, paint, T);
-    // Hood (rust through it) and trunk lid, a hair proud of the body.
-    P(box(1.6, 0.04, 1.4), 0, -1.45, 0.8, rust, T);
-    P(box(1.6, 0.04, 0.9), 0, 1.75, 0.8, 0x6f6252, T);
-    // Rust patches along the sides.
-    for (const [lx, ly, len] of [[0.905, -1.1, 0.9], [0.905, 1.6, 0.6], [-0.905, 0.4, 1.1], [-0.905, -1.7, 0.5]]) {
-      P(box(0.02, 0.28, len), lx, ly, 0.38, rust, { ...T, cast: false });
+    P(cabin, 0, 0.25, TOP, dark, T);
+    P(box(1.26, 0.07, 1.5), 0, 0.25, TOP + 0.5, paint, T);
+    // Rust through the paint: a patch on the hood and along the sides.
+    P(box(1.0, 0.02, 0.9), 0.15, -1.6, TOP, rust, { ...T, cast: false });
+    for (const [lx, ly, len] of [[0.905, -0.4, 0.9], [0.905, 1.9, 0.5], [-0.905, 0.3, 1.1], [-0.905, -1.95, 0.4]]) {
+      P(box(0.02, 0.22, len), lx, ly, MID + 0.06, rust, { ...T, cast: false });
     }
     // Chrome bumpers, a grille and two headlights at the front.
-    P(box(1.86, 0.15, 0.16), 0, -2.36, 0.32, chrome, { ...T, cast: false });
-    P(box(1.86, 0.15, 0.16), 0, 2.36, 0.32, chrome, { ...T, cast: false });
-    P(box(1.1, 0.24, 0.04), 0, -2.31, 0.5, 0x2a2a2a, { ...T, cast: false });
+    P(box(1.86, 0.15, 0.16), 0, -2.36, BOT + 0.06, chrome, { ...T, cast: false });
+    P(box(1.86, 0.15, 0.16), 0, 2.36, BOT + 0.06, chrome, { ...T, cast: false });
+    P(box(1.1, 0.24, 0.04), 0, -2.31, MID + 0.03, 0x2a2a2a, { ...T, cast: false });
     for (const lx of [-0.66, 0.66]) {
-      P(new THREE.CylinderGeometry(0.12, 0.12, 0.06, 8).rotateX(Math.PI / 2), lx, -2.31, 0.62, 0xcfc9b4, { ...T, cast: false });
+      P(new THREE.CylinderGeometry(0.11, 0.11, 0.06, 8).rotateX(Math.PI / 2), lx, -2.31, MID + 0.15, 0xcfc9b4, { ...T, cast: false });
     }
-    // Three wheels, tucked under the body; the fourth lies in the grass.
-    const wheel = () => new THREE.TorusGeometry(0.27, 0.11, 5, 10).rotateY(Math.PI / 2);
-    for (const [lx, ly] of [[0.82, -1.5], [0.82, 1.5], [-0.82, 1.5]]) P(wheel(), lx, ly, 0.36, 0x222222, { cast: false });
-    P(new THREE.TorusGeometry(0.27, 0.11, 5, 10).rotateX(Math.PI / 2), -1.7, -1.9, 0.1, 0x222222, { cast: false });
+    // Three wheels (tire and hubcap); the front left one lies in the grass.
+    const tire = () => new THREE.TorusGeometry(WR - 0.12, 0.12, 6, 12).rotateY(Math.PI / 2);
+    const hub = () => new THREE.CylinderGeometry(0.17, 0.17, 0.16, 10).rotateZ(Math.PI / 2);
+    for (const [lx, ly] of [[0.78, -WY], [0.78, WY], [-0.78, WY]]) {
+      P(tire(), lx, ly, WR - 0.02, 0x222222, { cast: false });
+      P(hub(), lx, ly, WR - 0.02, 0x8d8a82, { cast: false });
+    }
+    P(new THREE.TorusGeometry(WR - 0.12, 0.12, 6, 12).rotateX(Math.PI / 2), -1.7, -1.9, 0.1, 0x222222, { cast: false });
+    P(new THREE.CylinderGeometry(0.17, 0.17, 0.16, 10), -1.7, -1.9, 0.02, 0x8d8a82, { cast: false });
     // Weeds: dry blades standing round it.
     let s = 31;
     const r = () => ((s = (s * 16807) % 2147483647) / 2147483647);

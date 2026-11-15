@@ -3,7 +3,8 @@
 // then never again. Engine-free; the HUD (src3/hud/tips.js) draws them and
 // main.js fills the context each frame.
 //
-// A tip: { id, text, max (times ever shown), when(c) -> bool }. `c` is the
+// A tip: { id, text, max (times ever shown), when(c) -> bool, secs (optional:
+// how long it stays up, default SHOW_S) }. `c` is the
 // context (see TIP_CONTEXT below). To add one, add a line to TIPS.
 //
 // Remembered in localStorage (`tlatc.tips.v1`: { off, n: { id: times } }),
@@ -33,9 +34,14 @@ export const TIP_CONTEXT = {
   sketchEmpty: true, // nothing drawn on the map yet
   driveTime: 0, // seconds driven this mission
   busy: false, // a dialogue, the map or a card is up (most tips wait)
+  shiftAge: Infinity, // seconds since you last came on something the printed map has wrong
 };
 
 export const TIPS = [
+  // The owner's words (15 Nov 2026). First, so it wins over the others.
+  { id: 'map_wrong', max: 2, secs: 11,
+    text: 'It looks like the map is wrong. Press M to view and mark changes on the map, then try to find a local to get directions from.',
+    when: (c) => !c.busy && c.shiftAge < 20 },
   { id: 'get_out', max: 3, text: 'Stop and press F to get out and talk.',
     when: (c) => !c.onFoot && !c.busy && c.driveLocalD < 30 },
   { id: 'walk_up', max: 3, text: 'Walk up to them, face them and press E to talk.',
@@ -152,7 +158,7 @@ export function createTips({ storage = defaultStorage(), tips = TIPS } = {}) {
         data.n[tip.id] = (data.n[tip.id] || 0) + 1;
         writeStore(storage, data);
         lastShown.set(tip.id, t);
-        current = { tip, until: t + SHOW_S };
+        current = { tip, until: t + (tip.secs || SHOW_S) };
         return tip;
       }
       return null;

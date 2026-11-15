@@ -5,12 +5,13 @@ Status: draft for the owner. The pitch, theme paragraph, AI note and prototype n
 ## Form fields (itch "Create new project")
 
 - Kind of project: HTML. Upload a zip of `docs/release/itch-embed/index.html` and tick "This file will be played in the browser". It frames the live game, so the itch page always plays the latest deploy and shared maps keep working.
-- Embed options: viewport 1280 x 720, fullscreen button on, "click to launch" (not auto start: the game is heavy and needs a click for sound), mobile friendly off.
+- On the uploaded file: tick "This file will be played in the browser"; leave the Executable dropdown and the platform boxes alone.
+- Embed options: Embed in page, manually set size 960 x 540 (fits itch's default page column), fullscreen button on; auto start, mobile friendly, scrollbars and SharedArrayBuffer off.
 - Pricing: $0 or donate (nothing is downloaded, so no one sees a donate prompt before playing).
-- Cover: 630 x 500, the 1987 vs 1992 win screen under the title.
+- Cover: 630 x 500, no spoilers: the title over the start of the road, with Darlene's unmarked 1987 map.
 - Genre: Adventure.
 - Tags (10): driving, exploration, maps, navigation, low-poly, 3d, atmospheric, cozy, singleplayer, retro.
-- AI disclosure: Yes.
+- AI disclosure: Yes. Kinds: Graphics (Gemini textures and signs), Sounds (ElevenLabs voices and effects), Text & Dialog (Claude, GPT, Grok drafts), Code (Claude). Statement: the "How AI was used" text below, once approved.
 - Community: Comments.
 - Custom noun, app store links, trailer: blank.
 

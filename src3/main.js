@@ -309,6 +309,8 @@ const foot = createOnFoot({
 const tips = createTips();
 const tipsView = createTipsView(ui);
 const tipCtx = { ...TIP_CONTEXT };
+// When you last came on a shift (something the printed map has wrong).
+const shiftTip = { n: 0, at: -Infinity };
 const reducedMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
 // ---------- input ----------
@@ -706,7 +708,12 @@ function updateTips(dt) {
     }
   }
   c.carD = foot.active ? carGap(car, foot.walker.x, foot.walker.y) : Infinity;
-  tipsView.show(tips.update(c, performance.now() / 1000));
+  const now = performance.now() / 1000;
+  const nShifts = state.shiftsSeen ? state.shiftsSeen.size : 0;
+  if (nShifts > shiftTip.n) shiftTip.at = now;
+  shiftTip.n = nShifts; // drops back to 0 when a mission starts
+  c.shiftAge = now - shiftTip.at;
+  tipsView.show(tips.update(c, now));
 }
 
 // ---------- start screen backdrop ----------
