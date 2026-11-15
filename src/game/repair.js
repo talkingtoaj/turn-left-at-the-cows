@@ -39,7 +39,7 @@ const LINES = {
     "Done. Next time, maybe don't hit the cows.",
   ],
   farm: [
-    "Patched her up. She'll get you to a proper garage.",
+    "Patched her up. She'll get you to a real garage.",
     "Wire and a bit of welding. She'll hold. Probably.",
   ],
 };
