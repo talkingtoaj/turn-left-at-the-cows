@@ -641,10 +641,12 @@ export function buildMailboxes(world, terrain, batch) {
       const c = localToWorld(m.x, m.y, m.facing || 0, 0, 0.15);
       batch.audit.circle(m.id || `mailbox${i}`, 'mailbox', c.x, c.y, 0.06, base - 0.1);
     }
-    P(box(0.12, 1.15, 0.12), 0, 0.15, -0.1, 0x6a4c2e);
-    P(box(0.28, 0.06, 0.6), 0, 0, 1.05, 0x6a4c2e, { cast: false });
+    // A newer box (m.newer): bright galvanized steel on a grey metal post.
+    const post = m.newer ? 0x8e9296 : 0x6a4c2e;
+    P(box(0.12, 1.15, 0.12), 0, 0.15, -0.1, post);
+    P(box(0.28, 0.06, 0.6), 0, 0, 1.05, post, { cast: false });
     const cow = isCowMailbox(world, m);
-    const col = cow ? 0xf4f1ea : MAILBOX[i % MAILBOX.length];
+    const col = cow ? 0xf4f1ea : m.newer ? 0xd3d7da : MAILBOX[i % MAILBOX.length];
     P(box(0.24, 0.2, 0.5), 0, 0, 1.1, col);
     const top = new THREE.CylinderGeometry(0.12, 0.12, 0.5, 8, 1, false, -Math.PI / 2, Math.PI).rotateX(-Math.PI / 2);
     P(top, 0, 0, 1.3, col);

@@ -109,6 +109,9 @@ export function ribbon(pts, width, lift, heightAt, skip = null, step = 3, offset
 }
 
 const DIRT = { shoulder: 0x9a8157, road: 0xbda275, rut: 0xa98f63 };
+// Lanes built since 1987 (road.fresh): new pale crushed stone, not yet worn brown.
+const FRESH = { shoulder: 0x9f9480, road: 0xcdc6b4, rut: 0xbab19c };
+const dirtColours = (r) => (r.fresh ? FRESH : DIRT);
 const DIRT_LIFT = 0.04;
 
 // A dirt road as one mesh: a cross-section of points (shoulder, road edge,
@@ -127,6 +130,7 @@ export function dirtRoadRows(r, heightAt, skip) {
   const pts = r.points;
   const half = r.width / 2;
   const rut = r.width * 0.22;
+  const DIRT = dirtColours(r);
   // Offsets across (right to left) and their colours.
   const across = [-(half + 0.8), -(half + 0.4), -half, -(half - 0.8), -(rut + 0.45), -rut, -(rut - 0.45), 0, rut - 0.45, rut, rut + 0.45, half - 0.8, half, half + 0.4, half + 0.8];
   const C = (hex) => new THREE.Color(hex);
@@ -297,8 +301,8 @@ export function buildGround(world, scenery, terrain, batch) {
     if (batch.paint) {
       for (const [x, y] of [r.points[0], r.points[r.points.length - 1]]) {
         if (nearWater(x, y)) continue;
-        batch.paint.disc(x, y, r.width / 2 + 0.8, DIRT.shoulder);
-        batch.paint.disc(x, y, r.width / 2, DIRT.road);
+        batch.paint.disc(x, y, r.width / 2 + 0.8, dirtColours(r).shoulder);
+        batch.paint.disc(x, y, r.width / 2, dirtColours(r).road);
       }
     }
   }
