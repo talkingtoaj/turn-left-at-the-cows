@@ -23,6 +23,20 @@ Turn Left at the Cows
 
 It's 1992, you have no GPS and a map five years out of date. Things have shifted in that time. You just might need to ask directions from the locals.
 
+## Jam submission (Game Off 2026)
+
+Final, written by the owner. Use these as-is on the jam submission form.
+
+### Game description
+
+Orienteering in a shifting world.
+
+It's July 1992. You're covering Darlene's shift delivering packages while her wrist heals. All you have is her county map from 1987. There's no GPS, and the county has shifted since the map was printed: a bridge washed out, new farm lanes went in, and roads got new names. Stop and ask the locals the way, sketch what they tell you onto the map, and trust what you see over what's printed.
+
+### Theme interpretation
+
+The world is constantly shifting. How do you navigate in a world when your paper map no longer matches what you encounter around you?
+
 ## Pitch
 
 July 1992. You're covering Darlene's rural mail route while her wrist heals, and all you have is her county map from 1987. There's no GPS, and the roads have changed since then. Pencil your notes onto her map and ask the locals the way.
