@@ -39,7 +39,7 @@ The world is constantly shifting. How do you navigate in a world when your paper
 
 ## Pitch
 
-July 1992. You're covering Darlene's rural mail route while her wrist heals, and all you have is her county map from 1987. There's no GPS, and the roads have changed since then. Pencil your notes onto her map and ask the locals the way.
+July 1992. You're covering Darlene's shift delivering packages while her wrist heals, and all you have is her county map from 1987. There's no GPS, and the roads have changed since then. Pencil your notes onto her map and ask the locals the way.
 
 ## How to play
 
