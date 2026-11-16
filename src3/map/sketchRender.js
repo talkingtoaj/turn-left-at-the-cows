@@ -21,8 +21,9 @@ export {
 // world: the region it belongs to (default the current one).
 export function paintPrintedMap(ctx, def, world = WORLD) {
   const fake = makeFakeScene(ctx);
-  buildOldMap(fake.scene, fake.container, PAPER, def, world);
+  const out = buildOldMap(fake.scene, fake.container, PAPER, def, world);
   fake.flushTexts();
+  return out;
 }
 
 // The printed map a sketch is drawn on ({ def, world }), or null for a blank sheet.
@@ -70,17 +71,17 @@ export function renderShiftMapCanvas({ def, world = WORLD, shifts, seen, sketch 
   c.height = Math.round(SHIFT_CROP.h * s);
   const ctx = c.getContext('2d');
   ctx.setTransform(s, 0, 0, s, -SHIFT_CROP.x * s, -SHIFT_CROP.y * s);
-  paintPrintedMap(ctx, def, world);
+  const { townBoxes } = paintPrintedMap(ctx, def, world);
   const g = new CanvasGraphics(ctx);
   if (sketch) drawSketchItems(g, ctx, sketch, Math.min(2, Math.max(1, 0.4 * (SHIFT_CROP.w / cssWidth))));
-  drawShiftMarks(g, ctx, def, shifts, seen, labels);
+  drawShiftMarks(g, ctx, def, shifts, seen, labels, townBoxes);
   return c;
 }
 
 // Red pencil circles round each shift; with labels, the label beside it and
 // a tick when seen (grey, one ring, when missed). Labels dodge each other and
-// stay inside the crop.
-function drawShiftMarks(g, ctx, def, shifts, seen, labels) {
+// stay inside the crop and off the printed town names.
+function drawShiftMarks(g, ctx, def, shifts, seen, labels, townBoxes = []) {
   const { frame, P } = printFrame(PAPER, def.bounds);
   const R = 17;
   const SIZE = 23;
@@ -130,7 +131,8 @@ function drawShiftMarks(g, ctx, def, shifts, seen, labels) {
         const lx = side === 'r' ? x + R + 8 : side === 'l' ? x - R - 8 - tw : Math.max(left, Math.min(right - tw, x - tw / 2));
         if (lx < left || lx + tw > right) continue;
         const b = box(lx, yy);
-        if (placed.some((q) => overlaps(b, q)) || rings.some((q) => overlaps(b, q))) continue;
+        if (placed.some((q) => overlaps(b, q)) || rings.some((q) => overlaps(b, q))
+          || townBoxes.some((q) => overlaps(b, q))) continue;
         pick = { lx, ly: yy, toLeft: side === 'l', centre: side === 'c' };
         break;
       }

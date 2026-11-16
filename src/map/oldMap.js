@@ -231,6 +231,9 @@ export function buildOldMap(scene, container, paper, def = WORLD.printedMaps.cou
   // Where names already sit, so later names can dodge them. Straight names
   // are boxes; a road name along a slanted road is a row of small circles.
   const taken = [];
+  // Town names and blocks, returned so later marks (the shift labels on the
+  // win screen) can keep off them.
+  const townBoxes = [];
   const toBox = (x, y, w, h, o) => ({ x0: x - o[0] * w, x1: x - o[0] * w + w, y0: y - o[1] * h * 1.2, y1: y - o[1] * h * 1.2 + h * 1.2 });
   const takeBox = (x, y, w, h, o) => taken.push(toBox(x, y, w, h, o));
   const inFrame = (b) => b.x0 >= frame.x + 3 && b.x1 <= frame.x + frame.size - 3 && b.y0 >= frame.y + 3 && b.y1 <= frame.y + frame.size - 3;
@@ -335,6 +338,7 @@ export function buildOldMap(scene, container, paper, def = WORLD.printedMaps.cou
       fontSize: '13px', fontStyle: 'bold', color: '#2e241b',
     });
     takeBox(tx + dx, ty + dy, textW(t.name, 13, true), 13, [0.5, 0.5]);
+    townBoxes.push(taken[taken.length - 1], { x0: tx - 16, x1: tx + 16, y0: ty - 13, y1: ty + 13 });
   }
   g.fillStyle(INK, 0.9);
   for (const b of data.buildings) {
@@ -422,6 +426,7 @@ export function buildOldMap(scene, container, paper, def = WORLD.printedMaps.cou
     w: paper.x + paper.w - (frame.x + frame.size + 30) - 24,
     h: frame.size,
   }, s);
+  return { townBoxes };
 }
 
 // Legend, scale bar and north arrow in the right-hand column.
