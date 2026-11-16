@@ -248,7 +248,7 @@ function findOnRoads(world, terrain, ex) {
   const out = [];
   for (const r of world.roads) {
     if (r.type === 'paved') continue;
-    const { rows, across, lift } = dirtRoadRows(r, H, (x, y) => !!ex.blocked(x, y, true));
+    const { rows, across, lift } = dirtRoadRows(r, H, (x, y) => !!ex.blocked(x, y, true), world);
     const k0 = 3; // half - 0.8 .. -(half - 0.8): the road bed inside the shoulders
     const k1 = across.length - 4;
     const n = rows.length;

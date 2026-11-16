@@ -555,7 +555,72 @@ function makePowerLines(world, fields, props) {
     }
     flush();
   }
+  joinAtJunctions(world, lines);
   return lines;
+}
+
+// Where two roads' lines end near each other (a corner or a junction), wire
+// them into one line, so the wires don't stop short at the corner (owner,
+// 16 Nov: none where Hartley Lane leaves Church Street and Highway 9).
+// Pieces of the same road stay apart; they were split on purpose.
+const JOIN_GAP = 90; // under the 3D wire's longest span (fields3d MAX_SPAN)
+const TAP_GAP = POLE_STEP * 1.4;
+function joinAtJunctions(world, lines) {
+  for (;;) {
+    let best = null;
+    for (let i = 0; i < lines.length; i++) {
+      for (let j = i + 1; j < lines.length; j++) {
+        const a = lines[i];
+        const b = lines[j];
+        if (a.roadId === b.roadId) continue;
+        for (const ea of [0, 1]) {
+          for (const eb of [0, 1]) {
+            const pa = ea ? a.poles[a.poles.length - 1] : a.poles[0];
+            const pb = eb ? b.poles[b.poles.length - 1] : b.poles[0];
+            const d = Math.hypot(pa.x - pb.x, pa.y - pb.y);
+            if (d < 8 || d > JOIN_GAP) continue;
+            if (!best || d < best.d) best = { i, j, ea, eb, d };
+          }
+        }
+      }
+    }
+    if (!best) break;
+    const a = lines[best.i];
+    const b = lines[best.j];
+    const ap = best.ea ? a.poles : [...a.poles].reverse();
+    const bp = best.eb ? [...b.poles].reverse() : b.poles;
+    a.poles = [...ap, ...bp];
+    a.roadId = `${a.roadId}+${b.roadId}`;
+    lines.splice(best.j, 1);
+  }
+  // A line that ends beside the middle of another road's line (a T junction)
+  // runs one more span to that line's nearest pole. The pole is already
+  // there, so it is marked shared and drawn once.
+  for (const a of lines) {
+    for (const end of [0, 1]) {
+      const pa = end ? a.poles[a.poles.length - 1] : a.poles[0];
+      if (pa.shared) continue;
+      let best = null;
+      for (const b of lines) {
+        if (b === a || b.roadId.split('+').some((id) => a.roadId.split('+').includes(id))) continue;
+        for (const q of b.poles) {
+          if (q.shared) continue;
+          const d = Math.hypot(q.x - pa.x, q.y - pa.y);
+          if (d < 8 || d > TAP_GAP || (best && d >= best.d)) continue;
+          best = { q, d };
+        }
+      }
+      if (!best) continue;
+      // Crossing its own road is fine only where that road ends (the corner
+      // itself); anywhere else the wires would cut back over the road.
+      const own = a.roadId.split('+').map((id) => world.roads.find((r) => r.id === id)).filter(Boolean);
+      const nearEnd = (r) => [r.points[0], r.points[r.points.length - 1]].some(([x, y]) => Math.hypot(x - pa.x, y - pa.y) < 40);
+      if (own.some((r) => !nearEnd(r) && spanCrossesRoad(world, pa, best.q, r.id))) continue;
+      const tap = { x: best.q.x, y: best.q.y, shared: true };
+      if (end) a.poles.push(tap);
+      else a.poles.unshift(tap);
+    }
+  }
 }
 
 // Exported for checks.

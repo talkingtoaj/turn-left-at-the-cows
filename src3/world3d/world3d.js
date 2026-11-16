@@ -6,7 +6,7 @@ import { pointInPolygon, distToPolygonEdge, bbox, SegIndex, distToSegment } from
 import { Terrain, makeNoise, smoothstep, quarryPit } from './terrain.js';
 import { buildFields, buildMailboxes, buildProps, buildPowerLines, buildStones } from './fields3d.js';
 import { Batcher } from './batch.js';
-import { buildGround, DECK_TOP } from './ground.js';
+import { buildGround, DECK_TOP, DIRT_LIFT, PAVED_LIFT, SHOULDER_LIFT, SHOULDER_W } from './ground.js';
 import { buildStructures } from './structures.js';
 import { buildSigns, buildLocals } from './props.js';
 import { buildDressing } from './dressing.js';
@@ -290,7 +290,22 @@ export function buildWorld3D(scene, world, scenery, collider) {
   console.info(`[3d] terrain ${Math.round(t1 - t0)} ms, objects ${Math.round(t2 - t1)} ms, ground mesh ${Math.round(t3 - t2)} ms, ${batch.paint.chunks.size} painted chunks`);
 
   // Surface height the car rests on: bridge decks, else the ground.
-  const surfaceAt = (x, y) => (collider.onIntactBridge(x, y) ? DECK_TOP : Math.max(terrain.heightAt(x, y), -0.2));
+  // Roads are drawn a little above the ground (ground.js), so cars and feet
+  // on a road rest on its top, not sunk into it (owner, 16 Nov: tyres clipped
+  // into the tar).
+  const roadLift = (x, y) => {
+    let lift = 0;
+    for (const s of collider.roadIndex.near(x, y)) {
+      const r = s.data;
+      const d = distToSegment(x, y, s.ax, s.ay, s.bx, s.by) - r.width / 2;
+      if (r.type === 'paved') {
+        if (d <= 0) return PAVED_LIFT;
+        if (d <= SHOULDER_W) lift = Math.max(lift, SHOULDER_LIFT);
+      } else if (d <= 0) lift = Math.max(lift, DIRT_LIFT);
+    }
+    return lift;
+  };
+  const surfaceAt = (x, y) => (collider.onIntactBridge(x, y) ? DECK_TOP : Math.max(terrain.heightAt(x, y), -0.2) + roadLift(x, y));
 
   return {
     terrain,

@@ -139,7 +139,13 @@ const CSS = `
 .hud-shift-map canvas { display: block; cursor: zoom-in; border-radius: 3px; box-shadow: 4px 5px 0 rgba(0,0,0,0.4); outline: 1px solid rgba(255,255,255,0.08); }
 .hud-shift-map canvas:hover { outline: 2px solid #e6b450; }
 .hud-shift-count { margin-top: 12px; font: 600 22px Oswald, "Arial Narrow", sans-serif; color: #e6b450; letter-spacing: 0.03em; }
-.hud-win-foot { margin-top: 16px; font-size: 14px; color: #d9d4c5; }
+.hud-win-foot { position: sticky; bottom: -18px; margin: 16px -22px -18px; padding: 12px 22px 14px; font-size: 14px; color: #d9d4c5;
+  background: inherit; border-top: 1px solid rgba(230,180,80,0.25); display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.hud-win-small .hud-win-foot { position: static; margin: 16px 0 0; padding: 0; border: 0; }
+.hud-win-go { font: bold 18px Arial, Helvetica, sans-serif; color: #23252a; background: #e6b450; border: 1px solid #e6b450;
+  border-radius: 8px; padding: 10px 34px; cursor: pointer; box-shadow: 3px 3px 0 rgba(0,0,0,0.35); }
+.hud-win-go:hover, .hud-win-go:focus-visible { background: #f3d58c; outline: none; }
+.hud-win-keys { color: #8a8d92; font-size: 13px; }
 .hud-win-row { display: flex; justify-content: space-between; padding: 0 50px; font-size: 17px; line-height: 30px; }
 .hud-win-row span:first-child { color: #8a8d92; }
 .hud-win-row span:last-child { color: #d9d4c5; font-weight: bold; }
@@ -771,10 +777,8 @@ export function createHUD(root, { openMap, radio } = {}) {
       const left = el('div', 'hud-win-col', maps);
       el('h3', null, left, 'Your maps');
       const thumbs = el('div', 'hud-thumbs', left);
-      for (const snap of state.snapshots.filter((q) => q.missionId === m.id)) {
-        thumb(thumbs, snap.sketch, snap.label, `${clockText(snap.clockMinutes)} · ${milesText(snap.odometer)}`);
-      }
-      // The final map is saved when you continue; show it as it is now.
+      // Only the final map, as it is now (it is saved when you continue).
+      // The earlier snapshots stay in state for the start screen's Maps page.
       thumb(thumbs, state.sketch, m.finalLabel, 'now (M to finish it)');
 
       // With shifts, the real map is already shown above, beside the old one.
@@ -805,10 +809,12 @@ export function createHUD(root, { openMap, radio } = {}) {
         stats: { timeMs: state.elapsedMs, km: state.odometer / 1000, tows: state.tows || 0 },
       });
     }
-    el('div', 'hud-win-foot hud-mono', panel,
-      nextMission(state)
-        ? 'Enter: continue to next mission · M: finish your map · R: start over'
-        : 'Enter: finish · M: finish your map · R: start over');
+    // A real button to go on (Enter still works); the other keys stay as a hint.
+    const foot = el('div', 'hud-win-foot', panel);
+    const go = el('button', 'hud-win-go', foot, nextMission(state) ? 'Next mission \u25B8' : 'Finish \u25B8');
+    go.type = 'button';
+    go.addEventListener('click', () => onContinueKey());
+    el('div', 'hud-win-keys hud-mono', foot, 'M: finish your map · R: start over');
     winShade.style.display = 'block';
   }
 

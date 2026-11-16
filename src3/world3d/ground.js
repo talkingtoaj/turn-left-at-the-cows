@@ -112,22 +112,69 @@ const DIRT = { shoulder: 0x9a8157, road: 0xbda275, rut: 0xa98f63 };
 // Lanes built since 1987 (road.fresh): new pale crushed stone, not yet worn brown.
 const FRESH = { shoulder: 0x9f9480, road: 0xcdc6b4, rut: 0xbab19c };
 const dirtColours = (r) => (r.fresh ? FRESH : DIRT);
-const DIRT_LIFT = 0.04;
+export const DIRT_LIFT = 0.04;
+// Paved roads: the tar, and the gravel shoulder 0.9 m each side under it.
+export const PAVED_LIFT = 0.13;
+export const SHOULDER_LIFT = 0.09;
+export const SHOULDER_W = 0.9;
 
 // A dirt road as one mesh: a cross-section of points (shoulder, road edge,
 // either side of each rut, centre) every metre along it, each on heightAt(),
 // which includes the road's bumps and ruts. Vertex colours: darker shoulder
 // and ruts. Pieces where skip(x, y) is true are left out. Returns geometries.
-function dirtRoad(r, heightAt, skip) {
-  const { rows, across, cols } = dirtRoadRows(r, heightAt, skip);
+function dirtRoad(r, heightAt, skip, world) {
+  const { rows, across, cols } = dirtRoadRows(r, heightAt, skip, world);
   return dirtRoadMesh(rows, across, cols);
+}
+
+// The dirt roads that road r ends on: (x, y) -> how far to lower r there.
+// Under the other road's bed r sits 6 cm below it (out of sight); across
+// that road's shoulder and 1.5 m past it, r comes back up, never below the
+// ground. Where two roads both end at a spot, the later one dips.
+const SINK_IN = DIRT_LIFT + 0.02;
+const SINK_EDGE = DIRT_LIFT - 0.01;
+function junctionSink(r, world) {
+  if (!world) return () => 0;
+  const ends = [r.points[0], r.points[r.points.length - 1]];
+  const idx = world.roads.indexOf(r);
+  const over = [];
+  for (const o of world.roads) {
+    if (o === r || o.type === 'paved') continue;
+    const oh = o.width / 2;
+    const oEnds = [o.points[0], o.points[o.points.length - 1]];
+    for (const [ex, ey] of ends) {
+      if (distToPolyline(ex, ey, o.points) > oh + 1) continue;
+      // Both end here: only the later road in the list dips.
+      if (oEnds.some(([x, y]) => Math.hypot(x - ex, y - ey) < oh + 1) && world.roads.indexOf(o) > idx) continue;
+      over.push({ o, ex, ey, oh });
+    }
+  }
+  if (!over.length) return () => 0;
+  return (x, y) => {
+    let sink = 0;
+    for (const { o, ex, ey, oh } of over) {
+      if (Math.abs(x - ex) > 30 || Math.abs(y - ey) > 30) continue;
+      const d = distToPolyline(x, y, o.points) - oh;
+      let k = 0;
+      if (d < 0.6) k = SINK_IN;
+      else if (d < 0.8) k = SINK_IN + ((SINK_EDGE - SINK_IN) * (d - 0.6)) / 0.2;
+      else if (d < 2.3) k = SINK_EDGE * (1 - (d - 0.8) / 1.5);
+      sink = Math.max(sink, k);
+    }
+    return sink;
+  };
 }
 
 // The dirt road's rows of cross-section points (also used by the puddles,
 // src3/world3d/puddles3d.js, so a puddle on the road lies exactly on it):
 // { rows: [{ d, skip, v: [[x, y, z] per across] }], across, cols, lift }.
-export function dirtRoadRows(r, heightAt, skip) {
+//
+// Where this road ends on another dirt road (a T or a fork), it dips under
+// that road's surface, so the two meshes don't fight over the same spot and
+// flicker (owner, 16 Nov: the fork below the fire lookout).
+export function dirtRoadRows(r, heightAt, skip, world = null) {
   const pts = r.points;
+  const sinkAt = junctionSink(r, world);
   const half = r.width / 2;
   const rut = r.width * 0.22;
   const DIRT = dirtColours(r);
@@ -162,7 +209,7 @@ export function dirtRoadRows(r, heightAt, skip) {
       v: across.map((o) => {
         const x = p.x + nx * o;
         const y = p.y + ny * o;
-        return [x, heightAt(x, y) + DIRT_LIFT, y];
+        return [x, heightAt(x, y) + DIRT_LIFT - sinkAt(x, y), y];
       }),
     };
   };
@@ -294,7 +341,7 @@ export function buildGround(world, scenery, terrain, batch) {
   for (const r of dirt) {
     // One mesh with the bumps and ruts in it (roadbumps.js), shoulder to
     // shoulder. Round ends are painted on the ground.
-    for (const g of dirtRoad(r, H, nearWater)) {
+    for (const g of dirtRoad(r, H, nearWater, world)) {
       batch.add(g, ID, 0xffffff, { ...NO_SHADOW, keepColors: true });
       if (A) A.surface(r.id, 'dirt_road', g, DIRT_LIFT);
     }
@@ -307,11 +354,11 @@ export function buildGround(world, scenery, terrain, batch) {
     }
   }
   for (const r of paved) {
-    addRibbon(r.points, r.width + 1.8, 0.09, 0x8c8a82, nearWater);
-    addCaps(r.points, r.width + 1.8, 0.09, 0x8c8a82, nearWater);
+    addRibbon(r.points, r.width + SHOULDER_W * 2, SHOULDER_LIFT, 0x8c8a82, nearWater);
+    addCaps(r.points, r.width + SHOULDER_W * 2, SHOULDER_LIFT, 0x8c8a82, nearWater);
     // Rural road: no white edge lines. The tar runs to the gravel edge.
-    addRibbon(r.points, r.width, 0.13, 0x66676a, nearWater);
-    addCaps(r.points, r.width, 0.13, 0x66676a, nearWater);
+    addRibbon(r.points, r.width, PAVED_LIFT, 0x66676a, nearWater);
+    addCaps(r.points, r.width, PAVED_LIFT, 0x66676a, nearWater);
   }
   // Dashed centre lines, faded by years of sun.
   for (const r of paved) {

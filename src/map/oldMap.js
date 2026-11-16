@@ -57,6 +57,29 @@ function label(scene, c, x, y, text, style, origin = [0.5, 0.5], rotation = 0) {
   return t;
 }
 
+// Every spot a name could sit on a polyline: along each straight stretch of
+// the simplified curve, longest stretch first, the middle before the ends.
+function nameSpots(dense) {
+  const pts = simplify(dense, 2.5);
+  const out = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [x1, y1] = pts[i];
+    const [x2, y2] = pts[i + 1];
+    const len = Math.hypot(x2 - x1, y2 - y1);
+    let ang = Math.atan2(y2 - y1, x2 - x1);
+    if (ang > Math.PI / 2) ang -= Math.PI;
+    if (ang < -Math.PI / 2) ang += Math.PI;
+    for (const t of [0.5, 0.35, 0.65, 0.2, 0.8]) {
+      out.push({ len, t, x: x1 + (x2 - x1) * t, y: y1 + (y2 - y1) * t, ang });
+    }
+  }
+  return out.sort((a, b) => b.len - a.len || Math.abs(a.t - 0.5) - Math.abs(b.t - 0.5));
+}
+
+// Rough text size for keeping labels apart (serif, so about half the font
+// size per letter; bold a little wider).
+const textW = (text, px, bold = false) => text.length * px * (bold ? 0.62 : 0.52);
+
 // Finds a good spot on a polyline for its name: middle of the longest
 // stretch once the curve is simplified.
 function nameSpot(dense) {
@@ -205,6 +228,34 @@ export function buildOldMap(scene, container, paper, def = WORLD.printedMaps.cou
   const { frame, s, P } = printFrame(paper, B);
   const pts = (arr) => arr.map(P);
 
+  // Where names already sit, so later names can dodge them. Straight names
+  // are boxes; a road name along a slanted road is a row of small circles.
+  const taken = [];
+  const toBox = (x, y, w, h, o) => ({ x0: x - o[0] * w, x1: x - o[0] * w + w, y0: y - o[1] * h * 1.2, y1: y - o[1] * h * 1.2 + h * 1.2 });
+  const takeBox = (x, y, w, h, o) => taken.push(toBox(x, y, w, h, o));
+  const inFrame = (b) => b.x0 >= frame.x + 3 && b.x1 <= frame.x + frame.size - 3 && b.y0 >= frame.y + 3 && b.y1 <= frame.y + frame.size - 3;
+  const boxHits = (x, y, w, h, o) => {
+    const b = toBox(x, y, w, h, o);
+    return !inFrame(b) || taken.some((q) => b.x0 < q.x1 && b.x1 > q.x0 && b.y0 < q.y1 && b.y1 > q.y0);
+  };
+  const dots = (x, y, w, ang) => {
+    const n = Math.max(2, Math.ceil(w / 7));
+    const out = [];
+    for (let i = 0; i <= n; i++) {
+      const d = -w / 2 + (w * i) / n;
+      out.push([x + Math.cos(ang) * d, y + Math.sin(ang) * d]);
+    }
+    return out;
+  };
+  const R = 5;
+  // How many of a road name's circles land on another name or off the map.
+  const lineHitCount = (x, y, w, ang) => dots(x, y, w, ang).filter(([px, py]) =>
+    !inFrame({ x0: px - R, x1: px + R, y0: py - R, y1: py + R })
+    || taken.some((q) => px > q.x0 - R && px < q.x1 + R && py > q.y0 - R && py < q.y1 + R)).length;
+  const takeLine = (x, y, w, ang) => {
+    for (const [px, py] of dots(x, y, w, ang)) taken.push({ x0: px - R, x1: px + R, y0: py - R, y1: py + R });
+  };
+
   g.fillStyle(0xeee2c0, 1);
   g.fillRect(frame.x, frame.y, frame.size, frame.size);
 
@@ -236,7 +287,11 @@ export function buildOldMap(scene, container, paper, def = WORLD.printedMaps.cou
     g.strokePoints(poly, true);
     const cx = poly.reduce((a, p) => a + p.x, 0) / poly.length;
     const maxY = Math.max(...poly.map((p) => p.y));
-    label(scene, container, cx, maxY + 9, lake.name, { fontStyle: 'italic', color: '#2d5f96', fontSize: '11px' });
+    // Kept inside the map frame (Loon Pond sits on its east edge).
+    const lw = textW(lake.name, 11);
+    const lx = Math.max(frame.x + 4 + lw / 2, Math.min(frame.x + frame.size - 4 - lw / 2, cx));
+    label(scene, container, lx, maxY + 9, lake.name, { fontStyle: 'italic', color: '#2d5f96', fontSize: '11px' });
+    takeBox(lx, maxY + 9, lw, 11, [0.5, 0.5]);
   }
 
   // Creeks.
@@ -248,26 +303,13 @@ export function buildOldMap(scene, container, paper, def = WORLD.printedMaps.cou
     const spot = nameSpot(cp.length > 4 ? cp.slice(1, -1) : cp);
     label(scene, container, spot.x - Math.sin(spot.ang) * 10, spot.y + Math.cos(spot.ang) * 10, creek.name,
       { fontStyle: 'italic', color: '#2d5f96', fontSize: '12px' }, [0.5, 0.5], spot.ang);
+    takeLine(spot.x - Math.sin(spot.ang) * 10, spot.y + Math.cos(spot.ang) * 10, textW(creek.name, 12), spot.ang);
   }
 
   // Roads (lies applied). Dirt first so paved roads sit on top at junctions.
   const { roads, bridges } = data;
   for (const r of roads) if (r.type !== 'paved') drawDirt(g, pts(r.points));
   for (const r of roads) if (r.type === 'paved') drawPaved(g, pts(r.points));
-
-  // Road names: one label per name, on the longest stretch, if there is room.
-  const named = new Map();
-  for (const r of roads) {
-    const spot = nameSpot(pts(r.points));
-    if (spot.len < 55) continue;
-    const prev = named.get(r.name);
-    if (!prev || spot.len > prev.len) named.set(r.name, spot);
-  }
-  for (const [name, spot] of named) {
-    const off = 8;
-    label(scene, container, spot.x + Math.sin(spot.ang) * off, spot.y - Math.cos(spot.ang) * off, name,
-      { fontSize: '10px', color: '#4a3a2a' }, [0.5, 0.5], spot.ang);
-  }
 
   // Bridges. Every bridge this map shows is drawn as a normal bridge.
   for (const b of bridges) {
@@ -292,6 +334,7 @@ export function buildOldMap(scene, container, paper, def = WORLD.printedMaps.cou
     label(scene, container, tx + dx, ty + dy, t.name.toUpperCase(), {
       fontSize: '13px', fontStyle: 'bold', color: '#2e241b',
     });
+    takeBox(tx + dx, ty + dy, textW(t.name, 13, true), 13, [0.5, 0.5]);
   }
   g.fillStyle(INK, 0.9);
   for (const b of data.buildings) {
@@ -306,19 +349,65 @@ export function buildOldMap(scene, container, paper, def = WORLD.printedMaps.cou
   if (farm) {
     const [fx, fy] = P([farm.x, farm.y]);
     label(scene, container, fx - 4, fy - 10, 'Hartley', { fontStyle: 'italic', fontSize: '11px' });
+    takeBox(fx - 4, fy - 10, textW('Hartley', 11), 11, [0.5, 0.5]);
   }
 
-  // Landmarks.
-  for (const lm of data.landmarks) {
+  // Landmarks: the name to the right (the church to the left, it sits on
+  // the west edge of Ashford), else whichever side is clear.
+  const marks = data.landmarks.map((lm) => {
     const [lx, ly] = P([lm.x, lm.y]);
+    takeBox(lx, ly - 2, 12, 14, [0.5, 0.5]); // the symbol
+    return { lm, lx, ly };
+  });
+  for (const { lm, lx, ly } of marks) {
     drawMapSymbol(g, lm.kind, lx, ly);
     const text = LANDMARK_LABELS[lm.kind] || lm.name;
-    // Church sits on the west edge of Ashford, so label it on the left.
-    if (lm.kind === 'church') {
-      label(scene, container, lx - 8, ly, text, { fontSize: '10px' }, [1, 0.5]);
-    } else {
-      label(scene, container, lx + 9, ly, text, { fontSize: '10px' }, [0, 0.5]);
+    const w = textW(text, 10);
+    const right = { x: lx + 9, y: ly, o: [0, 0.5] };
+    const left = { x: lx - 8, y: ly, o: [1, 0.5] };
+    const tries = [
+      ...(lm.kind === 'church' ? [left, right] : [right, left]),
+      { x: lx, y: ly - 15, o: [0.5, 0.5] },
+      { x: lx, y: ly + 13, o: [0.5, 0.5] },
+      { x: lx + 9, y: ly - 11, o: [0, 0.5] },
+      { x: lx + 9, y: ly + 11, o: [0, 0.5] },
+      { x: lx - 8, y: ly - 11, o: [1, 0.5] },
+      { x: lx - 8, y: ly + 11, o: [1, 0.5] },
+    ];
+    const pick = tries.find((q) => !boxHits(q.x, q.y, w, 10, q.o)) || tries[0];
+    label(scene, container, pick.x, pick.y, text, { fontSize: '10px' }, pick.o);
+    takeBox(pick.x, pick.y, w, 10, pick.o);
+  }
+
+  // Road names: one label per name, on the longest stretch where it clears
+  // the other names on the sheet, either side of the road.
+  const spotsByName = new Map();
+  for (const r of roads) {
+    const list = spotsByName.get(r.name) || [];
+    list.push(...nameSpots(pts(r.points)));
+    spotsByName.set(r.name, list);
+  }
+  const roadLabels = [...spotsByName].map(([name, spots]) => ({ name, spots: spots.sort((a, b) => b.len - a.len) }))
+    .sort((a, b) => (b.spots[0] ? b.spots[0].len : 0) - (a.spots[0] ? a.spots[0].len : 0));
+  for (const { name, spots } of roadLabels) {
+    const w = textW(name, 10);
+    const fits = spots.filter((sp) => sp.len >= Math.max(55, w * 0.85));
+    if (!fits.length) continue;
+    // The first clear spot; if none is clear, the one that touches the
+    // fewest other names (a road name matters more than a tidy sheet).
+    let pick = null;
+    for (const sp of fits) {
+      for (const off of [8, -8]) {
+        const x = sp.x + Math.sin(sp.ang) * off;
+        const y = sp.y - Math.cos(sp.ang) * off;
+        const hits = lineHitCount(x, y, w, sp.ang);
+        if (!pick || hits < pick.hits) pick = { x, y, ang: sp.ang, hits };
+        if (!hits) break;
+      }
+      if (!pick.hits) break;
     }
+    label(scene, container, pick.x, pick.y, name, { fontSize: '10px', color: '#4a3a2a' }, [0.5, 0.5], pick.ang);
+    takeLine(pick.x, pick.y, w, pick.ang);
   }
 
   // Frame border (double line, printed style).

@@ -588,15 +588,19 @@ export function buildPowerLines(world, terrain, batch) {
       // Heading of the line here; the crossarm runs along local x, square to it.
       const ang = Math.atan2(dx, -dy) / DEG;
       const base = H(p.x, p.y);
-      batch.add(pole, objMatrix(p.x, p.y, base - 0.3, ang), 0x5b4632);
-      if (batch.audit) batch.audit.circle(line.id || 'power', 'power_pole', p.x, p.y, 0.15, base - 0.3);
-      batch.place(arm, p.x, p.y, base, ang, 0, 0, ARM_UP - 0.12, 0x4d3b2a);
+      // A shared pole (a branch line's end, src/world/fill.js) is already
+      // drawn by the line it belongs to; only its wires are added here.
+      if (!p.shared) {
+        batch.add(pole, objMatrix(p.x, p.y, base - 0.3, ang), 0x5b4632);
+        if (batch.audit) batch.audit.circle(line.id || 'power', 'power_pole', p.x, p.y, 0.15, base - 0.3);
+        batch.place(arm, p.x, p.y, base, ang, 0, 0, ARM_UP - 0.12, 0x4d3b2a);
+      }
       const pts = [];
       for (const lx of [-ARM_HALF, 0, ARM_HALF]) {
         // The pole stands 0.3 m into the ground, so its top is POLE_H - 0.3
         // up; the middle wire sits on an insulator there, not in the air.
         const up = lx === 0 ? POLE_H - 0.3 : ARM_UP;
-        batch.place(ins, p.x, p.y, base, ang, lx, 0, up, 0x9aa3ab, { cast: false });
+        if (!p.shared) batch.place(ins, p.x, p.y, base, ang, lx, 0, up, 0x9aa3ab, { cast: false });
         const r = ang * DEG;
         pts.push([p.x + Math.cos(r) * lx, base + up + 0.2, p.y + Math.sin(r) * lx]);
       }
