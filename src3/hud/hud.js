@@ -146,6 +146,17 @@ const CSS = `
   border-radius: 8px; padding: 10px 34px; cursor: pointer; box-shadow: 3px 3px 0 rgba(0,0,0,0.35); }
 .hud-win-go:hover, .hud-win-go:focus-visible { background: #f3d58c; outline: none; }
 .hud-win-keys { color: #8a8d92; font-size: 13px; }
+.hud-win-tabs { display: flex; justify-content: center; gap: 6px; margin: 4px 0 16px; border-bottom: 1px solid rgba(230,180,80,0.35); }
+.hud-win-tab { font: 600 15px Oswald, "Arial Narrow", sans-serif; letter-spacing: 0.06em; text-transform: uppercase; color: #a9acb2;
+  background: transparent; border: 1px solid transparent; border-bottom: 0; border-radius: 8px 8px 0 0; padding: 8px 18px 7px;
+  margin-bottom: -1px; cursor: pointer; }
+.hud-win-tab:hover, .hud-win-tab:focus-visible { color: #e6b450; outline: none; }
+.hud-win-tab.on { color: #e6b450; background: rgba(230,180,80,0.08); border-color: rgba(230,180,80,0.35); border-bottom: 1px solid #23252a; }
+.hud-win-panes { display: grid; }
+.hud-win-pane { grid-area: 1 / 1; min-height: 120px; display: flex; flex-direction: column; justify-content: center; }
+.hud-win-trip .hud-win-stats { flex-direction: column; align-items: center; gap: 10px; font-size: 22px; }
+.hud-win-trip .hud-win-records { margin-top: 10px; font-size: 18px; }
+.hud-win-pane.off { visibility: hidden; }
 .hud-win-row { display: flex; justify-content: space-between; padding: 0 50px; font-size: 17px; line-height: 30px; }
 .hud-win-row span:first-child { color: #8a8d92; }
 .hud-win-row span:last-child { color: #d9d4c5; font-weight: bold; }
@@ -370,6 +381,7 @@ export function createHUD(root, { openMap, radio } = {}) {
   let mapClosedAt = -Infinity;
   let winShown = false;
   let winRecords = Promise.resolve(null); // this mission's all-player records (showWin)
+  let winTab = 0; // the win screen's open tab; kept when it is rebuilt (after M), reset by showWin
   let promptText = null;
   let card = null; // mission card while it shows
   let help = null; // how-to-play panel while it shows
@@ -700,7 +712,7 @@ export function createHUD(root, { openMap, radio } = {}) {
     // As big as fits: two side by side, with the heading and count above the dash.
     const dash = parseFloat(getComputedStyle(hud).getPropertyValue('--hud-dash-h')) || 0;
     const panelW = Math.min(1240, window.innerWidth - 32) - 48;
-    const byH = (window.innerHeight - dash - 24 - 250) * (SHIFT_CROP.w / SHIFT_CROP.h);
+    const byH = (window.innerHeight - dash - 24 - 340) * (SHIFT_CROP.w / SHIFT_CROP.h);
     const w = Math.round(Math.max(260, Math.min(600, (panelW - 22) / 2, byH)));
     const wrap = el('div', 'hud-shift', panel);
     const pair = el('div', 'hud-shift-pair', wrap);
@@ -745,8 +757,37 @@ export function createHUD(root, { openMap, radio } = {}) {
       const ul = el('ul', 'hud-win-extras', panel);
       for (const text of extras) el('li', null, ul, text);
     }
-    if (shiftDef) buildShiftCompare(panel, shiftDef);
-    const stats = el('div', 'hud-win-stats hud-mono', panel);
+    // Tabs (owner, 16 Nov: players won't scroll down to find their map and
+    // sharing): what shifted, your map and sharing, your trip.
+    const tabBar = el('div', 'hud-win-tabs', panel);
+    tabBar.setAttribute('role', 'tablist');
+    // The panes share one grid cell, so the panel is as tall as the tallest
+    // and the tabs don't jump when you switch.
+    const paneBox = el('div', 'hud-win-panes', panel);
+    const panes = [];
+    const tab = (label) => {
+      const b = el('button', 'hud-win-tab', tabBar, label);
+      b.type = 'button';
+      b.setAttribute('role', 'tab');
+      const pane = el('div', 'hud-win-pane', paneBox);
+      const i = panes.length;
+      panes.push({ b, pane });
+      b.addEventListener('click', () => showTab(i));
+      return pane;
+    };
+    const showTab = (i) => {
+      winTab = i;
+      panes.forEach((q, k) => {
+        q.pane.classList.toggle('off', k !== i);
+        q.b.classList.toggle('on', k === i);
+        q.b.setAttribute('aria-selected', String(k === i));
+      });
+    };
+    if (shiftDef) buildShiftCompare(tab('Things that shifted'), shiftDef);
+    const mapPane = m ? tab('Your maps') : null;
+    const tripPane = tab('Your trip');
+    tripPane.classList.add('hud-win-trip');
+    const stats = el('div', 'hud-win-stats hud-mono', tripPane);
     const rows = [
       ['Trip time', timerText(state.elapsedMs)],
       ['Distance', milesText(state.odometer, 2)],
@@ -762,7 +803,7 @@ export function createHUD(root, { openMap, radio } = {}) {
     // All-player records (src/net/records.js), filled in when the server
     // answers. No server or no record yet: nothing shows.
     if (m) {
-      const recBox = el('div', 'hud-win-stats hud-win-records hud-mono', panel);
+      const recBox = el('div', 'hud-win-stats hud-win-records hud-mono', tripPane);
       winRecords.then((rec) => {
         if (!recBox.isConnected) return;
         for (const [k, ms] of recordRows(rec, !!touristFor(m.id))) {
@@ -773,9 +814,8 @@ export function createHUD(root, { openMap, radio } = {}) {
       });
     }
     if (m) {
-      const maps = el('div', 'hud-win-maps', panel);
+      const maps = el('div', 'hud-win-maps', mapPane);
       const left = el('div', 'hud-win-col', maps);
-      el('h3', null, left, 'Your maps');
       const thumbs = el('div', 'hud-thumbs', left);
       // Only the final map, as it is now (it is saved when you continue).
       // The earlier snapshots stay in state for the start screen's Maps page.
@@ -799,7 +839,7 @@ export function createHUD(root, { openMap, radio } = {}) {
       // Shared maps (src/ui/mapShare.js): share yours, see other drivers'.
       // Your map is also kept in the browser for the start screen's Maps page.
       rememberMyMap(m.id, state.sketch);
-      mountShareStrip(panel, {
+      mountShareStrip(mapPane, {
         missionId: m.id,
         missionTitle: m.title,
         region: m.region,
@@ -809,6 +849,7 @@ export function createHUD(root, { openMap, radio } = {}) {
         stats: { timeMs: state.elapsedMs, km: state.odometer / 1000, tows: state.tows || 0 },
       });
     }
+    showTab(Math.min(winTab, panes.length - 1));
     // A real button to go on (Enter still works); the other keys stay as a hint.
     const foot = el('div', 'hud-win-foot', panel);
     const go = el('button', 'hud-win-go', foot, nextMission(state) ? 'Next mission \u25B8' : 'Finish \u25B8');
@@ -820,6 +861,7 @@ export function createHUD(root, { openMap, radio } = {}) {
 
   function showWin() {
     winShown = true;
+    winTab = 0;
     if (inDialogue()) closeDialogue();
     state.inputLocked = true;
     // Count this finish toward the all-player records (fire and forget); the

@@ -20,7 +20,7 @@ import { Collider } from '../src/drive/collider.js';
 import { stepCar } from '../src/drive/car.js';
 import { runtime } from './runtime.js';
 import { updateGame, jumpToMission, missionRegion } from '../src/game/update.js';
-import { MISSIONS, currentMission } from '../src/game/missions.js';
+import { MISSIONS, currentMission, currentGoal } from '../src/game/missions.js';
 import { currentMissionId } from '../src/game/tourists.js';
 import { showLoadScreen } from '../src/ui/loadScreen.js';
 import { createHUD } from './hud/hud.js';
@@ -715,7 +715,15 @@ function updateTips(dt) {
   c.radioSignal = sig;
   const now = performance.now() / 1000;
   const nShifts = state.shiftsSeen ? state.shiftsSeen.size : 0;
-  if (nShifts > shiftTip.n) shiftTip.at = now;
+  // A shift seen on the last stretch to the goal (Pike Lane runs right up to
+  // Kestrel Field's gate) doesn't call the map wrong: you're about to arrive
+  // (owner, 16 Nov). Nor does anything once you've arrived.
+  const goal = currentGoal(state);
+  const vx = foot.active ? foot.walker.x : car.x;
+  const vy = foot.active ? foot.walker.y : car.y;
+  const nearGoal = !!goal && Math.hypot(vx - goal.x, vy - goal.y) < goal.r + 250;
+  if (nShifts > shiftTip.n && !nearGoal && !state.won) shiftTip.at = now;
+  if (state.won) shiftTip.at = -Infinity;
   shiftTip.n = nShifts; // drops back to 0 when a mission starts
   c.shiftAge = now - shiftTip.at;
   tipsView.show(tips.update(c, now));
