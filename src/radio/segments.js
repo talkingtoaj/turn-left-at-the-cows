@@ -163,7 +163,7 @@ export const SEGMENTS = [
   spoken("ashford_intro_4", "ashford", "intro", 6.9, DEWEY,
     DEWEY_INTRO,
     "This one's for Ruth and Andrew. Freddie and the Poodles, Every Trail Leads Home."),
-  music("ashford_music_4", "ashford", "music", 249.9,
+  music("ashford_music_4", "ashford", "music", 251.8,
     "The owner's own song.", "Every Trail Leads Home", "Freddie and the Poodles"),
   spoken("ashford_guest", "ashford", 'guest', 42.6, "Dewey Halloran and Earl (gibberish)",
     DEWEY_VOICE + "Guest spot. Earl is the flattest man in the county: mumbling, low, no ups and downs, short bursts. His lines are made-up sounds with real sentence rhythm, not a real language. Record Earl as a second voice (older man, flat, mumbly). Leave a 3 to 4 second gap after each Dewey line where Earl speaks. Dewey does not translate or repeat what Earl says. He just carries on.",
