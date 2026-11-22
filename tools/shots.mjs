@@ -11,7 +11,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-const [, , base = 'http://localhost:5199', outDir = '.', prefix = 'shot'] = process.argv;
+const [, , base = 'http://localhost:5199', outDir = '.', prefix = 'shot', only = ''] = process.argv; // only: comma list of view names
 
 function findPlaywright() {
   const root = path.join(os.homedir(), '.npm/_npx');
@@ -40,6 +40,13 @@ const VIEWS = [
   { name: 'hartley_wide', car: { x: 2610, y: 490, heading: 0 }, cam: [2560, 40, 520], look: [2720, 0, 380] },
   { name: 'hartley_edge', car: { x: 2610, y: 490, heading: 0 }, cam: [2630, 1.8, 410], look: [2680, 3, 365] },
   { name: 'hartley_pasture', car: { x: 2745, y: 540, heading: 90 }, cam: [2752, 2.2, 532], look: [2830, 0, 440] },
+  // Hartley cows, standing in the pasture among the herd (#37).
+  // `cows: [dist, up]` aims the camera at the cow nearest the car from `dist` m away.
+  { name: 'cows_close', car: { x: 2745, y: 540, heading: 90 }, cows: [7, 1.8] },
+  { name: 'cows_herd', car: { x: 2745, y: 540, heading: 90 }, cows: [22, 7] },
+  // Okafor's herd of 16: the cow nearest the car's west side, from 14 m.
+  { name: 'cows_okafor', car: { x: 4935, y: 2125, heading: 0 }, cows: [14, 3] },
+  { name: 'cows_okafor_low', car: { x: 4935, y: 2125, heading: 0 }, cows: [5, 1] },
   // Steep pasture west of the farm: trough and feeder on the slope.
   { name: 'slope', car: { x: 2498, y: 564, heading: 0 }, cam: [2506, 1.6, 452], look: [2488, 0.3, 430] },
   { name: 'slope_wide', car: { x: 2498, y: 564, heading: 0 }, cam: [2530, 8, 480], look: [2480, 0, 420] },
@@ -77,17 +84,17 @@ await page.waitForTimeout(1500);
 // Dismiss the mission card.
 await page.keyboard.press('Enter');
 await page.waitForTimeout(500);
-// The intro card can come first and eat that key: keep pressing until the mission card is gone.
-for (let i = 0; i < 4 && (await page.$('#mission-card')); i++) {
-  await page.keyboard.press('Enter');
-  await page.waitForTimeout(600);
+// The mission card can come up after the intro card: click its Start too.
+for (let k = 0; k < 3; k++) {
+  const start = page.locator('button:visible', { hasText: /^Start$/ });
+  if (!(await start.count())) break;
+  await start.first().click();
+  await page.waitForTimeout(800);
 }
 
 fs.mkdirSync(outDir, { recursive: true });
 const stats = {};
-// SHOTS_ONLY=car_side,paved takes just those views.
-const ONLY = process.env.SHOTS_ONLY ? process.env.SHOTS_ONLY.split(',') : null;
-for (const v of VIEWS.filter((q) => !ONLY || ONLY.includes(q.name))) {
+for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) {
   await page.evaluate(async (v) => {
     const { WORLD } = await import('/src/world/world.js');
     const st = window.__state;
@@ -113,7 +120,24 @@ for (const v of VIEWS.filter((q) => !ONLY || ONLY.includes(q.name))) {
     if (!renderer.__orig) renderer.__orig = renderer.render.bind(renderer);
     const H = (px, py) => world3d.terrain.heightAt(px, py);
     renderer.render = (s, c) => {
-      if (v.cam) {
+      if (v.cows && window.__amb) {
+        // Aim at the cow nearest the car, from the car's side of it.
+        let best = null;
+        for (const a of window.__amb.animals) {
+          if (a.kind !== 'cow') continue;
+          const d = Math.hypot(a.x - st.car.x, a.y - st.car.y);
+          if (!best || d < best.d) best = { a, d };
+        }
+        if (best) {
+          const { a, d } = best;
+          const px = a.x + ((st.car.x - a.x) / d) * v.cows[0];
+          const py = a.y + ((st.car.y - a.y) / d) * v.cows[0];
+          c.position.set(px, H(px, py) + v.cows[1], py);
+          c.up.set(0, 1, 0);
+          c.lookAt(a.x, H(a.x, a.y) + 0.8, a.y);
+          c.updateMatrixWorld();
+        }
+      } else if (v.cam) {
         c.position.set(v.cam[0], H(v.cam[0], v.cam[2]) + v.cam[1], v.cam[2]);
         c.up.set(0, 1, 0);
         c.lookAt(v.look[0], H(v.look[0], v.look[2]) + v.look[1], v.look[2]);
