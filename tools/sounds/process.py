@@ -126,6 +126,11 @@ RECIPES = [
     ('car/creak3', f'{FS}/508278.ogg', 8, 1.5, 'oneshot', 'highpass=f=120', -3),
     ('car/ignition', f'{FS}/138099.ogg', 0.1, 1.8, 'oneshot', 'highpass=f=60,lowpass=f=3500', -3),
     ('car/window_wind', f'{FS}/506910.ogg', 2, 14, 'loop', 'highpass=f=120,lowpass=f=4500', -22),
+    # SPEC 9q (#39): traffic engines, heard from outside. A dually diesel idle
+    # for trucks and pickups, a small petrol idle for the cars; the game
+    # pitches both up with speed and adds the pass-by pitch drop.
+    ('traffic/diesel', f'{FS}/565597.ogg', 3, 10, 'loop', 'highpass=f=35,lowpass=f=4000', -18),
+    ('traffic/petrol', f'{FS}/522225.ogg', 4, 10, 'loop', 'highpass=f=60,lowpass=f=3500,' + SOFT, -20),
 ]
 
 

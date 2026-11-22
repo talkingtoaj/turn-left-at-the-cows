@@ -30,6 +30,7 @@ import { buildCar } from './world3d/car3d.js';
 import { CameraRig } from './world3d/camera.js';
 import { createAmbient } from '../src/ambient/ambient.js';
 import { createAudio } from '../src/audio/audio.js';
+import { trafficType } from './world3d/traffic3d.js';
 import { createRadio } from '../src/radio/radio.js';
 import { STATIONS } from '../src/radio/segments.js';
 import { createAmbient3D } from './world3d/ambient3d.js';
@@ -115,7 +116,7 @@ if (params.get('scatter') === 'off') setScatterEnabled(false);
 const car3d = buildCar({ env: look ? look.carEnv() : null });
 const rig = new CameraRig(camera);
 // Sound: one audio graph for the session; it follows the region (setWorld).
-const audio = createAudio(WORLD, { weather: true });
+const audio = createAudio(WORLD, { weather: true, trafficType });
 
 // The current region's pieces (rebuilt by loadRegion).
 let regionId = null;
@@ -610,7 +611,7 @@ function frame(now) {
   radio.update(Math.min(rawMs, 10000) / 1000, { region: regionId, x: ear.x, y: ear.y, paused: runtime.paused, inCar: !foot.active });
   audio.update(dt, state, amb, {
     paused: runtime.paused, rain: wetness, planes: planes ? planes.sound : null, tow: tow.sound,
-    listener: ear, onFoot: foot.active,
+    listener: ear, onFoot: foot.active, vehicles: dh.hz.vehicles,
   });
 
   // Fog and draw distance: driver's view is hazy; top view sees its patch
