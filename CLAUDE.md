@@ -23,3 +23,7 @@ The five default labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready
 ### Domain docs
 
 Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+### Frame rate
+
+Agent browsers render in software, so their FPS numbers mean nothing. To measure a real frame time, see `docs/agents/frame-rate.md`.

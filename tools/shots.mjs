@@ -92,13 +92,17 @@ await page.waitForTimeout(1500);
 // Dismiss the mission card.
 await page.keyboard.press('Enter');
 await page.waitForTimeout(500);
-// The mission card can come up after the intro card: click its Start too.
-for (let k = 0; k < 3; k++) {
-  const start = page.locator('button:visible', { hasText: /^Start$/ });
-  if (!(await start.count())) break;
-  await start.first().click();
-  await page.waitForTimeout(800);
+// Cards (mission, intro) can come up late, after any view: close them
+// before every shot, not just once at load.
+async function dismissCards() {
+  for (let k = 0; k < 3; k++) {
+    const btn = page.locator('button:visible', { hasText: /^(Start|Okay)$/ });
+    if (!(await btn.count())) break;
+    await btn.first().click();
+    await page.waitForTimeout(800);
+  }
 }
+await dismissCards();
 
 fs.mkdirSync(outDir, { recursive: true });
 const stats = {};
@@ -171,6 +175,7 @@ for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) 
     };
   }, v);
   await page.waitForTimeout(2500);
+  await dismissCards();
   const file = path.join(outDir, `${prefix}_${v.name}.png`);
   await page.screenshot({ path: file });
   stats[v.name] = await page.evaluate(() => {
