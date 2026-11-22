@@ -71,6 +71,19 @@ const VIEWS = [
   { name: 'traffic_kit_close', car: { road: 'hwy9', at: 0.4 }, pin: [['car6', 20, 1, 1]], tcam: [[4.6, 2.6, -4.6], [0, 1.0, 0.6]] },
   // The same three sedans, the near one after a long dirt road (#43).
   { name: 'traffic_sedans_dirty', car: { road: 'hwy9', at: 0.4 }, pin: [['car0', 16, 1, 1], ['car4', 24, 1, 1], ['car9', 32, 1, 1]], dirt: [['car0', 0.8], ['car4', 0.45]], tcam: [[6, 2.6, -22], [0, 0.8, -8]] },
+  // The boxy old 4x4 (#44, car4): front three-quarter, side, rear (spare on
+  // the door), and in a row with other traffic seen from the player's car.
+  { name: 'traffic_4x4', car: { road: 'hwy9', at: 0.4 }, pin: [['car4', 20, 1, 1]], tcam: [[4.4, 1.7, -5.6], [0, 1.0, 0]] },
+  { name: 'traffic_4x4_side', car: { road: 'hwy9', at: 0.4 }, pin: [['car4', 20, 1, 1]], tcam: [[5.6, 1.3, -0.2], [0, 1.0, 0]] },
+  { name: 'traffic_4x4_rear', car: { road: 'hwy9', at: 0.4 }, pin: [['car4', 20, 1, 1]], tcam: [[3.4, 1.9, 6.0], [0, 1.0, 0]] },
+  { name: 'traffic_4x4_row', car: { road: 'hwy9', at: 0.4 }, pin: [['car4', 26, -1, -1], ['car2', 34, 1, 1], ['car1', 44, -1, -1], ['car6', 54, 1, 1]], rel: [0.6, 2.2, 5.5] },
+  // Panel van (#46): car6, front 3/4, right side (sliding door), rear doors.
+  { name: 'traffic_van', car: { road: 'hwy9', at: 0.4 }, pin: [['car6', 20, 1, 1]], tcam: [[4.4, 1.8, -5.4], [0, 1.0, 0.3]] },
+  { name: 'traffic_van_side', car: { road: 'hwy9', at: 0.4 }, pin: [['car6', 20, 1, 1]], tcam: [[5.8, 1.5, 0.4], [0, 1.0, 0.4]] },
+  // The van's other looks: a stripe and a ladder; a lower tone, flaps and nothing on the roof.
+  { name: 'traffic_van_stripe', car: { road: 'hwy9', at: 0.4 }, pin: [['car6', 20, 1, 1]], kit: [['car6', ['stripe', 'ladder']]], tcam: [[4.4, 1.8, -5.4], [0, 1.0, 0.3]] },
+  { name: 'traffic_van_plain', car: { road: 'hwy9', at: 0.4 }, pin: [['car6', 20, 1, 1]], kit: [['car6', ['lowerTone', 'flaps']]], tcam: [[5.8, 1.5, 0.4], [0, 1.0, 0.4]] },
+  { name: 'traffic_van_rear', car: { road: 'hwy9', at: 0.4 }, pin: [['car6', 20, 1, 1]], tcam: [[-3.4, 2.0, 6.4], [0, 1.1, 0.6]] },
   { name: 'traffic_row', car: { road: 'hwy9', at: 0.4 }, pin: [['car1', 30, -1, -1], ['car2', 38, 1, 1], ['car3', 46, -1, -1], ['car5', 54, 1, 1], ['car6', 62, -1, -1], ['car8', 70, 1, 1]], rel: [0.6, 2.2, 5.5] },
   // One car each side of the 40 m switch, same camera: no pop between them.
   { name: 'traffic_switch_in', car: { road: 'hwy9', at: 0.4 }, pin: [['car0', 37, -1, -1]], rel: [1.2, 2.4, -3], relLook: [-2.4, 0.6, -40] },
@@ -179,6 +192,12 @@ for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) 
     if (window.__trafficDirt) {
       for (const id of window.__dirtied || []) window.__trafficDirt(id, 0);
       window.__dirtied = (v.dirt || []).map(([id, d]) => (window.__trafficDirt(id, d), id));
+    }
+    // Another kit on a traffic car for this view (#46: the van's variants);
+    // cars an earlier view changed get their own kit back.
+    if (window.__trafficKit) {
+      for (const id of window.__kitted || []) window.__trafficKit(id, null);
+      window.__kitted = (v.kit || []).map(([id, parts]) => (window.__trafficKit(id, parts), id));
     }
     const { renderer, camera, world3d } = window.__three;
     if (!renderer.__orig) renderer.__orig = renderer.render.bind(renderer);

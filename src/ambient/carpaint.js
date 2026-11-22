@@ -6,6 +6,9 @@
 // 3D code paints it on pickups only.
 //
 //   carPaint('car3') -> { color, color2, age }   // color2 null when one tone
+//   carPaint('car4', 'fourbyfour')               // a type with its own colors (TYPE_PALETTE)
+//   carPaint('car6', 'van')   // work van colors (VAN_PALETTE); color2 always set,
+//                             // the accent its business paint uses (#46)
 //
 // Same id, same paint, every time.
 
@@ -29,6 +32,47 @@ export const PALETTE = [
   [0x8e2a24, 4], // red (kept dark: they fade)
   [0x2b5452, 2], // dark teal (1990s)
 ];
+// The boxy old 4x4 (#44) has its own colors: the paint of working 4x4s
+// that live outside on farms, sand, khaki and olive, a burnt orange like
+// the owner's reference, white, and the odd faded red or blue-gray. All
+// kept dull: they fade.
+export const TYPE_PALETTE = {
+  fourbyfour: [
+    [0xe2ded2, 12], // white
+    [0xbfae88, 10], // sand
+    [0x8f8562, 6], // khaki
+    [0x4f5a36, 8], // olive
+    [0x24402f, 6], // dark green
+    [0x93552a, 8], // burnt orange
+    [0x6b4a2e, 5], // brown
+    [0x7a2620, 4], // faded red
+    [0x6f7d86, 5], // blue-gray
+    [0x1f2a42, 3], // navy
+    [0xa7abae, 4], // silver
+    [0xd2c7a8, 4], // cream
+    [0x1d1e20, 2], // black
+  ],
+};
+// Work vans (#46): mostly white, then tan, cream, faded blues and the odd
+// dark one. [sRGB hex, weight]
+export const VAN_PALETTE = [
+  [0xe6e4de, 30], // white
+  [0xd6cdb5, 8], // cream
+  [0xb5a283, 10], // tan
+  [0x5d7590, 8], // faded blue
+  [0x3a5068, 4], // slate blue
+  [0xa7abae, 7], // silver
+  [0x787d82, 4], // medium gray
+  [0x4d3424, 4], // brown
+  [0x24402f, 4], // dark green
+  [0x1f2a42, 4], // navy
+  [0x5a1a1e, 3], // maroon
+  [0xc7b894, 4], // champagne
+];
+// A van's accent (stripe or lower tone): dark on a light van, light on a dark one.
+const VAN_ACCENT_ON_LIGHT = [0x1f2a42, 0x5a1a1e, 0x24402f, 0x4d3424, 0x3a5068, 0x8e2a24];
+const VAN_ACCENT_ON_DARK = [0xe6e4de, 0xd6cdb5];
+
 // Lower tones for two-tone paint, picked to go with the upper one.
 const LOWER_ON_LIGHT = [0x5a1a1e, 0x1f2a42, 0x4d3424, 0xb5a283, 0x24402f, 0x45484b];
 const LOWER_ON_DARK = [0xa7abae, 0xe6e4de, 0xb5a283, 0xd6cdb5];
@@ -63,16 +107,17 @@ function pick(list, r) {
   return list[list.length - 1][0];
 }
 
-export function carPaint(id) {
+export function carPaint(id, kind = '') {
   const r = makeRng(hashString(String(id)) || 1);
-  const base = pick(PALETTE, r);
+  const van = kind === 'van';
+  const base = pick(van ? VAN_PALETTE : TYPE_PALETTE[kind] || PALETTE, r);
   const age = r(); // 0 new-ish, 1 an old car that lived outside
   const color = weather(base, r, age);
   let color2 = null;
-  if (r() < TWO_TONE) {
+  if (van || r() < TWO_TONE) {
     const [rr, gg, bb] = toRgb(base);
     const light = 0.3 * rr + 0.59 * gg + 0.11 * bb > 0.5;
-    const opts = (light ? LOWER_ON_LIGHT : LOWER_ON_DARK).filter((c) => c !== base);
+    const opts = (light ? (van ? VAN_ACCENT_ON_LIGHT : LOWER_ON_LIGHT) : van ? VAN_ACCENT_ON_DARK : LOWER_ON_DARK).filter((c) => c !== base);
     color2 = weather(opts[Math.floor(r() * opts.length)], r, age);
   }
   return { color, color2, age };
