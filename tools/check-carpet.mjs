@@ -10,9 +10,14 @@
 //   - every pebble on a dirt road (or its shoulder), out of the ruts and away
 //     from the road's ends;
 //   - a tile is the same every time it is made.
+// Wildflowers and clover (#41) on the same tiles: the same no-go places as
+// the grass, a known kind for every flower, the same flowers every time, and
+// over a sample of tiles in each region, more of both on damp ground than
+// dry (C.dampAt).
 // The tile window, over a run of camera positions: it reports a change only
 // when the camera crosses into a new tile, lists every tile within reach
-// nearest first and nothing far, and the far tiles keep fewer clumps.
+// nearest first and nothing far, and the far tiles keep fewer clumps. The
+// same for the flowers' wider window.
 
 import { setRegion, REGION_IDS } from '../src/world/world.js';
 import { roughnessFor } from '../src/world/roughness.js';
@@ -21,7 +26,7 @@ import {
   distToPolyline, pointInPolygon, distToPolygonEdge, circleHitsRect, bbox,
 } from '../src/drive/geom.js';
 import {
-  makeCarpet, TileWindow, keepShare, CARPET, TILE, GRASS_STRIDE, PEBBLE_STRIDE,
+  makeCarpet, TileWindow, keepShare, flowerKeepShare, CARPET, FLOWER, FLOWER_KINDS, TILE, GRASS_STRIDE, PEBBLE_STRIDE, CLOVER_STRIDE, FLOWER_STRIDE,
 } from '../src/world/carpet.js';
 
 let failed = 0;
@@ -70,11 +75,43 @@ for (const id of REGION_IDS) {
   let nGrass = 0;
   let nPeb = 0;
   let nTiles = 0;
+  let nClover = 0;
+  let nFlower = 0;
   const t0 = Date.now();
+  // A plant at (x, y) whose leaves reach `reach` m: none of the no-go places.
+  const plantOK = (where, x, y, reach) => {
+    for (const rd of W.roads) {
+      const d = distToPolyline(x, y, rd.points) - rd.width / 2;
+      const shoulder = rd.type === 'paved' ? 0.9 : 0.8;
+      if (d < shoulder + reach * 0.5) fail(`${where}: ${f1(d)} m from ${rd.id}'s edge`);
+    }
+    for (const p of pads) if (circleHitsRect(x, y, reach, p)) fail(`${where}: on a ${p.kind} pad`);
+    for (const b of W.bridges) if (Math.hypot(b.x - x, b.y - y) < b.length / 2) fail(`${where}: at bridge ${b.id}`);
+    for (const c of W.creeks) if (distToPolyline(x, y, c.points) < c.width / 2 + 1) fail(`${where}: in creek ${c.id}`);
+    const crop = inPoly(crops, x, y, 0.3);
+    if (crop) fail(`${where}: in crop field ${crop.id}`);
+    const fo = inPoly(forests, x, y, 0);
+    if (fo) fail(`${where}: in forest ${fo.id}`);
+    const lk = inPoly(lakes, x, y, 1);
+    if (lk) fail(`${where}: in lake ${lk.id}`);
+    for (const tw of W.towns) if (Math.hypot(tw.x - x, tw.y - y) < (tw.ambienceR || 150) * 0.6) fail(`${where}: in town ${tw.id}`);
+  };
   for (const key of keys) {
     const [i, j] = key.split(',').map(Number);
     const t = C.tile(i, j);
     nTiles++;
+    for (let k = 0; k < t.clover.length; k += CLOVER_STRIDE) {
+      nClover++;
+      // A clump at scale 1.25 (x 2.1 when drawn) spreads about 0.2 m.
+      plantOK(`${id} clover at ${f1(t.clover[k])},${f1(t.clover[k + 2])}`, t.clover[k], t.clover[k + 2], 0.25);
+    }
+    const fl = C.flowerTile(i, j);
+    for (let k = 0; k < fl.length; k += FLOWER_STRIDE) {
+      nFlower++;
+      const where = `${id} flower at ${f1(fl[k])},${f1(fl[k + 2])}`;
+      if (!FLOWER_KINDS[fl[k + 5]]) fail(`${where}: unknown kind ${fl[k + 5]}`);
+      plantOK(where, fl[k], fl[k + 2], 0.3);
+    }
     for (let k = 0; k < t.grass.length; k += GRASS_STRIDE) {
       const x = t.grass[k];
       const y = t.grass[k + 2];
@@ -129,19 +166,61 @@ for (const id of REGION_IDS) {
   const [ri, rj] = [...keys][Math.floor(keys.size / 2)].split(',').map(Number);
   const a = C.tile(ri, rj);
   const b = makeCarpet(W, R, flatH, []).tile(ri, rj);
+  const C2 = makeCarpet(W, R, flatH, []);
   if (a.grass.length !== b.grass.length || a.grass.some((v, k) => v !== b.grass[k])) fail(`${id}: tile ${ri},${rj} differs when made again`);
+  // Flowers and clover the same every time too, on a tile that has some.
+  let fk = null;
+  for (const key of keys) {
+    const [i, j] = key.split(',').map(Number);
+    if (C.flowerTile(i, j).length && C.tile(i, j).clover.length) {
+      fk = [i, j];
+      break;
+    }
+  }
+  if (!fk) fail(`${id}: no tile with both flowers and clover`);
+  else {
+    const f1a = C.flowerTile(...fk);
+    const f1b = C2.flowerTile(...fk);
+    if (f1a.length !== f1b.length || f1a.some((v, k) => v !== f1b[k])) fail(`${id}: flower tile ${fk} differs when made again`);
+    const ca = C.tile(...fk).clover;
+    const cb = C2.tile(...fk).clover;
+    if (ca.length !== cb.length || ca.some((v, k) => v !== cb[k])) fail(`${id}: clover on tile ${fk} differs when made again`);
+  }
+  // Thicker in damp bottoms: a seeded sample of grassy tiles across the map.
+  const dd = { damp: { t: 0, f: 0, c: 0 }, dry: { t: 0, f: 0, c: 0 } };
+  let seed = 12345;
+  const rnd = () => ((seed = (seed * 1103515245 + 12345) >>> 0) / 2 ** 32);
+  for (let s = 0; s < 3000; s++) {
+    const i = Math.floor(rnd() * W.size.w / TILE);
+    const j = Math.floor(rnd() * W.size.h / TILE);
+    const x = (i + 0.5) * TILE;
+    const y = (j + 0.5) * TILE;
+    if (C.grassAt(x, y) <= 0) continue;
+    const damp = C.dampAt(x, y);
+    const g = damp > 0.6 ? dd.damp : damp < 0.2 ? dd.dry : null;
+    if (!g) continue;
+    g.t++;
+    g.f += C.flowerTile(i, j).length / FLOWER_STRIDE;
+    g.c += C.tile(i, j).clover.length / CLOVER_STRIDE;
+  }
+  const per = (g, k) => (g.t ? g[k] / g.t : 0);
+  if (dd.damp.t < 50 || dd.dry.t < 50) fail(`${id}: too few sample tiles (damp ${dd.damp.t}, dry ${dd.dry.t})`);
+  if (per(dd.damp, 'f') < 1.5 * per(dd.dry, 'f')) fail(`${id}: flowers not thicker in damp ground (${f1(per(dd.damp, 'f'))} vs ${f1(per(dd.dry, 'f'))} a tile)`);
+  if (per(dd.damp, 'c') < 1.3 * per(dd.dry, 'c')) fail(`${id}: clover not thicker in damp ground (${f1(per(dd.damp, 'c'))} vs ${f1(per(dd.dry, 'c'))} a tile)`);
+  if (per(dd.dry, 'f') <= 0) fail(`${id}: no flowers at all on dry ground`);
+  console.log(`${id}: flowers a tile damp ${f1(per(dd.damp, 'f'))}, dry ${f1(per(dd.dry, 'f'))}; clover damp ${f1(per(dd.damp, 'c'))}, dry ${f1(per(dd.dry, 'c'))}`);
   if (nGrass < nTiles * 20) fail(`${id}: only ${nGrass} grass clumps on ${nTiles} tiles (too thin?)`);
   if (nPeb < 100) fail(`${id}: only ${nPeb} pebbles`);
-  console.log(`${id}: ${nTiles} tiles, ${nGrass} grass clumps, ${nPeb} pebbles checked in ${Date.now() - t0} ms`);
+  if (nFlower < 200 || nClover < 200) fail(`${id}: only ${nFlower} flowers and ${nClover} clover clumps checked`);
+  console.log(`${id}: ${nTiles} tiles, ${nGrass} grass clumps, ${nPeb} pebbles, ${nClover} clover, ${nFlower} flowers checked in ${Date.now() - t0} ms`);
 }
 
-// ---- Tile window over a drive.
-{
-  const win = new TileWindow();
-  const r = CARPET.radius;
+// ---- Tile windows (grass, then the flowers' wider one) over a drive.
+for (const [r, label] of [[CARPET.radius, 'grass'], [FLOWER.radius, 'flowers']]) {
+  const win = new TileWindow(r);
   const at = (x, y, expectChange, label) => {
     const w = win.update(x, y);
-    if (w.changed !== expectChange) fail(`window ${label}: changed ${w.changed}, expected ${expectChange}`);
+    if (w.changed !== expectChange) fail(`window (${r} m) ${label}: changed ${w.changed}, expected ${expectChange}`);
     const cx = (Math.floor(x / TILE) + 0.5) * TILE;
     const cy = (Math.floor(y / TILE) + 0.5) * TILE;
     const keys = new Set(w.tiles.map((t) => t.key));
@@ -172,6 +251,10 @@ for (const id of REGION_IDS) {
   if (Math.abs(keepShare(CARPET.radius) - CARPET.farKeep) > 1e-6) fail(`keepShare(radius) = ${keepShare(CARPET.radius)}`);
   if (keepShare(CARPET.radius + TILE + 1) !== 0) fail('keepShare beyond reach not 0');
   for (let d = 0; d < CARPET.radius; d += 1) if (keepShare(d + 1) > keepShare(d)) fail(`keepShare rises at ${d} m`);
+  if (flowerKeepShare(0) !== 1) fail('flowerKeepShare(0) not 1');
+  if (Math.abs(flowerKeepShare(FLOWER.radius) - FLOWER.farKeep) > 1e-6) fail(`flowerKeepShare(radius) = ${flowerKeepShare(FLOWER.radius)}`);
+  if (flowerKeepShare(FLOWER.radius + TILE + 1) !== 0) fail('flowerKeepShare beyond reach not 0');
+  for (let d = 0; d < FLOWER.radius; d += 1) if (flowerKeepShare(d + 1) > flowerKeepShare(d)) fail(`flowerKeepShare rises at ${d} m`);
 }
 
 if (failed) {

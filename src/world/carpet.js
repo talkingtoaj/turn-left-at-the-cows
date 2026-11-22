@@ -10,9 +10,21 @@
 //   C.tile(i, j) -> { grass: Float32Array (GRASS_STRIDE per blade clump),
 //                     pebbles: Float32Array (PEBBLE_STRIDE per pebble) }
 //   C.grassAt(x, y) -> 0 (none) .. 1 (full height) grass scale here
+//   C.flowerTile(i, j) -> Float32Array (FLOWER_STRIDE per flower clump)
+//   C.dampAt(x, y)  -> 0 (dry) .. 1 (wet bottom)
+//   C.flowerAt(x, y), C.cloverAt(x, y) -> 0..1 patch strength here
 //
 //   grass clump:  x, y (ground height), z, rot, scale, tint, rank
 //   pebble:       x, y (top of the road bed), z, rot, size, tint
+//   clover:       x, y, z, rot, scale, bloom (0 white .. 1 red), rank
+//   flower:       x, y, z, rot, scale, kind (index into FLOWER_KINDS), rank
+//
+// Wildflowers and clover (SPEC 9q tier 1, item 6) grow in patches over the
+// same ground as the grass (never on a road, its verge gap, or a yard), and
+// the patches are bigger and thicker in damp bottoms: Willow Bottoms, the
+// low ground by creeks and lakes (./mud.js) and hollows. Clover comes with
+// the grass tiles (same reach). Flowers have their own, wider reach
+// (FLOWER.radius), so a patch shows from further off: C.flowerTile.
 //
 // World x, y map to three.js x, z as everywhere else (y is up in the
 // records). rank (0..1) lets the far tiles draw only some clumps.
@@ -28,6 +40,7 @@
 import { pointInPolygon, distToPolygonEdge, bbox, circleHitsRect } from '../drive/geom.js';
 import { makePads } from '../drive/layout.js';
 import { makeNoise, smoothstep } from './noise.js';
+import { mudFor } from './mud.js';
 
 export const TILE = 8; // m
 export const CARPET = {
@@ -42,6 +55,27 @@ export const CARPET = {
 };
 export const GRASS_STRIDE = 7;
 export const PEBBLE_STRIDE = 6;
+export const CLOVER_STRIDE = 7;
+export const FLOWER_STRIDE = 7;
+// Wildflowers (and clover) patches.
+export const FLOWER = {
+  radius: 64, // m from the camera: flowers drawn this far
+  fade: 46, // m: they shrink into the ground from here to radius
+  full: 24, // m: every clump drawn inside this, fewer beyond
+  farKeep: 0.45,
+  spacing: 1.0, // m between flower clump tries inside a patch
+  cloverSpacing: 0.5,
+};
+// Midwest roadside and meadow flowers. damp: 1 likes wet ground, 0 dry, 0.5
+// either. h: height (m) at scale 1.
+export const FLOWER_KINDS = [
+  { name: 'daisy', color: 0xeeeadb, damp: 0.3, h: 0.45 }, // oxeye daisy, Queen Anne's lace
+  { name: 'susan', color: 0xe8ae1c, damp: 0.2, h: 0.5 }, // black-eyed Susan, goldenrod
+  { name: 'chicory', color: 0x8199e0, damp: 0.1, h: 0.55 }, // chicory
+  { name: 'ironweed', color: 0x8a46a6, damp: 0.85, h: 0.8 }, // ironweed, wild bergamot
+  { name: 'joepye', color: 0xcd84a6, damp: 0.95, h: 0.75 }, // Joe-Pye weed
+  { name: 'marigold', color: 0xf0c83a, damp: 1, h: 0.35 }, // marsh marigold
+];
 const DIRT_LIFT = 0.04; // src3/world3d/ground.js
 const NO_GRASS = new Set(['crop', 'hay', 'plowed', 'forest', 'lawn']);
 
@@ -54,6 +88,11 @@ const hash = (x, y, s) => {
 export function makeCarpet(world, R, heightAt, quarries = []) {
   const nDry = makeNoise((world.seed || 1) + 4401);
   const nPatch = makeNoise((world.seed || 1) + 4402);
+  const nFlower = makeNoise((world.seed || 1) + 4403);
+  const nFlower2 = makeNoise((world.seed || 1) + 4404);
+  const nKind = makeNoise((world.seed || 1) + 4405);
+  const nClover = makeNoise((world.seed || 1) + 4406);
+  const mud = mudFor(world);
   // Forests and crop fields exactly (the roughness patches blend at their edges).
   const forests = [
     ...(world.forests || []).map((f) => ({ poly: f.polygon, bb: bbox(f.polygon), pad: 2 })),
@@ -83,6 +122,111 @@ export function makeCarpet(world, R, heightAt, quarries = []) {
     let s = g.type === 'pasture' ? 0.6 : 1;
     s *= 0.6 + 0.4 * smoothstep(CARPET.roadGap, CARPET.roadGap + 3, g.fd);
     return s;
+  }
+
+  // How damp the ground is: the wet bottoms (mud.js) and hollows.
+  function dampAt(x, y) {
+    const h = R.at(x, y, true).h;
+    return Math.min(1, Math.max(mud.at(x, y), 0.8 * smoothstep(0.1, -0.6, h)));
+  }
+  // Patch strength (0..1) of wildflowers here, before the ground rules; damp
+  // ground lowers the bar, so its patches are bigger and run together.
+  function flowerPatch(x, y, damp) {
+    const n = 0.7 * nFlower(x / 26, y / 26) + 0.3 * nFlower2(x / 7, y / 7);
+    const bar = 0.38 - 0.22 * damp;
+    return smoothstep(bar, bar + 0.18, n);
+  }
+  function cloverPatch(x, y, damp, pasture) {
+    const n = 0.75 * nClover(x / 11, y / 11) + 0.25 * nFlower2(x / 3.5 + 40, y / 3.5);
+    const bar = 0.4 - 0.25 * damp - (pasture ? 0.15 : 0);
+    return smoothstep(bar, bar + 0.15, n);
+  }
+  function flowerAt(x, y) {
+    if (grassAt(x, y) <= 0) return 0;
+    const pasture = R.at(x, y).type === 'pasture';
+    return flowerPatch(x, y, dampAt(x, y)) * (pasture ? 0.45 : 1);
+  }
+  function cloverAt(x, y) {
+    if (grassAt(x, y) <= 0) return 0;
+    return cloverPatch(x, y, dampAt(x, y), R.at(x, y).type === 'pasture');
+  }
+  // Which flower grows here: the patch's own pick (low noise) leaning to the
+  // wet-ground kinds in damp bottoms.
+  function kindAt(x, y, damp, h) {
+    const k = 0.5 + 0.5 * nKind(x / 40, y / 40);
+    let best = 0;
+    let bestS = -Infinity;
+    for (let i = 0; i < FLOWER_KINDS.length; i++) {
+      const f = FLOWER_KINDS[i];
+      const s = -1.3 * Math.abs(f.damp - damp) - 1.6 * Math.abs(k - (i + 0.5) / FLOWER_KINDS.length) + 0.9 * h * hash(i, h, 9);
+      if (s > bestS) {
+        bestS = s;
+        best = i;
+      }
+    }
+    return best;
+  }
+
+  function flowerTile(i, j) {
+    const x0 = i * TILE;
+    const y0 = j * TILE;
+    const out = [];
+    const sp = FLOWER.spacing;
+    const n = Math.round(TILE / sp);
+    for (let a = 0; a < n; a++) {
+      for (let b = 0; b < n; b++) {
+        const gx = x0 + (a + 0.5) * (TILE / n);
+        const gy = y0 + (b + 0.5) * (TILE / n);
+        // Cheap reject first: no patch even at the dampest.
+        const n0 = 0.7 * nFlower(gx / 26, gy / 26) + 0.3 * nFlower2(gx / 7, gy / 7);
+        if (n0 < 0.02) continue;
+        const x = gx + (hash(gx, gy, 21) - 0.5) * sp * 0.95;
+        const y = gy + (hash(gx, gy, 22) - 0.5) * sp * 0.95;
+        if (grassAt(x, y) <= 0) continue;
+        const damp = dampAt(x, y);
+        const pasture = R.at(x, y).type === 'pasture';
+        const p = flowerPatch(x, y, damp) * (pasture ? 0.45 : 1);
+        if (hash(gx, gy, 23) >= p * 0.75) continue;
+        const kind = kindAt(x, y, damp, hash(gx, gy, 24));
+        out.push(
+          x, heightAt(x, y) - 0.02, y,
+          hash(gx, gy, 25) * Math.PI * 2,
+          (0.7 + 0.5 * hash(gx, gy, 26)) * (0.75 + 0.25 * p),
+          kind,
+          hash(gx, gy, 27),
+        );
+      }
+    }
+    return new Float32Array(out);
+  }
+
+  // Clover clumps in this tile (a finer grid, only inside clover patches).
+  function cloverTile(x0, y0) {
+    const out = [];
+    const sp = FLOWER.cloverSpacing;
+    const n = Math.round(TILE / sp);
+    for (let a = 0; a < n; a++) {
+      for (let b = 0; b < n; b++) {
+        const gx = x0 + (a + 0.5) * (TILE / n);
+        const gy = y0 + (b + 0.5) * (TILE / n);
+        const n0 = 0.75 * nClover(gx / 11, gy / 11) + 0.25 * nFlower2(gx / 3.5 + 40, gy / 3.5);
+        if (n0 < 0.0) continue;
+        const x = gx + (hash(gx, gy, 31) - 0.5) * sp * 0.9;
+        const y = gy + (hash(gx, gy, 32) - 0.5) * sp * 0.9;
+        if (grassAt(x, y) <= 0) continue;
+        const damp = dampAt(x, y);
+        const p = cloverPatch(x, y, damp, R.at(x, y).type === 'pasture');
+        if (hash(gx, gy, 33) >= p * 0.85) continue;
+        out.push(
+          x, heightAt(x, y) - 0.01, y,
+          hash(gx, gy, 34) * Math.PI * 2,
+          0.75 + 0.5 * hash(gx, gy, 35),
+          hash(gx, gy, 36) < 0.25 ? 1 : hash(gx, gy, 37) * 0.3, // a few red clover heads among the white
+          hash(gx, gy, 38),
+        );
+      }
+    }
+    return new Float32Array(out);
   }
 
   function tile(i, j) {
@@ -134,7 +278,7 @@ export function makeCarpet(world, R, heightAt, quarries = []) {
         }
       }
     }
-    return { grass: new Float32Array(grass), pebbles: new Float32Array(pebbles) };
+    return { grass: new Float32Array(grass), pebbles: new Float32Array(pebbles), clover: cloverTile(x0, y0) };
   }
 
   // Chance (0..1) of a pebble at (x, y): on a dirt road, on the hump and the
@@ -154,7 +298,7 @@ export function makeCarpet(world, R, heightAt, quarries = []) {
     return 0.12;
   }
 
-  return { tile, grassAt, pebbleAt };
+  return { tile, flowerTile, grassAt, pebbleAt, dampAt, flowerAt, cloverAt };
 }
 
 // How many clumps of a tile to draw at distance d (m) from the camera: all
@@ -162,6 +306,12 @@ export function makeCarpet(world, R, heightAt, quarries = []) {
 export function keepShare(d) {
   if (d > CARPET.radius + TILE) return 0;
   return 1 - (1 - CARPET.farKeep) * smoothstep(CARPET.full, CARPET.radius, d);
+}
+
+// The same for flowers, over their wider reach.
+export function flowerKeepShare(d) {
+  if (d > FLOWER.radius + TILE) return 0;
+  return 1 - (1 - FLOWER.farKeep) * smoothstep(FLOWER.full, FLOWER.radius, d);
 }
 
 // Which tiles should be up around the camera. update(x, y) says whether the
