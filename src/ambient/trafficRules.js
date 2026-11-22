@@ -189,6 +189,43 @@ export function turnPose(w, t) {
 // when clear (paved roads never stop); it waits for cars already in the
 // junction and for the player. Dead ends and broken bridges: a three-point
 // turn (turnPose), never a flip on the spot.
+// Held up by other cars, not the player (a knot at a junction, a car stuck
+// ahead): after a while it toots (the HONK bursts, later and shorter), and
+// if still stuck it gives way: backs up or turns round (the same three-point
+// turn), so the knot clears. Only one car in a knot gives way at a time: the
+// one that has waited longest (jamGiver).
+export const JAM = {
+  bursts: [
+    { at: 12, beeps: [0.35] },
+    { at: 15, beeps: [0.35, 0.35] },
+    { at: 19, beeps: [0.4, 0.4, 1.1] },
+  ],
+  gap: 0.2,
+  leanAt: Infinity, // no lean: it gives way instead
+  leanLen: 0,
+  grace: 1.5, // s moving before the count starts over
+  giveAt: 23, // s held up before it gives way
+  knotR: 45, // m: cars this close count as one knot
+  holdMax: 6, // s it waits for room to turn before it tries driving on again
+};
+
+// Who in a knot gives way: knot = [{ i, t, giving }] (t: s held up, giving:
+// already giving way). Returns that car's i, or -1 when nobody should now
+// (one is already giving way, or none has waited JAM.giveAt).
+export function jamGiver(knot, J = JAM) {
+  let best = -1;
+  let bestT = -1;
+  for (const k of knot) {
+    if (k.giving) return -1;
+    if (k.t < J.giveAt) continue;
+    if (k.t > bestT || (k.t === bestT && k.i < best)) {
+      best = k.i;
+      bestT = k.t;
+    }
+  }
+  return best;
+}
+
 export const JUNCTION = {
   brake: 2.2, // m/s² a car slows at for a turn or a stop line
   turnV: [4.5, 11], // m/s through a square turn ... a gentle bend

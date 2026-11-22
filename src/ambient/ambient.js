@@ -12,7 +12,7 @@ import {
 } from '../drive/geom.js';
 import {
   TRAFFIC, relTo, inLane, playerSpeedCap, seenByPlayer, respawnReason, goodRespawn,
-  HONK, hornOn, honkStage, stepBlocked, turnPose, turnLength,
+  HONK, hornOn, honkStage, stepBlocked, turnPose, turnLength, JAM, jamGiver,
   JUNCTION, brakeCap, turnSpeed, turnRoom, turnSide, blinkLit, blinkNow, stopsAt, junctionCurve, curveAt, headedInto,
 } from './trafficRules.js';
 
@@ -276,6 +276,8 @@ export function createAmbient(world, scenery) {
     cs.skip = 0;
     cs.stuckT = 0;
     if (cs.honk) cs.honk.t = cs.honk.clearT = 0;
+    if (cs.jam) cs.jam.t = cs.jam.clearT = 0;
+    c.wait = '';
     cs.leave = null;
     cs.plan = null;
     cs.curve = null;
@@ -293,8 +295,60 @@ export function createAmbient(world, scenery) {
     c.speed = 0;
     c.onDirt = cs.n.road.type !== 'paved';
   }
+  // The road's direction at s, averaged over a few metres either side, so
+  // the lane point rounds a sharp corner (town streets turn square) instead
+  // of jumping across it.
+  const dirScratch = {};
+  const LANE_ROUND = 5; // m
+  const BEND_LOOK = [0, 2, 4, 7, 11, 16, 24, 34]; // m ahead it looks for a sharp bend
+  const BEND_DEG = 4; // deg/m: ...one turning faster than this
+  const CURVE_RATE = 90; // deg/s at most while it drives a junction curve or a sharp bend
+  const roundOut = { x: 0, y: 0, dx: 0, dy: 0 };
+  // Rounded road point at s (reuses one object: read it before the next call).
+  function roundPoint(n, s) {
+    const h = Math.min(Math.max(LANE_ROUND, n.road.width * 0.5), s, n.len - s);
+    if (!(h > 0.5)) return null;
+    const a = roadPoint(n, s - h, dirScratch);
+    const i0 = dirScratch.seg;
+    const b = roadPoint(n, s + h, dirScratch);
+    const L = Math.hypot(b.x - a.x, b.y - a.y);
+    if (!(L > 1e-6)) return null;
+    // Position: the road's average point over [s - h, s + h] (a box filter,
+    // which rounds a corner smoothly; its direction is the chord a -> b).
+    const o = roundOut;
+    o.dx = (b.x - a.x) / L;
+    o.dy = (b.y - a.y) / L;
+    if (dirScratch.seg === i0) {
+      o.x = (a.x + b.x) / 2;
+      o.y = (a.y + b.y) / 2;
+      return o;
+    }
+    const cum = n.cum;
+    let sx = 0;
+    let sy = 0;
+    for (let i = i0; i <= dirScratch.seg; i++) {
+      const lo = Math.max(cum[i], s - h);
+      const hi = Math.min(cum[i + 1], s + h);
+      if (hi <= lo) continue;
+      const P = n.pts[i];
+      const Q = n.pts[i + 1];
+      const segL = cum[i + 1] - cum[i] || 1;
+      const tm = ((lo + hi) / 2 - cum[i]) / segL;
+      sx += (P[0] + (Q[0] - P[0]) * tm) * (hi - lo);
+      sy += (P[1] + (Q[1] - P[1]) * tm) * (hi - lo);
+    }
+    o.x = sx / (2 * h);
+    o.y = sy / (2 * h);
+    return o;
+  }
+  // Heading of travel at s on n going dir (rounded the same way).
+  function travelHeading(n, s, dir) {
+    const q = roundPoint(n, s) || roadPoint(n, s, dirScratch);
+    return headingOf(q.dx * dir, q.dy * dir);
+  }
   function carTarget(cs) {
-    const p = roadPoint(cs.n, cs.s, cs);
+    const p0 = roadPoint(cs.n, cs.s, cs);
+    const p = roundPoint(cs.n, cs.s) || p0;
     const dx = p.dx * cs.dir;
     const dy = p.dy * cs.dir;
     const off = cs.n.road.width / 4;
@@ -312,10 +366,11 @@ export function createAmbient(world, scenery) {
       stage: '', // additive: at a junction: 'stopping' | 'stopped' | 'go' | 'waiting' | 'curve' | ''
       placed: 0, // additive: times it was (re)placed on the roads (a jump, not a drive)
       junction: '', // additive: id of the junction it is in (crossing or turning), see amb.junctions
+      wait: '', // additive: standing held up: 'player' (by the player, or a queue the player holds) | 'car' (other traffic, a STOP line) | ''
     };
     const cs = {
       n: null, s: 0, dir: 1, seg: 0, skip: 0, cruise: R(0.85, 1.1), relocT: R(1, 3), stuckT: 0,
-      honk: { t: 0, clearT: 0 }, leave: null, plan: null, curve: null, inNode: null, lastNode: null, blinkT: 0,
+      honk: { t: 0, clearT: 0 }, jam: { t: 0, clearT: 0 }, leave: null, plan: null, curve: null, inNode: null, lastNode: null, blinkT: 0,
     };
     const sp = pickSpawn();
     if (!sp) continue;
@@ -351,7 +406,7 @@ export function createAmbient(world, scenery) {
   }
   // Lane centre `s` m along road n going `dir`: { x, y, h }.
   function lanePoint(n, s, dir) {
-    const p = roadPoint(n, s, {});
+    const p = roundPoint(n, s) || roadPoint(n, s, {});
     const dx = p.dx * dir;
     const dy = p.dy * dir;
     const off = n.road.width / 4;
@@ -477,6 +532,18 @@ export function createAmbient(world, scenery) {
     }
     return null;
   }
+  // The cars in this car's knot (itself too), for jamGiver.
+  const knot = [];
+  function knotOf(c) {
+    knot.length = 0;
+    for (let i = 0; i < cars.length; i++) {
+      const o = cars[i];
+      if (o !== c && Math.hypot(o.x - c.x, o.y - c.y) > JAM.knotR) continue;
+      const os = carState[i];
+      knot.push({ i, t: os.jam.t, giving: !!(os.leave && os.leave.jam) });
+    }
+    return knot;
+  }
   function setBlink(c, cs, side, dt) {
     if (side !== c.signal) cs.blinkT = 0;
     else cs.blinkT += dt;
@@ -488,6 +555,7 @@ export function createAmbient(world, scenery) {
     if (cs.leave) {
       setBlink(c, cs, 0, dt);
       c.stage = '';
+      c.wait = cs.leave.px !== undefined ? 'player' : ''; // giving up on the player
       stepLeave(c, cs, dt, player);
       return;
     }
@@ -541,9 +609,27 @@ export function createAmbient(world, scenery) {
       }
     }
 
+    // A sharp bend in the road ahead (town streets turn square): slow for it.
+    if (!cv) {
+      for (const d of BEND_LOOK) {
+        const s1 = cs.s + cs.dir * d;
+        const s2 = s1 + cs.dir * 2;
+        if (s2 < 0 || s2 > n.len) break;
+        const degPerM = Math.abs(angDiff(travelHeading(n, s1, cs.dir), travelHeading(n, s2, cs.dir))) / 2;
+        if (degPerM > BEND_DEG) target = Math.min(target, brakeCap(d, CURVE_RATE / degPerM));
+      }
+    }
     if (cv) {
-      // In a junction, on the curve to the next road.
+      // In a junction, on the curve to the next road. Slower where it bends
+      // tight (a junction on a square corner), so it never swings round.
       target = Math.min(target, cv.v);
+      let prevH = curveAt(cv.cv, cv.u).h;
+      for (let u = cv.u + 1; u <= Math.min(cv.cv.len, cv.u + 6); u += 1) {
+        const h = curveAt(cv.cv, u).h;
+        const degPerM = Math.abs(angDiff(prevH, h));
+        prevH = h;
+        if (degPerM > 1) target = Math.min(target, Math.max(1.2, CURVE_RATE / degPerM));
+      }
       setBlink(c, cs, cv.side, dt);
       c.stage = 'curve';
     } else {
@@ -576,6 +662,11 @@ export function createAmbient(world, scenery) {
         cs.plan = null;
       }
       if (!cs.plan) cs.plan = makePlan(c, cs);
+      if (!cs.plan && toEnd < 6 && cs.lastNode) {
+        // At a junction at the road's end with nothing planned: plan it again.
+        cs.lastNode = null;
+        cs.plan = makePlan(c, cs);
+      }
       const plan = cs.plan;
       c.stage = '';
       let side = 0;
@@ -649,6 +740,22 @@ export function createAmbient(world, scenery) {
       c.horn = false;
       return;
     }
+    // Held up by other cars instead (see JAM): toot, then give way if it has
+    // waited longest in its knot, so a knot at a junction always clears.
+    const jammed = !blocked && capP >= HONK.capBelow && c.speed < HONK.speed && !cs.curve;
+    c.wait = blocked || (capP < HONK.capBelow && c.speed < HONK.speed) ? 'player' : jammed ? 'car' : '';
+    const jt = stepBlocked(cs.jam, jammed, dt, JAM);
+    if (jammed && hornOn(jt, JAM)) c.horn = true;
+    if (jammed && jt >= JAM.giveAt && jamGiver(knotOf(c, cs)) === cars.indexOf(c)) {
+      if (cs.inNode) cs.inNode = null;
+      cs.plan = null;
+      cs.jam.t = cs.jam.clearT = 0;
+      cs.leave = { mode: 'back', jam: true, t: 0, backed: 0, checkT: 0, holdT: 0 };
+      setBlink(c, cs, 0, dt);
+      c.stage = '';
+      c.horn = false;
+      return;
+    }
 
     let t;
     if (cs.curve) {
@@ -677,7 +784,11 @@ export function createAmbient(world, scenery) {
     const ny = c.y + (t.y - c.y) * k;
     const mdx = nx - c.x;
     const mdy = ny - c.y;
-    if (mdx * mdx + mdy * mdy > 1e-4) c.heading = turnToward(c.heading, headingOf(mdx, mdy), 200 * dt);
+    // Face the way it moves, unless it is creeping or the move is mostly
+    // sideways (a few cm of drift back into the lane after a three-point
+    // turn): then turn calmly to face the lane.
+    const mh = mdx * mdx + mdy * mdy > 1e-4 ? headingOf(mdx, mdy) : null;
+    if (mh !== null && c.speed > 1 && Math.abs(angDiff(mh, t.h)) < 60) c.heading = turnToward(c.heading, mh, 200 * dt);
     else c.heading = turnToward(c.heading, t.h, 90 * dt);
     c.x = nx;
     c.y = ny;
@@ -762,6 +873,11 @@ export function createAmbient(world, scenery) {
         cs.dir = -cs.dir;
         cs.seg = undefined;
         cs.skip = 10;
+        // Facing back now: the junction it last came through is ahead of it
+        // again, so it must plan it (it used to skip it, drive to the road's
+        // end and sit there with its speed up, and a jam built behind it).
+        cs.lastNode = null;
+        cs.plan = null;
         cs.leave = null;
         cs.honk.t = cs.honk.clearT = 0;
         c.turning = false;
@@ -769,7 +885,14 @@ export function createAmbient(world, scenery) {
       }
       return;
     }
-    if (!L.forced && player && Math.hypot(player.x - L.px, player.y - L.py) > LEAVE.releaseR) {
+    if (L.jam && L.mode === 'hold' && (L.holdT += dt) > JAM.holdMax) {
+      // No room to give way here: drive on as before (another car in the
+      // knot may give way instead).
+      cs.leave = null;
+      c.turning = false;
+      return;
+    }
+    if (!L.forced && !L.jam && player && Math.hypot(player.x - L.px, player.y - L.py) > LEAVE.releaseR) {
       // The player has moved on: carry on as before.
       cs.leave = null;
       cs.honk.t = cs.honk.clearT = 0;
@@ -1408,6 +1531,7 @@ export function createAmbient(world, scenery) {
     chimneys, // additive: [{ id, x, y, z }] chimney tops (z = metres above ground)
     playerSurface: 'paved', // additive: surface under the player car ('paved'|'dirt'|'grass')
     flocks, // additive (internal-ish): bird groups
+    carState, // internal: per-car traffic state, same order as cars (for tools/check-traffic.mjs)
     surfaceAt, // additive: road surface lookup
     junctions: nodes.map((k) => ({ id: k.id, x: k.x, y: k.y, r: k.r })), // additive: junction centres (cars' `junction` names the one they are in)
     stopSigns, // additive: [{ id, x, y, heading, leanX, leanY }] STOP signs at minor-to-paved junctions (SPEC 9q)

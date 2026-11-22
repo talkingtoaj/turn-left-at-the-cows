@@ -13,6 +13,10 @@
 //     (only on dirt roads), go one at a time, never move into a junction
 //     the player stands in, and never flip round on the spot (dead ends and
 //     broken bridges get a three-point turn).
+//   - no knots: no car anywhere stands still longer than KNOT_MAX s unless
+//     the player holds it up (a car held up by other cars toots, then the
+//     one that waited longest in the knot gives way, one at a time). Also run
+//     with no player at all, where stuck cars are never moved out of sight.
 //
 //   npm run check:traffic
 //
@@ -26,6 +30,7 @@ import {
   TRAFFIC, relTo, inLane, playerSpeedCap, seenByPlayer, respawnReason, goodRespawn,
   HONK, hornOn, honkStage, stepBlocked, turnPose, turnLength, TURN,
   JUNCTION, brakeCap, turnSpeed, turnSide, blinkLit, blinkNow, stopsAt, junctionCurve, curveAt, headedInto,
+  JAM, jamGiver,
 } from '../src/ambient/trafficRules.js';
 
 let fails = 0;
@@ -218,6 +223,40 @@ check(turnSpeed(90) === JUNCTION.turnV[0] && turnSpeed(0) === JUNCTION.turnV[1] 
   check(!headedInto(40, 30, 0, 14, 0, 0, 8), 'passing to one side');
 }
 
+// ---------- Knots (JAM) ----------
+{
+  // Toots start late and stop before it gives way; no lean on the horn.
+  check(!hornOn(JAM.bursts[0].at - 0.1, JAM) && hornOn(JAM.bursts[0].at + 0.1, JAM), 'jam: first toot on time');
+  check(!hornOn(JAM.giveAt - 0.5, JAM) && !hornOn(JAM.giveAt + 5, JAM), 'jam: quiet before giving way');
+  // The count runs across frames, survives a short creep, resets after grace.
+  const st = { t: 0, clearT: 0 };
+  for (let i = 0; i < 200; i++) stepBlocked(st, true, 0.1, JAM);
+  check(Math.abs(st.t - 20) < 1e-6, 'jam: count runs');
+  stepBlocked(st, false, JAM.grace / 2, JAM);
+  stepBlocked(st, true, 0.1, JAM);
+  check(st.t > 20, 'jam: a short creep does not reset');
+  for (let i = 0; i < 20; i++) stepBlocked(st, false, 0.1, JAM);
+  check(st.t === 0, 'jam: moving for the grace time resets');
+  // Who gives way: longest wait past giveAt; nobody while one already is;
+  // ties to the lower index. Stepped over time: as counts grow, the pick changes.
+  const G = JAM.giveAt;
+  check(jamGiver([{ i: 0, t: G - 1 }, { i: 1, t: 3 }]) === -1, 'jam: nobody before giveAt');
+  check(jamGiver([{ i: 0, t: G + 1 }, { i: 1, t: G + 4 }, { i: 2, t: 2 }]) === 1, 'jam: longest wait gives way');
+  check(jamGiver([{ i: 0, t: G + 9 }, { i: 1, t: G + 4, giving: true }]) === -1, 'jam: one at a time');
+  check(jamGiver([{ i: 3, t: G }, { i: 1, t: G }]) === 1, 'jam: tie to lower index');
+  const knot = [{ i: 0, t: 0 }, { i: 1, t: 5 }, { i: 2, t: 10 }];
+  const picks = [];
+  for (let s = 0; s < 40; s++) {
+    for (const k of knot) k.t += 1;
+    const g = jamGiver(knot);
+    picks.push(g);
+    if (g >= 0) { knot[g].t = 0; knot[g].giving = true; } // it gives way...
+    if (s % 8 === 7) for (const k of knot) k.giving = false; // ...and is gone after a while
+  }
+  check(picks.filter((g) => g >= 0).length >= 2 && new Set(picks.filter((g) => g >= 0)).size >= 2, `jam: picks over time ${picks.join()}`);
+  check(picks.indexOf(2) >= 0 && picks.findIndex((g) => g >= 0) === picks.indexOf(2), 'jam: the longest waiter goes first');
+}
+
 // ---------- Simulation per region ----------
 const DT = 0.05;
 const SIM = 600; // s
@@ -287,17 +326,35 @@ check(allTurns > 0, 'no car turned round for the parked player in any region');
 // no jump, no flip on the spot, curves on the road, a blink 2 s before
 // each turn, a full stop before going at a STOP line (dirt roads only),
 // one car at a time in a junction.
+const KNOT_MAX = 30; // s
 function junctionRun(id, mode) {
   const world = setRegion(id);
   const amb = createAmbient(world, generateScenery(world));
   const stopNode = amb.junctions.find((j) => amb.stopSigns.some((g) => Math.hypot(g.x - j.x, g.y - j.y) < 20));
   const car = mode === 'parked' ? { x: stopNode.x, y: stopNode.y, heading: 0, speed: 0 }
     : mode === 'start' ? { ...world.start, speed: 0 } : { x: world.size.w / 2, y: world.size.h / 2, heading: 0, speed: 0 };
+  // Blocked: no player, and a hazard that never moves sits in the right
+  // lane of the busiest paved road, so a knot must form and clear by cars
+  // giving way.
+  let block = null;
+  if (mode === 'blocked') {
+    const road = world.roads.filter((r) => r.type === 'paved').sort((a, b) => b.points.length - a.points.length)[0];
+    const k = Math.floor(road.points.length / 3);
+    const [ax, ay] = road.points[k];
+    const [bx, by] = road.points[k + 1];
+    const L = Math.hypot(bx - ax, by - ay);
+    block = { x: ax - ((by - ay) / L) * road.width / 4, y: ay + ((bx - ax) / L) * road.width / 4, r: 1.5 };
+  }
+  let jamHorn = 0;
+  const knotT = new Map(); // s stood still (by how far it really moved) not held up by the player
+  let worstKnot = { t: 0 };
+  let twoGiving = 0;
+  let gaveWay = 0;
   const still = new Map();
   let worstStill = 0;
   const prev = new Map();
   const st = { curves: 0, offRoad: 0, gos: 0, earlyGo: 0, pavedStop: 0, maxRate: 0, maxStep: 0, lateBlink: 0, shared: 0, intoPlayer: 0, turnRounds: 0 };
-  const T = mode === 'roam' ? 600 : 900;
+  const T = mode === 'roam' ? 600 : mode === 'free' ? 1500 : 900;
   for (let i = 0; i * DT < T; i++) {
     const t = i * DT;
     if (mode === 'roam' && i % 2400 === 0) {
@@ -305,8 +362,21 @@ function junctionRun(id, mode) {
       car.x = c.x + 300;
       car.y = c.y;
     }
-    amb.update(DT, { car });
+    if (block) {
+      amb.obstacles.length = 0;
+      amb.obstacles.push(block);
+    }
+    amb.update(DT, mode === 'free' || mode === 'blocked' ? {} : { car });
+    for (const c of amb.cars) if (c.horn && c.wait === 'car') jamHorn++;
     const inJ = new Set();
+    const giving = [];
+    amb.cars.forEach((c, k) => {
+      const L = amb.carState[k].leave;
+      if (L && L.jam) giving.push(c);
+    });
+    for (let a = 0; a < giving.length; a++) for (let b = a + 1; b < giving.length; b++) {
+      if (Math.hypot(giving[a].x - giving[b].x, giving[a].y - giving[b].y) < JAM.knotR) twoGiving++;
+    }
     for (const c of amb.cars) {
       const p = prev.get(c.id);
       if (c.junction) {
@@ -315,6 +385,16 @@ function junctionRun(id, mode) {
         if (mode === 'parked' && c.junction === stopNode.id) st.intoPlayer++;
       }
       if (c.stage === 'stopped' && !c.onDirt) st.pavedStop++;
+      // Knots: still (moved under 0.3 m/s) and not held up by the player.
+      const moved = p && p.placed === c.placed ? Math.hypot(c.x - p.x, c.y - p.y) / DT : 0;
+      // Skipped within 100 m of a parked player: the near-player rule below
+      // covers those (Brandt's start is 60 m from a map-edge stub where the
+      // parked player traps cars: they keep turning round but queue; a known gap).
+      const trapped = (mode === 'parked' || mode === 'start') && Math.hypot(c.x - car.x, c.y - car.y) < 100;
+      const kt = moved < 0.3 && c.wait !== 'player' && !trapped ? (knotT.get(c.id) || 0) + DT : 0;
+      knotT.set(c.id, kt);
+      if (kt > worstKnot.t) worstKnot = { t: kt, id: c.id, stage: c.stage, junction: c.junction, x: Math.round(c.x), y: Math.round(c.y) };
+      if (p && !p.jamLeave && amb.carState[amb.cars.indexOf(c)].leave?.jam) gaveWay++;
       // Standing still near the parked player: it should honk and turn
       // round, never wait for good.
       const sNear = mode !== 'roam' && c.speed < 0.3 && Math.hypot(c.x - car.x, c.y - car.y) < 100 ? (still.get(c.id) || 0) + DT : 0;
@@ -338,6 +418,7 @@ function junctionRun(id, mode) {
       }
       const same = p && p.placed === c.placed;
       prev.set(c.id, {
+        jamLeave: !!amb.carState[amb.cars.indexOf(c)].leave?.jam,
         x: c.x, y: c.y, heading: c.heading, placed: c.placed, stage: c.stage, speed: c.speed, signal: c.signal, turning: c.turning,
         sigT: same && c.signal && c.signal === p.signal ? p.sigT + DT : 0,
         stoppedT: same && c.stage === 'stopped' && p.stage === 'stopped' ? p.stoppedT + DT : 0,
@@ -355,13 +436,18 @@ function junctionRun(id, mode) {
   check(st.shared === 0, `${tag}: two cars in one junction at once (${st.shared} frames)`);
   check(st.intoPlayer === 0, `${tag}: cars drove into the junction the player stands in (${st.intoPlayer} frames)`);
   check(worstStill < 75, `${tag}: a car stood ${worstStill.toFixed(0)} s still near the parked player`);
+  check(worstKnot.t < KNOT_MAX, `${tag}: a car stood ${worstKnot.t.toFixed(0)} s in a knot (${JSON.stringify(worstKnot)})`);
+  if (mode === 'blocked') check(gaveWay >= 2 && jamHorn > 0, `${tag}: cars held up behind the hazard did not toot and give way (${gaveWay} gave way, horn ${(jamHorn * DT).toFixed(1)} s)`);
+  check(twoGiving === 0, `${tag}: two cars in one knot gave way at once (${twoGiving} frames)`);
   if (mode === 'roam') check(st.curves > 10 && st.gos > 0, `${tag}: too little junction traffic (${st.curves} turns, ${st.gos} STOP starts)`);
-  console.log(`${tag}: ${amb.stopSigns.length} STOP signs, ${st.curves} turns, ${st.gos} STOP starts, ${st.turnRounds} three-point turns, worst ${st.maxRate.toFixed(0)} deg/s, longest still near the player ${worstStill.toFixed(0)} s`);
+  console.log(`${tag}: ${amb.stopSigns.length} STOP signs, ${st.curves} turns, ${st.gos} STOP starts, ${st.turnRounds} three-point turns, worst ${st.maxRate.toFixed(0)} deg/s, longest still near the player ${worstStill.toFixed(0)} s, longest in a knot ${worstKnot.t.toFixed(0)} s, ${gaveWay} gave way, toots ${(jamHorn * DT).toFixed(1)} s`);
 }
 for (const id of REGION_IDS) {
   junctionRun(id, 'roam');
   junctionRun(id, 'parked');
   junctionRun(id, 'start'); // parked where the region starts (Brandt: near a dead end)
+  junctionRun(id, 'free'); // no player: nothing is moved, so a knot anywhere shows
+  junctionRun(id, 'blocked'); // no player, a hazard stuck in a lane: the queue must give way
 }
 
 if (fails) {
