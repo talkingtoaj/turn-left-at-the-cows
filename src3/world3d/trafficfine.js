@@ -17,7 +17,7 @@ import { SPECS, loftBody, sectionAt } from './carbody.js';
 import { carAtlas } from './caratlas.js';
 import { trimBuilder } from './car3d.js';
 
-// Bumper and trim look per type (the coarse bodies in traffic3d.js match).
+// Bumper and trim look per type (the coarse bodies in traffic3d.js read it too).
 export const FINE_STYLE = {
   sedan: { bumper: 'alu', grille: true },
   wagon: { bumper: 'chrome', grille: true },

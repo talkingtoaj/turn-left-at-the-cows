@@ -9,6 +9,8 @@
 //
 // Same id, same paint, every time.
 
+import { makeRng, hashString } from '../drive/geom.js';
+
 // [sRGB hex, weight]
 export const PALETTE = [
   [0xe6e4de, 16], // white
@@ -31,25 +33,6 @@ export const PALETTE = [
 const LOWER_ON_LIGHT = [0x5a1a1e, 0x1f2a42, 0x4d3424, 0xb5a283, 0x24402f, 0x45484b];
 const LOWER_ON_DARK = [0xa7abae, 0xe6e4de, 0xb5a283, 0xd6cdb5];
 const TWO_TONE = 0.45; // share of cars that carry a second tone (pickups show it)
-
-// Small string hash, then a seeded generator.
-function hashStr(s) {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
-function rng(seed) {
-  let a = seed || 1;
-  return () => {
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 const toRgb = (hex) => [(hex >> 16) & 255, (hex >> 8) & 255, hex & 255].map((v) => v / 255);
 const toHex = ([r, g, b]) => (Math.round(r * 255) << 16) | (Math.round(g * 255) << 8) | Math.round(b * 255);
@@ -81,7 +64,7 @@ function pick(list, r) {
 }
 
 export function carPaint(id) {
-  const r = rng(hashStr(String(id)));
+  const r = makeRng(hashString(String(id)) || 1);
   const base = pick(PALETTE, r);
   const age = r(); // 0 new-ish, 1 an old car that lived outside
   const color = weather(base, r, age);

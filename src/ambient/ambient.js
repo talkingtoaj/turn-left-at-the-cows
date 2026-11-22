@@ -15,12 +15,11 @@ import {
   HONK, WAIT, waitState, stepWait, turnPose, turnLength, JAM, knotGiving,
   JUNCTION, brakeCap, turnSpeed, turnRoom, turnSide, blinkLit, blinkNow, stopsAt, junctionCurve, curveAt, headedInto,
 } from './trafficRules.js';
+import { carPaint } from './carpaint.js'; // traffic paint: real rural colors, seeded per car (#50)
 
 // Level of detail: things within NEAR_R of the player get full updates.
 const NEAR_R = 600;
 const COARSE_STEP = 1.0; // seconds between coarse updates for far flocks
-
-import { carPaint } from './carpaint.js'; // traffic paint: real rural colors, seeded per car (#50)
 
 function angDiff(a, b) {
   // Smallest signed difference b - a in degrees (-180..180).
