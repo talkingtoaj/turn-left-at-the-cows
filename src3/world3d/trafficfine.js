@@ -62,7 +62,8 @@ function trimPart(T, A, paintMask) {
 }
 
 // Tyre (tread and sidewall) and hubcaps for a wheel of radius r, axis x.
-function wheelInto(T, A, r, x, y, z, side) {
+// Also used by the parked semis (parked3d.js).
+export function wheelInto(T, A, r, x, y, z, side) {
   const k = r / 0.315;
   const prof = [[0.19, -0.098], [0.27, -0.102], [0.3, -0.095], [0.315, -0.07], [0.317, 0], [0.315, 0.07], [0.3, 0.095], [0.27, 0.102], [0.19, 0.098]]
     .map(([rr, yy]) => new THREE.Vector2(rr * k, yy));

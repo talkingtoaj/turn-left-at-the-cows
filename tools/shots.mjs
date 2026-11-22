@@ -76,6 +76,16 @@ const VIEWS = [
   { name: 'traffic_switch_in', car: { road: 'hwy9', at: 0.4 }, pin: [['car0', 37, -1, -1]], rel: [1.2, 2.4, -3], relLook: [-2.4, 0.6, -40] },
   { name: 'traffic_switch_mid', car: { road: 'hwy9', at: 0.4 }, pin: [['car0', 40, -1, -1]], rel: [1.2, 2.4, -3], relLook: [-2.4, 0.6, -40] },
   { name: 'traffic_switch_out', car: { road: 'hwy9', at: 0.4 }, pin: [['car0', 43, -1, -1]], rel: [1.2, 2.4, -3], relLook: [-2.4, 0.6, -40] },
+  // Parked semis (#47). Calder grain silos (mission 1 region): close 3/4,
+  // side, rear and the site. The Brandt co-op elevator ones (semib_*) need
+  // SHOTS_QUERY='opening=off&spot=brandt' (Brandt region).
+  { name: 'semi_close', car: { x: 4925, y: 1140, heading: 90 }, cam: [4968, 2.4, 1127.5], look: [4956, 1.8, 1119] },
+  { name: 'semi_side', car: { x: 4925, y: 1140, heading: 90 }, cam: [4953, 1.9, 1134], look: [4953, 1.7, 1119] },
+  { name: 'semi_rear', car: { x: 4925, y: 1140, heading: 90 }, cam: [4939, 2.2, 1127], look: [4952, 1.6, 1119] },
+  { name: 'semi_site', car: { x: 4925, y: 1140, heading: 90 }, cam: [4992, 11, 1152], look: [4958, 5, 1112] },
+  { name: 'semib_close', car: { x: 1700, y: 1440, heading: 0 }, cam: [1754, 2.4, 1416.5], look: [1745, 1.8, 1427] },
+  { name: 'semib_side', car: { x: 1700, y: 1440, heading: 0 }, cam: [1760, 1.9, 1428], look: [1745, 1.7, 1428] },
+  { name: 'semib_site', car: { x: 1700, y: 1440, heading: 0 }, cam: [1778, 13, 1462], look: [1745, 6, 1416] },
 ];
 
 const browser = await launchChromium();
@@ -104,6 +114,13 @@ async function dismissCards() {
   }
 }
 await dismissCards();
+// SHOTS_MISSION=<mission id> plays that mission first (its region), e.g.
+// SHOTS_MISSION=m3_airfield for the Brandt views.
+if (process.env.SHOTS_MISSION) {
+  await page.evaluate((id) => window.__playMission(id), process.env.SHOTS_MISSION);
+  await page.waitForTimeout(3000);
+  await dismissCards();
+}
 
 fs.mkdirSync(outDir, { recursive: true });
 const stats = {};
