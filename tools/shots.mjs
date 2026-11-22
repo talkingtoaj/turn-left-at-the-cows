@@ -70,6 +70,9 @@ await page.waitForTimeout(1500);
 // Dismiss the mission card.
 await page.keyboard.press('Enter');
 await page.waitForTimeout(500);
+// Enter can land before the card is up: click its Start button if it shows.
+await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Start' && b.offsetParent)?.click());
+await page.waitForTimeout(300);
 
 fs.mkdirSync(outDir, { recursive: true });
 const stats = {};

@@ -142,7 +142,7 @@ export function buildObjects(world, scenery, terrain, batch, materials = {}) {
   if (words) dynamic.push(words);
   buildStones(terrain, batch); // last: stones join the buckets already there
   const trees = buildTrees(scenery, terrain, SUN_DIR, batch.audit);
-  const scatter = buildScatter(world, scenery, terrain, SUN_DIR, batch.audit);
+  const scatter = buildScatter(world, scenery, terrain, SUN_DIR, batch.audit, materials.groundColor);
   const locals = buildLocals(world, terrain, batch.audit);
   const puddles = buildPuddles(world, terrain, batch.audit);
   return { wires, chimneys, dynamic, trees, scatter, locals, puddles };
@@ -267,6 +267,7 @@ export function buildWorld3D(scene, world, scenery, collider) {
   };
   const batch = new Batcher();
   batch.paint = new GroundPaint(world);
+  materials.groundColor = colorFn; // the grass carpet takes its colour from the ground (carpet3d.js)
   const { wires, chimneys, dynamic, trees, scatter, locals, puddles } = buildObjects(world, scenery, terrain, batch, materials);
   const t2 = performance.now();
   // Ground mesh, with fields and yards painted on (after the objects, which paint).

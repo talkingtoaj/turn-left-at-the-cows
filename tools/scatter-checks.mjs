@@ -23,6 +23,7 @@ export function scatterPlacementProblems(world, scenery) {
     ...S.rocks.map((r) => ({ ...r, what: r.solid ? 'scatter_rock' : 'scatter_stone' })),
     ...S.shrubs.map((s) => ({ ...s, what: 'scatter_shrub' })),
     ...S.grass.map((t, i) => ({ ...t, id: `tuft${i}`, what: 'scatter_tuft' })),
+    ...(S.weeds || []).map((w, i) => ({ ...w, id: `weed${i}`, what: `scatter_weed_${w.at}` })),
   ];
   for (const it of items) {
     const r = it.r;
@@ -53,7 +54,7 @@ export function scatterPlacementProblems(world, scenery) {
       if (d < (t.ambienceR || 150) * 0.7) out.push(P(it.id, it.what, `in town ${t.id}`, (t.ambienceR || 150) * 0.7 - d, it.x, it.y));
     }
   }
-  return { problems: out, counts: { scatterRocks: S.rocks.length, scatterShrubs: S.shrubs.length, scatterTufts: S.grass.length } };
+  return { problems: out, counts: { scatterRocks: S.rocks.length, scatterShrubs: S.shrubs.length, scatterTufts: S.grass.length, scatterWeeds: (S.weeds || []).length } };
 }
 
 // Solid rocks never close a way: none within reach of a road, track or yard,

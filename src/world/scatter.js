@@ -9,6 +9,7 @@
 //   shrubs: drive-through: a small slowdown, a little bounce and a swish
 //           (surface event 'shrub').
 //   grass:  tussocks, looks only.
+//   weeds:  tall weeds along road verges and field fences, looks only.
 //
 // Where things go, per 12 m cell of open land (no road, field, forest, yard,
 // town or water, see roughness.at().open and .fd):
@@ -19,6 +20,9 @@
 //   - shrubs gather in drifts: a seeded drift field, pulled toward hollows
 //     and gullies and toward fence lines and wood edges,
 //   - tussocks thicken in hollows.
+// Weeds (SPEC 9q roadside) grow in drifts along both verges of every road,
+// just past the shoulder, and along the outside of field fences, never in a
+// field, forest, town, yard or on a road.
 // Solid rocks keep a car's width (CLEAR) from every other solid thing, stay
 // well off roads, tracks and yards (fd >= SOLID_FD) and keep away from the
 // fixed fallen trees, so they never close a way through (npm run check:fallen).
@@ -29,14 +33,17 @@
 //   S.rocks   [{ id, model, x, y, r, hs, rot, tint, solid, outcrop? }]
 //   S.shrubs  [{ id, model, x, y, r, hs, rot, tint }]
 //   S.grass   [{ x, y, r, hs, rot, tint }]
+//   S.weeds   [{ x, y, r, hs, rot, tint, model: 'foxtail'|'dock', at: 'verge'|'fence' }]
 //   S.outcrops [{ id, name, x, y, r, rocks: n }]
 //   S.solids  [{ x, y, r, kind: 'rock' }]           collider circles
 //   S.surface [{ id, x, y, r, kind: 'stone'|'shrub' }] surface events
 //
 // Dev: three.html?scatter=off builds the world without any of it.
 
-import { makeRng, hashString, SegIndex, nearestOnPolyline } from '../drive/geom.js';
-import { TREE_HIT_R, POLE_R } from '../drive/layout.js';
+import {
+  makeRng, hashString, SegIndex, nearestOnPolyline, measurePolyline, pointAlong, pointInPolygon, distToPolygonEdge, bbox, circleHitsRect,
+} from '../drive/geom.js';
+import { TREE_HIT_R, POLE_R, fenceRuns, makePads } from '../drive/layout.js';
 import { makeNoise, smoothstep } from './noise.js';
 import { roughnessFor } from './roughness.js';
 import { districtsFor, KIND_LIST, RECIPES } from './districts.js';
@@ -62,7 +69,7 @@ export function scatterFor(world, scenery) {
 }
 
 function empty() {
-  return { rocks: [], shrubs: [], grass: [], outcrops: [], solids: [], surface: [], ms: 0 };
+  return { rocks: [], shrubs: [], grass: [], weeds: [], outcrops: [], solids: [], surface: [], ms: 0 };
 }
 
 function makeScatter(world, scenery) {
@@ -326,6 +333,8 @@ function makeScatter(world, scenery) {
     }
   }
 
+  placeWeeds(world, R, out, gapTo, seed);
+
   for (const r of out.rocks) {
     if (r.solid) out.solids.push({ x: r.x, y: r.y, r: r2(r.r * 0.85), kind: 'rock', id: r.id });
     else out.surface.push({ id: r.id, kind: 'stone', x: r.x, y: r.y, r: r2(Math.max(0.35, r.r)) });
@@ -336,3 +345,99 @@ function makeScatter(world, scenery) {
 }
 
 const r2 = (v) => Math.round(v * 100) / 100;
+
+// Weeds along road verges and the outside of field fences. A drift noise
+// along each line gives clumps of weeds and long bare stretches.
+export const WEED = {
+  step: 1.3, // m between tries along a line
+  vergePaved: 1.35, // m beyond the tar edge (past the 0.9 m shoulder) to the nearest weed edge
+  vergeDirt: 1.0, // m beyond a dirt road edge (past its 0.8 m shoulder)
+  vergeDepth: 2.2, // m: how far out from there the verge weeds spread
+  fenceOut: 0.15, // m outside the fence line, beyond the weed's own radius
+  roadGap: 0.9, // m: no weed within this of any road edge (plus its radius)
+};
+function placeWeeds(world, R, out, gapTo, seed) {
+  const rng = makeRng(((seed ^ 0x3eed5) >>> 0));
+  const nDrift = makeNoise(seed + 961);
+  const nKind = makeNoise(seed + 962);
+  const W = world.size.w;
+  const H = world.size.h;
+  const areas = [...(world.fields || []), ...(world.forests || [])].map((f) => ({ poly: f.polygon, bb: bbox(f.polygon) }));
+  const inArea = (x, y, r) => areas.some((a) => x > a.bb.minX - r - 1 && x < a.bb.maxX + r + 1 && y > a.bb.minY - r - 1 && y < a.bb.maxY + r + 1
+    && (pointInPolygon(x, y, a.poly) || distToPolygonEdge(x, y, a.poly) < r + 0.05));
+  const towns = (world.towns || []).map((t) => ({ x: t.x, y: t.y, r: (t.ambienceR || 150) * 0.75 }));
+  const inTown = (x, y) => towns.some((t) => Math.hypot(t.x - x, t.y - y) < t.r);
+  // Yards and pads exactly (fd rounds a big pad's corners off).
+  const pads = makePads(world).filter((p) => p.kind !== 'field');
+  const onPad = (x, y, r) => pads.some((p) => Math.abs(p.x - x) < p.w + p.h + r && Math.abs(p.y - y) < p.w + p.h + r && circleHitsRect(x, y, r + 0.6, p));
+  const ok = (x, y, r) => {
+    if (x < 30 || y < 30 || x > W - 30 || y > H - 30) return false;
+    if (inTown(x, y) || onPad(x, y, r)) return false;
+    // Roads, yards, creeks, bridges, buildings (fd is the nearer of the road edge and those).
+    if (!(Math.min(R.roadDist(x, y), R.flatDist(x, y)) >= WEED.roadGap + r)) return false;
+    if (inArea(x, y, r)) return false;
+    return gapTo(x, y, r, r + 3) > 0.15;
+  };
+  const add = (x, y, at, drift) => {
+    const big = at === 'fence' ? 1.1 : 1;
+    const r = (0.22 + rng() * 0.2) * big;
+    if (!ok(x, y, r)) return;
+    const kindN = nKind(x / 35, y / 35);
+    out.weeds.push({
+      x: r2(x), y: r2(y), r: r2(r), hs: r2((0.75 + rng() * 0.55) * (0.8 + 0.3 * drift) * big),
+      rot: r2(rng() * Math.PI * 2), tint: r2(rng()), model: rng() < 0.3 + 0.3 * kindN ? 'dock' : 'foxtail', at,
+    });
+  };
+  const drift = (x, y) => smoothstep(-0.05, 0.45, 0.7 * nDrift(x / 22, y / 22) + 0.3 * nDrift(x / 6 + 13, y / 6));
+
+  // Verges.
+  for (const rd of world.roads) {
+    const pts = rd.points;
+    const cum = measurePolyline(pts);
+    const total = cum[cum.length - 1];
+    const edge = rd.width / 2 + (rd.type === 'paved' ? WEED.vergePaved : WEED.vergeDirt);
+    for (let d = 2; d < total - 2; d += WEED.step) {
+      const p = pointAlong(pts, cum, d);
+      const a = pointAlong(pts, cum, Math.max(0, d - 1));
+      const b = pointAlong(pts, cum, Math.min(total, d + 1));
+      const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      const nx = -(b.y - a.y) / len;
+      const ny = (b.x - a.x) / len;
+      for (const side of [-1, 1]) {
+        const k = drift(p.x + side * 5, p.y - side * 5);
+        if (rng() > k * 0.9) continue;
+        const n = 1 + (rng() < k ? 1 : 0);
+        for (let i = 0; i < n; i++) {
+          const o = edge + 0.35 + rng() * WEED.vergeDepth * (0.5 + 0.5 * k);
+          const t = (rng() - 0.5) * WEED.step;
+          add(p.x + side * nx * o + (b.x - a.x) / len * t, p.y + side * ny * o + (b.y - a.y) / len * t, 'verge', k);
+        }
+      }
+    }
+  }
+
+  // Fence lines: the outside of each run, at the posts.
+  for (const f of fenceRuns(world)) {
+    const poly = f.field.polygon;
+    for (const run of f.runs) {
+      for (let i = 0; i < run.length - 1; i++) {
+        const p = run[i];
+        const q = run[i + 1];
+        const len = Math.hypot(q.x - p.x, q.y - p.y) || 1;
+        let nx = -(q.y - p.y) / len;
+        let ny = (q.x - p.x) / len;
+        const mx = (p.x + q.x) / 2;
+        const my = (p.y + q.y) / 2;
+        if (pointInPolygon(mx + nx * 0.5, my + ny * 0.5, poly)) {
+          nx = -nx;
+          ny = -ny;
+        }
+        const k = drift(mx, my);
+        if (rng() > 0.15 + k * 0.85) continue;
+        const o = 0.5 + WEED.fenceOut + rng() * 0.6; // 0.5: the biggest fence weed's radius
+        const t = rng();
+        add(p.x + (q.x - p.x) * t + nx * o, p.y + (q.y - p.y) * t + ny * o, 'fence', k);
+      }
+    }
+  }
+}
