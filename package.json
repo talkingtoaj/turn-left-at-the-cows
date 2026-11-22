@@ -24,7 +24,8 @@
     "check:clock": "node tools/check-clock.mjs",
     "check:tourists": "node tools/check-tourists.mjs",
     "check:shifts": "node tools/check-shifts.mjs",
-    "check:all": "npm run -s check:assets && npm run -s check:world && npm run -s check:units && npm run -s check:signs && npm run -s check:radio && npm run -s check:radio-logic && npm run -s check:radiosubs && npm run -s check:clock && npm run -s check:tourists && npm run -s check:shifts"
+    "check:car": "node tools/check-car.mjs",
+    "check:all": "npm run -s check:assets && npm run -s check:world && npm run -s check:units && npm run -s check:signs && npm run -s check:radio && npm run -s check:radio-logic && npm run -s check:radiosubs && npm run -s check:clock && npm run -s check:tourists && npm run -s check:shifts && npm run -s check:car"
   },
   "dependencies": {
     "three": "^0.186.1"

@@ -50,6 +50,13 @@ const VIEWS = [
   { name: 'paved', car: { road: 'hwy9', at: 0.4 } },
   { name: 'paved_low', car: { road: 'rt40', at: 0.5 }, rel: [-3.2, 0.9, 5] },
   { name: 'dirtroad_ridge_low', car: { road: 'ridge_rd', at: 0.5 }, rel: [2.8, 0.8, 7.5] },
+  // The player's car up close (roof rack, parcels, mud flaps, dings): relLook
+  // aims at a point on the car (local right, up, back) instead of ahead of it.
+  { name: 'car_rear_high', car: { road: 'hwy9', at: 0.4 }, rel: [2.6, 2.7, 5.2], relLook: [0, 0.9, 0.3] },
+  { name: 'car_side', car: { road: 'hwy9', at: 0.4 }, rel: [-4.6, 1.3, -0.6], relLook: [0, 0.8, 0.2] },
+  { name: 'car_front_right', car: { road: 'hwy9', at: 0.4 }, rel: [3.4, 1.5, -3.6], relLook: [0, 0.8, -0.4] },
+  { name: 'car_roof', car: { road: 'hwy9', at: 0.4 }, rel: [1.7, 2.5, 2.4], relLook: [0, 1.55, 0.45] },
+  { name: 'car_trunk', car: { road: 'hwy9', at: 0.4 }, rel: [1.4, 1.5, 4.2], relLook: [0.3, 0.9, 1.8] },
 ];
 
 const pw = await import(findPlaywright());
@@ -70,10 +77,17 @@ await page.waitForTimeout(1500);
 // Dismiss the mission card.
 await page.keyboard.press('Enter');
 await page.waitForTimeout(500);
+// The intro card can come first and eat that key: keep pressing until the mission card is gone.
+for (let i = 0; i < 4 && (await page.$('#mission-card')); i++) {
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(600);
+}
 
 fs.mkdirSync(outDir, { recursive: true });
 const stats = {};
-for (const v of VIEWS) {
+// SHOTS_ONLY=car_side,paved takes just those views.
+const ONLY = process.env.SHOTS_ONLY ? process.env.SHOTS_ONLY.split(',') : null;
+for (const v of VIEWS.filter((q) => !ONLY || ONLY.includes(q.name))) {
   await page.evaluate(async (v) => {
     const { WORLD } = await import('/src/world/world.js');
     const st = window.__state;
@@ -113,7 +127,12 @@ for (const v of VIEWS) {
         const py = st.car.y + fx * v.rel[0] - fy * v.rel[2];
         c.position.set(px, H(px, py) + v.rel[1], py);
         c.up.set(0, 1, 0);
-        c.lookAt(st.car.x + fx * 6, H(st.car.x, st.car.y) + 0.6, st.car.y + fy * 6);
+        if (v.relLook) {
+          const [lr, lu, lb] = v.relLook;
+          const lx = st.car.x + -fy * lr - fx * lb;
+          const ly = st.car.y + fx * lr - fy * lb;
+          c.lookAt(lx, H(st.car.x, st.car.y) + lu, ly);
+        } else c.lookAt(st.car.x + fx * 6, H(st.car.x, st.car.y) + 0.6, st.car.y + fy * 6);
         c.updateMatrixWorld();
       }
       renderer.__orig(s, c);
