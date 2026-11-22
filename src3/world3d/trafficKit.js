@@ -13,10 +13,15 @@
 // mat: rack, steel, alu, jerry, jerryRed, tarp, carton, strap, hay,
 // plankDark, black, flap.
 //
+// B.part(null) starts pieces every car of the type has (no kit bit): the
+// van's rear doors, sliding door line and roof vent (vanKit.js).
+//
 // doorZone(type) is where the front right door is, for a door in another
 // color: [z0, z1, top y, inner x] in car space (x right, z back).
 
 import { SPECS, sectionAt } from './carbody.js';
+import { FOURBYFOUR, fourByFourKit } from './fourbyfour.js';
+import { vanKit } from './vanKit.js';
 import { FARM } from './farmtruck3d.js';
 import { SIX } from './sixbysix3d.js';
 
@@ -203,6 +208,8 @@ function sixKit(B) {
 
 export function kitInto(type, B) {
   if (type === 'farmtruck') farmKit(B);
+  else if (type === 'fourbyfour') fourByFourKit(B, { rack, can, bullbar, flaps });
+  else if (type === 'van') vanKit(B);
   else if (type === 'sixbysix') sixKit(B);
   else loftKit(type, B);
 }
@@ -210,7 +217,7 @@ export function kitInto(type, B) {
 export function doorZone(type) {
   if (type === 'farmtruck') return FARM.door;
   if (type === 'sixbysix') return SIX.door;
-  const S = SPECS[type];
+  const S = type === 'fourbyfour' ? FOURBYFOUR : SPECS[type];
   const front = S.windows[0][0] - 0.08;
   const mid = (S.bPillar[0] + S.bPillar[1]) / 2 + (S.bPillar[0] === S.bPillar[1] ? 0.03 : 0);
   return [front, mid, S.belt(mid) + 0.02, S.hw - 0.3];

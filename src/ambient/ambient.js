@@ -16,6 +16,7 @@ import {
   JUNCTION, brakeCap, turnSpeed, turnRoom, turnSide, blinkLit, blinkNow, stopsAt, junctionCurve, curveAt, headedInto,
 } from './trafficRules.js';
 import { carPaint } from './carpaint.js'; // traffic paint: real rural colors, seeded per car (#50)
+import { trafficType } from './carkit.js'; // some types have their own colors (the 4x4 #44, work vans #46)
 
 // Level of detail: things within NEAR_R of the player get full updates.
 const NEAR_R = 600;
@@ -371,7 +372,7 @@ export function createAmbient(world, scenery) {
   const nCars = 10;
   for (let i = 0; i < nCars; i++) {
     const c = {
-      id: `car${i}`, x: 0, y: 0, heading: 0, speed: 0, ...carPaint(`car${i}`), onDirt: false,
+      id: `car${i}`, x: 0, y: 0, heading: 0, speed: 0, ...carPaint(`car${i}`, trafficType(`car${i}`)), onDirt: false,
       horn: false, // additive: its horn is sounding now (see WAIT)
       turning: false, // additive: turning round or backing up, across both lanes
       blink: 0, // additive: amber lamp lit this frame, -1 left, 1 right, 0 none

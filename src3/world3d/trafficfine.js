@@ -7,10 +7,10 @@
 //
 // Attributes: position, normal, uv (atlas), color (white; the paint is
 // tinted per car), carPart: x the paint mask (0 trim, 1 paint, 2 paint that
-// can carry a lower second tone: pickups), y the kit bit + 1 (0 not a kit
+// can carry a lower second tone: pickups, 3 van paint: stripe or lower tone), y the kit bit + 1 (0 not a kit
 // piece; trafficKit.js).
 //
-//   const geo = fineGeometry('sedan')   // 'sedan' | 'wagon' | 'pickup' | 'hatch' | 'farmtruck'
+//   const geo = fineGeometry('sedan')   // 'sedan' | 'wagon' | 'pickup' | 'hatch' | 'farmtruck' | 'van'
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -19,6 +19,7 @@ import { carAtlas } from './caratlas.js';
 import { trimBuilder } from './car3d.js';
 import { kitInto } from './trafficKit.js';
 import { KIT_BIT } from '../../src/ambient/carkit.js';
+import { fourByFourFine } from './fourbyfour3d.js';
 import { farmTruckInto } from './farmtruck3d.js';
 import { sixBySixInto } from './sixbysix3d.js';
 
@@ -28,6 +29,7 @@ export const FINE_STYLE = {
   wagon: { bumper: 'chrome', grille: true },
   pickup: { bumper: 'chrome', grille: true },
   hatch: { bumper: 'satin', grille: false },
+  van: { bumper: 'chrome', grille: true, tallTail: true },
 };
 
 // An indexed loft part: smooth normals, then flat triangles with one uv.
@@ -141,7 +143,7 @@ function stripsFor(S, T, A) {
     }
     if (S.bed) across(S.zC + 0.1, 1, 6, 0.006, 'gap', side); // cab to bed
     alongZ(a0, a1, 2, 0.0, 0.25, 'satin', side, 0.014); // rub strip
-    alongZ(S.zA + 0.03, Math.min(S.zC, S.zR1 + 0.3) - 0.03, 7, 0.82, 1.0, 'chrome', side, 0.006); // drip rail
+    alongZ(S.zA + 0.03, Math.min(S.zC, S.zR1 + 0.3, h) - 0.03, 7, 0.82, 1.0, 'chrome', side, 0.006); // drip rail
     const handles = [mid - 0.24];
     if (rear !== null) handles.push(rear - 0.14);
     for (const z of handles) {
@@ -187,7 +189,7 @@ function endParts(name, S, T, A) {
   const r = A.rect('tail', 1);
   for (const x of [-1, 1]) {
     const flip = x > 0 ? r : [r[2], r[1], r[0], r[3]];
-    if (S.bed) {
+    if (S.bed || st.tallTail) {
       T.box(x * (hw - 0.12), ty + 0.04, rz - 0.004, 0.2, 0.36, 0.02, 'black');
       T.pic([x * (hw - 0.12), ty + 0.04, rz + 0.008], [1, 0, 0], [0, 1, 0], 0.18, 0.34, flip);
     } else {
@@ -230,11 +232,10 @@ function endParts(name, S, T, A) {
   }
 }
 
-function loftFine(name) {
-  const A = carAtlas();
-  const S = { ...SPECS[name], trunk: name === 'sedan', bed: name === 'pickup' };
+// The fine lofted shell of a spec: paint and glass parts, and a trim
+// builder holding the loft's trim (more trim goes on it before trimPart).
+function fineShell(S, A, paintMask) {
   const body = loftBody(S, { step: 0.09 });
-  const paintMask = name === 'pickup' ? 2 : 1;
   const parts = [loftPart(body.paint, A.sw('tpaint'), paintMask), loftPart(body.glass, A.sw('tglass'), 0)];
   const T = trimBuilder(A);
   for (const t of body.trim) {
@@ -242,6 +243,14 @@ function loftFine(name) {
     const p = t.tri;
     T.tri([p[0], p[1], p[2]], [p[3], p[4], p[5]], [p[6], p[7], p[8]], u, u, u);
   }
+  return { parts, T };
+}
+
+function loftFine(name) {
+  const A = carAtlas();
+  const S = { ...SPECS[name], trunk: name === 'sedan', bed: name === 'pickup' };
+  const paintMask = name === 'pickup' ? 2 : name === 'van' ? 3 : 1;
+  const { parts, T } = fineShell(S, A, paintMask);
   stripsFor(S, T, A);
   endParts(name, S, T, A);
   parts.push(trimPart(T, A, paintMask), ...fineKit(name, A));
@@ -282,7 +291,7 @@ function fineBody(into, type) {
 
 // Kit pieces (trafficKit.js) on the atlas, one part per kit bit (carPart.y is
 // the bit + 1; the shader folds away the parts a car's kit leaves out).
-const KIT_SW = { rack: 'black' };
+const KIT_SW = { rack: 'black', glass: 'tglass', tail: 'red' };
 function fineKit(type, A) {
   const Ts = new Map();
   let cur = null;
@@ -292,7 +301,7 @@ function fineKit(type, A) {
   const B = {
     fine: true,
     part(name) {
-      const bit = KIT_BIT[name] + 1;
+      const bit = name ? KIT_BIT[name] + 1 : 0; // null: on every car of the type
       if (!Ts.has(bit)) Ts.set(bit, trimBuilder(A));
       cur = Ts.get(bit);
     },
@@ -333,6 +342,7 @@ function fineKit(type, A) {
 }
 
 export function fineGeometry(name) {
+  if (name === 'fourbyfour') return fourByFourFine({ fineShell, trimPart, stripsFor, wheelInto, fineKit });
   if (name === 'farmtruck') return fineBody(farmTruckInto, 'farmtruck');
   if (name === 'sixbysix') return fineBody(sixBySixInto, 'sixbysix');
   return loftFine(name);
