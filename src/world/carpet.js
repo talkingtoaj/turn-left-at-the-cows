@@ -105,15 +105,33 @@ export function makeCarpet(world, R, heightAt, quarries = []) {
   const nearEnd = (x, y, d) => ends.some(([ex, ey]) => Math.abs(ex - x) < d && Math.abs(ey - y) < d && Math.hypot(ex - x, ey - y) < d);
   // Yards and pads exactly (fd rounds a big pad's corners off).
   const pads = makePads(world).filter((p) => p.kind !== 'field');
-  const onPad = (x, y) => pads.some((p) => Math.abs(p.x - x) < p.w + p.h && Math.abs(p.y - y) < p.w + p.h && circleHitsRect(x, y, 0.8, p));
-  const inQuarry = (x, y) => quarries.some((q) => Math.hypot(x - q.x, y - q.y) < q.r * 1.25);
-  const inForest = (x, y) => forests.some((f) => x > f.bb.minX - f.pad && x < f.bb.maxX + f.pad && y > f.bb.minY - f.pad && y < f.bb.maxY + f.pad
+  // While a tile is made, only the pads, forests and quarries that can
+  // reach it are tested (scope); the answers are the same.
+  let near = { pads, forests, quarries };
+  const all = near;
+  const scoped = (x0, y0, size) => {
+    const x1 = x0 + size;
+    const y1 = y0 + size;
+    const m = 1; // m: points are jittered a little past the tile's edge
+    return {
+      pads: pads.filter((p) => p.x + p.w + p.h > x0 - m && p.x - p.w - p.h < x1 + m && p.y + p.w + p.h > y0 - m && p.y - p.w - p.h < y1 + m),
+      forests: forests.filter((f) => f.bb.maxX + f.pad > x0 - m && f.bb.minX - f.pad < x1 + m && f.bb.maxY + f.pad > y0 - m && f.bb.minY - f.pad < y1 + m),
+      quarries: quarries.filter((q) => q.x + q.r * 1.25 > x0 - m && q.x - q.r * 1.25 < x1 + m && q.y + q.r * 1.25 > y0 - m && q.y - q.r * 1.25 < y1 + m),
+    };
+  };
+  const onPad = (x, y) => near.pads.some((p) => Math.abs(p.x - x) < p.w + p.h && Math.abs(p.y - y) < p.w + p.h && circleHitsRect(x, y, 0.8, p));
+  const inQuarry = (x, y) => near.quarries.some((q) => Math.hypot(x - q.x, y - q.y) < q.r * 1.25);
+  const inForest = (x, y) => near.forests.some((f) => x > f.bb.minX - f.pad && x < f.bb.maxX + f.pad && y > f.bb.minY - f.pad && y < f.bb.maxY + f.pad
     && (pointInPolygon(x, y, f.poly) || distToPolygonEdge(x, y, f.poly) < f.pad));
 
   // Grass scale here: 0 where none grows.
   function grassAt(x, y) {
     if (x < 2 || y < 2 || x > world.size.w - 2 || y > world.size.h - 2) return 0;
-    const g = R.at(x, y);
+    return grassFrom(x, y, R.at(x, y));
+  }
+  // The same, from the ground at (x, y) already looked up (R.at).
+  function grassFrom(x, y, g) {
+    if (x < 2 || y < 2 || x > world.size.w - 2 || y > world.size.h - 2) return 0;
     if (!(g.fd >= CARPET.roadGap)) return 0;
     if (NO_GRASS.has(g.type)) return 0;
     if (g.type !== 'pasture' && g.open < 0.5) return 0;
@@ -126,7 +144,10 @@ export function makeCarpet(world, R, heightAt, quarries = []) {
 
   // How damp the ground is: the wet bottoms (mud.js) and hollows.
   function dampAt(x, y) {
-    const h = R.at(x, y, true).h;
+    return dampFrom(x, y, R.at(x, y, true).h);
+  }
+  // h: the ground's bump height there (R.at with height).
+  function dampFrom(x, y, h) {
     return Math.min(1, Math.max(mud.at(x, y), 0.8 * smoothstep(0.1, -0.6, h)));
   }
   // Patch strength (0..1) of wildflowers here, before the ground rules; damp
@@ -168,6 +189,14 @@ export function makeCarpet(world, R, heightAt, quarries = []) {
   }
 
   function flowerTile(i, j) {
+    near = scoped(i * TILE, j * TILE, TILE);
+    try {
+      return flowerTileIn(i, j);
+    } finally {
+      near = all;
+    }
+  }
+  function flowerTileIn(i, j) {
     const x0 = i * TILE;
     const y0 = j * TILE;
     const out = [];
@@ -182,9 +211,11 @@ export function makeCarpet(world, R, heightAt, quarries = []) {
         if (n0 < 0.02) continue;
         const x = gx + (hash(gx, gy, 21) - 0.5) * sp * 0.95;
         const y = gy + (hash(gx, gy, 22) - 0.5) * sp * 0.95;
-        if (grassAt(x, y) <= 0) continue;
-        const damp = dampAt(x, y);
-        const pasture = R.at(x, y).type === 'pasture';
+        // One ground look-up (with height) serves grass, damp and pasture.
+        const g = R.at(x, y, true);
+        if (grassFrom(x, y, g) <= 0) continue;
+        const pasture = g.type === 'pasture';
+        const damp = dampFrom(x, y, g.h);
         const p = flowerPatch(x, y, damp) * (pasture ? 0.45 : 1);
         if (hash(gx, gy, 23) >= p * 0.75) continue;
         const kind = kindAt(x, y, damp, hash(gx, gy, 24));
@@ -201,7 +232,8 @@ export function makeCarpet(world, R, heightAt, quarries = []) {
   }
 
   // Clover clumps in this tile (a finer grid, only inside clover patches).
-  function cloverTile(x0, y0) {
+  // A step of tileSteps: pauses (yield) every few rows.
+  function* cloverTile(x0, y0, mine) {
     const out = [];
     const sp = FLOWER.cloverSpacing;
     const n = Math.round(TILE / sp);
@@ -213,9 +245,10 @@ export function makeCarpet(world, R, heightAt, quarries = []) {
         if (n0 < 0.0) continue;
         const x = gx + (hash(gx, gy, 31) - 0.5) * sp * 0.9;
         const y = gy + (hash(gx, gy, 32) - 0.5) * sp * 0.9;
-        if (grassAt(x, y) <= 0) continue;
-        const damp = dampAt(x, y);
-        const p = cloverPatch(x, y, damp, R.at(x, y).type === 'pasture');
+        const g = R.at(x, y, true);
+        if (grassFrom(x, y, g) <= 0) continue;
+        const pasture = g.type === 'pasture';
+        const p = cloverPatch(x, y, dampFrom(x, y, g.h), pasture);
         if (hash(gx, gy, 33) >= p * 0.85) continue;
         out.push(
           x, heightAt(x, y) - 0.01, y,
@@ -225,11 +258,27 @@ export function makeCarpet(world, R, heightAt, quarries = []) {
           hash(gx, gy, 38),
         );
       }
+      if ((a & 3) === 3) {
+        near = all;
+        yield;
+        near = mine;
+      }
     }
     return new Float32Array(out);
   }
 
   function tile(i, j) {
+    const steps = tileSteps(i, j);
+    let r = steps.next();
+    while (!r.done) r = steps.next();
+    return r.value;
+  }
+  // The same tile made in small steps: a generator that pauses (yield) every
+  // few rows and returns the tile, so a caller can spread one tile over
+  // frames. Other tiles may be made between its steps.
+  function* tileSteps(i, j) {
+    const mine = scoped(i * TILE, j * TILE, TILE);
+    near = mine;
     const x0 = i * TILE;
     const y0 = j * TILE;
     const grass = [];
@@ -255,14 +304,19 @@ export function makeCarpet(world, R, heightAt, quarries = []) {
           hash(gx, gy, 7),
         );
       }
+      if ((a & 3) === 3) {
+        near = all;
+        yield;
+        near = mine;
+      }
     }
 
     // Pebbles: only if a dirt road can be in this tile.
     const pebbles = [];
     const cx = x0 + TILE / 2;
     const cy = y0 + TILE / 2;
-    const near = R.roadDist(cx, cy);
-    if (near < TILE * 0.75 + 1 && !nearEnd(cx, cy, CARPET.pebbleEndGap + TILE)) {
+    const roadNear = R.roadDist(cx, cy);
+    if (roadNear < TILE * 0.75 + 1 && !nearEnd(cx, cy, CARPET.pebbleEndGap + TILE)) {
       const ps = CARPET.pebbleSpacing;
       const m = Math.round(TILE / ps);
       for (let a = 0; a < m; a++) {
@@ -276,9 +330,16 @@ export function makeCarpet(world, R, heightAt, quarries = []) {
           const size = 0.05 + 0.1 * hash(gx, gy, 14) ** 2;
           pebbles.push(x, heightAt(x, y) + DIRT_LIFT - size * 0.25, y, hash(gx, gy, 15) * Math.PI * 2, size, hash(gx, gy, 16));
         }
+        if ((a & 3) === 3) {
+          near = all;
+          yield;
+          near = mine;
+        }
       }
     }
-    return { grass: new Float32Array(grass), pebbles: new Float32Array(pebbles), clover: cloverTile(x0, y0) };
+    const clover = yield* cloverTile(x0, y0, mine);
+    near = all;
+    return { grass: new Float32Array(grass), pebbles: new Float32Array(pebbles), clover };
   }
 
   // Chance (0..1) of a pebble at (x, y): on a dirt road, on the hump and the
@@ -298,7 +359,7 @@ export function makeCarpet(world, R, heightAt, quarries = []) {
     return 0.12;
   }
 
-  return { tile, flowerTile, grassAt, pebbleAt, dampAt, flowerAt, cloverAt };
+  return { tile, tileSteps, flowerTile, grassAt, pebbleAt, dampAt, flowerAt, cloverAt };
 }
 
 // How many clumps of a tile to draw at distance d (m) from the camera: all
