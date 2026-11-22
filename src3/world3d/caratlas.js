@@ -22,6 +22,12 @@ const RECTS = {
   fabric: [384, 128, 128, 128],
   badge: [0, 384, 96, 32],
   indicator: [128, 192, 64, 32],
+  // Parcels on the roof rack (plain side, top with tape and a label, end
+  // with the tape running down) and the mud flaps.
+  card: [0, 256, 64, 64],
+  cardTop: [64, 256, 64, 64],
+  cardEnd: [128, 256, 64, 64],
+  flap: [192, 256, 64, 64],
 };
 // Flat swatches: [colour, roughness, metalness].
 const SW = {
@@ -42,6 +48,8 @@ const SW = {
   red: ['#7a1410', 0.2, 0],
   white: ['#e6e6e2', 0.5, 0],
   wood: ['#4a2e1c', 0.6, 0],
+  strap: ['#d9541c', 0.7, 0],
+  scratch: ['#b8aaa4', 0.55, 0.4],
 };
 const SW_NAMES = Object.keys(SW);
 const swRect = (i) => [(i % 16) * 32, 320 + Math.floor(i / 16) * 32, 32, 32];
@@ -262,6 +270,77 @@ export function carAtlas() {
     g.textBaseline = 'middle';
     g.fillText('GL', x + w / 2, y + h / 2 + 1);
     mrFill(RECTS.badge, 0.15, 1);
+  }
+  // Cardboard: brown with faint flute lines, packing tape, a shipping label.
+  {
+    let seed = 777;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const board = (x, y, w, h) => {
+      g.fillStyle = '#93693c';
+      g.fillRect(x, y, w, h);
+      for (let k = 0; k < 160; k++) {
+        g.fillStyle = rnd() < 0.5 ? 'rgba(255,235,200,0.07)' : 'rgba(60,35,10,0.08)';
+        g.fillRect(x + rnd() * w, y + rnd() * h, 2 + rnd() * 4, 1);
+      }
+      g.fillStyle = 'rgba(70,45,20,0.35)';
+      g.fillRect(x, y, w, 1);
+      g.fillRect(x, y + h - 1, w, 1);
+      g.fillRect(x, y, 1, h);
+      g.fillRect(x + w - 1, y, 1, h);
+      mrFill([x, y, w, h], 0.95, 0);
+    };
+    const tape = (x, y, w, h) => {
+      g.fillStyle = 'rgba(214,180,120,0.9)';
+      g.fillRect(x, y, w, h);
+      g.fillStyle = 'rgba(255,245,220,0.25)';
+      g.fillRect(x, y, w, 1);
+      mrFill([x, y, w, h], 0.35, 0);
+    };
+    {
+      const [x, y, w, h] = RECTS.card;
+      board(x, y, w, h);
+    }
+    {
+      const [x, y, w, h] = RECTS.cardTop;
+      board(x, y, w, h);
+      // The flaps meet down the middle, taped over.
+      tape(x + w / 2 - 6, y, 12, h);
+      g.fillStyle = 'rgba(60,35,10,0.4)';
+      g.fillRect(x + w / 2, y, 1, h);
+      // Label: white paper, address lines and a bar code (no words).
+      const lx = x + 6;
+      const ly = y + 10;
+      g.fillStyle = '#eeeae0';
+      g.fillRect(lx, ly, 18, 26);
+      g.fillStyle = '#2a2a2a';
+      for (let k = 0; k < 4; k++) g.fillRect(lx + 2, ly + 3 + k * 3, 10 + ((k * 5) % 5), 1);
+      for (let k = 0; k < 12; k++) if (rnd() < 0.7) g.fillRect(lx + 2 + k, ly + 17, 1, 6);
+      mrFill([lx, ly, 18, 26], 0.8, 0);
+    }
+    {
+      const [x, y, w, h] = RECTS.cardEnd;
+      board(x, y, w, h);
+      tape(x + w / 2 - 6, y, 12, Math.round(h * 0.4));
+    }
+  }
+  // Mud flap: ribbed black rubber, a dull plate at the top, mud at the bottom.
+  {
+    const [x, y, w, h] = RECTS.flap;
+    g.fillStyle = '#1b1b1a';
+    g.fillRect(x, y, w, h);
+    g.fillStyle = '#262624';
+    for (let k = 4; k < w - 4; k += 6) g.fillRect(x + k, y + h * 0.45, 3, h * 0.5);
+    mrFill([x, y, w, h], 0.92, 0);
+    g.fillStyle = '#5a5c5e';
+    g.fillRect(x + w / 2 - 12, y + 7, 24, 8);
+    mrFill([x + w / 2 - 12, y + 7, 24, 8], 0.45, 0.8);
+    let seed = 99;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    for (let k = 0; k < 70; k++) {
+      const yy = y + h - Math.pow(rnd(), 1.8) * h * 0.55;
+      g.fillStyle = `rgba(${86 + rnd() * 20},${66 + rnd() * 14},${44},${0.35 + rnd() * 0.4})`;
+      g.fillRect(x + rnd() * w, yy, 2 + rnd() * 4, 2 + rnd() * 3);
+    }
   }
   SW_NAMES.forEach((name, i) => {
     const [col, rough, metal] = SW[name];

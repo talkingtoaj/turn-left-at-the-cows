@@ -255,3 +255,54 @@ export function loftBody(S, { step = 0.08 } = {}) {
   };
   return { paint: sets.paint, glass: sets.glass, trim, at, stations: st.length };
 }
+
+// Old dings: small dents the car came with (it's a well-used delivery car).
+// Baked into the rest shape of the paint and the trim (so strips and lamps
+// near a ding sink with it), so the damage dents (car3d.js) push in on top
+// of them. Each one is an ellipsoid (rx, ry, rz) round c, pushed in along n
+// by up to depth. scratches: bare-metal lines through it, [start, end] as
+// offsets from c in the surface: (dz, dy) on a side ding, (dx, dz) on a top
+// one (car3d.js draws them). They keep near the loft's vertex rows, where
+// the coarse paint follows the ding closely.
+export const SEDAN_DINGS = [
+  // Front right fender, ahead of the arch (seen in the near-side views).
+  {
+    c: [0.875, 0.75, -1.62], n: [-1, 0, 0], rx: 0.2, ry: 0.15, rz: 0.24, depth: 0.045,
+    scratches: [[[-0.13, 0.0], [0.1, 0.012]], [[-0.09, -0.025], [0.12, -0.04]], [[-0.04, 0.01], [0.06, 0.004]]],
+  },
+  // Trunk lid, right of the middle (seen from the chase camera).
+  {
+    c: [0.438, 0.99, 1.93], n: [0, -1, 0], rx: 0.2, ry: 0.2, rz: 0.22, depth: 0.04,
+    scratches: [[[0.0, -0.13], [0.025, 0.11]], [[0.04, -0.07], [0.05, 0.08]]],
+  },
+];
+
+// pos: flat xyz array (changed in place). col: flat rgb array or null (the
+// paint round a ding is a little darker). Returns how many vertices moved.
+export function wearDings(pos, col, dings = SEDAN_DINGS) {
+  let moved = 0;
+  for (let i = 0; i < pos.length; i += 3) {
+    let any = false;
+    for (const d of dings) {
+      const dx = (pos[i] - d.c[0]) / d.rx;
+      const dy = (pos[i + 1] - d.c[1]) / d.ry;
+      const dz = (pos[i + 2] - d.c[2]) / d.rz;
+      const q = dx * dx + dy * dy + dz * dz;
+      if (q >= 1) continue;
+      const f = (1 - q) * (1 - q);
+      const m = d.depth * f;
+      pos[i] += d.n[0] * m;
+      pos[i + 1] += d.n[1] * m;
+      pos[i + 2] += d.n[2] * m;
+      if (col) {
+        const k = 1 - 0.3 * f;
+        col[i] *= k;
+        col[i + 1] *= k;
+        col[i + 2] *= k;
+      }
+      any = true;
+    }
+    if (any) moved++;
+  }
+  return moved;
+}
