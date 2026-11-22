@@ -9,28 +9,9 @@
 
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
+import { launchChromium } from './browser.mjs';
 
 const [, , base = 'http://localhost:5199', outDir = '.', prefix = 'shot', only = ''] = process.argv; // only: comma list of view names
-
-function findPlaywright() {
-  const root = path.join(os.homedir(), '.npm/_npx');
-  for (const d of fs.readdirSync(root)) {
-    const p = path.join(root, d, 'node_modules/playwright-core/index.js');
-    if (fs.existsSync(p)) return p;
-  }
-  throw new Error('playwright-core not found under ~/.npm/_npx');
-}
-
-function findChrome() {
-  const root = path.join(os.homedir(), '.cache/ms-playwright');
-  const dirs = fs.readdirSync(root).filter((d) => /^chromium-\d+$/.test(d)).sort((a, b) => Number(b.split('-')[1]) - Number(a.split('-')[1]));
-  for (const d of dirs) {
-    const p = path.join(root, d, 'chrome-linux64/chrome');
-    if (fs.existsSync(p)) return p;
-  }
-  throw new Error('chromium not found');
-}
 
 // cam: [x, up, y] relative to ground at (x, y), look: [x, up, y] likewise.
 // car: { x, y, heading } or { road, at } (fraction along a road).
@@ -97,12 +78,7 @@ const VIEWS = [
   { name: 'traffic_switch_out', car: { road: 'hwy9', at: 0.4 }, pin: [['car0', 43, -1, -1]], rel: [1.2, 2.4, -3], relLook: [-2.4, 0.6, -40] },
 ];
 
-const pw = await import(findPlaywright());
-const { chromium } = pw.default || pw;
-const browser = await chromium.launch({
-  executablePath: findChrome(),
-  args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'],
-});
+const browser = await launchChromium();
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const errors = [];
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
