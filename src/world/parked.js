@@ -15,18 +15,25 @@
 // To add a kind: a footprint here and a builder in parked3d.js.
 
 import { partRect } from '../drive/layout.js';
+import { sixBySixPaint } from '../ambient/sixbysix.js';
 
 // Footprint per kind (what the car and your feet bump into): w across, len
 // along the vehicle, centred on (x, y).
 export const PARKED_KINDS = {
   // A long-nose tractor with a hopper or flatbed trailer, about 15 m.
   semi: { w: 2.6, len: 15.2, hiss: true },
+  // The farmer's surplus 6x6 (#45, src3/world3d/sixbysix3d.js), about 7 m.
+  sixbysix: { w: 2.45, len: 7.0 },
 };
 
 export const PARKED = {
   fenwick: [
     // Waiting by the scale house at the Calder grain silos, on the pad.
     { id: 'calder_semi', kind: 'semi', x: 4954, y: 1119.2, heading: 90, lift: 0.3, trailer: 'grain', color: 0x7a1f1a },
+    // The surplus 6x6 (#45) at home: beside the Hartley barn and the Okafor
+    // barn (kit: the parts shown, carkit.js KIT_PARTS names).
+    { id: 'hartley_6x6', kind: 'sixbysix', x: 2700, y: 434, heading: 90, color: sixBySixPaint('hartley_6x6').color, kit: ['hay', 'bedCans'], dirt: 0.5 },
+    { id: 'okafor_6x6', kind: 'sixbysix', x: 4950, y: 2003, heading: 270, color: sixBySixPaint('okafor_6x6').color, kit: ['flaps'], dirt: 0.4 },
   ],
   brandt: [
     // Pulled up to the driveway shed of the Brandt co-op elevator, a load

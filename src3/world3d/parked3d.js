@@ -15,7 +15,9 @@
 import * as THREE from 'three';
 import { carAtlas } from './caratlas.js';
 import { trimBuilder } from './car3d.js';
-import { wheelInto } from './trafficfine.js';
+import { wheelInto, fineVehicle } from './trafficfine.js';
+import { sixBySixInto } from './sixbysix3d.js';
+import { KIT_BIT } from '../../src/ambient/carkit.js';
 import { DEG } from '../../src/drive/geom.js';
 import { PARKED_KINDS } from '../../src/world/parked.js';
 
@@ -265,9 +267,17 @@ function semi(p, A) {
   return { near: T.build(), far: semiFar(p, A) };
 }
 
+// The surplus 6x6 (#45): the traffic body (sixbysix3d.js through the fine
+// adapter), with the kit pieces p.kit names; a plainer copy far off.
+const sixbysix = (p) => {
+  const kitMask = (p.kit || []).reduce((m, k) => m | (1 << KIT_BIT[k]), 0);
+  return { near: fineVehicle(sixBySixInto, 'sixbysix', { kitMask }), far: fineVehicle(sixBySixInto, 'sixbysix', { fine: false, kitMask: 0 }) };
+};
+
 // The builder registry: one line per kind.
 const BUILDERS = {
   semi,
+  sixbysix,
 };
 
 // Vertex colours: the paint swatch takes the vehicle's colour, the rest stays

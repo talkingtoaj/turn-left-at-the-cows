@@ -261,13 +261,15 @@ function loftFine(name) {
 // roundShapes.js) on the atlas: flat parts in one trim builder, rounded
 // panels keep their smooth normals.
 const FINE_ALIAS = { paint: 'tpaint', glass: 'tglass', wood: 'plank', woodDark: 'plankDark', hub: 'steel', tail: 'red', flap: 'rubber' };
-function fineBody(into, type) {
+// kitMask: which kit pieces to keep (-1 all, for the traffic shader to fold;
+// a parked copy passes the few it shows). fine: false for a far stand-in.
+export function fineVehicle(into, type, { fine = true, kitMask = -1 } = {}) {
   const A = carAtlas();
   const T = trimBuilder(A);
   const smooth = [];
   const sw = (m) => FINE_ALIAS[m] || m;
   into({
-    fine: true,
+    fine,
     box: (x, y, z, w, h, d, m, rx = 0, ry = 0, rz = 0) => T.box(x, y, z, w, h, d, sw(m), rx, ry, rz),
     bar: (a, b, w, th, m, up) => T.rod(a, b, w, th, sw(m), up),
     smooth(g, m) {
@@ -286,8 +288,10 @@ function fineBody(into, type) {
     },
     wheel: (r, w, x, y, z, side, axis = 'x') => wheelInto(T, A, r, x, y, z, side, w, axis),
   });
-  return mergeGeometries([trimPart(T, A, 1), ...smooth, ...fineKit(type, A)]);
+  const kit = fineKit(type, A).filter((g) => kitMask === -1 || (kitMask >> (g.attributes.carPart.array[1] - 1)) & 1);
+  return mergeGeometries([trimPart(T, A, 1), ...smooth, ...kit]);
 }
+const fineBody = (into, type) => fineVehicle(into, type);
 
 // Kit pieces (trafficKit.js) on the atlas, one part per kit bit (carPart.y is
 // the bit + 1; the shader folds away the parts a car's kit leaves out).
