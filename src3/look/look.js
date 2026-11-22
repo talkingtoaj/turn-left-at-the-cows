@@ -175,6 +175,20 @@ export async function createLook(renderer, params) {
   return color;
 }`,
   );
+  // Fog (#54): three.js mixes the fog colour in after tone mapping, so a fog
+  // colour in sky radiance (above 1, before the exposure) came out as plain
+  // white, while the sky dome tone maps the same colour to a soft grey: far
+  // hills showed as a pale band under the sky. Tone map the fog colour too,
+  // so fully fogged land is exactly the sky's horizon colour.
+  THREE.ShaderChunk.fog_fragment = THREE.ShaderChunk.fog_fragment.replace(
+    'gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );',
+    `vec3 fogOut = fogColor;
+	#if defined( TONE_MAPPING )
+		fogOut = toneMapping( fogOut );
+	#endif
+	fogOut = linearToOutputTexel( vec4( fogOut, 1.0 ) ).rgb;
+	gl_FragColor.rgb = mix( gl_FragColor.rgb, fogOut, fogFactor );`,
+  );
   renderer.toneMapping = params.get('tm') === 'agx' ? THREE.AgXToneMapping : THREE.CustomToneMapping;
   renderer.toneMappingExposure = opts.exposure;
   console.info(`[look] new look on, assets ready in ${Math.round(performance.now() - t0)} ms`);
