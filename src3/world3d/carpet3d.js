@@ -42,8 +42,17 @@ const MAX_GRASS = 16000;
 const MAX_PEBBLES = 3000;
 const MAX_CLOVER = 6000;
 const MAX_FLOWERS = 4000;
-const FLOWER_BUILD_PER_FRAME = 3; // tiles; mostly empty, about 0.4 ms each
-const BUILD_PER_FRAME = 2; // about 1 ms each; a tile row is 9 tiles, crossed every 0.3 s at 60 mph
+// While driving, new tiles are built nearest first until a frame has spent
+// this long on the carpet (a grass tile takes about 0.2 to 3 ms, made a few
+// rows a frame; a flower tile about 0.1 ms). After a jump every tile is
+// built at once.
+const BUILD_MS = 1.5;
+// Reach (share of CARPET.radius and FLOWER.radius) at the resolution
+// scaler's lowest step: grass 32 -> 20 m, flowers 64 -> 40 m.
+const REACH_MIN = 0.625;
+const REACH_RATE = 0.2; // reach change per second, so the fade glides in
+const REACH_STEP = 0.03; // the tile windows and buffers follow in these steps
+const FILL_WAIT = 20; // frames a refill may wait for missing tiles
 const RUT_R = 110; // m
 const RUT_FADE = 80; // m: ruts fade out from here to RUT_R
 const RUT_MOVE = 12; // m
@@ -53,28 +62,38 @@ const RUT_MOVE = 12; // m
 // (the plant shrinks into the ground between them), or null.
 export function swayMaterial(mat, sway, fade = null) {
   const prev = mat.onBeforeCompile;
+  // fade as a uniform ({ value: Vector2(near, far) }) can move at run time.
+  const fadeU = fade && fade.value ? fade : null;
+  const fadeGlsl = fadeU ? 'uFade.x, uFade.y' : fade ? `${fade[0].toFixed(1)}, ${fade[1].toFixed(1)}` : '';
   mat.onBeforeCompile = (sh, r) => {
     if (prev) prev(sh, r);
     sh.uniforms.uTime = WIND.uTime;
     sh.uniforms.uWind = WIND.uWind;
+    if (fadeU) sh.uniforms.uFade = fadeU;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', `#include <common>
 uniform float uTime;
-uniform vec2 uWind;`)
+uniform vec2 uWind;${fadeU ? '\nuniform vec2 uFade;' : ''}`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
 #ifdef USE_INSTANCING
 {
   vec3 io = instanceMatrix[3].xyz;
-  float hW = length(instanceMatrix[1].xyz);
+  vec3 c0 = instanceMatrix[0].xyz;
+  vec3 c1 = instanceMatrix[1].xyz;
+  vec3 c2 = instanceMatrix[2].xyz;
+  float hW = length(c1);
   float bend = max(position.y, 0.0);
   bend *= bend;
   float ph = dot(io.xz, vec2(0.37, 0.29));
   float gust = 0.6 + 0.4 * sin(uTime * 0.45 + io.x * 0.021 + io.z * 0.017);
   float w = (sin(uTime * 1.7 + ph) * 0.55 + sin(uTime * 2.9 + ph * 1.9) * 0.2 + 0.45) * gust;
   vec3 off = vec3(uWind.x, 0.0, uWind.y) * (w * bend * hW * ${sway.toFixed(3)});
-  transformed += inverse(mat3(instanceMatrix)) * off;
+  // The world offset in the clump's own space. Instance matrices are a
+  // rotation times a scale (orthogonal columns), so this is the inverse
+  // without a per-vertex inverse().
+  transformed += vec3(dot(c0, off) / dot(c0, c0), dot(c1, off) / dot(c1, c1), dot(c2, off) / dot(c2, c2));
   ${fade ? `float fd = distance(io.xz, cameraPosition.xz);
-  transformed *= 1.0 - smoothstep(${fade[0].toFixed(1)}, ${fade[1].toFixed(1)}, fd);` : ''}
+  transformed *= 1.0 - smoothstep(${fadeGlsl}, fd);` : ''}
 }
 #endif`);
     // Blades are double sided but lit by their (upward) normal on both
@@ -82,7 +101,7 @@ uniform vec2 uWind;`)
     sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
 normal = normalize( vNormal );`);
   };
-  mat.customProgramCacheKey = () => `sway${sway}${fade}`;
+  mat.customProgramCacheKey = () => `sway${sway}${fadeU ? 'U' : fade}`;
   return mat;
 }
 
@@ -316,16 +335,19 @@ export function buildCarpet(world, terrain, groundColor = null) {
   const win = new TileWindow();
   const cache = new Map();
 
-  const grassMat = swayMaterial(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }), 0.16, [CARPET.fade, CARPET.radius]);
+  // Fades as uniforms: they move in when the reach shrinks (setDetail).
+  const grassFade = { value: new THREE.Vector2(CARPET.fade, CARPET.radius) };
+  const flowerFade = { value: new THREE.Vector2(FLOWER.fade, FLOWER.radius) };
+  const grassMat = swayMaterial(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }), 0.16, grassFade);
   const grass = new THREE.InstancedMesh(clumpGeo(), grassMat, MAX_GRASS);
   grass.name = 'carpet_grass';
   const pebbleMat = new THREE.MeshLambertMaterial({ flatShading: true });
   const pebbles = new THREE.InstancedMesh(pebbleGeo(), pebbleMat, MAX_PEBBLES);
   pebbles.name = 'carpet_pebbles';
-  const cloverMat = headColor(swayMaterial(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }), 0.08, [CARPET.fade, CARPET.radius]), 'clover');
+  const cloverMat = headColor(swayMaterial(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }), 0.08, grassFade), 'clover');
   const clover = new THREE.InstancedMesh(cloverGeo(), cloverMat, MAX_CLOVER);
   clover.name = 'carpet_clover';
-  const flowerMat = headColor(swayMaterial(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }), 0.2, [FLOWER.fade, FLOWER.radius]), 'flower');
+  const flowerMat = headColor(swayMaterial(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }), 0.2, flowerFade), 'flower');
   const flowers = new THREE.InstancedMesh(flowerGeo(), flowerMat, MAX_FLOWERS);
   flowers.name = 'carpet_flowers';
   for (const m of [grass, pebbles, clover, flowers]) {
@@ -361,7 +383,8 @@ export function buildCarpet(world, terrain, groundColor = null) {
   const CLOVER_SCALE = 2.1; // the clumps read from the chase camera
   const PEB = [new THREE.Color(0x9a9488), new THREE.Color(0xb09f80), new THREE.Color(0x7c766c), new THREE.Color(0xc4baa6)];
 
-  // Tile -> ready-to-copy instance data (matrices and colours).
+  // Tile -> ready-to-copy instance data (matrices and colours), each kind
+  // sorted by rank, so the clumps a far tile keeps are one run at the front.
   const m4 = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const up = new THREE.Vector3(0, 1, 0);
@@ -370,14 +393,15 @@ export function buildCarpet(world, terrain, groundColor = null) {
   const col = new THREE.Color();
   const gn = new THREE.Vector3();
   const qr = new THREE.Quaternion();
-  const makeTile = (i, j) => {
-    const t = C.tile(i, j);
+  const makeTile = (i, j) => tileData(i, j, C.tile(i, j));
+  const tileData = (i, j, t) => {
     const ng = t.grass.length / GRASS_STRIDE;
     const gm = new Float32Array(ng * 16);
     const gcol = new Float32Array(ng * 3);
     const rank = new Float32Array(ng);
+    const go = byRank(t.grass, GRASS_STRIDE);
     for (let k = 0; k < ng; k++) {
-      const o = k * GRASS_STRIDE;
+      const o = go[k] * GRASS_STRIDE;
       const sc = t.grass[o + 4];
       // Stand square to the slope, so the clump's up normal is the ground's
       // and it lights like the ground round it.
@@ -407,8 +431,9 @@ export function buildCarpet(world, terrain, groundColor = null) {
     const cm = new Float32Array(nc * 16);
     const ccol = new Float32Array(nc * 3);
     const crank = new Float32Array(nc);
+    const co = byRank(t.clover, CLOVER_STRIDE);
     for (let k = 0; k < nc; k++) {
-      const o = k * CLOVER_STRIDE;
+      const o = co[k] * CLOVER_STRIDE;
       const x = t.clover[o];
       const z = t.clover[o + 2];
       const sc = t.clover[o + 4] * CLOVER_SCALE;
@@ -420,7 +445,7 @@ export function buildCarpet(world, terrain, groundColor = null) {
       col.toArray(ccol, k * 3);
       crank[k] = t.clover[o + 6];
     }
-    return { gm, gcol, rank, ng, pm, pcol, np, cm, ccol, crank, nc };
+    return { i, j, gm, gcol, rank, ng, pm, pcol, np, cm, ccol, crank, nc };
   };
 
   // Flower tile -> instance data.
@@ -430,8 +455,9 @@ export function buildCarpet(world, terrain, groundColor = null) {
     const fm = new Float32Array(n * 16);
     const fcol = new Float32Array(n * 3);
     const rank = new Float32Array(n);
+    const fo = byRank(f, FLOWER_STRIDE);
     for (let k = 0; k < n; k++) {
-      const o = k * FLOWER_STRIDE;
+      const o = fo[k] * FLOWER_STRIDE;
       const kind = FLOWER_KINDS[f[o + 5]];
       const sc = f[o + 4];
       // Upright (flowers grow toward the light, not square to the slope).
@@ -441,10 +467,19 @@ export function buildCarpet(world, terrain, groundColor = null) {
       col.toArray(fcol, k * 3);
       rank[k] = f[o + 6];
     }
-    return { fm, fcol, rank, n };
+    return { i, j, fm, fcol, rank, n };
   };
 
-  // Copy the tiles in view into the two meshes.
+  // Reach: 1 is the full CARPET.radius and FLOWER.radius; it shrinks to
+  // REACH_MIN when the resolution scaler drops a step (setDetail), and the
+  // fade moves in with it. reach eases toward its target; the tile windows
+  // and the buffers follow it in small steps.
+  let reach = 1;
+  let reachTarget = 1;
+  let reachFilled = 1;
+
+  // Copy the tiles in view into the meshes. Each tile's kept clumps are a
+  // run at the front of its arrays, so this is one copy per tile and kind.
   const fill = (tiles, cx, cz) => {
     let n = 0;
     let p = 0;
@@ -460,20 +495,16 @@ export function buildCarpet(world, terrain, groundColor = null) {
       if (!d) continue;
       const tx = Math.max(t.i * TILE, Math.min((t.i + 1) * TILE, cx));
       const tz = Math.max(t.j * TILE, Math.min((t.j + 1) * TILE, cz));
-      const keep = keepShare(Math.hypot(tx - cx, tz - cz));
+      const keep = keepShare(Math.hypot(tx - cx, tz - cz) / reachFilled);
       if (keep <= 0) continue;
-      for (let k = 0; k < d.ng && n < MAX_GRASS; k++) {
-        if (d.rank[k] >= keep) continue;
-        gA.set(d.gm.subarray(k * 16, k * 16 + 16), n * 16);
-        gC.set(d.gcol.subarray(k * 3, k * 3 + 3), n * 3);
-        n++;
-      }
-      for (let k = 0; k < d.nc && c < MAX_CLOVER; k++) {
-        if (d.crank[k] >= keep) continue;
-        cA.set(d.cm.subarray(k * 16, k * 16 + 16), c * 16);
-        cC.set(d.ccol.subarray(k * 3, k * 3 + 3), c * 3);
-        c++;
-      }
+      const kg = Math.min(below(d.rank, d.ng, keep), MAX_GRASS - n);
+      gA.set(d.gm.subarray(0, kg * 16), n * 16);
+      gC.set(d.gcol.subarray(0, kg * 3), n * 3);
+      n += kg;
+      const kc = Math.min(below(d.crank, d.nc, keep), MAX_CLOVER - c);
+      cA.set(d.cm.subarray(0, kc * 16), c * 16);
+      cC.set(d.ccol.subarray(0, kc * 3), c * 3);
+      c += kc;
       if (d.np && t.d < 34) {
         const take = Math.min(d.np, MAX_PEBBLES - p);
         pA.set(d.pm.subarray(0, take * 16), p * 16);
@@ -485,9 +516,10 @@ export function buildCarpet(world, terrain, groundColor = null) {
     upload(pebbles, p);
     upload(clover, c);
   };
+  // Meshes stay visible with no instances (a draw of none is skipped), so
+  // their shaders compile with the rest at load, not mid-drive.
   const upload = (m, c) => {
     m.count = c;
-    m.visible = c > 0;
     m.instanceMatrix.clearUpdateRanges();
     m.instanceMatrix.addUpdateRange(0, c * 16);
     m.instanceMatrix.needsUpdate = true;
@@ -508,14 +540,12 @@ export function buildCarpet(world, terrain, groundColor = null) {
       if (!d || !d.n) continue;
       const tx = Math.max(t.i * TILE, Math.min((t.i + 1) * TILE, cx));
       const tz = Math.max(t.j * TILE, Math.min((t.j + 1) * TILE, cz));
-      const keep = flowerKeepShare(Math.hypot(tx - cx, tz - cz));
+      const keep = flowerKeepShare(Math.hypot(tx - cx, tz - cz) / reachFilled);
       if (keep <= 0) continue;
-      for (let k = 0; k < d.n && n < MAX_FLOWERS; k++) {
-        if (d.rank[k] >= keep) continue;
-        A.set(d.fm.subarray(k * 16, k * 16 + 16), n * 16);
-        Cc.set(d.fcol.subarray(k * 3, k * 3 + 3), n * 3);
-        n++;
-      }
+      const k = Math.min(below(d.rank, d.n, keep), MAX_FLOWERS - n);
+      A.set(d.fm.subarray(0, k * 16), n * 16);
+      Cc.set(d.fcol.subarray(0, k * 3), n * 3);
+      n += k;
     }
     upload(flowers, n);
   };
@@ -529,81 +559,163 @@ export function buildCarpet(world, terrain, groundColor = null) {
   const drawn = new THREE.Vector3(NaN, 0, 0);
   if (ruts) ruts.mesh.onBeforeRender = (r, sc, cam) => drawn.copy(cam.position);
 
+  // Drop cached tiles well outside a window.
+  const prune = (map, radius, cx, cz) => {
+    const reachM = radius + 3 * TILE;
+    for (const [k, d] of map) {
+      if (Math.abs((d.i + 0.5) * TILE - cx) > reachM || Math.abs((d.j + 0.5) * TILE - cz) > reachM) map.delete(k);
+    }
+  };
+
   let tiles = [];
   let ftiles = [];
+  let gmiss = []; // window tiles not built yet, nearest first
+  let fmiss = [];
   let fdirty = false;
   let dirty = false;
+  let gwait = 0; // frames since the window moved with the buffers not refilled
+  let fwait = 0;
+  let job = null; // the grass tile being made: { key, steps, done }
+  let costG = 0.3; // ms, running guess of a grass tile's last step
+  let costF = 0.2; // ms, a flower tile's
   let first = true;
   let lastX = 0;
   let lastZ = 0;
-  const t0 = performance.now();
+  let lastT = performance.now();
+  const t0 = lastT;
   return {
     object: group,
-    counts: () => ({ grass: grass.count, pebbles: pebbles.count, clover: clover.count, flowers: flowers.count, tiles: cache.size, flowerTiles: fcache.size }),
+    counts: () => ({ grass: grass.count, pebbles: pebbles.count, clover: clover.count, flowers: flowers.count, tiles: cache.size, flowerTiles: fcache.size, reach }),
     materials: { grass: grassMat, pebble: pebbleMat, clover: cloverMat, flower: flowerMat },
+    // detail: 1 at full resolution .. 0 at the scaler's lowest step.
+    // now: jump straight there (dev tools) instead of easing.
+    setDetail(detail, now = false) {
+      reachTarget = REACH_MIN + (1 - REACH_MIN) * Math.max(0, Math.min(1, detail));
+      if (now) reach = reachTarget;
+    },
     update(camera) {
-      WIND.uTime.value = (performance.now() - t0) / 1000;
+      const start = performance.now();
+      const dt = Math.min(0.25, (start - lastT) / 1000);
+      lastT = start;
+      WIND.uTime.value = (start - t0) / 1000;
       const at = Number.isNaN(drawn.x) ? camera.position : drawn;
       const cx = at.x;
       const cz = at.z;
+      // Reach eases toward its target; the fade follows every frame, the
+      // windows and buffers in steps of REACH_STEP.
+      if (reach !== reachTarget) {
+        const stepR = REACH_RATE * dt;
+        reach = Math.abs(reachTarget - reach) <= stepR ? reachTarget : reach + Math.sign(reachTarget - reach) * stepR;
+        if (first) reach = reachTarget;
+      }
+      grassFade.value.set(CARPET.fade * reach, CARPET.radius * reach);
+      flowerFade.value.set(FLOWER.fade * reach, FLOWER.radius * reach);
+      if (Math.abs(reach - reachFilled) >= REACH_STEP || (reach === reachTarget && reach !== reachFilled)) {
+        reachFilled = reach;
+        win.radius = CARPET.radius * reach;
+        fwin.radius = FLOWER.radius * reach;
+        win.ci = NaN; // the window is remade on this update
+        fwin.ci = NaN;
+      }
       const w = win.update(cx, cz);
       if (w.changed) {
         tiles = w.tiles;
+        gmiss = tiles.filter((t) => !cache.has(t.key));
         dirty = true;
-        // Drop tiles well out of reach.
-        const keep = new Set(tiles.map((t) => t.key));
-        for (const k of cache.keys()) {
-          if (keep.has(k)) continue;
-          const [i, j] = k.split(',').map(Number);
-          if (Math.abs((i + 0.5) * TILE - cx) > CARPET.radius + 3 * TILE || Math.abs((j + 0.5) * TILE - cz) > CARPET.radius + 3 * TILE) cache.delete(k);
-        }
+        prune(cache, win.radius, cx, cz);
       }
-      // After a jump (start, tow, a dev teleport) build every tile now;
-      // while driving a few per frame, nearest first.
+      const fw = fwin.update(cx, cz);
+      if (fw.changed) {
+        ftiles = fw.tiles;
+        fmiss = ftiles.filter((t) => !fcache.has(t.key));
+        fdirty = true;
+        prune(fcache, fwin.radius, cx, cz);
+      }
+      // After a jump (start, tow, a dev teleport) build every tile now.
+      // While driving, the nearest missing tiles (grass or flower) until this
+      // frame has spent BUILD_MS.
       const jump = first || Math.hypot(cx - lastX, cz - lastZ) > 3 * TILE;
       lastX = cx;
       lastZ = cz;
       first = false;
-      let budget = jump ? Infinity : BUILD_PER_FRAME;
-      for (const t of tiles) {
-        if (budget <= 0) break;
-        if (cache.has(t.key)) continue;
-        cache.set(t.key, makeTile(t.i, t.j));
-        budget--;
-        dirty = true;
+      // A grass tile is made a few rows at a time (C.tileSteps), so one
+      // tile can run over several frames; its last step (matrices and
+      // colours) and a flower tile are only started if they should end
+      // inside the budget, from a running guess of their cost. Each frame
+      // does at least one step.
+      let built = 0;
+      for (;;) {
+        while (gmiss.length && cache.has(gmiss[0].key)) gmiss.shift();
+        while (fmiss.length && fcache.has(fmiss[0].key)) fmiss.shift();
+        if (!gmiss.length && !fmiss.length) break;
+        // A grass tile half made is finished first.
+        if (job && !gmiss.some((g) => g.key === job.key)) job = null;
+        const grassNext = gmiss.length && (job || !fmiss.length || gmiss[0].d <= fmiss[0].d);
+        const tb = performance.now();
+        const over = (cost) => !jump && built > 0 && tb - start + cost > BUILD_MS;
+        if (grassNext) {
+          if (!job) job = { t: gmiss[0], key: gmiss[0].key, steps: C.tileSteps(gmiss[0].i, gmiss[0].j), done: null };
+          const t = job.t;
+          if (!job.done) {
+            if (over(0.15)) break;
+            const r = job.steps.next();
+            if (r.done) job.done = r.value;
+          } else {
+            if (over(costG)) break;
+            cache.set(t.key, tileData(t.i, t.j, job.done));
+            costG += (performance.now() - tb - costG) * 0.1;
+            job = null;
+            gmiss.splice(gmiss.indexOf(t), 1);
+            dirty = true;
+          }
+        } else {
+          if (over(costF)) break;
+          const t = fmiss.shift();
+          fcache.set(t.key, makeFlowerTile(t.i, t.j));
+          costF += (performance.now() - tb - costF) * 0.1;
+          fdirty = true;
+        }
+        built++;
       }
-      // Refill the buffers when the window moved, and once more when its
-      // last missing tile is in (the missing ones are at the faded rim).
-      if (dirty && (w.changed || !tiles.some((t) => !cache.has(t.key)))) {
+      // Refill the buffers (about 1 MB to upload) once the window's missing
+      // tiles are in: they and the ones just left behind are at the faded
+      // rim, so waiting a few frames shows nothing. A slow machine still
+      // refills every FILL_WAIT frames.
+      gwait = w.changed ? gwait + 1 : gwait && gwait + 1;
+      fwait = fw.changed ? fwait + 1 : fwait && fwait + 1;
+      if (dirty && (!gmiss.length || gwait > FILL_WAIT)) {
         fill(tiles, cx, cz);
         dirty = false;
+        gwait = 0;
       }
-      // Flowers: the same, over their own window.
-      const fw = fwin.update(cx, cz);
-      if (fw.changed) {
-        ftiles = fw.tiles;
-        fdirty = true;
-        const reach = FLOWER.radius + 3 * TILE;
-        for (const k of fcache.keys()) {
-          const [i, j] = k.split(',').map(Number);
-          if (Math.abs((i + 0.5) * TILE - cx) > reach || Math.abs((j + 0.5) * TILE - cz) > reach) fcache.delete(k);
-        }
-      }
-      let fbudget = jump ? Infinity : FLOWER_BUILD_PER_FRAME;
-      for (const t of ftiles) {
-        if (fbudget <= 0) break;
-        if (fcache.has(t.key)) continue;
-        fcache.set(t.key, makeFlowerTile(t.i, t.j));
-        fbudget--;
-        fdirty = true;
-      }
-      if (fdirty && (fw.changed || !ftiles.some((t) => !fcache.has(t.key)))) {
+      if (fdirty && (!fmiss.length || fwait > FILL_WAIT)) {
         fillFlowers(ftiles, cx, cz);
         fdirty = false;
+        fwait = 0;
       }
       if (ruts) ruts.update(cx, cz);
     },
   };
+}
+
+// How many of the first n ranks (sorted, rising) are below keep.
+function below(rank, n, keep) {
+  let lo = 0;
+  let hi = n;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (rank[mid] < keep) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+// Record indices of a strided array (rank at offset 6), lowest rank first.
+function byRank(arr, stride) {
+  const n = arr.length / stride;
+  const order = new Uint32Array(n);
+  for (let k = 0; k < n; k++) order[k] = k;
+  return order.sort((a, b) => arr[a * stride + 6] - arr[b * stride + 6]);
 }
 
 // Rut strips along the dirt roads near the camera. Rows match the road
@@ -669,6 +781,30 @@ function buildRuts(world, terrain, R) {
       return [x, terrain.heightAt(x, y) + LIFT, y];
     });
   };
+  // A road's row centres, and whether a row can carry ruts at all (not near
+  // its ends, where the road dips under the one it meets, nor by water or a
+  // flat feature). Worked out once per road, the first time it is near.
+  const rowsOf = (rd) => {
+    if (rd.px) return;
+    const { total, n } = rd;
+    const step = total / (n - 1);
+    rd.px = new Float32Array(n);
+    rd.py = new Float32Array(n);
+    rd.ok = new Uint8Array(n);
+    rd.s = new Array(n); // rut points per row, made when first needed
+    const pts = rd.r.points;
+    const cum = rd.cum;
+    let sg = 1; // walks along the segments (pointAlong, without its search)
+    for (let i = 0; i < n; i++) {
+      const d = step * i;
+      while (sg < cum.length - 1 && cum[sg] < d) sg++;
+      const t = Math.max(0, Math.min(1, (d - cum[sg - 1]) / (cum[sg] - cum[sg - 1] || 1)));
+      const p = { x: pts[sg - 1][0] + (pts[sg][0] - pts[sg - 1][0]) * t, y: pts[sg - 1][1] + (pts[sg][1] - pts[sg - 1][1]) * t };
+      rd.px[i] = p.x;
+      rd.py[i] = p.y;
+      rd.ok[i] = d >= 12 && d <= total - 12 && !nearWater(p.x, p.y) && !(R.flatDist(p.x, p.y) < -2) ? 1 : 0;
+    }
+  };
   function update(cx, cz) {
     if (Math.hypot(cx - lastAt.x, cz - lastAt.z) < RUT_MOVE) return;
     lastAt.x = cx;
@@ -678,23 +814,19 @@ function buildRuts(world, terrain, R) {
     for (const rd of roads) {
       const { bb, total, n } = rd;
       if (cx < bb.minX - RUT_R || cx > bb.maxX + RUT_R || cz < bb.minY - RUT_R || cz > bb.maxY + RUT_R) continue;
+      rowsOf(rd);
       const step = total / (n - 1);
       let prev = null;
       for (let i = 0; i < n && rows < MAX_ROWS; i++) {
         const d = step * i;
-        // Not near the road's ends: the road dips under the one it meets there.
-        if (d < 12 || d > total - 12) {
-          prev = null;
-          continue;
-        }
-        const p = pointAlong(rd.r.points, rd.cum, d);
-        const dist = Math.hypot(p.x - cx, p.y - cz);
-        if (dist > RUT_R + 2 || nearWater(p.x, p.y) || R.flatDist(p.x, p.y) < -2) {
+        const dist = Math.hypot(rd.px[i] - cx, rd.py[i] - cz);
+        if (!rd.ok[i] || dist > RUT_R + 2) {
           prev = null;
           continue;
         }
         const fade = (1 - smooth(RUT_FADE, RUT_R, dist)) * smooth(12, 20, Math.min(d, total - d));
-        const cur = { d, f: fade, s: [row(rd, d, -1), row(rd, d, 1)] };
+        if (!rd.s[i]) rd.s[i] = [row(rd, d, -1), row(rd, d, 1)];
+        const cur = { d, f: fade, s: rd.s[i] };
         rows++;
         if (prev) {
           for (let sd = 0; sd < 2; sd++) {

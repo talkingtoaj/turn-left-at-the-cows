@@ -38,6 +38,8 @@ export function createResScale(renderer, params) {
   return {
     get ratio() { return renderer.getPixelRatio(); },
     get level() { return level; },
+    // 1 at the sharpest step .. 0 at the blurriest (the grass carpet's reach follows it).
+    get detail() { return fixed != null ? 1 : 1 - level / (STEPS.length - 1); },
     // frameMs: real time since the last frame. Call once per frame.
     update(frameMs) {
       if (fixed != null) return;
