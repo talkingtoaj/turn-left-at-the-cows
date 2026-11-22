@@ -36,6 +36,9 @@ const VIEWS = [
   { name: 'dirtroad_low', car: { road: 'creek_rd', at: 0.3 }, rel: [-3.2, 0.9, 5] },
   // Paved roads: chase view and low beside the car (edge and centre lines).
   { name: 'paved', car: { road: 'hwy9', at: 0.4 } },
+  // The car on the river ford (Old River Road): low from the side, and a chase view.
+  { name: 'ford_side', car: { x: 4380, y: 2100, heading: 80 }, rel: [-6, 2.6, 0], relLook: [0, 0.2, 0] },
+  { name: 'ford', car: { x: 4380, y: 2100, heading: 80 } },
   { name: 'paved_low', car: { road: 'rt40', at: 0.5 }, rel: [-3.2, 0.9, 5] },
   { name: 'dirtroad_ridge_low', car: { road: 'ridge_rd', at: 0.5 }, rel: [2.8, 0.8, 7.5] },
   // The player's car up close (roof rack, parcels, mud flaps, dings): relLook

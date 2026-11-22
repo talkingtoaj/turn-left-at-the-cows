@@ -6,7 +6,7 @@ import { pointInPolygon, distToPolygonEdge, bbox, SegIndex, distToSegment } from
 import { Terrain, makeNoise, smoothstep, quarryPit } from './terrain.js';
 import { buildFields, buildMailboxes, buildProps, buildPowerLines, buildStones } from './fields3d.js';
 import { Batcher } from './batch.js';
-import { buildGround, DECK_TOP, DIRT_LIFT, PAVED_LIFT, SHOULDER_LIFT, SHOULDER_W } from './ground.js';
+import { buildGround, DECK_TOP, FORD_TOP, DIRT_LIFT, PAVED_LIFT, SHOULDER_LIFT, SHOULDER_W } from './ground.js';
 import { buildStructures } from './structures.js';
 import { buildSigns, buildLocals } from './props.js';
 import { buildDressing } from './dressing.js';
@@ -306,7 +306,14 @@ export function buildWorld3D(scene, world, scenery, collider) {
     }
     return lift;
   };
-  const surfaceAt = (x, y) => (collider.onIntactBridge(x, y) ? DECK_TOP : Math.max(terrain.heightAt(x, y), -0.2) + roadLift(x, y));
+  // A bridge carries the car on its deck. A ford has none: the car follows the
+  // banks down to the gravel causeway in the water.
+  const surfaceAt = (x, y) => {
+    const b = collider.onIntactBridge(x, y);
+    if (b && b.kind === 'ford') return Math.max(terrain.heightAt(x, y) + roadLift(x, y), FORD_TOP);
+    if (b) return DECK_TOP;
+    return Math.max(terrain.heightAt(x, y), -0.2) + roadLift(x, y);
+  };
 
   return {
     terrain,

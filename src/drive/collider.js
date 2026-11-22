@@ -55,7 +55,7 @@ export class Collider {
 
     this.intactBridges = world.bridges
       .filter((b) => b.intact)
-      .map((b) => ({ x: b.x, y: b.y, w: b.width, h: b.length, angle: b.angle, roadId: b.roadId }));
+      .map((b) => ({ x: b.x, y: b.y, w: b.width, h: b.length, angle: b.angle, roadId: b.roadId, kind: b.kind }));
     // Roads and water in spatial indexes (each segment knows its road/creek).
     this.roadIndex = new SegIndex(32);
     for (const r of world.roads) this.roadIndex.addPolyline(r.points, r.width / 2 + 0.5, r);
