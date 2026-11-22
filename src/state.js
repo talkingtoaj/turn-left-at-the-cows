@@ -24,6 +24,7 @@ export const state = {
   onFoot: false, // out of the car, walking
   footPos: null, // { x, y } where you stand while on foot (null in the car)
   lookYaw: null, // degrees, where you look on foot (the dash compass follows it)
+  talkingTo: null, // id of the local in a conversation with you, or null
   nearLocalAny: null, // id of a local within 3 m on foot, facing them or not
   nearCar: false, // on foot and close enough to the car to get back in (F)
   lookAt: null, // { topicId, d, dir } the named thing in the middle of your view, on foot
