@@ -242,7 +242,7 @@ export async function createLook(renderer, params) {
       scene.add(probe);
       const bounce = lin([0.16, 0.24, 0.1]); // ground radiance, below the horizon
       const keys = keyLooks(sky.info, sunnySky.info, opts, [bounce.r, bounce.g, bounce.b]);
-      const clock = createWeatherClock(world.seed || 1, params.get('weather'));
+      const clock = createWeatherClock(world.seed || 1, params.get('weather'), { opening: params.get('opening') !== 'off' });
       const cur = emptyLook();
 
       scene.background = scene.fog.color.clone();
@@ -345,6 +345,8 @@ export async function createLook(renderer, params) {
       if (weather) weather.update(state);
     },
     get weather() { return weather ? weather.clock.w : null; },
+    // Start the current mission's weather over (src3/main.js restartWeather).
+    restartWeather() { if (weather) weather.clock.restart(); },
     // Once the game runs (src3/main.js startGame): fetch the sharp skies and
     // swap both in together when they have arrived, so the weather keeps
     // blending a matching pair. The small ones are freed. Safe to call again.

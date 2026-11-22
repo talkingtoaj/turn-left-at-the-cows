@@ -28,7 +28,8 @@
     "check:cows": "node tools/check-cows.mjs",
     "check:car": "node tools/check-car.mjs",
     "check:carpet": "node tools/check-carpet.mjs",
-    "check:all": "npm run -s check:assets && npm run -s check:world && npm run -s check:units && npm run -s check:signs && npm run -s check:radio && npm run -s check:radio-logic && npm run -s check:radiosubs && npm run -s check:clock && npm run -s check:tourists && npm run -s check:shifts && npm run -s check:traffic && npm run -s check:traffic-sound && npm run -s check:cows && npm run -s check:car && npm run -s check:carpet"
+    "check:opening": "node tools/check-opening.mjs",
+    "check:all": "npm run -s check:assets && npm run -s check:world && npm run -s check:units && npm run -s check:signs && npm run -s check:radio && npm run -s check:radio-logic && npm run -s check:radiosubs && npm run -s check:clock && npm run -s check:tourists && npm run -s check:shifts && npm run -s check:traffic && npm run -s check:traffic-sound && npm run -s check:cows && npm run -s check:car && npm run -s check:carpet && npm run -s check:opening"
   },
   "dependencies": {
     "three": "^0.186.1"
