@@ -2,7 +2,7 @@
 import { SOUND_GROUPS, ENGINE_LAYERS, engineMix, loadSounds, loopBounds } from './sounds.js';
 import { voiceFor, VOICE_GENDER } from './voice.js';
 import { NPCS } from '../world/npcs.js';
-import { passBy } from './trafficSound.js';
+import { CRUNCH_SOUND, crunchBy, passBy } from './trafficSound.js';
 
 const STORE = 'askalocal.soundReview.v1';
 const AC = window.AudioContext || window.webkitAudioContext;
@@ -200,6 +200,8 @@ function passByBlock() {
   const speed = el('input', { type: 'range', min: 5, max: 25, step: 1, value: 20 });
   const label = el('span', { text: '20 m/s' });
   speed.addEventListener('input', () => (label.textContent = `${speed.value} m/s`));
+  // #49: on a dirt road its tires crunch gravel too.
+  const dirt = el('input', { type: 'checkbox' });
   const btns = [
     ['A truck goes by', 'traffic/diesel', 'diesel', 'pickup'],
     ['A car goes by', 'traffic/petrol', 'petrol', 'sedan'],
@@ -207,6 +209,7 @@ function passByBlock() {
     const btn = el('button', { text });
     btn.addEventListener('click', () => {
       stop('pass');
+      stop('passCrunch');
       const lp = ctx.createBiquadFilter();
       lp.type = 'lowpass';
       const pan = ctx.createStereoPanner();
@@ -218,9 +221,28 @@ function passByBlock() {
       // You stand 6 m from the road facing it; it drives left to right.
       const ear = { x: 0, y: 0, heading: 0 };
       const v = { id: vid, x: -160, y: -6, heading: 90, speed: +speed.value };
+      v.onDirt = dirt.checked;
+      let crunch = null;
+      if (v.onDirt) {
+        const c = { lp: ctx.createBiquadFilter(), hp: ctx.createBiquadFilter(), pan: ctx.createStereoPanner(), g: ctx.createGain() };
+        c.lp.type = 'lowpass';
+        c.hp.type = 'highpass';
+        c.hp.frequency.value = 300;
+        c.g.gain.value = 0;
+        c.g.connect(c.hp).connect(c.lp).connect(c.pan).connect(out);
+        c.src = play('passCrunch', CRUNCH_SOUND, { loop: true, to: c.g });
+        if (c.src) crunch = c;
+      }
       const t0 = ctx.currentTime;
       const timer = setInterval(() => {
         v.x = -160 + (ctx.currentTime - t0) * v.speed;
+        if (crunch) {
+          const q = crunchBy(ear, 0, v);
+          crunch.g.gain.setTargetAtTime(q.gain * 2 * (0.8 + Math.random() * 0.35), ctx.currentTime, 0.05);
+          crunch.src.playbackRate.setTargetAtTime(q.rate, ctx.currentTime, 0.05);
+          crunch.lp.frequency.setTargetAtTime(q.lowpass, ctx.currentTime, 0.05);
+          crunch.pan.pan.setTargetAtTime(Math.max(-1, Math.min(1, q.pan)), ctx.currentTime, 0.05);
+        }
         const p = passBy(ear, 0, v, kind);
         g.gain.setTargetAtTime(p.gain * 2, ctx.currentTime, 0.05);
         src.playbackRate.setTargetAtTime(p.rate, ctx.currentTime, 0.05);
@@ -229,12 +251,13 @@ function passByBlock() {
         if (v.x > 160 || !playing.has('pass')) {
           clearInterval(timer);
           stop('pass');
+          stop('passCrunch');
         }
       }, 30);
     });
     return btn;
   });
-  node.append(...btns, el('span', { text: 'Speed' }), speed, label);
+  node.append(...btns, el('span', { text: 'Speed' }), speed, label, el('label', {}, [dirt, el('span', { text: ' Dirt road (tires crunch)' })]));
   return el('div', { class: 'item' }, [
     el('div', { class: 'name' }, [
       el('b', { text: 'Pass-by (as in the game)' }),

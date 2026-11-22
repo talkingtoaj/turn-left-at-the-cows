@@ -11,7 +11,8 @@
 //   'tractor'|'truck', x, y, heading, speed }]), heard like traffic.
 //   Traffic (amb.cars) has engine sounds (./trafficSound.js); createAudio's
 //   opts.trafficType(id) names each car's type ('pickup', 'sedan', ...) so
-//   it gets a diesel or a petrol engine.
+//   it gets a diesel or a petrol engine. Cars rolling on a dirt road
+//   (car.onDirt) also crunch gravel under their tires (#49).
 //   listener: { x, y, heading } where you hear from (round 12: your ears
 //   when on foot); default the car. onFoot: you are out of the car (the
 //   engine idles where the car is parked, no rain on the roof).
@@ -34,7 +35,7 @@ import { ALL_SOUNDS, ENGINE_LAYERS, engineMix, loadSounds, loopBounds } from './
 import { takeSpeech, voiceFor } from './voice.js';
 import { sharedAudioContext, unlockAudio, isMuted, setMuted } from './context.js';
 import { thunderDelay } from '../game/thunder.js';
-import { ENGINE_SOUND, engineOf, passBy, pickHeard } from './trafficSound.js';
+import { CRUNCH_SOUND, ENGINE_SOUND, crunchBy, engineOf, passBy, pickCrunch, pickHeard } from './trafficSound.js';
 
 const DEG = Math.PI / 180;
 const MASTER = 0.5;
@@ -860,6 +861,60 @@ export function createAudio(world, opts = {}) {
       stopEngine(e);
       engines.delete(id);
     }
+    updateCrunch(ear, earSpeed);
+  }
+
+  // Gravel crunch under traffic tires (SPEC 9q, #49): the nearest few cars
+  // rolling on a dirt road each get the player's gravel loop, cut below
+  // 300 Hz (heard from outside, no cabin rumble), panned toward the car,
+  // quieter and duller with distance, wobbled a little so it sounds grainy.
+  // Reuses heardList from updateTraffic. A voice fades and stops when its car
+  // leaves the dirt, stops, or drops out of range.
+  const crunches = new Map(); // id -> { src, g, lp, out, wobT, wob }
+  function startCrunch() {
+    const buf = bufs.get(CRUNCH_SOUND);
+    if (!buf) return null;
+    const out = panner(nodes.trafficBus);
+    const lp = filter('lowpass', 3000, 0.6, out);
+    const hp = filter('highpass', 300, 0.7, lp);
+    const g = gain(0, hp);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    const b = loopBounds(buf);
+    src.loopStart = b.start;
+    src.loopEnd = b.end;
+    src.connect(g);
+    src.start(ctx.currentTime, b.start + Math.random() * (b.end - b.start));
+    src.onended = () => out.disconnect();
+    return { src, g, lp, out, wobT: 0, wob: 1 };
+  }
+  function updateCrunch(ear, earSpeed) {
+    const on = new Set();
+    const t = ctx.currentTime;
+    for (const v of pickCrunch(ear, heardList)) {
+      let c = crunches.get(v.id);
+      if (!c) {
+        c = startCrunch();
+        if (!c) break;
+        crunches.set(v.id, c);
+      }
+      on.add(v.id);
+      if (t >= c.wobT) {
+        c.wobT = t + 0.06 + Math.random() * 0.1;
+        c.wob = 0.8 + Math.random() * 0.35;
+      }
+      const p = crunchBy(ear, earSpeed, v);
+      ramp(c.g.gain, p.gain * c.wob, 0.05);
+      ramp(c.src.playbackRate, p.rate, 0.1);
+      ramp(c.lp.frequency, p.lowpass, 0.1);
+      setPan(c.out, p.pan);
+    }
+    for (const [id, c] of crunches) {
+      if (on.has(id)) continue;
+      stopEngine(c);
+      crunches.delete(id);
+    }
   }
 
   // Other vehicles' horns (amb.horns, see HONK in src/ambient/trafficRules.js):
@@ -1097,6 +1152,10 @@ export function createAudio(world, opts = {}) {
     // For checks: each heard traffic engine's level, playback rate and lowpass now.
     get traffic() {
       return [...engines].map(([id, e]) => ({ id, gain: +e.g.gain.value.toFixed(4), rate: +e.src.playbackRate.value.toFixed(3), lowpass: Math.round(e.lp.frequency.value) }));
+    },
+    // For checks: each traffic car's gravel crunch level and rate now.
+    get crunch() {
+      return [...crunches].map(([id, c]) => ({ id, gain: +c.g.gain.value.toFixed(4), rate: +c.src.playbackRate.value.toFixed(3), lowpass: Math.round(c.lp.frequency.value) }));
     },
     // For checks: each plane voice's level, playback rate and lowpass now.
     get planes() {

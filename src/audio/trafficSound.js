@@ -88,3 +88,44 @@ export function passBy(ear, earSpeed, v, kind) {
   const lowpass = 500 + 5500 * Math.exp(-d / 45);
   return { gain, rate, pan, lowpass, d };
 }
+
+// Gravel crunch under traffic tires (SPEC 9q, #49): a car on a dirt road
+// crunches, louder the faster it goes and silent when it stops. It is a bed
+// under the engines, not a roar: quieter than the engine, heard only close
+// in, and fading out well before the engines do. Vehicles carry onDirt.
+export const CRUNCH_SOUND = 'tyres/gravel'; // the player's own gravel loop
+export const CRUNCH_R = 70; // m: past this a car's tires are silent
+export const MAX_CRUNCH = 3; // the nearest few cars on dirt only
+const CRUNCH = { level: 0.24, full: 18, min: 0.8, ref: 7 };
+
+// The cars you can hear crunching now: on dirt, rolling, within CRUNCH_R,
+// nearest first.
+export function pickCrunch(ear, list, max = MAX_CRUNCH) {
+  const out = [];
+  for (const v of list || []) {
+    if (!v.onDirt || Math.abs(v.speed || 0) < CRUNCH.min) continue;
+    const d = Math.hypot(v.x - ear.x, v.y - ear.y);
+    if (d < CRUNCH_R) out.push({ v, d });
+  }
+  out.sort((a, b) => a.d - b.d);
+  return out.slice(0, max).map((o) => o.v);
+}
+
+// How one car's tires sound now: { gain, rate, pan, lowpass, d }. Gain is 0
+// off dirt, stopped, or out of range.
+export function crunchBy(ear, earSpeed, v) {
+  const dx = v.x - ear.x;
+  const dy = v.y - ear.y;
+  const d = Math.hypot(dx, dy);
+  const sp = Math.abs(v.speed || 0);
+  const s = Math.min(1, sp / CRUNCH.full);
+  const rolling = v.onDirt && sp >= CRUNCH.min ? 1 : 0;
+  const edge = Math.max(0, Math.min(1, (CRUNCH_R - d) / (CRUNCH_R * 0.4)));
+  const gain = rolling * CRUNCH.level * Math.pow(s, 0.8) / (1 + Math.max(0, d - 2) / CRUNCH.ref) * edge * edge;
+  const rate = (0.75 + 0.45 * s) * idPitch(v.id) * doppler(ear, earSpeed, v);
+  const bearing = Math.atan2(dx, -dy) / DEG;
+  const pan = d < 1 ? 0 : Math.sin((bearing - ear.heading) * DEG) * 0.85 * Math.min(1, d / 4);
+  // Tire hiss loses its highs sooner than an engine does.
+  const lowpass = 600 + 7000 * Math.exp(-d / 25);
+  return { gain, rate, pan, lowpass, d };
+}
