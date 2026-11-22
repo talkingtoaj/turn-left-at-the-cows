@@ -633,6 +633,7 @@ function frame(now) {
   rain3d.update(runtime.paused ? 0 : dt, now / 1000, camera, wetness.rain, scene.fog.color);
   world3d.update(now / 1000, dt, foot.active ? viewer : car, rig.focus, rig.shadowRadius, camera, amb);
   amb3d.wet = wetness.wet;
+  world3d.scatter?.carpet?.setWet?.(wetness.wet); // wet grass, clover and flowers (carpet3d.js)
   amb3d.update(amb, runtime.paused ? 0 : dt, camera, rig.focus, scene.fog, e, renderer, dh.hz.animals);
   dh.render(runtime.paused ? 0 : dt, rig.focus, car3d.object, camera, scene.fog, renderer);
 

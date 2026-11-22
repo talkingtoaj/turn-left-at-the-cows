@@ -84,7 +84,7 @@ const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const errors = [];
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 page.on('pageerror', (e) => errors.push(String(e)));
-await page.goto(`${base}/three.html?stats&res=1`);
+await page.goto(`${base}/three.html?stats&res=1${process.env.SHOTS_QUERY ? `&${process.env.SHOTS_QUERY}` : ''}`); // SHOTS_QUERY=rain=on for wet shots
 await page.waitForSelector('button');
 await page.keyboard.press('Enter');
 await page.waitForFunction(() => window.__three && window.__state, null, { timeout: 120000 });
