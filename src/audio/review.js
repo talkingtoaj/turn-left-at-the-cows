@@ -2,6 +2,7 @@
 import { SOUND_GROUPS, ENGINE_LAYERS, engineMix, loadSounds, loopBounds } from './sounds.js';
 import { voiceFor, VOICE_GENDER } from './voice.js';
 import { NPCS } from '../world/npcs.js';
+import { passBy } from './trafficSound.js';
 
 const STORE = 'askalocal.soundReview.v1';
 const AC = window.AudioContext || window.webkitAudioContext;
@@ -23,7 +24,10 @@ function load() {
 const marks = load();
 // Sounds remade after a review round. Marks from an older round are dropped
 // so these show up unrated again.
-const ROUND = { 'engine/idle': 2, 'engine/mid': 2, 'engine/high': 2, 'town/murmur': 2, 'voices/f2': 2 };
+// SPEC 9q asks for one more pass on the player's three engine loops: round 3
+// drops the old marks so they show up to be heard again (same files).
+const ROUND = { 'engine/idle': 3, 'engine/mid': 3, 'engine/high': 3, 'town/murmur': 2, 'voices/f2': 2 };
+const AGAIN = new Set(['engine/idle', 'engine/mid', 'engine/high']);
 const roundOf = (id) => ROUND[id] || 1;
 for (const id of Object.keys(marks)) if ((marks[id].round || 1) < roundOf(id)) delete marks[id];
 function save() {
@@ -126,7 +130,7 @@ function itemRow(item, extra) {
   });
   const mc = markControls(item, box);
   box.append(el('div', { class: 'row' }, [
-    el('div', { class: 'name' }, [el('b', { text: item.label + (roundOf(item.id) > 1 ? ` (new, round ${roundOf(item.id)})` : '') }), el('code', { text: item.id + '.mp3' })]),
+    el('div', { class: 'name' }, [el('b', { text: item.label + (AGAIN.has(item.id) ? ' (listen again, 9q pass)' : roundOf(item.id) > 1 ? ` (new, round ${roundOf(item.id)})` : '') }), el('code', { text: item.id + '.mp3' })]),
     playBtn, ...mc.buttons,
   ]));
   if (extra && extra.node) box.append(extra.node);
@@ -189,6 +193,57 @@ function engineBlock() {
   return box;
 }
 
+// Traffic: a truck or a car driving past you, as in the game (the same
+// rules: level, pan, highs, pitch with speed and the Doppler drop).
+function passByBlock() {
+  const node = el('div', { class: 'ctl' });
+  const speed = el('input', { type: 'range', min: 5, max: 25, step: 1, value: 20 });
+  const label = el('span', { text: '20 m/s' });
+  speed.addEventListener('input', () => (label.textContent = `${speed.value} m/s`));
+  const btns = [
+    ['A truck goes by', 'traffic/diesel', 'diesel', 'pickup'],
+    ['A car goes by', 'traffic/petrol', 'petrol', 'sedan'],
+  ].map(([text, id, kind, vid]) => {
+    const btn = el('button', { text });
+    btn.addEventListener('click', () => {
+      stop('pass');
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      const pan = ctx.createStereoPanner();
+      const g = ctx.createGain();
+      g.gain.value = 0;
+      g.connect(lp).connect(pan).connect(out);
+      const src = play('pass', id, { loop: true, btn, to: g });
+      if (!src) return;
+      // You stand 6 m from the road facing it; it drives left to right.
+      const ear = { x: 0, y: 0, heading: 0 };
+      const v = { id: vid, x: -160, y: -6, heading: 90, speed: +speed.value };
+      const t0 = ctx.currentTime;
+      const timer = setInterval(() => {
+        v.x = -160 + (ctx.currentTime - t0) * v.speed;
+        const p = passBy(ear, 0, v, kind);
+        g.gain.setTargetAtTime(p.gain * 2, ctx.currentTime, 0.05);
+        src.playbackRate.setTargetAtTime(p.rate, ctx.currentTime, 0.05);
+        lp.frequency.setTargetAtTime(p.lowpass, ctx.currentTime, 0.05);
+        pan.pan.setTargetAtTime(Math.max(-1, Math.min(1, p.pan)), ctx.currentTime, 0.05);
+        if (v.x > 160 || !playing.has('pass')) {
+          clearInterval(timer);
+          stop('pass');
+        }
+      }, 30);
+    });
+    return btn;
+  });
+  node.append(...btns, el('span', { text: 'Speed' }), speed, label);
+  return el('div', { class: 'item' }, [
+    el('div', { class: 'name' }, [
+      el('b', { text: 'Pass-by (as in the game)' }),
+      el('code', { text: 'You stand 6 m from the road; it drives past left to right. Mark the loops below.' }),
+    ]),
+    node,
+  ]);
+}
+
 function voiceExtra() {
   const node = el('div', { class: 'ctl' });
   const slider = el('input', { type: 'range', min: 0.8, max: 1.25, step: 0.01, value: 1 });
@@ -230,6 +285,7 @@ function build() {
   for (const g of SOUND_GROUPS) {
     list.append(el('h2', { text: g.group }));
     if (g.group === 'Engine') list.append(engineBlock());
+    if (g.group === 'Traffic') list.append(passByBlock());
     let extra = null;
     if (g.group === 'Voices') {
       extra = voiceExtra();
