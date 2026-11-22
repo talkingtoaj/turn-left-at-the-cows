@@ -20,7 +20,7 @@ import {
 const NEAR_R = 600;
 const COARSE_STEP = 1.0; // seconds between coarse updates for far flocks
 
-const CAR_COLORS = [0xb03a2e, 0x2e5e8c, 0xe8e4d8, 0x3c6e47, 0x2b2b2e, 0xc9a227, 0x7d8a96, 0x6b3f2a, 0x8fb3c9, 0x9b2f4d];
+import { carPaint } from './carpaint.js'; // traffic paint: real rural colors, seeded per car (#50)
 
 function angDiff(a, b) {
   // Smallest signed difference b - a in degrees (-180..180).
@@ -304,7 +304,7 @@ export function createAmbient(world, scenery) {
   const nCars = 10;
   for (let i = 0; i < nCars; i++) {
     const c = {
-      id: `car${i}`, x: 0, y: 0, heading: 0, speed: 0, color: CAR_COLORS[i % CAR_COLORS.length], onDirt: false,
+      id: `car${i}`, x: 0, y: 0, heading: 0, speed: 0, ...carPaint(`car${i}`), onDirt: false,
       horn: false, // additive: its horn is sounding now (see HONK)
       turning: false, // additive: turning round or backing up, across both lanes
       blink: 0, // additive: amber lamp lit this frame, -1 left, 1 right, 0 none

@@ -6,6 +6,12 @@
 // share one plain low-poly stand-in. About six draw calls at most, fewer
 // when a type is not near.
 //
+// Close cars (the nearest few within about 40 m, trafficlod.js) get the fine
+// body instead (trafficfine.js: the player car's loft and atlas trim), one
+// more instanced draw call per type that is close. Coarse and fine cross-fade
+// with a screen-door dither (lodFade per instance), so there is no pop.
+// Pickups can carry a lower second tone (paint2 per instance, c.color2).
+//
 //   const traffic = createTraffic3D(group, { env })
 //   traffic.update(amb.cars, focus, surfaceAt, near)   // near(x, y): within draw range
 
@@ -13,6 +19,9 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { DEG } from '../../src/drive/geom.js';
 import { SPECS, loftBody } from './carbody.js';
+import { carAtlas } from './caratlas.js';
+import { fineGeometry } from './trafficfine.js';
+import { createFineLod, FINE_MAX } from './trafficlod.js';
 
 const MAX = 24; // per type
 const FAR = 140; // m: past this, the stand-in
@@ -98,7 +107,7 @@ function loftCar(name) {
   parts.push(...tri);
   const h = S.half;
   const hw = S.hw;
-  const bumper = name === 'pickup' || name === 'hatch' ? 'black' : 'chrome';
+  const bumper = name === 'hatch' ? 'black' : 'chrome';
   for (const s of [-1, 1]) {
     parts.push(box(hw * 2 - 0.04, 0.16, 0.14, 0, S.y0 + 0.14, s * (h + 0.04), bumper));
     parts.push(quadZ(0.3, 0.15, 0, S.y0 + 0.14, s * (h + 0.112), 'plate'));
@@ -124,6 +133,8 @@ function loftCar(name) {
   }
   const wr = S.wheelR;
   for (const [z] of S.wheels) for (const x of [-1, 1]) parts.push(...wheel(wr, 0.2, x * (hw - 0.1), wr, z));
+  // Pickup paint can take a lower second tone (TWO_TONE_Y in the shader).
+  if (name === 'pickup') for (const g of parts) if (g.attributes.paintMask.array[0] === 1) g.attributes.paintMask.array.fill(2);
   return mergeGeometries(parts);
 }
 
@@ -167,20 +178,76 @@ function farGeo() {
   ]);
 }
 
+// Shared shader parts: paint tint (instance colour, or paint2 below
+// TWO_TONE_Y on paintMask 2), and the dithered cross-fade between the coarse
+// and fine body (lodFade: 0 coarse .. 1 fine). Interleaved gradient noise
+// splits the pixels, so the two bodies never both cover one.
+const TWO_TONE_Y = 0.66; // m: the pickup's lower tone, just under the rub strip
+const VERT_HEAD = `attribute float paintMask;
+attribute vec3 paint2;
+attribute float lodFade;
+varying vec3 vTint1;
+varying vec3 vTint2;
+varying float vTone;
+varying float vLocalY;
+varying float vFade;
+`;
+const FRAG_HEAD = `varying vec3 vTint1;
+varying vec3 vTint2;
+varying float vTone;
+varying float vLocalY;
+varying float vFade;
+float lodDither( vec2 p ) { return fract( 52.9829189 * fract( dot( p, vec2( 0.06711056, 0.00583715 ) ) ) ); }
+`;
+function patchShader(sh, fine, extraVert = (s) => s, extraFrag = (s) => s) {
+  sh.vertexShader = VERT_HEAD + extraVert(sh.vertexShader
+    // (three tints every vertex by instanceColor; undo that and tint only the paint)
+    .replace('#include <color_vertex>', `#include <color_vertex>
+  vColor.rgb = color.rgb;
+  float pm = min( paintMask, 1.0 );
+  vTint1 = mix( vec3( 1.0 ), instanceColor.rgb, pm );
+  vTint2 = mix( vec3( 1.0 ), paint2, pm );
+  vTone = step( 1.5, paintMask );`)
+    .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vLocalY = position.y;\n  vFade = lodFade;'));
+  const keep = fine ? 'if ( lodDither( gl_FragCoord.xy ) >= vFade ) discard;' : 'if ( lodDither( gl_FragCoord.xy ) < vFade ) discard;';
+  sh.fragmentShader = FRAG_HEAD + extraFrag(sh.fragmentShader
+    .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>\n  ${keep}`)
+    .replace('#include <color_fragment>', `#include <color_fragment>
+  diffuseColor.rgb *= ( vTone > 0.5 && vLocalY < ${TWO_TONE_Y.toFixed(3)} ) ? vTint2 : vTint1;`));
+}
+
 function makeMaterial(env) {
   const m = env
     ? new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 1, envMap: env, envMapIntensity: 1.1 })
     : new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
-  m.onBeforeCompile = (sh) => {
-    sh.vertexShader = `attribute float paintMask;\nattribute vec2 carMat;\nvarying vec2 vCarMat;\n${sh.vertexShader
-      .replace('vColor.rgb *= instanceColor.rgb;', 'vColor.rgb *= mix( vec3( 1.0 ), instanceColor.rgb, paintMask );')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vCarMat = carMat;')}`;
-    sh.fragmentShader = `varying vec2 vCarMat;\n${sh.fragmentShader
+  m.onBeforeCompile = (sh) => patchShader(sh, false,
+    (v) => `attribute vec2 carMat;\nvarying vec2 vCarMat;\n${v.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vCarMat = carMat;')}`,
+    (f) => `varying vec2 vCarMat;\n${f
       .replace('float roughnessFactor = roughness;', 'float roughnessFactor = roughness * vCarMat.x;')
-      .replace('float metalnessFactor = metalness;', 'float metalnessFactor = metalness * vCarMat.y;')}`;
-  };
+      .replace('float metalnessFactor = metalness;', 'float metalnessFactor = metalness * vCarMat.y;')}`);
   m.customProgramCacheKey = () => `traffic${env ? 1 : 0}`;
   return m;
+}
+
+// The fine bodies' material: the player car's atlas (colour, roughness /
+// metalness, lamp glow), the same tint and fade as above.
+function makeFineMaterial(env) {
+  const A = carAtlas();
+  const m = env
+    ? new THREE.MeshStandardMaterial({
+      vertexColors: true, map: A.map, roughnessMap: A.mr, metalnessMap: A.mr, roughness: 1, metalness: 1, envMap: env, envMapIntensity: 1.1,
+      emissiveMap: A.emissive, emissive: 0xffffff, emissiveIntensity: 0.6,
+    })
+    : new THREE.MeshLambertMaterial({ vertexColors: true, map: A.map, emissiveMap: A.emissive, emissive: 0xffffff, emissiveIntensity: 0.3 });
+  m.onBeforeCompile = (sh) => patchShader(sh, true);
+  m.customProgramCacheKey = () => `trafficFine${env ? 1 : 0}`;
+  return m;
+}
+
+// Per-instance second tone and fade, on every traffic mesh.
+function addInstanceAttrs(mesh, max) {
+  mesh.geometry.setAttribute('paint2', new THREE.InstancedBufferAttribute(new Float32Array(max * 3).fill(1), 3).setUsage(THREE.DynamicDrawUsage));
+  mesh.geometry.setAttribute('lodFade', new THREE.InstancedBufferAttribute(new Float32Array(max), 1).setUsage(THREE.DynamicDrawUsage));
 }
 
 // Where the blinkers sit on each type: half length, half width, front and
@@ -201,19 +268,21 @@ export function vehicleMesh(type, max, env = null) {
   mesh.receiveShadow = true;
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   mesh.setColorAt(0, new THREE.Color(1, 1, 1));
+  addInstanceAttrs(mesh, max);
   return mesh;
 }
 
 export function createTraffic3D(parent, opts = {}) {
   const mat = makeMaterial(opts.env || null);
-  const make = (geo) => {
-    const mesh = new THREE.InstancedMesh(geo, mat, MAX);
+  const make = (geo, material = mat, max = MAX) => {
+    const mesh = new THREE.InstancedMesh(geo, material, max);
     mesh.count = 0;
     mesh.frustumCulled = false;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     mesh.setColorAt(0, new THREE.Color(1, 1, 1));
+    addInstanceAttrs(mesh, max);
     parent.add(mesh);
     return mesh;
   };
@@ -226,6 +295,12 @@ export function createTraffic3D(parent, opts = {}) {
   };
   const far = make(farGeo());
   far.castShadow = false;
+  // Fine bodies for the nearest few cars (built on first use).
+  const fineMat = makeFineMaterial(opts.env || null);
+  const fine = {};
+  const fineMesh = (type) => fine[type] || (fine[type] = make(fineGeometry(type), fineMat, FINE_MAX));
+  const lod = createFineLod({ max: FINE_MAX });
+  let lastT = 0;
   // Lit amber blinkers (SPEC 9q): a small glowing box at the front and back
   // corner on the side a car turns to, flashed by the traffic logic
   // (c.blink). One draw call, hidden when no lamp is lit.
@@ -235,7 +310,7 @@ export function createTraffic3D(parent, opts = {}) {
   blinkMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   parent.add(blinkMesh);
   const lamp = new THREE.Vector3();
-  const all = [...Object.values(meshes), far];
+  const all = () => [...Object.values(meshes), far, ...Object.values(fine)];
   const counts = new Map();
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
@@ -243,19 +318,40 @@ export function createTraffic3D(parent, opts = {}) {
   const p = new THREE.Vector3();
   const one = new THREE.Vector3(1, 1, 1);
   const col = new THREE.Color();
+  const col2 = new THREE.Color();
+  const dists = [];
+  // Put a car into a mesh: matrix, paint, second tone (pickups only), fade.
+  const put = (mesh, c, type, fade) => {
+    const n = counts.get(mesh) || 0;
+    if (n >= mesh.instanceMatrix.count) return false;
+    mesh.setMatrixAt(n, m);
+    mesh.setColorAt(n, col.setHex(c.color));
+    if (type === 'pickup' && c.color2 != null) col2.setHex(c.color2);
+    else col2.copy(col);
+    mesh.geometry.attributes.paint2.setXYZ(n, col2.r, col2.g, col2.b);
+    mesh.geometry.attributes.lodFade.setX(n, fade);
+    counts.set(mesh, n + 1);
+    return true;
+  };
   return {
     meshes,
     far,
+    fine,
     update(cars, focus, surfaceAt, near) {
-      for (const mesh of all) counts.set(mesh, 0);
+      const now = performance.now() / 1000;
+      const dt = lastT ? Math.min(0.1, Math.max(0, now - lastT)) : 0;
+      lastT = now;
+      for (const mesh of all()) counts.set(mesh, 0);
+      dists.length = 0;
+      for (const c of cars) if (near(c.x, c.y)) dists.push({ id: c.id, d: Math.hypot(c.x - focus.x, c.y - focus.z) });
+      const fades = lod.step(dists, dt);
       let nb = 0;
       for (const c of cars) {
         if (!near(c.x, c.y)) continue;
         const d = Math.hypot(c.x - focus.x, c.y - focus.z);
         const type = trafficType(c.id);
+        const fade = d > FAR ? 0 : fades.get(c.id) || 0;
         const mesh = d > FAR ? far : meshes[type];
-        const n = counts.get(mesh);
-        if (n >= MAX) continue;
         const h = c.heading * DEG;
         const sx = Math.sin(h);
         const sy = -Math.cos(h);
@@ -265,9 +361,8 @@ export function createTraffic3D(parent, opts = {}) {
         q.setFromEuler(e);
         p.set(c.x, (hf + hb) / 2, c.y);
         m.compose(p, q, one);
-        mesh.setMatrixAt(n, m);
-        mesh.setColorAt(n, col.setHex(c.color));
-        counts.set(mesh, n + 1);
+        if (fade < 1 && !put(mesh, c, type, fade)) continue;
+        if (fade > 0) put(fineMesh(type), c, type, fade);
         if (c.blink && mesh !== far && nb < MAX * 2 - 1) {
           const L = LAMPS[type];
           for (const [z, y] of [[-L.half - 0.02, L.yF], [L.half + 0.02, L.yR]]) {
@@ -280,11 +375,13 @@ export function createTraffic3D(parent, opts = {}) {
       blinkMesh.count = nb;
       blinkMesh.visible = nb > 0;
       blinkMesh.instanceMatrix.needsUpdate = true;
-      for (const mesh of all) {
-        mesh.count = counts.get(mesh);
+      for (const mesh of all()) {
+        mesh.count = counts.get(mesh) || 0;
         mesh.visible = mesh.count > 0;
         mesh.instanceMatrix.needsUpdate = true;
         if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+        mesh.geometry.attributes.paint2.needsUpdate = true;
+        mesh.geometry.attributes.lodFade.needsUpdate = true;
       }
     },
   };
