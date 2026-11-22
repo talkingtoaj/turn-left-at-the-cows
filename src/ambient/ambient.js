@@ -116,6 +116,17 @@ export function createAmbient(world, scenery) {
     }
   }
   for (const n of net) n.junctions.sort((p, q) => p.at - q.at);
+  // Road ends at the map edge with no junction there (rt40 runs off both
+  // sides of Brandt). Past the last junction such a stretch leads nowhere:
+  // traffic never picks it as a way on unless there is no other, and no car
+  // is placed on it facing the edge. Otherwise a car would only drive to the
+  // edge and turn round, and a player parked near the edge traps it there.
+  const EDGE_END = 15; // m from the map border that counts as at the edge
+  for (const n of net) {
+    const atEdge = (p) => p[0] < EDGE_END || p[1] < EDGE_END || p[0] > world.size.w - EDGE_END || p[1] > world.size.h - EDGE_END;
+    const free = (endAt) => !n.junctions.some((j) => Math.abs(j.at - endAt) < 6);
+    n.edgeEnd = { 0: atEdge(n.pts[0]) && free(0), 1: atEdge(n.pts[n.pts.length - 1]) && free(n.len) };
+  }
   // Junction nodes: the junctions at one spot share a node (where traffic
   // waits for whoever is in it). node.stop: road id -> stops at the STOP
   // line there (stopsAt). node.r: the junction's own radius.
@@ -257,6 +268,7 @@ export function createAmbient(world, scenery) {
       }
       const s = R(10, Math.max(11, n.len - 10));
       if (n.blocks.some((b) => Math.abs(b - s) < 60)) continue;
+      if (edgePocket(n, s)) continue;
       const p = roadPoint(n, s, {});
       if (rng() > townScore(p.x, p.y)) continue;
       if (filter && !filter(p)) continue;
@@ -272,6 +284,8 @@ export function createAmbient(world, scenery) {
     cs.dir = rng() < 0.5 ? 1 : -1;
     // Not straight at a block close ahead.
     if (blockAhead(sp.n, sp.s, cs.dir) < 150) cs.dir = -cs.dir;
+    // Never facing the map edge on a stretch with no junction before it.
+    if (edgeStubAhead(sp.n, sp.s, cs.dir) && !edgeStubAhead(sp.n, sp.s, -cs.dir)) cs.dir = -cs.dir;
     cs.seg = undefined;
     cs.skip = 0;
     cs.stuckT = 0;
@@ -382,6 +396,10 @@ export function createAmbient(world, scenery) {
   function chooseDirOn(n, at) {
     if (at < 5) return 1;
     if (at > n.len - 5) return -1;
+    // A map-edge stub one way and not the other: go the other way.
+    const ef = edgeStubAhead(n, at, 1);
+    const eb = edgeStubAhead(n, at, -1);
+    if (ef !== eb) return ef ? -1 : 1;
     // A block close one way and not the other: go the open way.
     const bf = blockAhead(n, at, 1) < 300;
     const bb = blockAhead(n, at, -1) < 300;
@@ -402,6 +420,7 @@ export function createAmbient(world, scenery) {
     const dead = dir !== 0 && !n.junctions.some((k) => Math.abs(k.at - farEnd) < 6) ? 0.4 : 1;
     // A road blocked soon after the turn is a poor choice: the car would only turn back.
     const blocked = dir !== 0 && blockAhead(n, j.toAt, dir) < 400 ? 0.1 : 1;
+    if (intoEdgeStub(j)) return 0;
     return townScore(p.x, p.y) * dead * blocked;
   }
   // Lane centre `s` m along road n going `dir`: { x, y, h }.
@@ -413,6 +432,37 @@ export function createAmbient(world, scenery) {
     return { x: p.x - dy * off, y: p.y + dx * off, h: headingOf(dx, dy) };
   }
   const clampS = (n, s) => Math.max(0, Math.min(n.len, s));
+  // Driving `dir` from s on road n: does it reach the road's end at the map
+  // edge (see EDGE_END) with no junction and no block (broken bridge, fallen
+  // tree) on the way? A block first makes it a real dead end, which keeps
+  // the usual rules (the car turns round at the block).
+  function edgeStubAhead(n, s, dir) {
+    if (!n.edgeEnd[dir > 0 ? 1 : 0]) return false;
+    if (blockAhead(n, s, dir) < Infinity) return false;
+    return !n.junctions.some((j) => (j.at - s) * dir > 0.5);
+  }
+  // Is s on a stretch with no way out that touches the map edge: one way a
+  // map-edge stub, the other a stub too or a block (broken bridge, fallen
+  // tree) before any junction? A car placed there could only bounce
+  // between the two, and a player parked there traps it.
+  function blockFirst(n, s, dir) {
+    const b = blockAhead(n, s, dir);
+    const j = n.junctions.reduce((m, k) => ((k.at - s) * dir > 0.5 ? Math.min(m, (k.at - s) * dir) : m), Infinity);
+    return b < j;
+  }
+  function edgePocket(n, s) {
+    const f = edgeStubAhead(n, s, 1);
+    const b = edgeStubAhead(n, s, -1);
+    return (f || b) && (f || blockFirst(n, s, 1)) && (b || blockFirst(n, s, -1));
+  }
+  // Turning at junction j onto j.to: does every way along it lead to a
+  // map-edge stub?
+  function intoEdgeStub(j) {
+    const n = j.to;
+    if (j.toAt < 5) return edgeStubAhead(n, j.toAt, 1);
+    if (j.toAt > n.len - 5) return edgeStubAhead(n, j.toAt, -1);
+    return edgeStubAhead(n, j.toAt, 1) && edgeStubAhead(n, j.toAt, -1);
+  }
   // Metres before a block (broken bridge, fallen tree) a car stops to turn round.
   function blockGap(n, b) {
     const br = n.broken.find((k) => Math.abs(k.at - b) < 1);
@@ -449,12 +499,18 @@ export function createAmbient(world, scenery) {
     const easy = all.filter((j) => !hairpin(j));
     const opts = easy.length ? easy : all;
     const atEnd = dir > 0 ? n.len - at < 6 : at < 6;
+    // Not into a map-edge stub unless there is no other way on: carrying on
+    // into one makes the turn a must, and turns into one are left out.
+    const carryStub = !atEnd && edgeStubAhead(n, at, dir);
+    let outs = opts.filter((j) => !intoEdgeStub(j));
+    if (!outs.length && carryStub) outs = all.filter((j) => !intoEdgeStub(j));
+    const pick = outs.length ? outs : opts;
     let tj = null;
-    if (atEnd || rng() < 0.35 * Math.min(1.5, opts.reduce((m, j) => Math.max(m, junctionWeight(j)), 0) / townScore(c.x, c.y))) {
+    if (atEnd || (carryStub && outs.length) || rng() < 0.35 * Math.min(1.5, pick.reduce((m, j) => Math.max(m, junctionWeight(j)), 0) / townScore(c.x, c.y))) {
       let tot = 0;
-      const w = opts.map((j) => (tot += junctionWeight(j)));
+      const w = pick.map((j) => (tot += junctionWeight(j)));
       const k = rng() * tot;
-      tj = opts[w.findIndex((v) => k < v)] || opts[0];
+      tj = pick[w.findIndex((v) => k < v)] || pick[0];
     }
     const plan = { n, dir, node, at, turn: null, stop: !!node.stop.get(n.road.id), stopAt: 0, stoppedT: 0, go: false, committed: false };
     if (plan.stop) {
@@ -465,7 +521,7 @@ export function createAmbient(world, scenery) {
       const to = tj.to;
       let toDir = chooseDirOn(to, tj.toAt);
       const mid = tj.toAt >= 5 && tj.toAt <= to.len - 5;
-      if (mid && Math.abs(angDiff(hIn, lanePoint(to, tj.toAt, toDir).h)) > 140) toDir = -toDir;
+      if (mid && Math.abs(angDiff(hIn, lanePoint(to, tj.toAt, toDir).h)) > 140 && !edgeStubAhead(to, tj.toAt, -toDir)) toDir = -toDir;
       const room = turnRoom(angDiff(lanePoint(n, at, dir).h, lanePoint(to, tj.toAt, toDir).h));
       let entryAt = clampS(n, at - dir * (to.road.width / 2 + JUNCTION.entryRoom + room));
       if ((entryAt - cs.s) * dir < 0) entryAt = cs.s;
@@ -1534,6 +1590,8 @@ export function createAmbient(world, scenery) {
     playerSurface: 'paved', // additive: surface under the player car ('paved'|'dirt'|'grass')
     flocks, // additive (internal-ish): bird groups
     carState, // internal: per-car traffic state, same order as cars (for tools/check-traffic.mjs)
+    // internal: road ends at the map edge with no junction, [{ x, y }] (for tools/check-traffic.mjs)
+    edgeEnds: net.flatMap((n) => [0, 1].filter((e) => n.edgeEnd[e]).map((e) => { const p = n.pts[e ? n.pts.length - 1 : 0]; return { x: p[0], y: p[1] }; })),
     surfaceAt, // additive: road surface lookup
     junctions: nodes.map((k) => ({ id: k.id, x: k.x, y: k.y, r: k.r })), // additive: junction centres (cars' `junction` names the one they are in)
     stopSigns, // additive: [{ id, x, y, heading, leanX, leanY }] STOP signs at minor-to-paved junctions (SPEC 9q)
