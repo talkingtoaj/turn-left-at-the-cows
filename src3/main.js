@@ -31,6 +31,7 @@ import { CameraRig } from './world3d/camera.js';
 import { createAmbient } from '../src/ambient/ambient.js';
 import { createAudio } from '../src/audio/audio.js';
 import { trafficType } from './world3d/traffic3d.js';
+import { setSixBySixDay } from '../src/ambient/sixbysix.js';
 import { createRadio } from '../src/radio/radio.js';
 import { STATIONS } from '../src/radio/segments.js';
 import { createAmbient3D } from './world3d/ambient3d.js';
@@ -214,7 +215,8 @@ async function buildRegion(id, title, quiet = false, mission = 0) {
     if (look) look.apply(scene, world3d, WORLD, scenery);
     scene.add(car3d.object);
     await step(0.78, 'Waking the locals');
-    // Ambient life (shared logic).
+    // Ambient life (shared logic). Car5 is the surplus 6x6 on some missions (#45; ?sixbysix=on|off).
+    setSixBySixDay(`${WORLD.seed}:${currentMissionId(state)}`, params.get('sixbysix'));
     amb = createAmbient(WORLD, scenery);
     // Smoke from chimneys our models put somewhere other than the shared house formula.
     const chimneyFix = [];

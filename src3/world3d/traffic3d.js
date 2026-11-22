@@ -33,6 +33,9 @@ import { carAtlas } from './caratlas.js';
 import { fineGeometry, FINE_STYLE } from './trafficfine.js';
 import { createFineLod, FINE_MAX } from './trafficlod.js';
 import { kitInto, doorZone } from './trafficKit.js';
+import { farmTruckInto, FARM } from './farmtruck3d.js';
+import { sixBySixInto, SIX } from './sixbysix3d.js';
+import { sixBySixPaint } from '../../src/ambient/sixbysix.js';
 import { dirtGlsl } from './car3d.js';
 import { TRAFFIC_TYPES, trafficType, carKit, dirtStep, KIT_BIT, DEFAULT_KIT } from '../../src/ambient/carkit.js';
 
@@ -201,34 +204,56 @@ function loftCar(name) {
   return mergeGeometries(parts);
 }
 
-// Old flatbed farm truck with stake sides.
-function farmTruck() {
-  const parts = [
-    box(1.9, 0.2, 5.3, 0, 0.62, 0.1, 'black'), // chassis
-    box(1.75, 0.62, 1.35, 0, 1.08, -1.95, 'paint'), // bonnet
-    box(2.0, 0.2, 0.5, 0, 0.92, -1.6, 'paint'), // front wings
-    box(2.0, 1.25, 1.45, 0, 1.38, -0.6, 'paint'), // cab
-    box(1.86, 0.5, 0.04, 0, 1.72, -1.34, 'glass'), // windscreen
-    box(2.02, 0.42, 0.9, 0, 1.72, -0.58, 'glass'), // side windows
-    box(2.04, 0.06, 1.5, 0, 2.02, -0.6, 'paint'), // roof
-    box(1.82, 0.1, 0.12, 0, 0.6, -2.68, 'chrome'), // bumper
-    quadZ(0.95, 0.42, 0, 1.08, -2.63, 'chrome'), // grille
-    box(2.15, 0.12, 3.2, 0, 0.82, 1.2, 'wood'), // flatbed
-  ];
-  for (const x of [-1, 1]) {
-    parts.push(quadZ(0.2, 0.14, x * 0.68, 1.12, -2.635, 'head'));
-    parts.push(quadZ(0.16, 0.12, x * 0.85, 0.95, 2.81, 'tail'));
-    parts.push(box(0.12, 0.1, 0.06, x * 1.1, 1.75, -1.2, 'black'));
-    // Stake sides: posts and three rails.
-    for (const z of [-0.3, 0.6, 1.5, 2.4]) parts.push(box(0.08, 0.75, 0.08, x * 1.03, 1.25, z, 'woodDark'));
-    for (const y of [1.05, 1.3, 1.55]) parts.push(box(0.04, 0.1, 3.0, x * 1.05, y, 1.05, 'wood'));
-  }
-  for (const y of [1.05, 1.3, 1.55]) parts.push(box(2.1, 0.1, 0.04, 0, y, 2.6, 'wood'));
-  parts.push(...wheel(0.45, 0.26, -0.86, 0.45, -1.95), ...wheel(0.45, 0.26, 0.86, 0.45, -1.95));
-  for (const x of [-0.78, -1.02, 0.78, 1.02]) parts.push(...wheel(0.45, 0.22, x, 0.45, 1.55));
-  parts.push(...coarseKit('farmtruck'));
+// A body drawn through a builder (farmtruck3d.js, sixbysix3d.js; see
+// roundShapes.js), coarse: pictures are plain quads, wheels plain cylinders.
+const COARSE_ALIAS = { gap: 'black', exhaust: 'black', mirror: 'chrome', red: 'tail' };
+const PIC_MAT = { grille: 'black', head: 'head', tail: 'tail', plate: 'plate', indicator: 'amber' };
+function coarseBody(into, type) {
+  const parts = [];
+  const mt = (m) => COARSE_ALIAS[m] || m;
+  into({
+    fine: false,
+    box(x, y, z, w, h, d, m, rx = 0, ry = 0, rz = 0) {
+      const g = new THREE.BoxGeometry(w, h, d);
+      if (rx || ry || rz) g.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(rx, ry, rz)));
+      parts.push(tag(g.translate(x, y, z), mt(m)));
+    },
+    bar(a, b, w, th, m, up = [0, 1, 0]) {
+      const va = new THREE.Vector3(...a);
+      const vb = new THREE.Vector3(...b);
+      const mm = new THREE.Matrix4().lookAt(va, vb, new THREE.Vector3(...up));
+      mm.setPosition(va.clone().add(vb).multiplyScalar(0.5));
+      parts.push(tag(new THREE.BoxGeometry(w, th, va.distanceTo(vb)).applyMatrix4(mm), mt(m)));
+    },
+    smooth(g, m) {
+      parts.push(tag(g, mt(m)));
+    },
+    geo(g, m) {
+      parts.push(tag(g, mt(m)));
+    },
+    pic(c, r, u, w, h, name) {
+      const p = (sx, sy) => [0, 1, 2].map((k) => c[k] + (r[k] * sx * w) / 2 + (u[k] * sy * h) / 2);
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute([...p(-1, -1), ...p(1, -1), ...p(1, 1), ...p(-1, -1), ...p(1, 1), ...p(-1, 1)], 3));
+      parts.push(tag(g, PIC_MAT[name]));
+    },
+    disc(c, n, rad, name) {
+      const g = new THREE.CircleGeometry(rad, 10);
+      g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(...n)));
+      parts.push(tag(g.translate(...c), PIC_MAT[name]));
+    },
+    wheel(r, w, x, y, z, side, axis = 'x') {
+      for (const g of wheel(r, w, 0, 0, 0)) {
+        if (axis === 'z') g.rotateY(Math.PI / 2);
+        parts.push(g.translate(x, y, z));
+      }
+    },
+  });
+  parts.push(...coarseKit(type));
   return mergeGeometries(parts);
 }
+const farmTruck = () => coarseBody(farmTruckInto, 'farmtruck');
+const sixBySix = () => coarseBody(sixBySixInto, 'sixbysix');
 
 // Far stand-in: body, glass band and dark wheels in a few boxes.
 function farGeo() {
@@ -382,14 +407,14 @@ function addInstanceAttrs(mesh, max, kit = 0, wear = [0, 0]) {
 
 // Where the blinkers sit on each type: half length, half width, front and
 // back lamp heights (the same spots as the head and tail lamps in loftCar).
-const LAMPS = { farmtruck: { half: 2.66, hw: 1.0, yF: 1.12, yR: 0.95 } };
+const LAMPS = { farmtruck: { half: FARM.half, hw: 0.68, yF: 0.9, yR: 0.89 }, sixbysix: { half: SIX.half, hw: 0.98, yF: 1.22, yR: 1.02 } };
 for (const name of ['sedan', 'wagon', 'pickup', 'hatch']) {
   const S = SPECS[name];
   LAMPS[name] = { half: S.half, hw: S.hw, yF: (S.belt(-S.half) + S.y0 + 0.2) / 2 + 0.02, yR: (S.belt(S.half) + S.y0 + 0.2) / 2 + 0.06 };
 }
 
 // One instanced mesh of a type, on its own (the slow farm trucks in hazards3d).
-const GEOS = { sedan: () => loftCar('sedan'), wagon: () => loftCar('wagon'), pickup: () => loftCar('pickup'), hatch: () => loftCar('hatch'), farmtruck: farmTruck };
+const GEOS = { sedan: () => loftCar('sedan'), wagon: () => loftCar('wagon'), pickup: () => loftCar('pickup'), hatch: () => loftCar('hatch'), farmtruck: farmTruck, sixbysix: sixBySix };
 export function vehicleMesh(type, max, env = null) {
   const mesh = new THREE.InstancedMesh(GEOS[type](), makeMaterial(env), max);
   mesh.count = 0;
@@ -423,6 +448,7 @@ export function createTraffic3D(parent, opts = {}) {
     pickup: make(loftCar('pickup')),
     hatch: make(loftCar('hatch')),
     farmtruck: make(farmTruck()),
+    sixbysix: make(sixBySix()),
   };
   const far = make(farGeo());
   far.castShadow = false;
@@ -455,13 +481,13 @@ export function createTraffic3D(parent, opts = {}) {
   const looks = new Map();
   const lookOf = (c, type) => {
     let L = looks.get(c.id);
-    if (!L) {
+    if (!L || L.kit.type !== type) { // (car5 is the 6x6 on some missions)
       const kit = carKit(c.id);
       // Door color, linear, packed into one number (8 bits a channel).
       const dc = new THREE.Color(kit.door ?? 0xffffff);
       const b8 = (v) => Math.round(Math.max(0, Math.min(1, v)) * 255);
       const door = kit.door == null ? -1 : b8(dc.r) * 65536 + b8(dc.g) * 256 + b8(dc.b);
-      L = { kit, door, zone: doorZone(type), dirt: kit.dirtBase };
+      L = { kit, door, zone: doorZone(type), dirt: kit.dirtBase, paint: type === 'sixbysix' ? sixBySixPaint(c.id).color : null };
       looks.set(c.id, L);
     }
     return L;
@@ -472,11 +498,11 @@ export function createTraffic3D(parent, opts = {}) {
     const n = counts.get(mesh) || 0;
     if (n >= mesh.instanceMatrix.count) return false;
     mesh.setMatrixAt(n, m);
-    mesh.setColorAt(n, col.setHex(c.color));
+    const L = lookOf(c, type);
+    mesh.setColorAt(n, col.setHex(L.paint ?? c.color));
     if (type === 'pickup' && c.color2 != null) col2.setHex(c.color2);
     else col2.copy(col);
     const at = mesh.geometry.attributes;
-    const L = lookOf(c, type);
     at.paint2.setXYZW(n, col2.r, col2.g, col2.b, L.door);
     at.carInst.setXYZW(n, fade, L.kit.mask, L.dirt, L.kit.rust);
     at.doorZone.setXYZW(n, ...L.zone);

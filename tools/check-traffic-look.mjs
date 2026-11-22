@@ -13,6 +13,8 @@ import { carPaint, PALETTE } from '../src/ambient/carpaint.js';
 import { createFineLod, distanceFade, FINE_NEAR, FINE_FAR, FINE_MAX, GATE_RATE } from '../src3/world3d/trafficlod.js';
 import { carKit, dirtStep, trafficType, KIT_FITS, KIT_NEEDS, KIT_PARTS, TRAFFIC_TYPES, DIRT_MAX } from '../src/ambient/carkit.js';
 import { kitInto } from '../src3/world3d/trafficKit.js';
+import { setSixBySixDay, sixBySixRoll, sixBySixPaint, SIX_ODDS } from '../src/ambient/sixbysix.js';
+import { engineOf } from '../src/audio/trafficSound.js';
 
 let bad = 0;
 const ok = (name, cond, info = '') => {
@@ -159,6 +161,37 @@ ok('fade falls steadily across the band', distanceFade(38) > distanceFade(40) &&
   ok('fades back to its base, not under', e === base);
   const avg = (t) => { const l = Array.from({ length: 60 }, (_, i) => carKit(`car${i}`)).filter((k) => k.type === t); return l.reduce((s, k) => s + k.dirtBase, 0) / l.length; };
   ok('farm trucks dirtiest, then pickups, then cars', avg('farmtruck') > avg('pickup') && avg('pickup') > avg('sedan') && avg('pickup') > avg('wagon'));
+}
+
+// The surplus 6x6 (#45): car5 drives it on some missions only, seeded by
+// the day key; the ?sixbysix flag forces it; nothing else changes type.
+{
+  const keys = Array.from({ length: 400 }, (_, i) => `12345:m${i}`);
+  const share = keys.filter(sixBySixRoll).length / keys.length;
+  ok('the 6x6 drives on some missions, not most', share > SIX_ODDS - 0.08 && share < SIX_ODDS + 0.08, share.toFixed(2));
+  ok('same day key, same answer', keys.every((k) => sixBySixRoll(k) === sixBySixRoll(k)));
+  const on = keys.find(sixBySixRoll);
+  const off = keys.find((k) => !sixBySixRoll(k));
+  const others = Array.from({ length: 10 }, (_, i) => `car${i}`).filter((id) => id !== 'car5');
+  const before = others.map(trafficType);
+  // Over several region builds, car5 follows each day; the rest never change.
+  const seen = [];
+  for (const [k, f] of [[on, null], [off, null], [on, 'off'], [off, 'on'], [off, null]]) {
+    setSixBySixDay(k, f);
+    seen.push(trafficType('car5'));
+    if (others.map(trafficType).join() !== before.join()) seen.push('OTHER CHANGED');
+  }
+  ok('car5 is the 6x6 on its days and with ?sixbysix=on, else the farm truck', seen.join() === 'sixbysix,farmtruck,farmtruck,sixbysix,farmtruck', seen.join());
+  setSixBySixDay(off, 'on');
+  const k = carKit('car5');
+  ok('the 6x6 kit fits it', k.type === 'sixbysix' && k.parts.every((p) => p in KIT_FITS.sixbysix) && k.rust <= 0.3 && k.dirtBase >= 0.4, k.parts.join(' '));
+  ok('the 6x6 kit is seeded', JSON.stringify(carKit('car5')) === JSON.stringify(k));
+  setSixBySixDay(off, 'off');
+  ok('back to the farm truck kit', carKit('car5').type === 'farmtruck' && carKit('car5').parts.includes('hay'));
+  const p = Array.from({ length: 30 }, (_, i) => sixBySixPaint(`car${i}`));
+  const [h, s, v] = hsv(p[0].color);
+  ok('6x6 paint: dull army colors (olive, green, tan), faded', p.every((q) => { const [hh, ss, vv] = hsv(q.color); return hh >= 35 && hh <= 110 && ss < 0.6 && vv < 0.6 && q.age >= 0.75; }), `${h.toFixed(0)} ${s.toFixed(2)} ${v.toFixed(2)}`);
+  ok('6x6 has a diesel', engineOf('sixbysix') === 'diesel');
 }
 
 console.log(bad ? `\n${bad} FAILED` : '\nall ok');

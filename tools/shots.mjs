@@ -66,6 +66,12 @@ const VIEWS = [
   // Kits and dirt (#42, #43): the farm truck, three sedans side by side,
   // the two wagons and two pickups (no two of a type alike).
   { name: 'traffic_farmtruck', car: { road: 'hwy9', at: 0.4 }, pin: [['car5', 20, 1, 1]], tcam: [[4.8, 2.2, -6.0], [0, 1.0, 0.4]] },
+  // Farm truck reshape (#55) and the surplus 6x6 (#45; car5 is the 6x6 with
+  // SHOTS_QUERY=opening=off&sixbysix=on): side, rear, low front, and in a row.
+  { name: 'traffic_farmtruck_side', car: { road: 'hwy9', at: 0.4 }, pin: [['car5', 20, 1, 1]], tcam: [[5.6, 1.4, -0.2], [0, 1.0, 0.2]] },
+  { name: 'traffic_farmtruck_rear', car: { road: 'hwy9', at: 0.4 }, pin: [['car5', 20, 1, 1]], tcam: [[-3.4, 2.4, 7.2], [0, 1.0, 0.6]] },
+  { name: 'traffic_farmtruck_front', car: { road: 'hwy9', at: 0.4 }, pin: [['car5', 20, 1, 1]], tcam: [[2.4, 1.0, -5.4], [0, 0.9, -1.4]] },
+  { name: 'traffic_6x6_row', car: { road: 'hwy9', at: 0.4 }, pin: [['car2', 22, 1, 1], ['car5', 32, 1, 1], ['car3', 30, -1, -1], ['car1', 44, 1, 1]], tcam: [[6.5, 3.2, -24], [0, 0.9, -8]] },
   { name: 'traffic_sedans', car: { road: 'hwy9', at: 0.4 }, pin: [['car0', 16, 1, 1], ['car4', 24, 1, 1], ['car9', 32, 1, 1]], tcam: [[6, 2.6, -22], [0, 0.8, -8]] },
   { name: 'traffic_pairs', car: { road: 'hwy9', at: 0.4 }, pin: [['car1', 16, 1, 1], ['car6', 23, 1, 1], ['car2', 30, 1, 1], ['car8', 37, 1, 1]], tcam: [[6, 3.0, -27], [0, 0.8, -10]] },
   { name: 'traffic_kit_close', car: { road: 'hwy9', at: 0.4 }, pin: [['car6', 20, 1, 1]], tcam: [[4.6, 2.6, -4.6], [0, 1.0, 0.6]] },

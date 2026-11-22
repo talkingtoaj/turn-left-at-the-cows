@@ -14,7 +14,7 @@ const SOUND_C = 343; // m/s
 // Diesel on trucks and pickups, a quiet petrol hum on the cars.
 const ENGINE_OF = {
   sedan: 'petrol', wagon: 'petrol', hatch: 'petrol',
-  pickup: 'diesel', farmtruck: 'diesel', truck: 'diesel', tractor: 'diesel',
+  pickup: 'diesel', farmtruck: 'diesel', sixbysix: 'diesel', truck: 'diesel', tractor: 'diesel',
 };
 export const engineOf = (type) => ENGINE_OF[type] || 'petrol';
 export const ENGINE_SOUND = { diesel: 'traffic/diesel', petrol: 'traffic/petrol' };
