@@ -2,7 +2,7 @@
 // pickups, petrol on cars; each vehicle sounds from where it is (pan, level,
 // highs) and pitches down as it passes, frame after frame.
 //   node tools/check-traffic-sound.mjs
-import { engineOf, pickHeard, passBy, doppler, idPitch, HEAR_R, MAX_VOICES } from '../src/audio/trafficSound.js';
+import { engineOf, pickHeard, passBy, doppler, idPitch, HEAR_R, MAX_VOICES, pickCrunch, crunchBy, CRUNCH_R, MAX_CRUNCH } from '../src/audio/trafficSound.js';
 
 let bad = 0;
 const ok = (name, cond, info = '') => {
@@ -76,6 +76,44 @@ ok('none out of earshot', pickHeard(ear, [{ id: 'x', x: HEAR_R + 5, y: 0 }]).len
 // Next frame the far ones come close: the heard set follows.
 const moved = many.map((v, i) => ({ ...v, x: 300 - i * 30 }));
 ok('the heard set follows as cars move', pickHeard(ear, moved)[0].id === 'car9');
+
+// Gravel crunch under traffic tires (#49).
+const dirtCar = { id: 'car3', x: 0, y: -6, heading: 90, speed: 13.4, onDirt: true };
+const paveCar = { ...dirtCar, onDirt: false };
+ok('crunch on a dirt road', crunchBy(ear, 0, dirtCar).gain > 0.03, f(crunchBy(ear, 0, dirtCar).gain));
+ok('no crunch on paved', crunchBy(ear, 0, paveCar).gain === 0 && pickCrunch(ear, [paveCar]).length === 0);
+ok('no crunch when stopped', crunchBy(ear, 0, { ...dirtCar, speed: 0 }).gain === 0 && pickCrunch(ear, [{ ...dirtCar, speed: 0 }]).length === 0);
+ok('crunch is a bed under the engine', crunchBy(ear, 0, dirtCar).gain < passBy(ear, 0, dirtCar, 'petrol').gain && crunchBy(ear, 0, dirtCar).gain < passBy(ear, 0, dirtCar, 'diesel').gain * 0.6,
+  `${f(crunchBy(ear, 0, dirtCar).gain)} vs petrol ${f(passBy(ear, 0, dirtCar, 'petrol').gain)}`);
+ok('faster crunches louder', crunchBy(ear, 0, { ...dirtCar, speed: 20 }).gain > crunchBy(ear, 0, { ...dirtCar, speed: 5 }).gain);
+const cd = [6, 15, 30, 50, 69].map((y) => crunchBy(ear, 0, { ...dirtCar, y: -y }).gain);
+ok('crunch fades with distance', cd.every((g, i) => i === 0 || g < cd[i - 1]), cd.map(f).join(' '));
+ok('crunch fades to almost nothing at its edge', cd[4] < cd[0] * 0.02);
+ok('silent past its range', crunchBy(ear, 0, { ...dirtCar, y: -(CRUNCH_R + 1) }).gain === 0 && pickCrunch(ear, [{ ...dirtCar, y: -(CRUNCH_R + 1) }]).length === 0);
+ok('crunch is heard closer in than engines', CRUNCH_R < HEAR_R);
+ok('crunch is panned like the car', crunchBy(ear, 0, { ...dirtCar, x: -20 }).pan < -0.3 && crunchBy(ear, 0, { ...dirtCar, x: 20 }).pan > 0.3);
+// Frame by frame: a car comes along a paved road, turns onto dirt, passes
+// you, brakes and stops. Crunch only once on dirt, then dies as it stops.
+const run = [];
+let car = { id: 'car4', x: -60, y: -6, heading: 90, speed: 13.4, onDirt: false };
+for (let i = 0; i < 160; i++) {
+  if (car.x > -40) car.onDirt = true;
+  if (car.x > 20) car.speed = Math.max(0, car.speed - 0.5);
+  car = { ...car, x: car.x + car.speed * 0.1 };
+  run.push({ x: car.x, speed: car.speed, onDirt: car.onDirt, g: crunchBy(ear, 0, car).gain, n: pickCrunch(ear, [car]).length });
+}
+ok('frames: silent while on paved', run.filter((r) => !r.onDirt).every((r) => r.g === 0 && r.n === 0));
+ok('frames: crunches once on dirt and rolling', run.filter((r) => r.onDirt && r.speed > 2).every((r) => r.g > 0 && r.n === 1));
+const near = run.reduce((a, r) => (Math.abs(r.x) < Math.abs(a.x) ? r : a));
+ok('frames: loudest as it passes', run.every((r) => r.g <= near.g + 1e-9));
+ok('frames: dies down as it slows', run.filter((r) => r.x > 20 && r.speed > 0).every((r, i, a) => i === 0 || r.g <= a[i - 1].g + 1e-9));
+ok('frames: silent once stopped', run[run.length - 1].speed === 0 && run[run.length - 1].g === 0 && run[run.length - 1].n === 0);
+// Only the nearest few crunch, and the set follows as cars move.
+const dirtMany = Array.from({ length: 8 }, (_, i) => ({ id: `car${i}`, x: 5 + i * 6, y: 0, heading: 0, speed: 10, onDirt: true }));
+ok(`at most ${MAX_CRUNCH} cars crunch`, pickCrunch(ear, dirtMany).length === MAX_CRUNCH);
+ok('the crunch voices are the nearest', pickCrunch(ear, dirtMany).map((v) => v.id).join() === 'car0,car1,car2');
+const dirtMoved = dirtMany.map((v, i) => ({ ...v, x: 60 - i * 6, onDirt: i !== 7 }));
+ok('next frame the crunch set follows (and skips the car now on paved)', pickCrunch(ear, dirtMoved).map((v) => v.id).join() === 'car6,car5,car4');
 
 if (bad) {
   console.log(`${bad} failed`);

@@ -9,7 +9,7 @@ All files were trimmed, made mono 44.1 kHz, normalised and encoded as 64 kbps mp
 | File | Freesound id | Name | Author | URL |
 |---|---|---|---|---|
 | engine/reverse.mp3 | 369055 | car_reverse.wav (4 to 10 s) | AndrewAlexander | https://freesound.org/people/AndrewAlexander/sounds/369055/ |
-| tyres/gravel.mp3 | 251661 | Tires on Gravel Road 1 (1 to 11 s) | OBXJohn | https://freesound.org/people/OBXJohn/sounds/251661/ |
+| tyres/gravel.mp3 | 251661 | Tires on Gravel Road 1 (1 to 11 s; also the gravel crunch under traffic tires on dirt roads, #49, cut below 300 Hz in the game) | OBXJohn | https://freesound.org/people/OBXJohn/sounds/251661/ |
 | nature/creek.mp3 | 231536 | Creek 06 (loop) (2 to 14 s) | VKProduktion | https://freesound.org/people/VKProduktion/sounds/231536/ |
 | nature/river.mp3 | 420557 | River_02.wav (5 to 17 s) | MarcMatthewsMusic | https://freesound.org/people/MarcMatthewsMusic/sounds/420557/ |
 | nature/birdsong.mp3 | 490845 | Birds Singing, Forest (Scotland) (2 to 17 s) | BurghRecords | https://freesound.org/people/BurghRecords/sounds/490845/ |
