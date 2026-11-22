@@ -12,6 +12,7 @@
     "check:fallen": "node tools/check-fallen.mjs",
     "check:blockers": "node tools/check-fallen.mjs",
     "check:traffic": "node tools/check-traffic.mjs",
+    "check:traffic-sound": "node tools/check-traffic-sound.mjs",
     "check:radiosubs": "node tools/check-radio-subs.mjs",
     "radio:bake": "node tools/radio-bake.mjs",
     "assets": "node tools/assets.mjs pull",
@@ -24,7 +25,7 @@
     "check:clock": "node tools/check-clock.mjs",
     "check:tourists": "node tools/check-tourists.mjs",
     "check:shifts": "node tools/check-shifts.mjs",
-    "check:all": "npm run -s check:assets && npm run -s check:world && npm run -s check:units && npm run -s check:signs && npm run -s check:radio && npm run -s check:radio-logic && npm run -s check:radiosubs && npm run -s check:clock && npm run -s check:tourists && npm run -s check:shifts"
+    "check:all": "npm run -s check:assets && npm run -s check:world && npm run -s check:units && npm run -s check:signs && npm run -s check:radio && npm run -s check:radio-logic && npm run -s check:radiosubs && npm run -s check:clock && npm run -s check:tourists && npm run -s check:shifts && npm run -s check:traffic-sound"
   },
   "dependencies": {
     "three": "^0.186.1"
