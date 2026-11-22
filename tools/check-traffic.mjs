@@ -6,16 +6,18 @@
 //   - the car count stays the same,
 //   - no car turns round in, or waits at, a fixed fallen tree's gap,
 //   - no car stands stuck for long far from the player,
-//   - a car the player holds up honks on the backoff schedule (HONK), then
+//   - a slow vehicle (hazards.js) the player holds up honks on the backoff schedule (HONK), then
 //     turns round with a three-point turn that keeps to the road,
 //   - junctions (SPEC 9q): cars slow for a turn and drive a curve that keeps
 //     to the road, blink a few seconds first, stop fully at a STOP sign
 //     (only on dirt roads), go one at a time, never move into a junction
 //     the player stands in, and never flip round on the spot (dead ends and
 //     broken bridges get a three-point turn).
+//   - waiting (WAIT): once a second a waiting car may honk (longer the
+//     longer it waits) and may give up and turn round, both more likely each
+//     second; seeded; only one car in a knot gives way at a time.
 //   - no knots: no car anywhere stands still longer than KNOT_MAX s unless
-//     the player holds it up (a car held up by other cars toots, then the
-//     one that waited longest in the knot gives way, one at a time). Also run
+//     the player holds it up. Also run
 //     with no player at all, where stuck cars are never moved out of sight.
 //
 //   npm run check:traffic
@@ -30,7 +32,7 @@ import {
   TRAFFIC, relTo, inLane, playerSpeedCap, seenByPlayer, respawnReason, goodRespawn,
   HONK, hornOn, honkStage, stepBlocked, turnPose, turnLength, TURN,
   JUNCTION, brakeCap, turnSpeed, turnSide, blinkLit, blinkNow, stopsAt, junctionCurve, curveAt, headedInto,
-  JAM, jamGiver,
+  JAM, WAIT, honkChance, giveChance, honkLen, waitState, stepWait, knotGiving,
 } from '../src/ambient/trafficRules.js';
 
 let fails = 0;
@@ -223,38 +225,87 @@ check(turnSpeed(90) === JUNCTION.turnV[0] && turnSpeed(0) === JUNCTION.turnV[1] 
   check(!headedInto(40, 30, 0, 14, 0, 0, 8), 'passing to one side');
 }
 
-// ---------- Knots (JAM) ----------
+// ---------- Waiting in traffic (WAIT) ----------
 {
-  // Toots start late and stop before it gives way; no lean on the horn.
-  check(!hornOn(JAM.bursts[0].at - 0.1, JAM) && hornOn(JAM.bursts[0].at + 0.1, JAM), 'jam: first toot on time');
-  check(!hornOn(JAM.giveAt - 0.5, JAM) && !hornOn(JAM.giveAt + 5, JAM), 'jam: quiet before giving way');
-  // The count runs across frames, survives a short creep, resets after grace.
-  const st = { t: 0, clearT: 0 };
-  for (let i = 0; i < 200; i++) stepBlocked(st, true, 0.1, JAM);
-  check(Math.abs(st.t - 20) < 1e-6, 'jam: count runs');
-  stepBlocked(st, false, JAM.grace / 2, JAM);
-  stepBlocked(st, true, 0.1, JAM);
-  check(st.t > 20, 'jam: a short creep does not reset');
-  for (let i = 0; i < 20; i++) stepBlocked(st, false, 0.1, JAM);
-  check(st.t === 0, 'jam: moving for the grace time resets');
-  // Who gives way: longest wait past giveAt; nobody while one already is;
-  // ties to the lower index. Stepped over time: as counts grow, the pick changes.
-  const G = JAM.giveAt;
-  check(jamGiver([{ i: 0, t: G - 1 }, { i: 1, t: 3 }]) === -1, 'jam: nobody before giveAt');
-  check(jamGiver([{ i: 0, t: G + 1 }, { i: 1, t: G + 4 }, { i: 2, t: 2 }]) === 1, 'jam: longest wait gives way');
-  check(jamGiver([{ i: 0, t: G + 9 }, { i: 1, t: G + 4, giving: true }]) === -1, 'jam: one at a time');
-  check(jamGiver([{ i: 3, t: G }, { i: 1, t: G }]) === 1, 'jam: tie to lower index');
-  const knot = [{ i: 0, t: 0 }, { i: 1, t: 5 }, { i: 2, t: 10 }];
-  const picks = [];
-  for (let s = 0; s < 40; s++) {
-    for (const k of knot) k.t += 1;
-    const g = jamGiver(knot);
-    picks.push(g);
-    if (g >= 0) { knot[g].t = 0; knot[g].giving = true; } // it gives way...
-    if (s % 8 === 7) for (const k of knot) k.giving = false; // ...and is gone after a while
+  // Chances and honk length grow with the wait, never past their caps.
+  let ph = -1, pg = -1, pl = -1, grows = true;
+  for (let t = 0; t <= 90; t += 0.5) {
+    const h = honkChance(t), g = giveChance(t), l = honkLen(t, 0.5);
+    if (h < ph || g < pg || l < pl || h > WAIT.honkMax || g > WAIT.giveMax || l > WAIT.lenMax * WAIT.lenJitter[1]) grows = false;
+    ph = h; pg = g; pl = l;
   }
-  check(picks.filter((g) => g >= 0).length >= 2 && new Set(picks.filter((g) => g >= 0)).size >= 2, `jam: picks over time ${picks.join()}`);
-  check(picks.indexOf(2) >= 0 && picks.findIndex((g) => g >= 0) === picks.indexOf(2), 'jam: the longest waiter goes first');
+  check(grows, 'wait: chances and honk length grow with the wait, capped');
+  check(honkChance(0) === 0 && giveChance(5) === 0 && honkChance(20) > honkChance(5) && giveChance(40) > giveChance(20), 'wait: chances start at nought and grow');
+  check(honkLen(2, 0.5) < 0.6 && honkLen(30, 0.5) > 1.5, `wait: a tap early (${honkLen(2, 0.5).toFixed(2)} s), a lean later (${honkLen(30, 0.5).toFixed(2)} s)`);
+
+  // Stepped like the game (uneven frames) for many cars: rolls only once a
+  // second, the horn starts only on a roll, first honk and give-up times.
+  const firstHonk = [], firstGive = [], early = [], late = [];
+  let rollsOk = true, hornOffRoll = 0;
+  for (let seed = 1; seed <= 2000; seed++) {
+    const st = waitState(seed * 7919);
+    let t = 0, k = 0, honked = -1, gave = -1;
+    while (t < 90) {
+      const dt = 0.008 + ((k++ * 37) % 50) / 1000; // 8 to 57 ms
+      const before = st.rolls, hornBefore = st.horn;
+      stepWait(st, true, dt);
+      t += dt;
+      if (st.rolls - before > 1) rollsOk = false;
+      if (st.horn > hornBefore + 1e-9) {
+        if (st.rolls === before) hornOffRoll++;
+        if (honked < 0) honked = t;
+        (t < 10 ? early : t > 20 ? late : []).push(st.horn);
+      }
+      if (st.give && gave < 0) gave = t;
+    }
+    if (Math.abs(st.rolls - t) > 1.01) rollsOk = false;
+    firstHonk.push(honked < 0 ? Infinity : honked);
+    firstGive.push(gave < 0 ? Infinity : gave);
+  }
+  check(rollsOk, 'wait: rolls once a second, not per frame');
+  check(hornOffRoll === 0, `wait: horn started between rolls (${hornOffRoll})`);
+  const frac = (a, f) => a.filter(f).length / a.length;
+  const mean = (a) => a.reduce((s, x) => s + x, 0) / a.length;
+  const hIn = frac(firstHonk, (x) => x >= 4 && x <= 10), hLate = frac(firstHonk, (x) => x > 12);
+  const gIn = frac(firstGive, (x) => x >= 20 && x <= 40), gLate = frac(firstGive, (x) => x > 45);
+  check(hIn > 0.6 && hLate < 0.15, `wait: first honk 4-10 s for ${(hIn * 100).toFixed(0)}%, after 12 s ${(hLate * 100).toFixed(0)}%`);
+  check(gIn > 0.6 && gLate < 0.15, `wait: gives up 20-40 s for ${(gIn * 100).toFixed(0)}%, after 45 s ${(gLate * 100).toFixed(0)}%`);
+  check(mean(late) > mean(early) * 1.8, `wait: honks get longer (${mean(early).toFixed(2)} s early, ${mean(late).toFixed(2)} s late)`);
+  console.log(`wait: first honk 4-10 s ${(hIn * 100).toFixed(0)}%, gave up 20-40 s ${(gIn * 100).toFixed(0)}%, honk ${mean(early).toFixed(2)} s early / ${mean(late).toFixed(2)} s late`);
+
+  // Seeded: the same seed repeats, others differ; each car its own phase.
+  const seq = (seed) => { const st = waitState(seed); const out = []; for (let i = 0; i < 1200; i++) { stepWait(st, true, 0.05); out.push(st.horn > 0 ? 1 : 0, st.give ? 1 : 0); } return out.join(''); };
+  check(seq(42) === seq(42) && seq(42) !== seq(43), 'wait: seeded repeat');
+  const phases = new Set(Array.from({ length: 10 }, (_, i) => waitState(1000 + i).roll.toFixed(3)));
+  check(phases.size === 10, 'wait: each car rolls on its own phase');
+
+  // Not held: no rolls, no horn; the wait survives a short creep, resets after grace.
+  const st = waitState(5);
+  for (let i = 0; i < 200; i++) stepWait(st, true, 0.1);
+  const r0 = st.rolls;
+  stepWait(st, false, WAIT.grace / 2);
+  check(st.horn === 0, 'wait: horn stops when it moves');
+  stepWait(st, true, 0.1);
+  check(st.t > 20, 'wait: a short creep does not reset');
+  for (let i = 0; i < 30; i++) stepWait(st, false, 0.1);
+  check(st.t === 0 && st.rolls <= r0 + 1, 'wait: moving for the grace time resets, no rolls while moving');
+
+  // One giver at a time: a knot of four stepped for 5 minutes; a car gives
+  // way when it rolls so and nobody else is; giving way takes 8 s.
+  check(!knotGiving([{ i: 0 }, { i: 1 }]) && knotGiving([{ i: 0 }, { i: 1, giving: true }]), 'knotGiving');
+  const knot = [0, 1, 2, 3].map((i) => ({ i, w: waitState(900 + i), giving: false, left: 0 }));
+  let gives = 0, two = 0, lost = 0;
+  for (let t = 0; t < 300; t += 0.05) {
+    for (const k of knot) {
+      if (k.giving) { if ((k.left -= 0.05) <= 0) k.giving = false; continue; }
+      stepWait(k.w, true, 0.05);
+      if (!k.w.give) continue;
+      if (knotGiving(knot)) { lost++; continue; }
+      k.giving = true; k.left = 8; k.w.t = 0; gives++;
+    }
+    if (knot.filter((k) => k.giving).length > 1) two++;
+  }
+  check(two === 0 && gives >= 5, `wait: one giver at a time (${gives} gave way, ${lost} waited their turn, ${two} overlaps)`);
 }
 
 // ---------- Simulation per region ----------
@@ -326,7 +377,9 @@ check(allTurns > 0, 'no car turned round for the parked player in any region');
 // no jump, no flip on the spot, curves on the road, a blink 2 s before
 // each turn, a full stop before going at a STOP line (dirt roads only),
 // one car at a time in a junction.
-const KNOT_MAX = 30; // s
+// Giving up is a random roll now (WAIT: most cars by 20 to 40 s, and only
+// one car in a knot at a time), so the tail is longer than the old fixed 23 s.
+const KNOT_MAX = 50; // s
 function junctionRun(id, mode) {
   const world = setRegion(id);
   const amb = createAmbient(world, generateScenery(world));

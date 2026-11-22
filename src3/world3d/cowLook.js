@@ -5,6 +5,8 @@
 // seed (for timing) and an offset into the patch noise (cowPatch, mirrored in
 // GLSL in ambient3d.js), so no two cows carry the same patches.
 
+import { hashString } from '../../src/drive/geom.js';
+
 // [coat, patch, min cover, max cover, weight]. Cover is the noise threshold
 // (cowPatch): 0.3 patches about 8% of the cow, 0.4 about 25%, 0.5 half.
 const BREEDS = [
@@ -17,16 +19,8 @@ const BREEDS = [
 const OFF_SPAN = 60; // each cow's patches come from somewhere in a 60^3 noise cube
 const WEIGHT = BREEDS.reduce((s, b) => s + b[4], 0);
 
-// String to [0, 1), stable across runs (FNV-1a).
-export function hash01(s) {
-  let h = 2166136261;
-  const str = String(s);
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return (h >>> 0) / 4294967296;
-}
+// String to [0, 1), stable across runs.
+export const hash01 = (s) => hashString(String(s)) / 4294967296;
 
 const rgb = (hex) => [((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255];
 

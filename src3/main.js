@@ -448,6 +448,7 @@ function frame(now) {
   const dtMs = Math.min(rawMs, MAX_DT_MS);
   last = now;
   res.update(rawMs);
+  world3d?.scatter?.carpet?.setDetail?.(res.detail); // a lower resolution step pulls the grass in (carpet3d.js)
   const dt = dtMs / 1000;
   const car = state.car;
 

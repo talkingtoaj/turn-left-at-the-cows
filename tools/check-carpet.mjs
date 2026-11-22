@@ -257,6 +257,40 @@ for (const [r, label] of [[CARPET.radius, 'grass'], [FLOWER.radius, 'flowers']])
   for (let d = 0; d < FLOWER.radius; d += 1) if (flowerKeepShare(d + 1) > flowerKeepShare(d)) fail(`flowerKeepShare rises at ${d} m`);
 }
 
+// ---- A tile made in steps (C.tileSteps, spread over frames by carpet3d.js)
+// is the same as one made at once, even with other tiles made between its
+// steps. And a window shrunk with the reach (low resolution) still covers it.
+{
+  const W = setRegion(REGION_IDS[0]);
+  const C = makeCarpet(W, roughnessFor(W), (x, y) => Math.sin(x * 0.01) + y * 0.001, [{ x: W.size.w / 2, y: W.size.h / 2, r: 30 }]);
+  const road = W.roads[0];
+  const list = road.points.filter((_, k) => k % 4 === 0).map(([x, y]) => [Math.floor(x / TILE), Math.floor(y / TILE) + 1]);
+  const same = (a, b) => a.length === b.length && a.every((v, k) => v === b[k]);
+  let checked = 0;
+  for (let n = 0; n + 1 < list.length; n += 2) {
+    const [i, j] = list[n];
+    const steps = C.tileSteps(i, j);
+    let r = steps.next();
+    let pauses = 0;
+    while (!r.done) {
+      pauses++;
+      C.tile(...list[n + 1]); // another tile between steps
+      C.flowerTile(...list[n + 1]);
+      r = steps.next();
+    }
+    const whole = C.tile(i, j);
+    if (pauses < 2) fail(`tileSteps ${i},${j}: only ${pauses} pauses`);
+    if (!same(r.value.grass, whole.grass) || !same(r.value.clover, whole.clover) || !same(r.value.pebbles, whole.pebbles)) fail(`tileSteps ${i},${j}: differs from tile()`);
+    checked++;
+  }
+  if (!checked) fail('tileSteps: no tiles checked');
+  const w = new TileWindow(CARPET.radius * 0.625);
+  const t = w.update(1000.5, 500.5).tiles;
+  const full = new TileWindow().update(1000.5, 500.5).tiles;
+  if (!(t.length < full.length)) fail('a shrunk window should hold fewer tiles');
+  if (t.some((x) => x.d > CARPET.radius * 0.625 + TILE * 0.5)) fail('shrunk window holds tiles out of its reach');
+}
+
 if (failed) {
   for (const [k, n] of [...kinds].sort((p, q) => q[1] - p[1]).slice(0, 20)) console.log(`  ${n} x ${k}`);
   console.log(`check:carpet FAILED (${failed} problems)`);

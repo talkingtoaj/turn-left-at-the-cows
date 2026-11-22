@@ -5,7 +5,7 @@
 //
 // Units: metres, seconds, m/s. Headings in degrees, 0 north, clockwise, y south.
 
-import { DEG } from '../drive/geom.js';
+import { DEG, makeRng } from '../drive/geom.js';
 
 export const TRAFFIC = {
   halfW: 0.9, // half width of an AI car
@@ -71,8 +71,8 @@ export function goodRespawn(d, seen, T = TRAFFIC) {
   return d > T.spawnR[0] && d < T.spawnR[1] && !seen;
 }
 
-// ---------- Honking at the player ----------
-// A car the player holds up (their car, them on foot, or the parked car in
+// ---------- Honking at the player (slow vehicles, hazards.js) ----------
+// Traffic cars use WAIT below instead. A hazard vehicle the player holds up (their car, them on foot, or the parked car in
 // its lane) honks with backoff. `blockedT` is seconds it has stood blocked.
 // Bursts start at `at` s, the marks doubling (4, 8, 16), and each has more
 // beeps than the last, the third ending in a long one. At `leanAt` it leans
@@ -189,41 +189,79 @@ export function turnPose(w, t) {
 // when clear (paved roads never stop); it waits for cars already in the
 // junction and for the player. Dead ends and broken bridges: a three-point
 // turn (turnPose), never a flip on the spot.
-// Held up by other cars, not the player (a knot at a junction, a car stuck
-// ahead): after a while it toots (the HONK bursts, later and shorter), and
-// if still stuck it gives way: backs up or turns round (the same three-point
-// turn), so the knot clears. Only one car in a knot gives way at a time: the
-// one that has waited longest (jamGiver).
+// Waiting in traffic (WAIT): a car held up, by other cars (a knot at a
+// junction, a queue behind a stopped car, even going the same way) or by the
+// player, rolls the dice once a second, each car on its own phase: a chance
+// to honk, and a chance to give up and turn round (back up and the same
+// three-point turn). Both chances grow the longer it waits, and so does the
+// honk: a short tap early, leaning on the horn later. Each car has its own
+// seeded dice (world seed and car id), so a run repeats. Only one car in a
+// knot (cars within JAM.knotR) gives way at a time: two reversing at once
+// would hit. The others keep waiting and rolling.
+export const WAIT = {
+  period: 1, // s between rolls
+  grace: 1.5, // s moving before the wait starts over
+  honkFrom: 2, // s waited before the honk chance starts to grow
+  honkRamp: 0.04, // ...by this much per second
+  honkMax: 0.35, // chance per roll at most
+  lenBase: 0.2, // s: honk length is lenBase + lenRamp * waited, up to lenMax,
+  lenRamp: 0.06,
+  lenMax: 2.5,
+  lenJitter: [0.7, 1.3], // ...times a random factor in this range
+  giveFrom: 10, // s waited before the give-up chance starts to grow
+  giveRamp: 0.008, // ...by this much per second
+  giveMax: 0.4,
+  queueAt: 4, // s a car the player holds has waited before the queue behind it counts as held by the player too
+};
+export const honkChance = (t, W = WAIT) => Math.max(0, Math.min(W.honkMax, (t - W.honkFrom) * W.honkRamp));
+export const giveChance = (t, W = WAIT) => Math.max(0, Math.min(W.giveMax, (t - W.giveFrom) * W.giveRamp));
+// Honk length after waiting t s, r a random number in [0, 1).
+export function honkLen(t, r, W = WAIT) {
+  const [a, b] = W.lenJitter;
+  return Math.min(W.lenMax, W.lenBase + W.lenRamp * t) * (a + (b - a) * r);
+}
+// A car's wait: { t (s waited), clearT, roll (s to its next roll), horn (s of
+// honk left), rolls (count), give (rolled to give up this step), rng }.
+export function waitState(seed, W = WAIT) {
+  const rng = makeRng(seed);
+  return { t: 0, clearT: 0, roll: rng() * W.period, horn: 0, rolls: 0, give: false, rng };
+}
+// Step a wait by dt; `held`: held up this frame. Returns st (read st.horn > 0
+// for the horn, st.give for giving up now).
+export function stepWait(st, held, dt, W = WAIT) {
+  if (held) {
+    st.t += dt;
+    st.clearT = 0;
+  } else {
+    st.clearT += dt;
+    if (st.clearT >= W.grace) st.t = 0;
+  }
+  st.horn = held ? Math.max(0, st.horn - dt) : 0;
+  st.give = false;
+  st.roll -= dt;
+  if (st.roll <= 0) {
+    st.roll = st.roll + W.period > 0 ? st.roll + W.period : W.period;
+    if (held) {
+      st.rolls++;
+      const a = st.rng();
+      const b = st.rng();
+      const c = st.rng();
+      if (st.horn <= 0 && a < honkChance(st.t, W)) st.horn = honkLen(st.t, b, W);
+      st.give = c < giveChance(st.t, W);
+    }
+  }
+  return st;
+}
+
 export const JAM = {
-  bursts: [
-    { at: 12, beeps: [0.35] },
-    { at: 15, beeps: [0.35, 0.35] },
-    { at: 19, beeps: [0.4, 0.4, 1.1] },
-  ],
-  gap: 0.2,
-  leanAt: Infinity, // no lean: it gives way instead
-  leanLen: 0,
-  grace: 1.5, // s moving before the count starts over
-  giveAt: 23, // s held up before it gives way
   knotR: 45, // m: cars this close count as one knot
   holdMax: 6, // s it waits for room to turn before it tries driving on again
 };
 
-// Who in a knot gives way: knot = [{ i, t, giving }] (t: s held up, giving:
-// already giving way). Returns that car's i, or -1 when nobody should now
-// (one is already giving way, or none has waited JAM.giveAt).
-export function jamGiver(knot, J = JAM) {
-  let best = -1;
-  let bestT = -1;
-  for (const k of knot) {
-    if (k.giving) return -1;
-    if (k.t < J.giveAt) continue;
-    if (k.t > bestT || (k.t === bestT && k.i < best)) {
-      best = k.i;
-      bestT = k.t;
-    }
-  }
-  return best;
+// May a car in this knot give way now? knot = [{ i, giving }]: not while
+// another one already is.
+export function knotGiving(knot) {
+  return knot.some((k) => k.giving);
 }
 
 export const JUNCTION = {
