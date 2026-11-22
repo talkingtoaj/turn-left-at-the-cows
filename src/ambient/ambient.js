@@ -12,7 +12,7 @@ import {
 } from '../drive/geom.js';
 import {
   TRAFFIC, relTo, inLane, playerSpeedCap, seenByPlayer, respawnReason, goodRespawn,
-  HONK, hornOn, honkStage, stepBlocked, turnPose, turnLength, JAM, jamGiver,
+  HONK, WAIT, waitState, stepWait, turnPose, turnLength, JAM, knotGiving,
   JUNCTION, brakeCap, turnSpeed, turnRoom, turnSide, blinkLit, blinkNow, stopsAt, junctionCurve, curveAt, headedInto,
 } from './trafficRules.js';
 
@@ -359,7 +359,7 @@ export function createAmbient(world, scenery) {
   for (let i = 0; i < nCars; i++) {
     const c = {
       id: `car${i}`, x: 0, y: 0, heading: 0, speed: 0, color: CAR_COLORS[i % CAR_COLORS.length], onDirt: false,
-      horn: false, // additive: its horn is sounding now (see HONK)
+      horn: false, // additive: its horn is sounding now (see WAIT)
       turning: false, // additive: turning round or backing up, across both lanes
       blink: 0, // additive: amber lamp lit this frame, -1 left, 1 right, 0 none
       signal: 0, // additive: side it is signalling (lit or not), -1 / 0 / 1
@@ -370,7 +370,7 @@ export function createAmbient(world, scenery) {
     };
     const cs = {
       n: null, s: 0, dir: 1, seg: 0, skip: 0, cruise: R(0.85, 1.1), relocT: R(1, 3), stuckT: 0,
-      honk: { t: 0, clearT: 0 }, jam: { t: 0, clearT: 0 }, leave: null, plan: null, curve: null, inNode: null, lastNode: null, blinkT: 0,
+      honk: waitState(hashString(`${world.seed}:${i}:honk`)), jam: waitState(hashString(`${world.seed}:${i}:jam`)), leave: null, plan: null, curve: null, inNode: null, lastNode: null, blinkT: 0,
     };
     const sp = pickSpawn();
     if (!sp) continue;
@@ -532,7 +532,7 @@ export function createAmbient(world, scenery) {
     }
     return null;
   }
-  // The cars in this car's knot (itself too), for jamGiver.
+  // The cars in this car's knot (itself too), for knotGiving.
   const knot = [];
   function knotOf(c) {
     knot.length = 0;
@@ -540,7 +540,7 @@ export function createAmbient(world, scenery) {
       const o = cars[i];
       if (o !== c && Math.hypot(o.x - c.x, o.y - c.y) > JAM.knotR) continue;
       const os = carState[i];
-      knot.push({ i, t: os.jam.t, giving: !!(os.leave && os.leave.jam) });
+      knot.push({ i, giving: !!(os.leave && !os.leave.forced) }); // giving way or giving up on the player
     }
     return knot;
   }
@@ -605,7 +605,7 @@ export function createAmbient(world, scenery) {
         // In a queue behind a car the player holds up (it is honking or
         // giving up): held up by the player too, so it honks and turns round
         // in its turn instead of waiting for good.
-        if (!across && !o.turning && carState[i].honk.t >= HONK.bursts[0].at) capP = Math.min(capP, cap);
+        if (!across && !o.turning && carState[i].honk.t >= WAIT.queueAt) capP = Math.min(capP, cap);
       }
     }
 
@@ -624,11 +624,11 @@ export function createAmbient(world, scenery) {
       // tight (a junction on a square corner), so it never swings round.
       target = Math.min(target, cv.v);
       let prevH = curveAt(cv.cv, cv.u).h;
-      for (let u = cv.u + 1; u <= Math.min(cv.cv.len, cv.u + 6); u += 1) {
+      for (let u = cv.u + 0.5; u <= Math.min(cv.cv.len, cv.u + 6); u += 0.5) {
         const h = curveAt(cv.cv, u).h;
-        const degPerM = Math.abs(angDiff(prevH, h));
+        const degPerM = Math.abs(angDiff(prevH, h)) * 2;
         prevH = h;
-        if (degPerM > 1) target = Math.min(target, Math.max(1.2, CURVE_RATE / degPerM));
+        if (degPerM > 1) target = Math.min(target, Math.max(0.8, CURVE_RATE / degPerM));
       }
       setBlink(c, cs, cv.side, dt);
       c.stage = 'curve';
@@ -728,28 +728,29 @@ export function createAmbient(world, scenery) {
     // How long it has stood still (see maybeRespawn).
     if (c.speed < 0.3) cs.stuckT += dt;
     else if (c.speed > 1) cs.stuckT = 0;
-    // Held up by the player: honk, ever longer, then lean on the horn, then
-    // turn round (see HONK). Clear for a moment and the count starts over.
+    // Held up by the player: once a second a growing chance to honk (longer
+    // the longer it waits) and to give up and turn round (see WAIT), one car
+    // in a queue at a time. Clear for a moment and the wait starts over.
     const blocked = capP < HONK.capBelow && c.speed < HONK.speed;
-    const bt = stepBlocked(cs.honk, blocked, dt);
-    c.horn = blocked && hornOn(bt);
-    if (blocked && honkStage(bt) === 'turn' && !cs.curve) {
+    stepWait(cs.honk, blocked, dt);
+    c.horn = blocked && cs.honk.horn > 0;
+    if (blocked && cs.honk.give && !cs.curve && !knotGiving(knotOf(c))) {
       if (cs.inNode) cs.inNode = null;
       cs.plan = null;
       cs.leave = { mode: 'back', t: 0, backed: 0, checkT: 0, px: player.x, py: player.y };
       c.horn = false;
       return;
     }
-    // Held up by other cars instead (see JAM): toot, then give way if it has
-    // waited longest in its knot, so a knot at a junction always clears.
+    // Held up by other cars instead (a knot, or a queue going its way): the
+    // same rolls (see WAIT); it gives way only when no one else in its knot
+    // is, so a knot always clears, one car at a time.
     const jammed = !blocked && capP >= HONK.capBelow && c.speed < HONK.speed && !cs.curve;
     c.wait = blocked || (capP < HONK.capBelow && c.speed < HONK.speed) ? 'player' : jammed ? 'car' : '';
-    const jt = stepBlocked(cs.jam, jammed, dt, JAM);
-    if (jammed && hornOn(jt, JAM)) c.horn = true;
-    if (jammed && jt >= JAM.giveAt && jamGiver(knotOf(c, cs)) === cars.indexOf(c)) {
+    stepWait(cs.jam, jammed, dt);
+    if (jammed && cs.jam.horn > 0) c.horn = true;
+    if (jammed && cs.jam.give && !knotGiving(knotOf(c))) {
       if (cs.inNode) cs.inNode = null;
       cs.plan = null;
-      cs.jam.t = cs.jam.clearT = 0;
       cs.leave = { mode: 'back', jam: true, t: 0, backed: 0, checkT: 0, holdT: 0 };
       setBlink(c, cs, 0, dt);
       c.stage = '';
@@ -880,14 +881,15 @@ export function createAmbient(world, scenery) {
         cs.plan = null;
         cs.leave = null;
         cs.honk.t = cs.honk.clearT = 0;
+        cs.jam.t = cs.jam.clearT = 0;
         c.turning = false;
         c.speed = 0;
       }
       return;
     }
-    if (L.jam && L.mode === 'hold' && (L.holdT += dt) > JAM.holdMax) {
-      // No room to give way here: drive on as before (another car in the
-      // knot may give way instead).
+    if (!L.forced && L.mode === 'hold' && (L.holdT = (L.holdT || 0) + dt) > JAM.holdMax) {
+      // No room to give way or turn here: wait and roll as before (another
+      // car in the knot may go instead).
       cs.leave = null;
       c.turning = false;
       return;
