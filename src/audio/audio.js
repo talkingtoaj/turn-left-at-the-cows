@@ -36,6 +36,8 @@ import { takeSpeech, voiceFor } from './voice.js';
 import { sharedAudioContext, unlockAudio, isMuted, setMuted } from './context.js';
 import { thunderDelay } from '../game/thunder.js';
 import { CRUNCH_SOUND, ENGINE_SOUND, crunchBy, engineOf, passBy, pickCrunch, pickHeard } from './trafficSound.js';
+import { createHiss, hissSources } from './airbrake.js';
+import { parkedIn } from '../world/parked.js';
 
 const DEG = Math.PI / 180;
 const MASTER = 0.5;
@@ -124,6 +126,9 @@ export function createAudio(world, opts = {}) {
     return [...m.entries()].map(([id, b], i) => ({ id, x: b.x, y: b.y, tractor: i % 2 === 0 }));
   };
   let farms = farmsOf(world);
+  // Parked semis whose air brakes hiss now and then (#48, ./airbrake.js).
+  const hiss = createHiss();
+  let semis = hissSources(parkedIn(world.regionId));
 
   function gesture() {
     try {
@@ -451,6 +456,12 @@ export function createAudio(world, opts = {}) {
         const r = rel(ear, fn.x, fn.y);
         oneShot('ambient/screen_door', ctx.currentTime + 0.3, r.pan, 0.3 * (1 - fn.d / FARM_DOOR_R), 0.97 + Math.random() * 0.06, 6000);
       }
+    }
+
+    // Air brakes letting off on a parked semi near you.
+    for (const h of hiss.step(dt, ear, semis)) {
+      const r = rel(ear, h.x, h.y);
+      oneShot('traffic/airbrake', ctx.currentTime, r.pan, h.vol, 0.94 + Math.random() * 0.12, h.lowpass);
     }
 
     // Body creaks on a dirt road, more often the faster you go.
@@ -1124,6 +1135,8 @@ export function createAudio(world, opts = {}) {
       water = waterOf(w);
       farms = farmsOf(w);
       farmNear = { d: Infinity, x: 0, y: 0, tractor: false };
+      semis = hissSources(parkedIn(w.regionId));
+      hiss.reset();
       if (nodes) for (const v of nodes.planeVoices) if (v) v.g.gain.value = 0;
       for (const c of chatter.values()) stopVoice(c, 0.1);
       chatter.clear();

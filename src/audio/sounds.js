@@ -158,6 +158,7 @@ export const SOUND_GROUPS = [
     items: [
       { id: 'traffic/diesel', kind: 'loop', label: 'Traffic diesel (trucks and pickups, farm trucks, tractors lower)' },
       { id: 'traffic/petrol', kind: 'loop', label: 'Traffic petrol hum (sedans, wagons, hatches)' },
+      { id: 'traffic/airbrake', kind: 'oneshot', label: 'Air-brake hiss (parked semis, now and then, #48)' },
     ],
   },
   // Round 12: walking on foot (src3/onfoot.js), one step per file.
