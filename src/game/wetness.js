@@ -136,10 +136,10 @@ export function createWetness(seed, opts = {}) {
         inSpell = false;
         W.dry = false;
       }
-      const o = opening ? openingAt(tm) : null;
-      W.rainbow = o && forceRain === null ? o.rainbow : 0;
-      W.gloom = o && forceRain === null ? o.gloom : 0;
-      W.rain = o && forceRain === null ? o.rain : W.rainAt(w, t);
+      const o = opening ? openingAt(tm) : null; // opening is off when rain is forced
+      W.rainbow = o ? o.rainbow : 0;
+      W.gloom = o ? o.gloom : 0;
+      W.rain = o ? o.rain : W.rainAt(w, t);
       if (!started) {
         started = true;
         if (pinWet === null) {

@@ -20,7 +20,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { DEG } from '../../src/drive/geom.js';
 import { SPECS, loftBody } from './carbody.js';
 import { carAtlas } from './caratlas.js';
-import { fineGeometry } from './trafficfine.js';
+import { fineGeometry, FINE_STYLE } from './trafficfine.js';
 import { createFineLod, FINE_MAX } from './trafficlod.js';
 
 const MAX = 24; // per type
@@ -107,7 +107,7 @@ function loftCar(name) {
   parts.push(...tri);
   const h = S.half;
   const hw = S.hw;
-  const bumper = name === 'hatch' ? 'black' : 'chrome';
+  const bumper = FINE_STYLE[name]?.bumper ?? 'chrome'; // same as the fine body, so the switch doesn't show
   for (const s of [-1, 1]) {
     parts.push(box(hw * 2 - 0.04, 0.16, 0.14, 0, S.y0 + 0.14, s * (h + 0.04), bumper));
     parts.push(quadZ(0.3, 0.15, 0, S.y0 + 0.14, s * (h + 0.112), 'plate'));
