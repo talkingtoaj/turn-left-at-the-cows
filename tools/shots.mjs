@@ -64,6 +64,9 @@ const VIEWS = [
   { name: 'car_front_right', car: { road: 'hwy9', at: 0.4 }, rel: [3.4, 1.5, -3.6], relLook: [0, 0.8, -0.4] },
   { name: 'car_roof', car: { road: 'hwy9', at: 0.4 }, rel: [1.7, 2.5, 2.4], relLook: [0, 1.55, 0.45] },
   { name: 'car_trunk', car: { road: 'hwy9', at: 0.4 }, rel: [1.4, 1.5, 4.2], relLook: [0.3, 0.9, 1.8] },
+  // Pruitt Lane (dirt) meeting Route 40: STOP sign, about 15 m and up high.
+  { name: 'junction_stop', car: { x: 2965, y: 1100, heading: 180 }, cam: [2981.5, 1.4, 1276], look: [2978, 1.2, 1296] },
+  { name: 'junction_wide', car: { x: 2965, y: 1100, heading: 180 }, cam: [3005, 14, 1265], look: [2978, 0, 1300] },
 ];
 
 const pw = await import(findPlaywright());

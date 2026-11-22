@@ -7,7 +7,12 @@
 //   - no car turns round in, or waits at, a fixed fallen tree's gap,
 //   - no car stands stuck for long far from the player,
 //   - a car the player holds up honks on the backoff schedule (HONK), then
-//     turns round with a three-point turn that keeps to the road.
+//     turns round with a three-point turn that keeps to the road,
+//   - junctions (SPEC 9q): cars slow for a turn and drive a curve that keeps
+//     to the road, blink a few seconds first, stop fully at a STOP sign
+//     (only on dirt roads), go one at a time, never move into a junction
+//     the player stands in, and never flip round on the spot (dead ends and
+//     broken bridges get a three-point turn).
 //
 //   npm run check:traffic
 //
@@ -20,6 +25,7 @@ import { fallenShape } from '../src/world/fallenTrees.js';
 import {
   TRAFFIC, relTo, inLane, playerSpeedCap, seenByPlayer, respawnReason, goodRespawn,
   HONK, hornOn, honkStage, stepBlocked, turnPose, turnLength, TURN,
+  JUNCTION, brakeCap, turnSpeed, turnSide, blinkLit, blinkNow, stopsAt, junctionCurve, curveAt, headedInto,
 } from '../src/ambient/trafficRules.js';
 
 let fails = 0;
@@ -133,6 +139,85 @@ for (const w of [4.5, 6, 7, 9]) {
 }
 check(TURN.legs.length === 3, 'three legs');
 
+// ---------- Junction rules ----------
+// Braking: zero at the line, faster further out, the turn speed at the turn.
+{
+  check(brakeCap(0) === 0 && brakeCap(-3) === 0, 'brakeCap stops at the line');
+  let prev = -1;
+  for (const d of [0, 1, 5, 20, 60]) {
+    const v = brakeCap(d, 4);
+    check(v > prev, `brakeCap grows with distance (${d} m)`);
+    prev = v;
+  }
+  check(Math.abs(brakeCap(0, 4.5) - 4.5) < 1e-9, 'brakeCap at the turn is the turn speed');
+  // A car braking for a stop line from 14 m/s, stepped like the game: it
+  // stops at the line, not past it.
+  let s = 0;
+  let v = 14;
+  const line = 80;
+  for (let t = 0; t < 30; t += 0.05) {
+    const target = brakeCap(line - 0.3 - s);
+    v += Math.max(-5.5 * 0.05, Math.min(2.2 * 0.05, target - v));
+    if (v < 0.02 && target <= 0.05) v = 0;
+    s += v * 0.05;
+  }
+  check(v === 0 && s < line && s > line - 1.5, `brakes to a stop at the line (${(line - s).toFixed(2)} m short)`);
+}
+check(turnSpeed(90) === JUNCTION.turnV[0] && turnSpeed(0) === JUNCTION.turnV[1] && turnSpeed(45) < turnSpeed(10), 'turn speed by angle');
+// Turn side over a sweep of exit headings, entering facing east.
+{
+  const want = [[90, 0], [100, 0], [180, 1], [260, 1], [0, -1], [20, -1], [80, 0]];
+  for (const [h, side] of want) check(turnSide(90, h) === side, `turnSide 90 -> ${h} is ${side}`);
+  check(turnSide(350, 80) === 1 && turnSide(10, 280) === -1, 'turnSide across north');
+}
+// Blinker: lit, dark, lit again over a second and a half; starts before the turn.
+{
+  const seq = [0, 0.2, 0.45, 0.6, 0.85, 1.25].map((t) => blinkLit(t));
+  check(seq.join() === 'true,true,false,false,true,false', `blink sequence ${seq.join()}`);
+  check(blinkNow(30, 10) && !blinkNow(60, 10) && blinkNow(15, 0) && !blinkNow(25, 2), 'blink starts a few seconds out');
+}
+// Which arms stop: dirt meeting a paved road that carries on through.
+{
+  const P = (through) => ({ paved: true, through });
+  const D = (through) => ({ paved: false, through });
+  check(stopsAt([P(true), D(false)]).join() === 'false,true', 'T: dirt road ends on a paved one, dirt stops');
+  check(stopsAt([P(false), P(false), D(false), D(false)]).join() === 'false,false,true,true', 'two paved ends and two dirt ends: dirt stops');
+  check(stopsAt([P(false), D(false)]).join() === 'false,false', 'paved runs on into dirt end to end: no stop');
+  check(stopsAt([D(true), D(false)]).join() === 'false,false', 'dirt with dirt: no stop');
+  check(stopsAt([P(true), P(false)]).join() === 'false,false', 'paved never stops');
+}
+// Curves: start and end where asked, facing the right way, no kinks, inside
+// a square corner (a right turn on 9 m road onto 4.5 m road).
+{
+  for (const [h3, p3, label] of [[90, [6, -8], 'right'], [270, [-8, -10], 'left'], [0, [0, -16], 'straight'], [135, [9, -3], 'sharp right']]) {
+    const p0 = [0, 0];
+    const cv = junctionCurve(p0, 0, p3, h3);
+    const a = curveAt(cv, 0);
+    const b = curveAt(cv, cv.len + 1);
+    check(Math.hypot(a.x - p0[0], a.y - p0[1]) < 1e-9 && Math.hypot(b.x - p3[0], b.y - p3[1]) < 1e-9, `${label} curve ends`);
+    check(Math.abs(turnSide(curveAt(cv, cv.len - 0.01).h, h3)) === 0 && Math.abs(turnSide(curveAt(cv, 0.01).h, 0)) === 0, `${label} curve leaves and arrives facing its lanes`);
+    let worst = 0;
+    let prev = curveAt(cv, 0);
+    for (let u = 0.25; u <= cv.len; u += 0.25) {
+      const q = curveAt(cv, u);
+      let d = Math.abs(q.h - prev.h);
+      if (d > 180) d = 360 - d;
+      worst = Math.max(worst, d / 0.25);
+      prev = q;
+    }
+    check(worst < 40, `${label} curve turns ${worst.toFixed(0)} deg per metre at most`);
+  }
+}
+// Headed into a junction: inside, or coming at it soon; not going away or parked.
+{
+  check(headedInto(0, 0, 0, 0, 2, -2, 5), 'inside the junction');
+  check(headedInto(0, 60, 0, 14, 0, 0, 8), 'coming at 14 m/s from 60 m');
+  check(!headedInto(0, 200, 0, 14, 0, 0, 8), 'far off');
+  check(!headedInto(0, 60, 180, 14, 0, 0, 8), 'going away');
+  check(!headedInto(0, 30, 0, 0, 0, 0, 8), 'parked outside');
+  check(!headedInto(40, 30, 0, 14, 0, 0, 8), 'passing to one side');
+}
+
 // ---------- Simulation per region ----------
 const DT = 0.05;
 const SIM = 600; // s
@@ -193,6 +278,91 @@ for (const id of REGION_IDS) {
 
 // The parked player blocks some car somewhere: it must have turned round.
 check(allTurns > 0, 'no car turned round for the parked player in any region');
+
+// ---------- Junctions in the running traffic ----------
+// Three runs per region. Start: the player parked where the region starts. Roaming: the player hops to a new spot every two
+// minutes so traffic comes and goes all over. Parked: the player stands in
+// the middle of a STOP junction, and no car may drive into it.
+// Every frame, every car (skipping frames where it was put back elsewhere):
+// no jump, no flip on the spot, curves on the road, a blink 2 s before
+// each turn, a full stop before going at a STOP line (dirt roads only),
+// one car at a time in a junction.
+function junctionRun(id, mode) {
+  const world = setRegion(id);
+  const amb = createAmbient(world, generateScenery(world));
+  const stopNode = amb.junctions.find((j) => amb.stopSigns.some((g) => Math.hypot(g.x - j.x, g.y - j.y) < 20));
+  const car = mode === 'parked' ? { x: stopNode.x, y: stopNode.y, heading: 0, speed: 0 }
+    : mode === 'start' ? { ...world.start, speed: 0 } : { x: world.size.w / 2, y: world.size.h / 2, heading: 0, speed: 0 };
+  const still = new Map();
+  let worstStill = 0;
+  const prev = new Map();
+  const st = { curves: 0, offRoad: 0, gos: 0, earlyGo: 0, pavedStop: 0, maxRate: 0, maxStep: 0, lateBlink: 0, shared: 0, intoPlayer: 0, turnRounds: 0 };
+  const T = mode === 'roam' ? 600 : 900;
+  for (let i = 0; i * DT < T; i++) {
+    const t = i * DT;
+    if (mode === 'roam' && i % 2400 === 0) {
+      const c = amb.cars[(i / 2400) % amb.cars.length];
+      car.x = c.x + 300;
+      car.y = c.y;
+    }
+    amb.update(DT, { car });
+    const inJ = new Set();
+    for (const c of amb.cars) {
+      const p = prev.get(c.id);
+      if (c.junction) {
+        if (inJ.has(c.junction)) st.shared++;
+        inJ.add(c.junction);
+        if (mode === 'parked' && c.junction === stopNode.id) st.intoPlayer++;
+      }
+      if (c.stage === 'stopped' && !c.onDirt) st.pavedStop++;
+      // Standing still near the parked player: it should honk and turn
+      // round, never wait for good.
+      const sNear = mode !== 'roam' && c.speed < 0.3 && Math.hypot(c.x - car.x, c.y - car.y) < 100 ? (still.get(c.id) || 0) + DT : 0;
+      still.set(c.id, sNear);
+      worstStill = Math.max(worstStill, sNear);
+      if (p && p.placed === c.placed) {
+        let d = Math.abs(c.heading - p.heading);
+        if (d > 180) d = 360 - d;
+        st.maxRate = Math.max(st.maxRate, d / DT);
+        st.maxStep = Math.max(st.maxStep, Math.hypot(c.x - p.x, c.y - p.y));
+        if (c.stage === 'curve' && p.stage !== 'curve') {
+          st.curves++;
+          if (c.signal && p.sigT < 2 && t - p.placedT > 10) st.lateBlink++;
+        }
+        if (c.stage === 'curve' && amb.surfaceAt(c.x, c.y) === 'grass') st.offRoad++;
+        if (c.stage === 'go' && p.stage !== 'go') {
+          st.gos++;
+          if (p.stage !== 'stopped' || p.speed !== 0 || p.stoppedT + 2 * DT < JUNCTION.stopWait - 1e-6) st.earlyGo++;
+        }
+        if (c.turning && !p.turning) st.turnRounds++;
+      }
+      const same = p && p.placed === c.placed;
+      prev.set(c.id, {
+        x: c.x, y: c.y, heading: c.heading, placed: c.placed, stage: c.stage, speed: c.speed, signal: c.signal, turning: c.turning,
+        sigT: same && c.signal && c.signal === p.signal ? p.sigT + DT : 0,
+        stoppedT: same && c.stage === 'stopped' && p.stage === 'stopped' ? p.stoppedT + DT : 0,
+        placedT: same ? p.placedT : t,
+      });
+    }
+  }
+  const tag = `${id} ${mode}`;
+  check(st.maxStep < 1.2, `${tag}: a car jumped ${st.maxStep.toFixed(2)} m in a frame`);
+  check(st.maxRate < 120, `${tag}: a car turned ${st.maxRate.toFixed(0)} deg/s (a flip on the spot?)`);
+  check(st.offRoad === 0, `${tag}: cars left the road in a junction curve (${st.offRoad} frames)`);
+  check(st.lateBlink === 0, `${tag}: ${st.lateBlink} turns blinked less than 2 s first`);
+  check(st.earlyGo === 0, `${tag}: ${st.earlyGo} cars went from a STOP line without a full stop`);
+  check(st.pavedStop === 0, `${tag}: cars on paved roads stopped at a STOP line (${st.pavedStop} frames)`);
+  check(st.shared === 0, `${tag}: two cars in one junction at once (${st.shared} frames)`);
+  check(st.intoPlayer === 0, `${tag}: cars drove into the junction the player stands in (${st.intoPlayer} frames)`);
+  check(worstStill < 75, `${tag}: a car stood ${worstStill.toFixed(0)} s still near the parked player`);
+  if (mode === 'roam') check(st.curves > 10 && st.gos > 0, `${tag}: too little junction traffic (${st.curves} turns, ${st.gos} STOP starts)`);
+  console.log(`${tag}: ${amb.stopSigns.length} STOP signs, ${st.curves} turns, ${st.gos} STOP starts, ${st.turnRounds} three-point turns, worst ${st.maxRate.toFixed(0)} deg/s, longest still near the player ${worstStill.toFixed(0)} s`);
+}
+for (const id of REGION_IDS) {
+  junctionRun(id, 'roam');
+  junctionRun(id, 'parked');
+  junctionRun(id, 'start'); // parked where the region starts (Brandt: near a dead end)
+}
 
 if (fails) {
   console.log(`${fails} check(s) failed`);
