@@ -11,6 +11,7 @@ import { box } from './shapes.js';
 import { canopyTopAt } from './trees.js';
 import { buildSkyClouds, updateCloudUniforms } from './clouds.js';
 import { FOG_COLOR } from './world3d.js';
+import { cowLook, cowPose, PATCH_FREQ } from './cowLook.js';
 
 const BIRD_R = 260; // show birds within this range of the focus
 const CAR_R = 650;
@@ -61,21 +62,123 @@ function birdGeos() {
   return { body: mergeGeometries([body, head, beak, tail]), left: wing(-1), right: wing(1) };
 }
 
-function cowGeo() {
+// Cow, facing -z (SPEC 9q, #37). Faceted barrel body, hip bones, udder, and
+// a head that hangs from the shoulder in one of three poses: 0 up, 1 halfway,
+// 2 down grazing (cowPose in cowLook.js picks one per tick). Pure white parts
+// are coat: the cow shader paints them with this cow's coat and patches. The
+// `rest` attribute keeps every vertex where it sits in the head-up pose, so
+// the patches stay put on the head when it moves.
+const COW_HEAD = [
+  { at: [0, 1.48, -1.05], pitch: -0.3 }, // up
+  { at: [0, 1.1, -1.25], pitch: -0.75 }, // halfway
+  { at: [0, 0.7, -1.35], pitch: -1.15 }, // grazing, muzzle in the grass
+];
+const COW_SHOULDER = new THREE.Vector3(0, 1.18, -0.68);
+
+function cowNeck(pose) {
+  const h = COW_HEAD[pose];
+  const end = new THREE.Vector3(0, -0.16, 0.08).applyAxisAngle(new THREE.Vector3(1, 0, 0), h.pitch).add(new THREE.Vector3(...h.at));
+  const dir = end.clone().sub(COW_SHOULDER);
+  const len = dir.length() + 0.15;
+  const g = new THREE.BoxGeometry(0.27, 0.36, len);
+  g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, -1), dir.normalize()));
+  return g.translate(...COW_SHOULDER.clone().add(end).multiplyScalar(0.5).toArray());
+}
+
+function cowGeo(pose) {
   const W = 0xffffff;
-  const P = 0x2a2522;
-  const parts = [
-    colored(box(0.85, 0.8, 1.9).translate(0, 0.65, 0), W),
-    colored(box(0.87, 0.5, 0.6).translate(0.02, 0.85, 0.3), P), // patches
-    colored(box(0.6, 0.55, 0.5).translate(-0.15, 0.75, -0.5), P),
-    colored(box(0.4, 0.42, 0.55).translate(0, 1.05, -1.15), W), // head
-    colored(box(0.3, 0.2, 0.12).translate(0, 0.92, -1.45), 0xc89a8a), // muzzle
-    colored(box(0.6, 0.06, 0.06).translate(0, 1.32, -1.05), 0xd8d0c0), // horns
-    colored(box(0.12, 0.1, 0.25).translate(0, 0.45, 0.6), 0xd8a0a0), // udder
+  const HOOF = 0x2a2522;
+  const PINK = 0xd9a49a;
+  // Head parts, in a frame at the poll (top back of the head), facing -z.
+  const head = [
+    colored(new THREE.CylinderGeometry(0.13, 0.2, 0.55, 4).rotateY(Math.PI / 4).rotateX(-Math.PI / 2).scale(0.95, 1.1, 1).translate(0, -0.13, -0.3), W),
+    colored(box(0.27, 0.2, 0.15).translate(0, -0.33, -0.58), 0xc99a8c), // muzzle
+    colored(box(0.04, 0.05, 0.04).translate(-0.065, -0.24, -0.66), 0x3a2a26), // nostrils
+    colored(box(0.04, 0.05, 0.04).translate(0.065, -0.24, -0.66), 0x3a2a26),
+    colored(box(0.42, 0.07, 0.1).translate(0, -0.05, -0.06), W), // ears
+    colored(box(0.05, 0.1, 0.05).rotateZ(0.5).translate(-0.12, 0.0, -0.1), 0xd8d0b8), // horn stubs
+    colored(box(0.05, 0.1, 0.05).rotateZ(-0.5).translate(0.12, 0.0, -0.1), 0xd8d0b8),
+    colored(box(0.27, 0.05, 0.05).translate(0, -0.15, -0.24), 0x15120f), // eyes
   ];
-  for (const [x, z] of [[-0.3, -0.75], [0.3, -0.75], [-0.3, 0.75], [0.3, 0.75]]) parts.push(colored(box(0.16, 0.65, 0.16).translate(x, 0, z), W));
-  parts.push(colored(box(0.05, 0.6, 0.05).translate(0, 0.45, 0.97), P)); // tail
-  return mergeGeometries(parts);
+  const place = (g, h) => g.clone().rotateX(h.pitch).translate(...h.at);
+  const body = [
+    // Barrel: an eight-sided prism along z, deeper at the chest.
+    colored(new THREE.CylinderGeometry(0.95, 1, 1.75, 8).rotateY(Math.PI / 8).rotateX(Math.PI / 2).scale(0.42, 0.4, 1).translate(0, 0.98, 0.05), W),
+    colored(box(0.5, 0.08, 0.4).translate(0, 1.3, 0.62), W), // hip bones
+    colored(box(0.34, 0.07, 0.4).translate(0, 1.31, -0.52), W), // withers
+    colored(box(0.34, 0.2, 0.34).translate(0, 0.44, 0.45), PINK), // udder
+    colored(box(0.06, 0.6, 0.06).translate(0, 0.68, 0.93), W), // tail
+    colored(box(0.1, 0.16, 0.1).translate(0, 0.54, 0.93), 0x2a2522), // tail tuft
+  ];
+  for (const [x, z] of [[-0.08, 0.37], [0.08, 0.37], [-0.08, 0.53], [0.08, 0.53]]) body.push(colored(box(0.05, 0.08, 0.05).translate(x, 0.37, z), PINK));
+  for (const [x, z] of [[-0.24, -0.6], [0.24, -0.6], [-0.24, 0.64], [0.24, 0.64]]) body.push(leg(x, z, 0.82, 0.82, 0.15, 0, W, HOOF));
+  const parts = [];
+  for (const g of body) {
+    g.setAttribute('rest', g.attributes.position.clone());
+    parts.push(g);
+  }
+  for (const g of head) {
+    const at = place(g, COW_HEAD[pose]);
+    at.setAttribute('rest', place(g, COW_HEAD[0]).attributes.position.clone());
+    parts.push(at);
+  }
+  const neck = colored(cowNeck(pose), W);
+  neck.setAttribute('rest', colored(cowNeck(0), W).attributes.position.clone());
+  parts.push(neck);
+  const geo = mergeGeometries(parts);
+  // Per cow: coat colour and patch threshold, patch colour, noise offset.
+  for (const [name, size] of [['aCoat', 4], ['aPatch', 3], ['aOff', 3]]) {
+    const at = new THREE.InstancedBufferAttribute(new Float32Array(MAX_ANIMALS * size), size);
+    at.setUsage(THREE.DynamicDrawUsage);
+    geo.setAttribute(name, at);
+  }
+  return geo;
+}
+
+// Cow material: coat parts take this cow's coat colour, with patches where the
+// noise (cowPatch in cowLook.js, same maths) falls under its threshold.
+function cowMaterial() {
+  const mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+  mat.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', `#include <common>
+attribute vec3 rest;
+attribute vec4 aCoat;
+attribute vec3 aPatch;
+attribute vec3 aOff;
+varying vec3 vCowP;
+varying vec4 vCoat;
+varying vec3 vPatch;`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+vCowP = rest * ${PATCH_FREQ.toFixed(3)} + aOff;
+vCoat = aCoat;
+vPatch = aPatch;`);
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>
+varying vec3 vCowP;
+varying vec4 vCoat;
+varying vec3 vPatch;
+float cowH(vec3 p) {
+  p = fract(p * 0.3183099 + 0.1) * 17.0;
+  return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
+float cowN(vec3 x) {
+  vec3 i = floor(x);
+  vec3 f = fract(x);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(mix(cowH(i), cowH(i + vec3(1, 0, 0)), f.x), mix(cowH(i + vec3(0, 1, 0)), cowH(i + vec3(1, 1, 0)), f.x), f.y),
+    mix(mix(cowH(i + vec3(0, 0, 1)), cowH(i + vec3(1, 0, 1)), f.x), mix(cowH(i + vec3(0, 1, 1)), cowH(i + vec3(1, 1, 1)), f.x), f.y),
+    f.z);
+}`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+if (vColor.r + vColor.g + vColor.b > 2.99) {
+  float n = 0.72 * cowN(vCowP) + 0.28 * cowN(vCowP * 2.7);
+  diffuseColor.rgb *= n < vCoat.w ? vPatch : vCoat.rgb;
+}`);
+  };
+  mat.customProgramCacheKey = () => 'cow-patches';
+  return mat;
 }
 
 function sheepGeo() {
@@ -287,8 +390,11 @@ export function createAmbient3D(scene, opts) {
   // through stand, diagonal pair A, stand, pair B; deer gallop between a
   // gathered and an extended pose. Instance colour tints the coat.
   const STAND = [0, 0, 0, 0];
+  const cowMat = cowMaterial();
+  const cowLooks = new Map(); // animal id -> cowLook
   const herd = {
-    cow: { colors: [0xffffff, 0x8a5a3a, 0x3a3030, 0xc8a070, 0xffffff], poses: [instanced(cowGeo(), vc, MAX_ANIMALS)] },
+    // Cows: head up, halfway, grazing. Colour comes from cowLook, not instanceColor.
+    cow: { cow: true, poses: [0, 1, 2].map((pose) => instanced(cowGeo(pose), cowMat, MAX_ANIMALS)) },
     sheep: { colors: [0xf2efe6, 0xe6dfcf, 0xfaf8f2], poses: [instanced(sheepGeo(), vc, MAX_ANIMALS)] },
     horse: {
       colors: [0x6b4226, 0x8a4b23, 0x9a9590, 0x4a3020, 0xb07a4a, 0xd8d2c8],
@@ -408,7 +514,14 @@ export function createAmbient3D(scene, opts) {
         let pose = 0;
         let bob = a.moving ? Math.abs(Math.sin(time * 7 + i)) * 0.05 : 0;
         let pitch = a.moving ? 0 : 0.04 + Math.sin(time * 0.8 + i * 1.7) * 0.03;
-        if (h.poses.length > 1 && a.moving) {
+        let look = null;
+        if (h.cow) {
+          const id = a.id ?? `n${i}`;
+          look = cowLooks.get(id);
+          if (!look) cowLooks.set(id, (look = cowLook(id)));
+          pose = cowPose(time, look.seed, a.moving);
+          if (!a.moving) pitch = 0; // the head moves, not the body
+        } else if (h.poses.length > 1 && a.moving) {
           if (a.kind === 'deer' && a.running) {
             const ph = (time * 3.4 + i * 0.37) % 1;
             pose = ph < 0.5 ? 1 : 2;
@@ -429,7 +542,12 @@ export function createAmbient3D(scene, opts) {
         p.set(a.x, groundAt(a.x, a.y) + bob, a.y);
         m.compose(p, q, s1);
         mesh.setMatrixAt(k, m);
-        mesh.setColorAt(k, col.setHex(h.colors[i % h.colors.length]));
+        if (look) {
+          const g = mesh.geometry.attributes;
+          g.aCoat.setXYZW(k, look.coat[0], look.coat[1], look.coat[2], look.cover);
+          g.aPatch.setXYZ(k, look.patch[0], look.patch[1], look.patch[2]);
+          g.aOff.setXYZ(k, look.off[0], look.off[1], look.off[2]);
+        } else mesh.setColorAt(k, col.setHex(h.colors[i % h.colors.length]));
         animalCount.set(mesh, k + 1);
       }
       for (const mesh of animalMeshes) {
@@ -437,6 +555,8 @@ export function createAmbient3D(scene, opts) {
         mesh.visible = mesh.count > 0;
         mesh.instanceMatrix.needsUpdate = true;
         if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+        const g = mesh.geometry.attributes;
+        if (g.aCoat && mesh.count) g.aCoat.needsUpdate = g.aPatch.needsUpdate = g.aOff.needsUpdate = true;
       }
 
       // Puffs: pixel scale for point sizes, fog from the scene.
