@@ -69,6 +69,9 @@ const VIEWS = [
   { name: 'junction_wide', car: { x: 2965, y: 1100, heading: 180 }, cam: [3005, 14, 1265], look: [2978, 0, 1300] },
   // A wire fence by Hartley Farm, low along the posts (weeds at its foot).
   { name: 'fence_low', car: { x: 2610, y: 490, heading: 0 }, cam: [2617, 1.4, 556], look: [2628, 0.4, 578] },
+  // Wildflowers and clover (#41): a damp bottom by Pond Road, a dry meadow by Farm Road.
+  { name: 'flowers_damp', car: { x: 4912, y: 674, heading: 0 }, cam: [4907, 1.7, 677], look: [4885, 0, 668] },
+  { name: 'flowers_dry', car: { x: 2598, y: 493, heading: 0 }, cam: [2603, 1.7, 497], look: [2628, 0, 490] },
 ];
 
 const pw = await import(findPlaywright());

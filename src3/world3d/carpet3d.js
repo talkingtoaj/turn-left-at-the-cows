@@ -1,7 +1,7 @@
 // Draws the roadside carpet (src/world/carpet.js) round the camera: grass
 // blades that sway and shrink away with distance, pebbles on dirt roads, and
-// dark tire ruts worn into the dirt roads. Three draw calls in all, no
-// shadows cast.
+// dark tire ruts worn into the dirt roads, and clover and wildflower
+// patches. Five draw calls in all, no shadows cast.
 //
 //   grass:   one InstancedMesh of blade clumps (9 thin blades each). Tiles
 //            come and go as the camera moves; a few new tiles are made per
@@ -9,6 +9,12 @@
 //            into the ground between CARPET.fade and CARPET.radius, so there
 //            is no edge. Clumps take the ground colour under them.
 //   pebbles: one InstancedMesh of small stones from the same tiles.
+//   clover:  one InstancedMesh of low clover clumps (trefoil leaves, a white
+//            or red head) from the same tiles, fading like the grass.
+//   flowers: one InstancedMesh of wildflower clumps from a wider window of
+//            tiles (FLOWER.radius), fading out between FLOWER.fade and
+//            FLOWER.radius. Stems stay green; the petals take the instance
+//            colour (its kind's colour in FLOWER_KINDS).
 //   ruts:    one mesh of soft dark strips along the two wheel tracks of every
 //            dirt road within RUT_R, on the same rows and heights as the road
 //            mesh (ground.js), remade when the camera has moved RUT_MOVE m.
@@ -19,7 +25,9 @@
 // Dev: three.html?carpet=off leaves it out.
 
 import * as THREE from 'three';
-import { makeCarpet, TileWindow, keepShare, CARPET, TILE, GRASS_STRIDE, PEBBLE_STRIDE } from '../../src/world/carpet.js';
+import {
+  makeCarpet, TileWindow, keepShare, flowerKeepShare, CARPET, FLOWER, FLOWER_KINDS, TILE, GRASS_STRIDE, PEBBLE_STRIDE, CLOVER_STRIDE, FLOWER_STRIDE,
+} from '../../src/world/carpet.js';
 import { roughnessFor } from '../../src/world/roughness.js';
 import { measurePolyline, pointAlong, SegIndex, bbox } from '../../src/drive/geom.js';
 import { DIRT_LIFT } from './ground.js';
@@ -32,6 +40,9 @@ export const WIND = { uTime: { value: 0 }, uWind: { value: new THREE.Vector2(0.8
 const BLADE_H = 0.4; // m, a clump at scale 1
 const MAX_GRASS = 16000;
 const MAX_PEBBLES = 3000;
+const MAX_CLOVER = 6000;
+const MAX_FLOWERS = 4000;
+const FLOWER_BUILD_PER_FRAME = 3; // tiles; mostly empty, about 0.4 ms each
 const BUILD_PER_FRAME = 2; // about 1 ms each; a tile row is 9 tiles, crossed every 0.3 s at 60 mph
 const RUT_R = 110; // m
 const RUT_FADE = 80; // m: ruts fade out from here to RUT_R
@@ -110,6 +121,148 @@ function clumpGeo() {
   return g;
 }
 
+// Petals take the instance colour, stems and leaves keep their own: aHead
+// (0 stem, 1 petal, between for the flower's middle) picks per vertex.
+function headColor(mat, key) {
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (sh, r) => {
+    if (prev) prev(sh, r);
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float aHead;')
+      .replace('#include <color_vertex>', `#include <color_vertex>
+#ifdef USE_INSTANCING_COLOR
+vColor.rgb = color * mix(vec3(1.0), instanceColor.rgb, aHead);
+#endif`);
+  };
+  const prevKey = mat.customProgramCacheKey;
+  mat.customProgramCacheKey = () => `${prevKey.call(mat)}head${key}`;
+  return mat;
+}
+
+// An sRGB hex colour as linear [r, g, b] for vertex colours.
+const rgb = (hex) => new THREE.Color(hex).toArray();
+
+// Builds a plant geometry from triangles: pos (3 per vertex), col, head.
+// Normals straight up, like the grass blades.
+function plantGeo(pos, col, head) {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setAttribute('aHead', new THREE.Float32BufferAttribute(head, 1));
+  const nrm = new Float32Array(pos.length);
+  for (let i = 1; i < nrm.length; i += 3) nrm[i] = 1;
+  g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
+  return g;
+}
+
+// A flower head: a four-petal fan round (x, y, z), tipped toward angle ta by
+// tilt, rim radius r. Four triangles; the middle vertex is half head colour.
+function flowerHead(pos, col, head, x, y, z, r, ta, tilt, mid) {
+  const tx = Math.cos(ta) * Math.sin(tilt);
+  const tz = Math.sin(ta) * Math.sin(tilt);
+  const rim = [];
+  for (let k = 0; k < 4; k++) {
+    const a = ta + (k / 4) * Math.PI * 2 + 0.4;
+    const cx = Math.cos(a) * r;
+    const cz = Math.sin(a) * r;
+    // Tip the disc: lift the side away from the tilt, drop the side toward it.
+    const lift = -(cx * tx + cz * tz) * 1.2;
+    rim.push([x + cx, y + lift, z + cz]);
+  }
+  for (let k = 0; k < 4; k++) {
+    const p = rim[k];
+    const q = rim[(k + 1) % 4];
+    pos.push(x, y + 0.01, z, p[0], p[1], p[2], q[0], q[1], q[2]);
+    col.push(mid[0], mid[1], mid[2], 1, 1, 1, 1, 1, 1);
+    head.push(0.55, 1, 1);
+  }
+}
+
+// A wildflower clump: unit height, three stems with a head each and two low
+// leaves. Base at 0, radius about 0.2.
+function flowerGeo() {
+  const pos = [];
+  const col = [];
+  const head = [];
+  const stem0 = rgb(0x3a5524);
+  const stem1 = rgb(0x587434);
+  const mid = rgb(0xd9a43a);
+  const N = 3;
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2 + Math.sin(i * 1.7) * 0.6;
+    const r0 = 0.03;
+    const lean = 0.07 + 0.06 * (i % 3);
+    const h = 0.7 + 0.3 * ((i * 3) % 4) / 3;
+    const bx = Math.cos(a) * r0;
+    const bz = Math.sin(a) * r0;
+    const tx = Math.cos(a) * lean;
+    const tz = Math.sin(a) * lean;
+    const w = 0.012;
+    const fa = a + 1.4;
+    pos.push(bx - Math.cos(fa) * w, 0, bz - Math.sin(fa) * w, bx + Math.cos(fa) * w, 0, bz + Math.sin(fa) * w, tx, h, tz);
+    col.push(...stem0, ...stem0, ...stem1);
+    head.push(0, 0, 0);
+    flowerHead(pos, col, head, tx, h, tz, 0.05 + 0.012 * (i % 2), a, 0.5, mid);
+  }
+  // Two leaves low down.
+  for (let i = 0; i < 2; i++) {
+    const a = i * Math.PI + 0.8;
+    const cx = Math.cos(a);
+    const cz = Math.sin(a);
+    pos.push(-cz * 0.03, 0, cx * 0.03, cz * 0.03, 0, -cx * 0.03, cx * 0.2, 0.22, cz * 0.2);
+    col.push(...stem0, ...stem0, ...stem1);
+    head.push(0, 0, 0);
+  }
+  return plantGeo(pos, col, head);
+}
+
+// A clover clump, in metres at scale 1: four trefoil leaves (three leaflets
+// each, one triangle a leaflet) a few cm up, and one head on a short stalk.
+function cloverGeo() {
+  const pos = [];
+  const col = [];
+  const head = [];
+  const dark = rgb(0x2c4a20);
+  const leaf = rgb(0x4d7a33);
+  for (let i = 0; i < 4; i++) {
+    const a = i * 2.4;
+    const d = 0.03 + 0.05 * ((i * 3) % 5) / 4;
+    const x = Math.cos(a) * d;
+    const z = Math.sin(a) * d;
+    const y = 0.035 + 0.012 * (i % 3);
+    for (let k = 0; k < 3; k++) {
+      const la = a + (k / 3) * Math.PI * 2;
+      const L = 0.032;
+      const w = 0.017;
+      const ex = x + Math.cos(la) * L;
+      const ez = z + Math.sin(la) * L;
+      const px = -Math.sin(la) * w;
+      const pz = Math.cos(la) * w;
+      const mx = x + Math.cos(la) * L * 0.6;
+      const mz = z + Math.sin(la) * L * 0.6;
+      // A leaflet: a triangle widest near its tip, like a heart.
+      pos.push(x, y, z, mx + px + (ex - mx) * 0.5, y + 0.005, mz + pz + (ez - mz) * 0.5, mx - px + (ex - mx) * 0.5, y + 0.005, mz - pz + (ez - mz) * 0.5);
+      col.push(...dark, ...leaf, ...leaf);
+      head.push(0, 0, 0);
+    }
+  }
+  // Head: a stalk and a small round ball (crossed diamonds).
+  const hx = 0.02;
+  const hz = -0.015;
+  const hy = 0.1;
+  pos.push(-0.004, 0, 0, 0.004, 0, 0, hx, hy - 0.01, hz);
+  col.push(...dark, ...dark, ...leaf);
+  head.push(0, 0, 0);
+  const hr = 0.017;
+  for (const [ax, az] of [[hr, 0], [0, hr]]) {
+    pos.push(hx, hy - hr, hz, hx + ax, hy, hz + az, hx, hy + hr, hz);
+    pos.push(hx, hy - hr, hz, hx, hy + hr, hz, hx - ax, hy, hz - az);
+    col.push(0.8, 0.8, 0.8, 1, 1, 1, 1, 1, 1, 0.8, 0.8, 0.8, 1, 1, 1, 1, 1, 1);
+    head.push(1, 1, 1, 1, 1, 1);
+  }
+  return plantGeo(pos, col, head);
+}
+
 function pebbleGeo() {
   const g = new THREE.OctahedronGeometry(1, 0).toNonIndexed();
   g.scale(1, 0.55, 0.8);
@@ -169,7 +322,13 @@ export function buildCarpet(world, terrain, groundColor = null) {
   const pebbleMat = new THREE.MeshLambertMaterial({ flatShading: true });
   const pebbles = new THREE.InstancedMesh(pebbleGeo(), pebbleMat, MAX_PEBBLES);
   pebbles.name = 'carpet_pebbles';
-  for (const m of [grass, pebbles]) {
+  const cloverMat = headColor(swayMaterial(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }), 0.08, [CARPET.fade, CARPET.radius]), 'clover');
+  const clover = new THREE.InstancedMesh(cloverGeo(), cloverMat, MAX_CLOVER);
+  clover.name = 'carpet_clover';
+  const flowerMat = headColor(swayMaterial(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }), 0.2, [FLOWER.fade, FLOWER.radius]), 'flower');
+  const flowers = new THREE.InstancedMesh(flowerGeo(), flowerMat, MAX_FLOWERS);
+  flowers.name = 'carpet_flowers';
+  for (const m of [grass, pebbles, clover, flowers]) {
     m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(m.instanceMatrix.count * 3), 3).setUsage(THREE.DynamicDrawUsage);
     m.count = 0;
@@ -194,6 +353,12 @@ export function buildCarpet(world, terrain, groundColor = null) {
     if (tint > 0.62) out.lerp(STRAW, (tint - 0.62) * 0.7);
     else if (tint < 0.4) out.lerp(LUSH, (0.4 - tint) * 1.2);
   };
+  // Clover heads white to red; flower petals by kind, each clump a little
+  // lighter or darker.
+  const CLOVER_WHITE = new THREE.Color(0xf0eee4);
+  const CLOVER_RED = new THREE.Color(0xc0587a);
+  const KIND_COLORS = FLOWER_KINDS.map((k) => new THREE.Color(k.color));
+  const CLOVER_SCALE = 2.1; // the clumps read from the chase camera
   const PEB = [new THREE.Color(0x9a9488), new THREE.Color(0xb09f80), new THREE.Color(0x7c766c), new THREE.Color(0xc4baa6)];
 
   // Tile -> ready-to-copy instance data (matrices and colours).
@@ -238,13 +403,54 @@ export function buildCarpet(world, terrain, groundColor = null) {
       col.copy(PEB[Math.floor(tn * PEB.length) % PEB.length]).multiplyScalar(0.85 + 0.3 * ((tn * 7.3) % 1));
       col.toArray(pcol, k * 3);
     }
-    return { gm, gcol, rank, ng, pm, pcol, np };
+    const nc = t.clover.length / CLOVER_STRIDE;
+    const cm = new Float32Array(nc * 16);
+    const ccol = new Float32Array(nc * 3);
+    const crank = new Float32Array(nc);
+    for (let k = 0; k < nc; k++) {
+      const o = k * CLOVER_STRIDE;
+      const x = t.clover[o];
+      const z = t.clover[o + 2];
+      const sc = t.clover[o + 4] * CLOVER_SCALE;
+      gn.set(H(x - 1, z) - H(x + 1, z), 2, H(x, z - 1) - H(x, z + 1)).normalize();
+      q.setFromUnitVectors(up, gn).multiply(qr.setFromAxisAngle(up, t.clover[o + 3]));
+      m4.compose(v.set(x, t.clover[o + 1], z), q, s.set(sc, sc, sc));
+      m4.toArray(cm, k * 16);
+      col.copy(CLOVER_WHITE).lerp(CLOVER_RED, t.clover[o + 5]);
+      col.toArray(ccol, k * 3);
+      crank[k] = t.clover[o + 6];
+    }
+    return { gm, gcol, rank, ng, pm, pcol, np, cm, ccol, crank, nc };
+  };
+
+  // Flower tile -> instance data.
+  const makeFlowerTile = (i, j) => {
+    const f = C.flowerTile(i, j);
+    const n = f.length / FLOWER_STRIDE;
+    const fm = new Float32Array(n * 16);
+    const fcol = new Float32Array(n * 3);
+    const rank = new Float32Array(n);
+    for (let k = 0; k < n; k++) {
+      const o = k * FLOWER_STRIDE;
+      const kind = FLOWER_KINDS[f[o + 5]];
+      const sc = f[o + 4];
+      // Upright (flowers grow toward the light, not square to the slope).
+      m4.compose(v.set(f[o], f[o + 1], f[o + 2]), q.setFromAxisAngle(up, f[o + 3]), s.set(sc * 1.1, sc * kind.h, sc * 1.1));
+      m4.toArray(fm, k * 16);
+      col.copy(KIND_COLORS[f[o + 5]]).multiplyScalar(0.88 + 0.24 * ((f[o + 6] * 13.7) % 1));
+      col.toArray(fcol, k * 3);
+      rank[k] = f[o + 6];
+    }
+    return { fm, fcol, rank, n };
   };
 
   // Copy the tiles in view into the two meshes.
   const fill = (tiles, cx, cz) => {
     let n = 0;
     let p = 0;
+    let c = 0;
+    const cA = clover.instanceMatrix.array;
+    const cC = clover.instanceColor.array;
     const gA = grass.instanceMatrix.array;
     const gC = grass.instanceColor.array;
     const pA = pebbles.instanceMatrix.array;
@@ -262,6 +468,12 @@ export function buildCarpet(world, terrain, groundColor = null) {
         gC.set(d.gcol.subarray(k * 3, k * 3 + 3), n * 3);
         n++;
       }
+      for (let k = 0; k < d.nc && c < MAX_CLOVER; k++) {
+        if (d.crank[k] >= keep) continue;
+        cA.set(d.cm.subarray(k * 16, k * 16 + 16), c * 16);
+        cC.set(d.ccol.subarray(k * 3, k * 3 + 3), c * 3);
+        c++;
+      }
       if (d.np && t.d < 34) {
         const take = Math.min(d.np, MAX_PEBBLES - p);
         pA.set(d.pm.subarray(0, take * 16), p * 16);
@@ -269,16 +481,43 @@ export function buildCarpet(world, terrain, groundColor = null) {
         p += take;
       }
     }
-    for (const [m, c] of [[grass, n], [pebbles, p]]) {
-      m.count = c;
-      m.visible = c > 0;
-      m.instanceMatrix.clearUpdateRanges();
-      m.instanceMatrix.addUpdateRange(0, c * 16);
-      m.instanceMatrix.needsUpdate = true;
-      m.instanceColor.clearUpdateRanges();
-      m.instanceColor.addUpdateRange(0, c * 3);
-      m.instanceColor.needsUpdate = true;
+    upload(grass, n);
+    upload(pebbles, p);
+    upload(clover, c);
+  };
+  const upload = (m, c) => {
+    m.count = c;
+    m.visible = c > 0;
+    m.instanceMatrix.clearUpdateRanges();
+    m.instanceMatrix.addUpdateRange(0, c * 16);
+    m.instanceMatrix.needsUpdate = true;
+    m.instanceColor.clearUpdateRanges();
+    m.instanceColor.addUpdateRange(0, c * 3);
+    m.instanceColor.needsUpdate = true;
+  };
+
+  // Flowers: their own, wider window of tiles.
+  const fwin = new TileWindow(FLOWER.radius);
+  const fcache = new Map();
+  const fillFlowers = (tiles, cx, cz) => {
+    let n = 0;
+    const A = flowers.instanceMatrix.array;
+    const Cc = flowers.instanceColor.array;
+    for (const t of tiles) {
+      const d = fcache.get(t.key);
+      if (!d || !d.n) continue;
+      const tx = Math.max(t.i * TILE, Math.min((t.i + 1) * TILE, cx));
+      const tz = Math.max(t.j * TILE, Math.min((t.j + 1) * TILE, cz));
+      const keep = flowerKeepShare(Math.hypot(tx - cx, tz - cz));
+      if (keep <= 0) continue;
+      for (let k = 0; k < d.n && n < MAX_FLOWERS; k++) {
+        if (d.rank[k] >= keep) continue;
+        A.set(d.fm.subarray(k * 16, k * 16 + 16), n * 16);
+        Cc.set(d.fcol.subarray(k * 3, k * 3 + 3), n * 3);
+        n++;
+      }
     }
+    upload(flowers, n);
   };
 
   // ---- Ruts: the dirt roads' wheel tracks.
@@ -291,6 +530,8 @@ export function buildCarpet(world, terrain, groundColor = null) {
   if (ruts) ruts.mesh.onBeforeRender = (r, sc, cam) => drawn.copy(cam.position);
 
   let tiles = [];
+  let ftiles = [];
+  let fdirty = false;
   let dirty = false;
   let first = true;
   let lastX = 0;
@@ -298,8 +539,8 @@ export function buildCarpet(world, terrain, groundColor = null) {
   const t0 = performance.now();
   return {
     object: group,
-    counts: () => ({ grass: grass.count, pebbles: pebbles.count, tiles: cache.size }),
-    materials: { grass: grassMat, pebble: pebbleMat },
+    counts: () => ({ grass: grass.count, pebbles: pebbles.count, clover: clover.count, flowers: flowers.count, tiles: cache.size, flowerTiles: fcache.size }),
+    materials: { grass: grassMat, pebble: pebbleMat, clover: cloverMat, flower: flowerMat },
     update(camera) {
       WIND.uTime.value = (performance.now() - t0) / 1000;
       const at = Number.isNaN(drawn.x) ? camera.position : drawn;
@@ -336,6 +577,29 @@ export function buildCarpet(world, terrain, groundColor = null) {
       if (dirty && (w.changed || !tiles.some((t) => !cache.has(t.key)))) {
         fill(tiles, cx, cz);
         dirty = false;
+      }
+      // Flowers: the same, over their own window.
+      const fw = fwin.update(cx, cz);
+      if (fw.changed) {
+        ftiles = fw.tiles;
+        fdirty = true;
+        const reach = FLOWER.radius + 3 * TILE;
+        for (const k of fcache.keys()) {
+          const [i, j] = k.split(',').map(Number);
+          if (Math.abs((i + 0.5) * TILE - cx) > reach || Math.abs((j + 0.5) * TILE - cz) > reach) fcache.delete(k);
+        }
+      }
+      let fbudget = jump ? Infinity : FLOWER_BUILD_PER_FRAME;
+      for (const t of ftiles) {
+        if (fbudget <= 0) break;
+        if (fcache.has(t.key)) continue;
+        fcache.set(t.key, makeFlowerTile(t.i, t.j));
+        fbudget--;
+        fdirty = true;
+      }
+      if (fdirty && (fw.changed || !ftiles.some((t) => !fcache.has(t.key)))) {
+        fillFlowers(ftiles, cx, cz);
+        fdirty = false;
       }
       if (ruts) ruts.update(cx, cz);
     },
