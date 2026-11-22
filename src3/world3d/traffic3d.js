@@ -183,6 +183,14 @@ function makeMaterial(env) {
   return m;
 }
 
+// Where the blinkers sit on each type: half length, half width, front and
+// back lamp heights (the same spots as the head and tail lamps in loftCar).
+const LAMPS = { farmtruck: { half: 2.66, hw: 1.0, yF: 1.12, yR: 0.95 } };
+for (const name of ['sedan', 'wagon', 'pickup', 'hatch']) {
+  const S = SPECS[name];
+  LAMPS[name] = { half: S.half, hw: S.hw, yF: (S.belt(-S.half) + S.y0 + 0.2) / 2 + 0.02, yR: (S.belt(S.half) + S.y0 + 0.2) / 2 + 0.06 };
+}
+
 // One instanced mesh of a type, on its own (the slow farm trucks in hazards3d).
 const GEOS = { sedan: () => loftCar('sedan'), wagon: () => loftCar('wagon'), pickup: () => loftCar('pickup'), hatch: () => loftCar('hatch'), farmtruck: farmTruck };
 export function vehicleMesh(type, max, env = null) {
@@ -218,6 +226,15 @@ export function createTraffic3D(parent, opts = {}) {
   };
   const far = make(farGeo());
   far.castShadow = false;
+  // Lit amber blinkers (SPEC 9q): a small glowing box at the front and back
+  // corner on the side a car turns to, flashed by the traffic logic
+  // (c.blink). One draw call, hidden when no lamp is lit.
+  const blinkMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.2, 0.13, 0.1), new THREE.MeshBasicMaterial({ color: 0xffa31a, toneMapped: false }), MAX * 2);
+  blinkMesh.count = 0;
+  blinkMesh.frustumCulled = false;
+  blinkMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  parent.add(blinkMesh);
+  const lamp = new THREE.Vector3();
   const all = [...Object.values(meshes), far];
   const counts = new Map();
   const m = new THREE.Matrix4();
@@ -231,6 +248,7 @@ export function createTraffic3D(parent, opts = {}) {
     far,
     update(cars, focus, surfaceAt, near) {
       for (const mesh of all) counts.set(mesh, 0);
+      let nb = 0;
       for (const c of cars) {
         if (!near(c.x, c.y)) continue;
         const d = Math.hypot(c.x - focus.x, c.y - focus.z);
@@ -250,7 +268,18 @@ export function createTraffic3D(parent, opts = {}) {
         mesh.setMatrixAt(n, m);
         mesh.setColorAt(n, col.setHex(c.color));
         counts.set(mesh, n + 1);
+        if (c.blink && mesh !== far && nb < MAX * 2 - 1) {
+          const L = LAMPS[type];
+          for (const [z, y] of [[-L.half - 0.02, L.yF], [L.half + 0.02, L.yR]]) {
+            lamp.set(c.blink * (L.hw - 0.1), y, z).applyQuaternion(q).add(p);
+            m.compose(lamp, q, one);
+            blinkMesh.setMatrixAt(nb++, m);
+          }
+        }
       }
+      blinkMesh.count = nb;
+      blinkMesh.visible = nb > 0;
+      blinkMesh.instanceMatrix.needsUpdate = true;
       for (const mesh of all) {
         mesh.count = counts.get(mesh);
         mesh.visible = mesh.count > 0;

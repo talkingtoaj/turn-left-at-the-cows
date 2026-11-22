@@ -13,6 +13,7 @@ import {
 import {
   TRAFFIC, relTo, inLane, playerSpeedCap, seenByPlayer, respawnReason, goodRespawn,
   HONK, hornOn, honkStage, stepBlocked, turnPose, turnLength,
+  JUNCTION, brakeCap, turnSpeed, turnRoom, turnSide, blinkLit, blinkNow, stopsAt, junctionCurve, curveAt, headedInto,
 } from './trafficRules.js';
 
 // Level of detail: things within NEAR_R of the player get full updates.
@@ -92,7 +93,7 @@ export function createAmbient(world, scenery) {
 
   // ---------- Road network for traffic ----------
   const net = world.roads.map((r) => ({
-    road: r, pts: r.points, cum: measurePolyline(r.points), len: 0, junctions: [], blocks: [],
+    road: r, pts: r.points, cum: measurePolyline(r.points), len: 0, junctions: [], blocks: [], broken: [],
   }));
   for (const n of net) n.len = n.cum[n.cum.length - 1];
   const netById = new Map(net.map((n) => [n.road.id, n]));
@@ -115,13 +116,86 @@ export function createAmbient(world, scenery) {
     }
   }
   for (const n of net) n.junctions.sort((p, q) => p.at - q.at);
+  // Junction nodes: the junctions at one spot share a node (where traffic
+  // waits for whoever is in it). node.stop: road id -> stops at the STOP
+  // line there (stopsAt). node.r: the junction's own radius.
+  const nodes = [];
+  for (const n of net) {
+    for (const j of n.junctions) {
+      const p = roadPoint(n, j.at, {});
+      let node = nodes.find((k) => Math.hypot(k.x - p.x, k.y - p.y) < 8);
+      if (!node) nodes.push((node = { id: `j${nodes.length}`, x: p.x, y: p.y, arms: new Map(), stop: new Map(), r: 0, pavedHalf: 0 }));
+      j.node = node;
+      if (!node.arms.has(n.road.id)) node.arms.set(n.road.id, { n, at: j.at });
+    }
+  }
+  for (const node of nodes) {
+    const arms = [...node.arms.values()];
+    const st = stopsAt(arms.map((a) => ({ paved: a.n.road.type === 'paved', through: a.at > 6 && a.at < a.n.len - 6 })));
+    arms.forEach((a, i) => node.stop.set(a.n.road.id, st[i]));
+    for (const a of arms) {
+      node.r = Math.max(node.r, a.n.road.width / 2 + 2);
+      if (a.n.road.type === 'paved') node.pavedHalf = Math.max(node.pavedHalf, a.n.road.width / 2);
+    }
+  }
+  // STOP signs (SPEC 9q): one at each stop line, on the right of the lane
+  // that stops, facing the cars that come to it. Upright in town, a slight
+  // lean out on rural roads. Not a map trap tell. [{ x, y, heading, leanX, leanY }]
+  // heading: the way the stopping traffic drives (the board faces back up it);
+  // leanX / leanY: degrees the post leans to the traffic's right / forward.
+  // Metres back from the junction along arm `a` (driving `dir` toward it)
+  // to where the paved road's centre is `want` m off: the paved edge plus
+  // room, measured from the real road, as a dirt road end can stop short of
+  // the paved centre line or run past it.
+  function backFromPaved(node, a, dir, want) {
+    const paved = [...node.arms.values()].filter((b) => b.n.road.type === 'paved');
+    for (let k = 0; k <= 40; k += 0.25) {
+      const s = a.at - dir * k;
+      if (s < 0 || s > a.n.len) return k;
+      const p = roadPoint(a.n, s, {});
+      const d = Math.min(...paved.map((b) => nearestOnPolyline(p.x, p.y, b.n.pts).d));
+      if (d >= want) return k;
+    }
+    return want;
+  }
+  const stopSigns = [];
+  for (const node of nodes) {
+    node.stopBack = new Map();
+    for (const a of node.arms.values()) {
+      if (!node.stop.get(a.n.road.id)) continue;
+      const dirs = [];
+      if (a.at > 6) dirs.push(1); // comes in going +s
+      if (a.at < a.n.len - 6) dirs.push(-1);
+      for (const dir of dirs) {
+        node.stopBack.set(`${a.n.road.id}:${dir}`, backFromPaved(node, a, dir, node.pavedHalf + JUNCTION.stopBack));
+        const s = a.at - dir * backFromPaved(node, a, dir, node.pavedHalf + 1.4);
+        if (s < 0 || s > a.n.len) continue;
+        const p = roadPoint(a.n, s, {});
+        const fx = p.dx * dir;
+        const fy = p.dy * dir;
+        const off = a.n.road.width / 2 + 1.1;
+        const x = p.x - fy * off;
+        const y = p.y + fx * off;
+        const h = hashString(`${node.id}:${a.n.road.id}:${dir}`);
+        const rural = !inTown(x, y);
+        stopSigns.push({
+          id: `stop_${node.id}_${a.n.road.id}_${dir > 0 ? 'f' : 'b'}`, x, y, heading: headingOf(fx, fy),
+          leanX: rural ? 1.5 + (h % 40) / 10 : 0, // out toward the field
+          leanY: rural ? ((h >> 6) % 50) / 10 - 2.5 : 0,
+        });
+      }
+    }
+  }
   // Broken bridges: traffic turns around before them.
   for (const b of world.bridges) {
     if (b.intact) continue;
     const n = netById.get(b.roadId);
     if (!n) continue;
     const q = nearestOnPolyline(b.x, b.y, n.pts);
-    if (q) n.blocks.push(q.along);
+    if (q) {
+      n.blocks.push(q.along);
+      n.broken.push({ at: q.along, half: (b.length || 20) / 2 });
+    }
   }
   // Fixed fallen trees part way across a road: traffic turns around before
   // them too. The gap they leave is one car wide, so two cars meeting in it
@@ -203,8 +277,15 @@ export function createAmbient(world, scenery) {
     cs.stuckT = 0;
     if (cs.honk) cs.honk.t = cs.honk.clearT = 0;
     cs.leave = null;
+    cs.plan = null;
+    cs.curve = null;
+    cs.inNode = null;
+    cs.lastNode = null;
     c.horn = false;
     c.turning = false;
+    c.blink = c.signal = 0;
+    c.stage = '';
+    c.placed = (c.placed || 0) + 1;
     const t = carTarget(cs);
     c.x = t.x;
     c.y = t.y;
@@ -226,10 +307,15 @@ export function createAmbient(world, scenery) {
       id: `car${i}`, x: 0, y: 0, heading: 0, speed: 0, color: CAR_COLORS[i % CAR_COLORS.length], onDirt: false,
       horn: false, // additive: its horn is sounding now (see HONK)
       turning: false, // additive: turning round or backing up, across both lanes
+      blink: 0, // additive: amber lamp lit this frame, -1 left, 1 right, 0 none
+      signal: 0, // additive: side it is signalling (lit or not), -1 / 0 / 1
+      stage: '', // additive: at a junction: 'stopping' | 'stopped' | 'go' | 'waiting' | 'curve' | ''
+      placed: 0, // additive: times it was (re)placed on the roads (a jump, not a drive)
+      junction: '', // additive: id of the junction it is in (crossing or turning), see amb.junctions
     };
     const cs = {
       n: null, s: 0, dir: 1, seg: 0, skip: 0, cruise: R(0.85, 1.1), relocT: R(1, 3), stuckT: 0,
-      honk: { t: 0, clearT: 0 }, leave: null,
+      honk: { t: 0, clearT: 0 }, leave: null, plan: null, curve: null, inNode: null, lastNode: null, blinkT: 0,
     };
     const sp = pickSpawn();
     if (!sp) continue;
@@ -263,21 +349,151 @@ export function createAmbient(world, scenery) {
     const blocked = dir !== 0 && blockAhead(n, j.toAt, dir) < 400 ? 0.1 : 1;
     return townScore(p.x, p.y) * dead * blocked;
   }
-  function turnOnto(cs, j) {
-    cs.n = j.to;
-    cs.s = j.toAt;
-    cs.seg = undefined;
-    cs.dir = chooseDirOn(j.to, j.toAt);
-    cs.skip = 15;
+  // Lane centre `s` m along road n going `dir`: { x, y, h }.
+  function lanePoint(n, s, dir) {
+    const p = roadPoint(n, s, {});
+    const dx = p.dx * dir;
+    const dy = p.dy * dir;
+    const off = n.road.width / 4;
+    return { x: p.x - dy * off, y: p.y + dx * off, h: headingOf(dx, dy) };
+  }
+  const clampS = (n, s) => Math.max(0, Math.min(n.len, s));
+  // Metres before a block (broken bridge, fallen tree) a car stops to turn round.
+  function blockGap(n, b) {
+    const br = n.broken.find((k) => Math.abs(k.at - b) < 1);
+    return br ? br.half + JUNCTION.bridgeStop : JUNCTION.blockStop;
+  }
+
+  // ---------- Junction plan ----------
+  // Some 150 m out a car picks what it does at the next junction: turn (and
+  // onto which road, which way) or carry on. A turn is a curve (junctionCurve)
+  // from its lane on this road to its lane on the next, started rIn m short
+  // of the junction. On a dirt road meeting a paved one it also stops at the
+  // STOP line first.
+  function makePlan(c, cs) {
+    const n = cs.n;
+    const dir = cs.dir;
+    let best = null;
+    let bestAhead = 150;
+    for (const j of n.junctions) {
+      const ahead = (j.at - cs.s) * dir;
+      if (ahead > -0.5 && ahead < bestAhead && j.node !== cs.lastNode) {
+        bestAhead = ahead;
+        best = j;
+      }
+    }
+    if (!best) return null;
+    const node = best.node;
+    const at = best.at;
+    // No hairpins back down a road meeting at a sharp angle, unless there is
+    // no other way on.
+    const hIn = lanePoint(n, at, dir).h;
+    const hairpin = (j) => Math.abs(angDiff(hIn, lanePoint(j.to, j.toAt, j.toAt < 5 ? 1 : j.toAt > j.to.len - 5 ? -1 : 1).h)) > 140
+      && (j.toAt < 5 || j.toAt > j.to.len - 5 || Math.abs(angDiff(hIn, lanePoint(j.to, j.toAt, -1).h)) > 140);
+    const all = n.junctions.filter((j) => j.node === node);
+    const easy = all.filter((j) => !hairpin(j));
+    const opts = easy.length ? easy : all;
+    const atEnd = dir > 0 ? n.len - at < 6 : at < 6;
+    let tj = null;
+    if (atEnd || rng() < 0.35 * Math.min(1.5, opts.reduce((m, j) => Math.max(m, junctionWeight(j)), 0) / townScore(c.x, c.y))) {
+      let tot = 0;
+      const w = opts.map((j) => (tot += junctionWeight(j)));
+      const k = rng() * tot;
+      tj = opts[w.findIndex((v) => k < v)] || opts[0];
+    }
+    const plan = { n, dir, node, at, turn: null, stop: !!node.stop.get(n.road.id), stopAt: 0, stoppedT: 0, go: false, committed: false };
+    if (plan.stop) {
+      plan.stopAt = at - dir * (node.stopBack.get(`${n.road.id}:${dir}`) ?? node.pavedHalf + JUNCTION.stopBack);
+      if ((plan.stopAt - cs.s) * dir < 0) plan.stop = false; // already past the line (just placed here)
+    }
+    if (tj) {
+      const to = tj.to;
+      let toDir = chooseDirOn(to, tj.toAt);
+      const mid = tj.toAt >= 5 && tj.toAt <= to.len - 5;
+      if (mid && Math.abs(angDiff(hIn, lanePoint(to, tj.toAt, toDir).h)) > 140) toDir = -toDir;
+      const room = turnRoom(angDiff(lanePoint(n, at, dir).h, lanePoint(to, tj.toAt, toDir).h));
+      let entryAt = clampS(n, at - dir * (to.road.width / 2 + JUNCTION.entryRoom + room));
+      if ((entryAt - cs.s) * dir < 0) entryAt = cs.s;
+      const exitAt = clampS(to, tj.toAt + toDir * (n.road.width / 2 + JUNCTION.entryRoom + room));
+      const a = lanePoint(n, entryAt, dir);
+      const b = lanePoint(to, exitAt, toDir);
+      const deg = angDiff(a.h, b.h);
+      plan.turn = {
+        to, toDir, entryAt, exitAt,
+        curve: junctionCurve([a.x, a.y], a.h, [b.x, b.y], b.h),
+        side: turnSide(a.h, b.h),
+        v: turnSpeed(deg),
+      };
+    }
+    // The way it will drive through: the curve (or straight across), then
+    // its lane on past the junction, far enough that the player standing
+    // there would stop it (TRAFFIC.stopGap) after it went in.
+    plan.path = [];
+    const run = JUNCTION.pathOn;
+    if (plan.turn) {
+      const tn = plan.turn;
+      for (let u = 0; u < tn.curve.len; u += 2) {
+        const q = curveAt(tn.curve, u);
+        plan.path.push([q.x, q.y]);
+      }
+      for (let k = 0; k <= run; k += 2) {
+        const q = lanePoint(tn.to, clampS(tn.to, tn.exitAt + tn.toDir * k), tn.toDir);
+        plan.path.push([q.x, q.y]);
+      }
+    } else {
+      const from = plan.stop ? plan.stopAt : at - dir * node.r;
+      for (let k = 0; k <= Math.abs(at - from) + node.r + run; k += 2) {
+        const q = lanePoint(n, clampS(n, from + dir * k), dir);
+        plan.path.push([q.x, q.y]);
+      }
+    }
+    return plan;
+  }
+  // Is the junction clear for this car to go: nobody in it, the player not
+  // in or about to be, and (unless a plain right turn) no car about to come
+  // through that will not stop for it.
+  function junctionClear(c, cs, plan, player) {
+    const node = plan.node;
+    const R = node.r + JUNCTION.clearPad;
+    if (player) {
+      const d = Math.hypot(player.x - node.x, player.y - node.y);
+      if (d < node.r + 3 || headedInto(player.x, player.y, player.heading || 0, Math.max(0, player.speed || 0), node.x, node.y, R)) return 'player';
+      if (d < 60 && plan.path.some(([x, y]) => Math.hypot(player.x - x, player.y - y) < JUNCTION.pathClear)) return 'player';
+    }
+    const rightOnly = plan.turn && plan.turn.side === 1 && !plan.stop;
+    for (let i = 0; i < cars.length; i++) {
+      const o = cars[i];
+      if (o === c) continue;
+      const os = carState[i];
+      if (os.inNode === node) return 'car';
+      if (rightOnly || o.speed <= 1 || os.leave) continue;
+      if (Math.abs(o.x - node.x) > 120 || Math.abs(o.y - node.y) > 120) continue;
+      // Will stop at this junction's STOP line anyway.
+      if (os.plan && os.plan.node === node && os.plan.stop && !os.plan.go) continue;
+      // Behind this car on the same approach: it follows.
+      const r = relTo(c.x, c.y, c.heading, o.x, o.y);
+      if (r.along < 0 && Math.abs(angDiff(c.heading, o.heading)) < 60) continue;
+      if (headedInto(o.x, o.y, o.heading, o.speed, node.x, node.y, R)) return 'car';
+    }
+    return null;
+  }
+  function setBlink(c, cs, side, dt) {
+    if (side !== c.signal) cs.blinkT = 0;
+    else cs.blinkT += dt;
+    c.signal = side;
+    c.blink = side && blinkLit(cs.blinkT) ? side : 0;
   }
 
   function stepCar(c, cs, dt, player, onFoot) {
     if (cs.leave) {
+      setBlink(c, cs, 0, dt);
+      c.stage = '';
       stepLeave(c, cs, dt, player);
       return;
     }
     const n = cs.n;
-    const surface = n.road.type === 'paved' ? 'paved' : 'dirt';
+    const cv = cs.curve;
+    const surface = (cv ? cv.to : n).road.type === 'paved' ? 'paved' : 'dirt';
     c.onDirt = surface === 'dirt';
     let target = (surface === 'paved' ? 14 : 8.5) * cs.cruise;
     if (inTown(c.x, c.y)) target = Math.min(target, 9);
@@ -305,29 +521,119 @@ export function createAmbient(world, scenery) {
     }
     // Don't drive into other traffic going the same way (cars coming the
     // other way keep to their own lane and pass). A car turning round
-    // blocks both lanes.
-    for (const o of cars) {
+    // blocks both lanes; a car crossing or turning in a junction blocks
+    // whatever lane it is across.
+    for (let i = 0; i < cars.length; i++) {
+      const o = cars[i];
       if (o === c) continue;
-      if (Math.abs(o.x - c.x) > 30 || Math.abs(o.y - c.y) > 30) continue;
-      if (!o.turning && Math.abs(angDiff(c.heading, o.heading)) > 70) continue;
+      if (Math.abs(o.x - c.x) > 32 || Math.abs(o.y - c.y) > 32) continue;
+      const across = !!carState[i].inNode && carState[i].inNode !== cs.inNode;
+      if (!o.turning && !across && Math.abs(angDiff(c.heading, o.heading)) > 70) continue;
       const r = relTo(c.x, c.y, c.heading, o.x, o.y);
-      const lat = o.turning ? n.road.width / 2 + 1.5 : TRAFFIC.halfW * 2 + TRAFFIC.margin;
-      if (r.along > 0 && r.along < 18 && Math.abs(r.lat) < lat) {
-        target = Math.min(target, Math.max(0, (r.along - 8) * 0.8));
+      const lat = o.turning ? n.road.width / 2 + 1.5 : across ? 2.8 : TRAFFIC.halfW * 2 + TRAFFIC.margin;
+      if (r.along > 0 && r.along < (across ? 30 : 18) && Math.abs(r.lat) < lat) {
+        const cap = Math.max(0, (r.along - 8) * 0.8);
+        target = Math.min(target, cap);
+        // In a queue behind a car the player holds up (it is honking or
+        // giving up): held up by the player too, so it honks and turns round
+        // in its turn instead of waiting for good.
+        if (!across && !o.turning && carState[i].honk.t >= HONK.bursts[0].at) capP = Math.min(capP, cap);
       }
     }
-    // Slow before a broken bridge or a road end.
-    const endAt = cs.dir > 0 ? n.len : 0;
-    const toEnd = Math.abs(endAt - cs.s);
-    if (toEnd < 40) target = Math.min(target, 4 + toEnd * 0.2);
-    for (const b of n.blocks) {
-      const ahead = (b - cs.s) * cs.dir;
-      if (ahead > 0 && ahead < 70) target = Math.min(target, 2.5 + (ahead - 25) * 0.25);
+
+    if (cv) {
+      // In a junction, on the curve to the next road.
+      target = Math.min(target, cv.v);
+      setBlink(c, cs, cv.side, dt);
+      c.stage = 'curve';
+    } else {
+      // Dead end or a block ahead: stop short, then turn round (three-point turn).
+      const endAt = cs.dir > 0 ? n.len : 0;
+      const toEnd = Math.abs(endAt - cs.s);
+      let turnBack = false;
+      if (toEnd < 80 && !n.junctions.some((j) => Math.abs(j.at - endAt) < 6)) {
+        const d = toEnd - JUNCTION.deadEndStop;
+        target = Math.min(target, brakeCap(d));
+        if (d < 1) turnBack = true;
+      }
+      for (const b of n.blocks) {
+        const ahead = (b - cs.s) * cs.dir;
+        if (ahead <= 0 || ahead > 90) continue;
+        const d = ahead - blockGap(n, b);
+        target = Math.min(target, brakeCap(d));
+        if (d < 1) turnBack = true;
+      }
+      if (turnBack && c.speed < 0.3) {
+        cs.leave = { mode: 'hold', forced: true, t: 0, backed: 0, checkT: 0 };
+        setBlink(c, cs, 0, dt);
+        c.speed = 0;
+        return;
+      }
+      // The junction ahead.
+      if (cs.plan && (cs.plan.n !== n || cs.plan.dir !== cs.dir || (cs.plan.at - cs.s) * cs.dir < -cs.plan.node.r)) {
+        if (cs.inNode === cs.plan.node) cs.inNode = null;
+        cs.lastNode = cs.plan.node;
+        cs.plan = null;
+      }
+      if (!cs.plan) cs.plan = makePlan(c, cs);
+      const plan = cs.plan;
+      c.stage = '';
+      let side = 0;
+      if (plan) {
+        const tn = plan.turn;
+        const dEntry = tn ? (tn.entryAt - cs.s) * cs.dir : Infinity;
+        if (tn && tn.side && blinkNow(dEntry, c.speed)) side = tn.side;
+        if (tn) target = Math.min(target, brakeCap(dEntry, tn.v));
+        let hold = false; // must wait at the line / entry
+        if (plan.stop && !plan.go) {
+          // STOP sign: a full stop at the line, a moment, then go when clear.
+          const dStop = (plan.stopAt - cs.s) * cs.dir;
+          target = Math.min(target, brakeCap(dStop - 0.3));
+          c.stage = 'stopping';
+          if (dStop < 1.2) target = 0;
+          if (dStop < 1.2 && c.speed < 0.05) {
+            c.speed = 0;
+            plan.stoppedT += dt;
+            c.stage = 'stopped';
+            if (plan.stoppedT >= JUNCTION.stopWait) {
+              const why = junctionClear(c, cs, plan, player);
+              if (!why) {
+                plan.go = true;
+                plan.committed = true;
+                cs.inNode = plan.node; // crossing: other traffic waits for it
+                c.stage = 'go';
+              } else if (why === 'player') capP = 0;
+            }
+          }
+          if (!plan.go) hold = true;
+        } else if (tn && !plan.committed && dEntry < 30) {
+          // Before turning in: wait for a clear junction at the entry.
+          const why = junctionClear(c, cs, plan, player);
+          if (why) {
+            hold = true;
+            target = Math.min(target, brakeCap(dEntry - 0.5));
+            c.stage = 'waiting';
+            if (why === 'player' && c.speed < HONK.speed) capP = 0;
+          } else if (dEntry < 4) {
+            plan.committed = true;
+            cs.inNode = plan.node; // claimed: nobody else goes in now
+          }
+        }
+        if (plan.go && c.stage === '') c.stage = 'go';
+        if (tn && !hold && dEntry <= 0.05) {
+          // Into the junction: follow the curve onto the next road.
+          cs.curve = { cv: tn.curve, u: 0, to: tn.to, toAt: tn.exitAt, toDir: tn.toDir, side: tn.side, v: tn.v, node: plan.node };
+          cs.inNode = plan.node;
+          c.stage = 'curve';
+          side = tn.side;
+        }
+      }
+      setBlink(c, cs, side, dt);
     }
 
     const acc = target > c.speed ? 2.2 : 5.5;
     c.speed += Math.max(-acc * dt, Math.min(acc * dt, target - c.speed));
-    if (c.speed < 0.02 && target === 0) c.speed = 0;
+    if (c.speed < 0.02 && target <= 0.05) c.speed = 0;
     // How long it has stood still (see maybeRespawn).
     if (c.speed < 0.3) cs.stuckT += dt;
     else if (c.speed > 1) cs.stuckT = 0;
@@ -336,52 +642,36 @@ export function createAmbient(world, scenery) {
     const blocked = capP < HONK.capBelow && c.speed < HONK.speed;
     const bt = stepBlocked(cs.honk, blocked, dt);
     c.horn = blocked && hornOn(bt);
-    if (blocked && honkStage(bt) === 'turn') {
+    if (blocked && honkStage(bt) === 'turn' && !cs.curve) {
+      if (cs.inNode) cs.inNode = null;
+      cs.plan = null;
       cs.leave = { mode: 'back', t: 0, backed: 0, checkT: 0, px: player.x, py: player.y };
       c.horn = false;
       return;
     }
 
-    const prev = cs.s;
-    cs.s += cs.dir * c.speed * dt;
-    const moved = Math.abs(cs.s - prev);
-    cs.skip = Math.max(0, cs.skip - moved);
-
-    // Broken bridge ahead: U-turn.
-    for (const b of n.blocks) {
-      const ahead = (b - cs.s) * cs.dir;
-      if (ahead > 0 && ahead < 25) {
-        cs.dir = -cs.dir;
-        cs.skip = 10;
-        break;
-      }
+    let t;
+    if (cs.curve) {
+      const C = cs.curve;
+      C.u += c.speed * dt;
+      if (C.u >= C.cv.len) {
+        // Out of the junction, in its lane on the next road.
+        cs.n = C.to;
+        cs.s = C.toAt;
+        cs.dir = C.toDir;
+        cs.seg = undefined;
+        cs.curve = null;
+        cs.plan = null;
+        cs.lastNode = C.node;
+        if (cs.inNode === C.node) cs.inNode = null;
+        t = carTarget(cs);
+      } else t = curveAt(C.cv, C.u);
+    } else {
+      cs.s = clampS(n, cs.s + cs.dir * c.speed * dt);
+      t = carTarget(cs);
     }
-    // Junctions passed this step.
-    const atEnd = (cs.dir < 0 && cs.s <= 0.5) || (cs.dir > 0 && cs.s >= n.len - 0.5);
-    if (atEnd || (cs.skip <= 0 && moved > 0)) {
-      const lo = Math.min(prev, cs.s);
-      const hi = Math.max(prev, cs.s);
-      const passed = n.junctions.filter((j) => j.at > lo && j.at <= hi && j.at > 6 && j.at < n.len - 6);
-      if (atEnd) {
-        const here = n.junctions.filter((j) => Math.abs(j.at - (cs.dir > 0 ? n.len : 0)) < 6);
-        if (here.length) {
-          let tot = 0;
-          const w = here.map((j) => (tot += junctionWeight(j)));
-          const k = rng() * tot;
-          turnOnto(cs, here[w.findIndex((v) => k < v)] || here[0]);
-        } else {
-          cs.dir = -cs.dir; // dead end: turn around
-          cs.skip = 10;
-        }
-      } else if (passed.length) {
-        const j = passed[0];
-        if (rng() < 0.35 * Math.min(1.5, junctionWeight(j) / townScore(c.x, c.y))) turnOnto(cs, j);
-      }
-    }
-    cs.s = Math.max(0, Math.min(cs.n.len, cs.s));
 
-    // Smoothly follow the lane target (rounds corners and junction jumps).
-    const t = carTarget(cs);
+    // Smoothly follow the lane target.
     const k = Math.min(1, dt * 6);
     const nx = c.x + (t.x - c.x) * k;
     const ny = c.y + (t.y - c.y) * k;
@@ -393,7 +683,11 @@ export function createAmbient(world, scenery) {
     c.y = ny;
   }
 
-  // ---------- Turning round when the player will not move ----------
+  // ---------- Turning round ----------
+  // At a dead end, a broken bridge or a fallen tree the car stops short and
+  // makes the same three-point turn (a forced leave: it never backs up or
+  // gives up on it, it waits until there is room).
+  // When the player will not move:
   // After leaning on the horn the car gives up and goes back the way it
   // came: a three-point turn (turnPose) where it stands when there is room.
   // Where there is not (on a bridge, by a fallen tree's gap, the player or
@@ -428,7 +722,8 @@ export function createAmbient(world, scenery) {
     for (const o of cars) {
       if (o === c) continue;
       const d = Math.hypot(o.x - c.x, o.y - c.y);
-      if (d < LEAVE.trafficR && (o.speed > 1 || o.turning)) return false;
+      // Traffic coming at it (not creeping, not going away) or turning round.
+      if (d < LEAVE.trafficR && (o.turning || (o.speed > 2 && relTo(o.x, o.y, o.heading, c.x, c.y).along > -3))) return false;
       if (d < 20) things.push(o);
     }
     const F = turnFrame(cs);
@@ -474,7 +769,7 @@ export function createAmbient(world, scenery) {
       }
       return;
     }
-    if (player && Math.hypot(player.x - L.px, player.y - L.py) > LEAVE.releaseR) {
+    if (!L.forced && player && Math.hypot(player.x - L.px, player.y - L.py) > LEAVE.releaseR) {
       // The player has moved on: carry on as before.
       cs.leave = null;
       cs.honk.t = cs.honk.clearT = 0;
@@ -492,7 +787,7 @@ export function createAmbient(world, scenery) {
         return;
       }
       if (L.mode === 'back' && !backClear(c, cs)) L.mode = 'hold';
-      else if (L.mode === 'hold' && backClear(c, cs)) L.mode = 'back';
+      else if (L.mode === 'hold' && !L.forced && backClear(c, cs)) L.mode = 'back';
     }
     if (L.mode === 'back') {
       // Reverse slowly along its own lane, still facing the player.
@@ -1114,6 +1409,8 @@ export function createAmbient(world, scenery) {
     playerSurface: 'paved', // additive: surface under the player car ('paved'|'dirt'|'grass')
     flocks, // additive (internal-ish): bird groups
     surfaceAt, // additive: road surface lookup
+    junctions: nodes.map((k) => ({ id: k.id, x: k.x, y: k.y, r: k.r })), // additive: junction centres (cars' `junction` names the one they are in)
+    stopSigns, // additive: [{ id, x, y, heading, leanX, leanY }] STOP signs at minor-to-paved junctions (SPEC 9q)
     obstacles, // additive: [{ x, y, r, player? }] hazards traffic waits behind (the caller refills it); player: true for the parked car, which traffic honks at
     horns: [], // additive: [{ id, x, y }] vehicles sounding their horn this frame (traffic, then hazards add theirs)
     time: 0,
@@ -1156,6 +1453,7 @@ export function createAmbient(world, scenery) {
         stepCar(cars[i], carState[i], dt, player, !!(state && state.onFoot));
         maybeRespawn(cars[i], carState[i], dt, player);
         const c = cars[i];
+        c.junction = carState[i].inNode ? carState[i].inNode.id : '';
         if (c.horn) amb.horns.push({ id: c.id, x: c.x, y: c.y });
         if (c.onDirt && c.speed > 3 && (c.x - px) ** 2 + (c.y - py) ** 2 < nearSq) emitDust(c.x, c.y, c.heading, c.speed, dt, carDustAcc[i]);
       }
