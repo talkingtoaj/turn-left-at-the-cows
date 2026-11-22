@@ -16,7 +16,7 @@ import {
   JUNCTION, brakeCap, turnSpeed, turnRoom, turnSide, blinkLit, blinkNow, stopsAt, junctionCurve, curveAt, headedInto,
 } from './trafficRules.js';
 import { carPaint } from './carpaint.js'; // traffic paint: real rural colors, seeded per car (#50)
-import { trafficType } from './carkit.js'; // some types have their own colors (the 4x4, #44)
+import { trafficType } from './carkit.js'; // some types have their own colors (the 4x4 #44, work vans #46)
 
 // Level of detail: things within NEAR_R of the player get full updates.
 const NEAR_R = 600;

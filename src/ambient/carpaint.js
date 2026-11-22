@@ -7,6 +7,8 @@
 //
 //   carPaint('car3') -> { color, color2, age }   // color2 null when one tone
 //   carPaint('car4', 'fourbyfour')               // a type with its own colors (TYPE_PALETTE)
+//   carPaint('car6', 'van')   // work van colors (VAN_PALETTE); color2 always set,
+//                             // the accent its business paint uses (#46)
 //
 // Same id, same paint, every time.
 
@@ -51,6 +53,26 @@ export const TYPE_PALETTE = {
     [0x1d1e20, 2], // black
   ],
 };
+// Work vans (#46): mostly white, then tan, cream, faded blues and the odd
+// dark one. [sRGB hex, weight]
+export const VAN_PALETTE = [
+  [0xe6e4de, 30], // white
+  [0xd6cdb5, 8], // cream
+  [0xb5a283, 10], // tan
+  [0x5d7590, 8], // faded blue
+  [0x3a5068, 4], // slate blue
+  [0xa7abae, 7], // silver
+  [0x787d82, 4], // medium gray
+  [0x4d3424, 4], // brown
+  [0x24402f, 4], // dark green
+  [0x1f2a42, 4], // navy
+  [0x5a1a1e, 3], // maroon
+  [0xc7b894, 4], // champagne
+];
+// A van's accent (stripe or lower tone): dark on a light van, light on a dark one.
+const VAN_ACCENT_ON_LIGHT = [0x1f2a42, 0x5a1a1e, 0x24402f, 0x4d3424, 0x3a5068, 0x8e2a24];
+const VAN_ACCENT_ON_DARK = [0xe6e4de, 0xd6cdb5];
+
 // Lower tones for two-tone paint, picked to go with the upper one.
 const LOWER_ON_LIGHT = [0x5a1a1e, 0x1f2a42, 0x4d3424, 0xb5a283, 0x24402f, 0x45484b];
 const LOWER_ON_DARK = [0xa7abae, 0xe6e4de, 0xb5a283, 0xd6cdb5];
@@ -85,16 +107,17 @@ function pick(list, r) {
   return list[list.length - 1][0];
 }
 
-export function carPaint(id, type) {
+export function carPaint(id, kind = '') {
   const r = makeRng(hashString(String(id)) || 1);
-  const base = pick(TYPE_PALETTE[type] || PALETTE, r);
+  const van = kind === 'van';
+  const base = pick(van ? VAN_PALETTE : TYPE_PALETTE[kind] || PALETTE, r);
   const age = r(); // 0 new-ish, 1 an old car that lived outside
   const color = weather(base, r, age);
   let color2 = null;
-  if (r() < TWO_TONE) {
+  if (van || r() < TWO_TONE) {
     const [rr, gg, bb] = toRgb(base);
     const light = 0.3 * rr + 0.59 * gg + 0.11 * bb > 0.5;
-    const opts = (light ? LOWER_ON_LIGHT : LOWER_ON_DARK).filter((c) => c !== base);
+    const opts = (light ? (van ? VAN_ACCENT_ON_LIGHT : LOWER_ON_LIGHT) : van ? VAN_ACCENT_ON_DARK : LOWER_ON_DARK).filter((c) => c !== base);
     color2 = weather(opts[Math.floor(r() * opts.length)], r, age);
   }
   return { color, color2, age };
