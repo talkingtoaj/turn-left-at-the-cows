@@ -151,6 +151,15 @@ export const SOUND_GROUPS = [
       { id: 'tow/winch', kind: 'oneshot', label: 'Tow winch ratchet (pulling the car up)' },
     ],
   },
+  // SPEC 9q (#39): engines on the traffic, heard from outside (pitched up
+  // with speed, and down as each car passes, in the game).
+  {
+    group: 'Traffic',
+    items: [
+      { id: 'traffic/diesel', kind: 'loop', label: 'Traffic diesel (trucks and pickups, farm trucks, tractors lower)' },
+      { id: 'traffic/petrol', kind: 'loop', label: 'Traffic petrol hum (sedans, wagons, hatches)' },
+    ],
+  },
   // Round 12: walking on foot (src3/onfoot.js), one step per file.
   {
     group: 'Footsteps',
