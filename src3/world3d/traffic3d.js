@@ -30,7 +30,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { DEG } from '../../src/drive/geom.js';
 import { SPECS, loftBody } from './carbody.js';
 import { carAtlas } from './caratlas.js';
-import { fineGeometry } from './trafficfine.js';
+import { fineGeometry, FINE_STYLE } from './trafficfine.js';
 import { createFineLod, FINE_MAX } from './trafficlod.js';
 import { kitInto, doorZone } from './trafficKit.js';
 import { dirtGlsl } from './car3d.js';
@@ -57,10 +57,11 @@ const MAT = {
   woodDark: [0x4a3624, 0, 0.9, 0],
   hay: [0xc9b26a, 0, 0.95, 0],
   liner: [0x0e0e0e, 0, 0.95, 0],
+  alu: [0xd4d8dc, 0, 0.32, 1], // bumper looks shared with the fine body (caratlas.js); kit ladders and toolboxes too
+  satin: [0x202224, 0, 0.4, 0],
   // Kit pieces (trafficKit.js).
   rack: [0x1a1b1c, 0, 0.6, 0],
   steel: [0x8a8d90, 0, 0.35, 1],
-  alu: [0xc8ccd0, 0, 0.32, 1],
   jerry: [0x4b5a2a, 0, 0.6, 0],
   jerryRed: [0x8a2a1c, 0, 0.55, 0],
   tarp: [0x34506a, 0, 0.8, 0],
@@ -164,7 +165,7 @@ function loftCar(name) {
   parts.push(...tri);
   const h = S.half;
   const hw = S.hw;
-  const bumper = name === 'hatch' ? 'black' : 'chrome';
+  const bumper = FINE_STYLE[name]?.bumper ?? 'chrome'; // same as the fine body, so the switch doesn't show
   for (const s of [-1, 1]) {
     parts.push(box(hw * 2 - 0.04, 0.16, 0.14, 0, S.y0 + 0.14, s * (h + 0.04), bumper));
     parts.push(quadZ(0.3, 0.15, 0, S.y0 + 0.14, s * (h + 0.112), 'plate'));

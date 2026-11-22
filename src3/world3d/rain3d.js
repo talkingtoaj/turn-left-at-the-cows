@@ -114,7 +114,7 @@ void main() {
   float runs = step(0.45, hash(n + 4.9));
   float run = runs * smoothstep(0.45, 0.8, u) * (0.04 + 0.08 * hash(n + 5.3));
   vTrail = run / r;
-  vA = use * smoothstep(0.0, 0.03, u) * (1.0 - smoothstep(0.55, 1.0, u)) * (uStill > 0.5 ? 1.0 : 1.0);
+  vA = use * smoothstep(0.0, 0.03, u) * (1.0 - smoothstep(0.55, 1.0, u));
   // Quad: a circle of radius r at the head, the trail above it.
   vec2 q = vec2(aCorner.x, aCorner.y < 0.0 ? -1.0 : 1.0 + 2.0 * vTrail);
   vQ = q;
@@ -321,7 +321,8 @@ void main() {
         if (fog) mat.uniforms.uColor.value.setRGB(0.8 + 0.15 * fog.r / (fog.r + 1), 0.82 + 0.15 * fog.g / (fog.g + 1), 0.85 + 0.15 * fog.b / (fog.b + 1));
       }
       // Lens drops: in use follows the rain (lagging a few seconds behind).
-      lensD += (Math.min(1, rain * 1.3) - lensD) * Math.min(1, dt / 3);      lens.visible = lensD > 0.01;
+      lensD += (Math.min(1, rain * 1.3) - lensD) * Math.min(1, dt / 3);
+      lens.visible = lensD > 0.01;
       if (lens.visible) {
         lensT = (lensT + dt) % 10000;
         lmat.uniforms.uTime.value = lensT;

@@ -16,6 +16,7 @@
 // Pure: no three.js here (the 3D side is src3/world3d/trafficKit.js).
 
 import { carPaint } from './carpaint.js';
+import { makeRng, hashString } from '../drive/geom.js';
 
 export const TRAFFIC_TYPES = ['sedan', 'wagon', 'pickup', 'hatch', 'farmtruck'];
 // Types for the ten traffic cars (car0..car9), mixed so each shows up.
@@ -42,24 +43,6 @@ export const KIT_FITS = {
 // The slow farm trucks in hazards3d.js have no id: two bales.
 export const DEFAULT_KIT = { farmtruck: (1 << KIT_BIT.hay) | (1 << KIT_BIT.hay2) };
 
-function hashStr(s) {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
-function rng(seed) {
-  let a = seed || 1;
-  return () => {
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
 // One seeded try at a kit for a type: each fitting part by its odds.
 function rollMask(type, r) {
   let mask = 0;
@@ -80,7 +63,7 @@ function maskFor(type, ordinal) {
   while (list.length <= ordinal) {
     const k = list.length;
     const n = idNumber(type, k);
-    const r = rng(hashStr(`kit:car${n}`));
+    const r = makeRng(hashString(`kit:car${n}`) || 1);
     let mask = rollMask(type, r);
     // Re-roll a repeat; after a while take the next unused combination.
     for (let tries = 0; list.includes(mask) && tries < 40; tries++) mask = rollMask(type, r);
@@ -130,7 +113,7 @@ function doorColor(id, body, r) {
 export function carKit(id) {
   const type = trafficType(id);
   const mask = maskFor(type, ordinalOf(id));
-  const r = rng(hashStr(`wear:${id}`));
+  const r = makeRng(hashString(`wear:${id}`) || 1);
   const paint = carPaint(id);
   // Rust: older cars, farm trucks most, pickups next.
   const rustBias = type === 'farmtruck' ? 0.45 : type === 'pickup' ? 0.1 : 0;
