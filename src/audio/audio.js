@@ -7,6 +7,11 @@
 //   now (src3/world3d/planes3d.js works out where each one was when the
 //   sound left it), or null where there is no airfield.
 //   tow: { x, y, throttle } where the tow truck is (src3/tow3d.js), or null.
+//   vehicles: slow farm vehicles on the road (hazards: [{ id, kind:
+//   'tractor'|'truck', x, y, heading, speed }]), heard like traffic.
+//   Traffic (amb.cars) has engine sounds (./trafficSound.js); createAudio's
+//   opts.trafficType(id) names each car's type ('pickup', 'sedan', ...) so
+//   it gets a diesel or a petrol engine.
 //   listener: { x, y, heading } where you hear from (round 12: your ears
 //   when on foot); default the car. onFoot: you are out of the car (the
 //   engine idles where the car is parked, no rain on the roof).
@@ -29,6 +34,7 @@ import { ALL_SOUNDS, ENGINE_LAYERS, engineMix, loadSounds, loopBounds } from './
 import { takeSpeech, voiceFor } from './voice.js';
 import { sharedAudioContext, unlockAudio, isMuted, setMuted } from './context.js';
 import { thunderDelay } from '../game/thunder.js';
+import { ENGINE_SOUND, engineOf, passBy, pickHeard } from './trafficSound.js';
 
 const DEG = Math.PI / 180;
 const MASTER = 0.5;
@@ -76,6 +82,7 @@ const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 export function createAudio(world, opts = {}) {
   // world is swapped by setWorld() when the game moves to another region.
   const withWeather = !!opts.weather;
+  const trafficType = opts.trafficType || (() => 'sedan');
   let ctx = null;
   let nodes = null;
   let paused = false;
@@ -256,11 +263,16 @@ export function createAudio(world, opts = {}) {
     const towPan = panner(bus);
     const towG = gain(0, towPan);
 
+    // Traffic engines (SPEC 9q): one voice per heard vehicle, made as it
+    // comes into earshot.
+    const trafficBus = gain(1, bus);
+
     nodes = {
       master, bus, engPan, engPos, engGain, engLp, engLayers, revG, revSrc: null, gravelG, grassG, pavedG, surfSrc: {},
       waterPan, creekG, riverG, townPan, townG, birdPan, birdG, voiceBus, started: new Set(), flatG, flatSrc: null,
       insectG, windGrassG, tractorPan, tractorG, windowG, windowSrc: null,
       roofG, rainG, wetG, wetSrc: null, planeBus, planeVoices: [], towPan, towG, towSrc: null,
+      trafficBus,
     };
 
     loadSounds(ctx, ALL_SOUNDS.filter((s) => withWeather || !s.weather).map((s) => s.id), (id, buf) => {
@@ -792,6 +804,64 @@ export function createAudio(world, opts = {}) {
     if (n.towSrc) ramp(n.towSrc.playbackRate, 0.92 + 0.3 * (tow.throttle || 0), 0.25);
   }
 
+  // Traffic engines (SPEC 9q, #39): the nearest few vehicles each get a
+  // voice, a diesel or petrol idle loop pitched up with speed, with the
+  // Doppler drop as it passes, panned toward it, quieter and duller with
+  // distance (./trafficSound.js has the rules). A voice fades out and stops
+  // when its vehicle drops out of the nearest few or out of earshot.
+  const engines = new Map(); // id -> { src, g, lp, out }
+  const heardList = [];
+  function startEngine(id, kind) {
+    const buf = bufs.get(ENGINE_SOUND[kind === 'tractor' ? 'diesel' : kind]);
+    if (!buf) return null;
+    const out = panner(nodes.trafficBus);
+    const lp = filter('lowpass', 1500, 0.6, out);
+    const g = gain(0, lp);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    const b = loopBounds(buf);
+    src.loopStart = b.start;
+    src.loopEnd = b.end;
+    src.connect(g);
+    // A random place in the loop, so two of a kind never sound in step.
+    src.start(ctx.currentTime, b.start + Math.random() * (b.end - b.start));
+    src.onended = () => out.disconnect();
+    return { src, g, lp, out };
+  }
+  function stopEngine(v) {
+    const t = ctx.currentTime;
+    v.g.gain.cancelScheduledValues(t);
+    v.g.gain.setTargetAtTime(0, t, 0.12);
+    v.src.stop(t + 0.8);
+  }
+  function updateTraffic(ear, earSpeed, amb, vehicles) {
+    heardList.length = 0;
+    if (amb && amb.cars) for (const c of amb.cars) heardList.push(c);
+    if (vehicles) for (const h of vehicles) heardList.push(h);
+    const on = new Set();
+    for (const v of pickHeard(ear, heardList)) {
+      const kind = v.kind === 'tractor' ? 'tractor' : v.kind === 'truck' ? 'diesel' : engineOf(trafficType(v.id));
+      let e = engines.get(v.id);
+      if (!e) {
+        e = startEngine(v.id, kind);
+        if (!e) continue;
+        engines.set(v.id, e);
+      }
+      on.add(v.id);
+      const p = passBy(ear, earSpeed, v, kind);
+      ramp(e.g.gain, p.gain, 0.08);
+      ramp(e.src.playbackRate, p.rate, 0.1);
+      ramp(e.lp.frequency, p.lowpass, 0.1);
+      setPan(e.out, p.pan);
+    }
+    for (const [id, e] of engines) {
+      if (on.has(id)) continue;
+      stopEngine(e);
+      engines.delete(id);
+    }
+  }
+
   // Other vehicles' horns (amb.horns, see HONK in src/ambient/trafficRules.js):
   // one voice per vehicle, held down for as long as it sounds. The 0.73 s
   // honk plays from its start, then loops its steady middle (cut at rising
@@ -935,6 +1005,7 @@ export function createAudio(world, opts = {}) {
       updateChatter(dt, ear, amb, s);
       updatePlanes(ear, opts && opts.planes);
       updateTow(ear, opts && opts.tow);
+      updateTraffic(ear, onFoot ? 0 : car.speed || 0, amb, opts && opts.vehicles);
       if (!paused && !muted) {
         updateBirds(dt, ear, amb);
         updateLayers(dt, ear, ear, state, opts && opts.rain, surface, s, onFoot);
@@ -1001,6 +1072,8 @@ export function createAudio(world, opts = {}) {
       if (nodes) for (const v of nodes.planeVoices) if (v) v.g.gain.value = 0;
       for (const c of chatter.values()) stopVoice(c, 0.1);
       chatter.clear();
+      if (ctx) for (const e of engines.values()) stopEngine(e);
+      engines.clear();
     },
     get muted() {
       return isMuted();
@@ -1020,6 +1093,10 @@ export function createAudio(world, opts = {}) {
     },
     get chatter() {
       return [...chatter.keys()];
+    },
+    // For checks: each heard traffic engine's level, playback rate and lowpass now.
+    get traffic() {
+      return [...engines].map(([id, e]) => ({ id, gain: +e.g.gain.value.toFixed(4), rate: +e.src.playbackRate.value.toFixed(3), lowpass: Math.round(e.lp.frequency.value) }));
     },
     // For checks: each plane voice's level, playback rate and lowpass now.
     get planes() {

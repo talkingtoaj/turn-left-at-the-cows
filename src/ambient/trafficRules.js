@@ -181,3 +181,136 @@ export function turnPose(w, t) {
     done: i === TURN.legs.length - 1 && x >= 1,
   };
 }
+
+// ---------- Junctions (SPEC 9q) ----------
+// Traffic slows before a turn and drives a curve from its lane on one road
+// to its lane on the next; blinks the amber lamp a few seconds first; on a
+// dirt road meeting a paved one it stops at the STOP sign, waits, and goes
+// when clear (paved roads never stop); it waits for cars already in the
+// junction and for the player. Dead ends and broken bridges: a three-point
+// turn (turnPose), never a flip on the spot.
+export const JUNCTION = {
+  brake: 2.2, // m/s² a car slows at for a turn or a stop line
+  turnV: [4.5, 11], // m/s through a square turn ... a gentle bend
+  blinkT: 3.5, // s before the turn the amber lamp starts
+  blinkMin: 18, // ...and at least this many metres out
+  blinkPeriod: 0.8, // s per on / off cycle
+  stopWait: 1.2, // s stood still at a STOP sign before it may go
+  stopBack: 3.8, // m behind the paved road's edge the car centre stops
+  entryRoom: 2.5, // m past the other road's edge the curve starts and ends
+  clearT: 4, // s: a car this soon to reach the junction is in the way
+  clearPad: 6, // m around the junction that counts as in it
+  bendDeg: 20, // turning less than this is no turn (no blink)
+  deadEndStop: 7, // m short of a dead end the car stops to turn round
+  blockStop: 22, // m short of a fallen tree it stops to turn round
+  bridgeStop: 8, // m short of a broken bridge's end
+  pathOn: 16, // m of lane past the junction that must be free of the player
+  pathClear: 3.2, // m from that path the player counts as in the way
+};
+
+// Top speed `dist` m before a point it must pass at `vAt` m/s (0 to stop there).
+export function brakeCap(dist, vAt = 0, J = JUNCTION) {
+  return Math.sqrt(vAt * vAt + 2 * J.brake * Math.max(0, dist));
+}
+
+// Speed through a turn of `deg` degrees (0 straight on, 90 square, 180 back).
+// Sharper than square (a hairpin onto a road that runs back) is slower still.
+export function turnSpeed(deg, J = JUNCTION) {
+  const k = Math.min(1.25, Math.abs(deg) / 90);
+  return Math.max(J.turnV[0] * 0.75, J.turnV[1] + (J.turnV[0] - J.turnV[1]) * k);
+}
+
+// Extra metres a turn of `deg` degrees starts and ends from the junction:
+// none up to a square turn, more for a hairpin so it is not taken on the spot.
+export function turnRoom(deg) {
+  return Math.max(0, Math.abs(deg) - 80) * 0.09;
+}
+
+// -1 a left turn, 1 right, 0 straight on (headings in degrees, clockwise).
+export function turnSide(hIn, hOut, J = JUNCTION) {
+  let d = (hOut - hIn) % 360;
+  if (d > 180) d -= 360;
+  if (d < -180) d += 360;
+  if (Math.abs(d) < J.bendDeg) return 0;
+  return d > 0 ? 1 : -1;
+}
+
+// Is the blinker lit `t` s after it started? Starts lit.
+export function blinkLit(t, J = JUNCTION) {
+  return ((t / J.blinkPeriod) % 1 + 1) % 1 < 0.5;
+}
+
+// Should the blinker be on `dist` m before the turn at `speed` m/s?
+export function blinkNow(dist, speed, J = JUNCTION) {
+  return dist < Math.max(J.blinkMin, speed * J.blinkT);
+}
+
+// Which road arms at a junction stop. `arms`: [{ paved, through }], one per
+// road meeting there, `through` when the junction is part way along it (two
+// arms) rather than at its end (one). A dirt road stops where a paved road
+// carries on through the junction (two paved arms or more): not where it
+// only runs on into one paved road end to end. Paved roads never stop.
+export function stopsAt(arms) {
+  const paved = arms.reduce((s, a) => s + (a.paved ? (a.through ? 2 : 1) : 0), 0);
+  return arms.map((a) => !a.paved && paved >= 2);
+}
+
+// A curve in the car's lane from p0 (heading h0) to p3 (heading h3):
+// a cubic Bezier sampled into short steps. { pts: [[x, y]], cum, len }.
+export function junctionCurve(p0, h0, p3, h3, steps = 24) {
+  const L = Math.hypot(p3[0] - p0[0], p3[1] - p0[1]);
+  // Control arm: about the corner radius for a square turn, longer on a
+  // gentle bend so the car does not swerve.
+  const turn = Math.abs(turnSideDeg(h0, h3));
+  const arm = L * (turn > 120 ? 0.75 : 0.42 + 0.2 * (1 - Math.min(1, turn / 90)));
+  const f0 = [Math.sin(h0 * Math.PI / 180), -Math.cos(h0 * Math.PI / 180)];
+  const f3 = [Math.sin(h3 * Math.PI / 180), -Math.cos(h3 * Math.PI / 180)];
+  const p1 = [p0[0] + f0[0] * arm, p0[1] + f0[1] * arm];
+  const p2 = [p3[0] - f3[0] * arm, p3[1] - f3[1] * arm];
+  const pts = [];
+  const cum = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const a = (1 - t) ** 3;
+    const b = 3 * (1 - t) ** 2 * t;
+    const c = 3 * (1 - t) * t * t;
+    const d = t ** 3;
+    const p = [a * p0[0] + b * p1[0] + c * p2[0] + d * p3[0], a * p0[1] + b * p1[1] + c * p2[1] + d * p3[1]];
+    cum.push(i ? cum[i - 1] + Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]) : 0);
+    pts.push(p);
+  }
+  return { pts, cum, len: cum[steps], h0, h3 };
+}
+function turnSideDeg(h0, h3) {
+  let d = (h3 - h0) % 360;
+  if (d > 180) d -= 360;
+  if (d < -180) d += 360;
+  return d;
+}
+
+// Point `u` m along a junction curve: { x, y, h } (h: heading in degrees).
+export function curveAt(cv, u) {
+  const { pts, cum } = cv;
+  const n = pts.length - 1;
+  if (u <= 0) return { x: pts[0][0], y: pts[0][1], h: cv.h0 };
+  if (u >= cv.len) return { x: pts[n][0], y: pts[n][1], h: cv.h3 };
+  let i = 0;
+  while (i < n - 1 && cum[i + 1] < u) i++;
+  const t = (u - cum[i]) / (cum[i + 1] - cum[i] || 1);
+  const a = pts[i];
+  const b = pts[i + 1];
+  const h = (Math.atan2(b[0] - a[0], -(b[1] - a[1])) * 180) / Math.PI;
+  return { x: a[0] + (b[0] - a[0]) * t, y: a[1] + (b[1] - a[1]) * t, h: (h + 360) % 360 };
+}
+
+// Is a car at (x, y) going `speed` m/s on heading `h` about to reach a
+// junction at (jx, jy) with radius `r`: inside it, or heading for it and
+// there within clearT s?
+export function headedInto(x, y, h, speed, jx, jy, r, J = JUNCTION) {
+  const d = Math.hypot(jx - x, jy - y);
+  if (d < r) return true;
+  if (speed < 1) return false;
+  const rel = relTo(x, y, h, jx, jy);
+  if (rel.along <= 0 || Math.abs(rel.lat) > r) return false;
+  return d - r < speed * J.clearT;
+}

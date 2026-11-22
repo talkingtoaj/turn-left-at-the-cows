@@ -2,8 +2,10 @@
 // file). The body is lofted from cross sections (carbody.js) so it has soft
 // panel edges, wheel arches and enough vertices to dent; the trim (chrome
 // bumpers, grille, lamps, plates, mirrors, door lines and handles, window
-// frames, mud flaps, the seats and steering wheel seen through the glass)
-// is one mesh on a texture atlas drawn in code (caratlas.js).
+// frames, mud flaps, the seats and steering wheel seen through the glass,
+// and a roof rack with parcels strapped on, since Darlene delivers
+// packages) is one mesh on a texture atlas drawn in code (caratlas.js).
+// The paint has two old dings baked in (carbody.js SEDAN_DINGS).
 // Four draw calls: paint, glass, trim, and the four wheels (instanced).
 //
 // Faces -z at rotation 0 (north). Shows damage: dents pushed into the body
@@ -19,7 +21,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { DEG } from '../../src/drive/geom.js';
-import { SPECS, loftBody, sectionAt } from './carbody.js';
+import { SPECS, SEDAN_DINGS, loftBody, sectionAt, wearDings } from './carbody.js';
 import { carAtlas } from './caratlas.js';
 
 const S = SPECS.sedan;
@@ -71,6 +73,29 @@ function trimBuilder(A) {
         if (s) uv.push(s[0], s[1]);
         else uv.push(rect[0] + (rect[2] - rect[0]) * t.getX(i), rect[1] + (rect[3] - rect[1]) * (1 - t.getY(i)));
       }
+    },
+    // A w x h x d box placed by matrix m. faces: six swatch names or atlas
+    // rects in three's BoxGeometry order (+x, -x, +y, -y, +z, -z).
+    boxM(m, w, h, d, faces) {
+      const g = new THREE.BoxGeometry(w, h, d).toNonIndexed().applyMatrix4(m);
+      const p = g.attributes.position;
+      const t = g.attributes.uv;
+      for (let i = 0; i < p.count; i++) {
+        pos.push(p.getX(i), p.getY(i), p.getZ(i));
+        const f = faces[Math.floor(i / 6)];
+        if (typeof f === 'string') uv.push(...A.sw(f));
+        else uv.push(f[0] + (f[2] - f[0]) * t.getX(i), f[1] + (f[3] - f[1]) * (1 - t.getY(i)));
+      }
+    },
+    // A strap or bar from point a to point b, w wide and th thick.
+    // up: which way the th side faces (default world up).
+    rod(a, b, w, th, sw, up = [0, 1, 0]) {
+      const va = new THREE.Vector3(...a);
+      const vb = new THREE.Vector3(...b);
+      const len = va.distanceTo(vb);
+      const m = new THREE.Matrix4().lookAt(va, vb, new THREE.Vector3(...up));
+      m.setPosition(va.clone().add(vb).multiplyScalar(0.5));
+      T.boxM(m, w, th, len, Array(6).fill(sw));
     },
     box(x, y, z, w, h, d, sw, rx = 0, ry = 0, rz = 0) {
       const g = new THREE.BoxGeometry(w, h, d);
@@ -170,6 +195,46 @@ function surfaceStrips(T, body, A) {
   }
 }
 
+// Bare-metal scratches through the old dings, drawn on the rest surface;
+// wearDings then sinks them with the paint.
+function dingScratches(T) {
+  const LIFT = 0.003;
+  // Surface x at (z, y) on the side, or y at (x, z) on the top.
+  const sideX = (z, y) => {
+    const { pts } = sectionAt(S, z);
+    for (let k = 0; k < 8; k++) {
+      const [a, b] = [pts[k], pts[k + 1]];
+      if ((y - a[1]) * (y - b[1]) <= 0) return a[0] + (b[0] - a[0]) * ((y - a[1]) / (b[1] - a[1] || 1));
+    }
+    return pts[3][0];
+  };
+  const topY = (x, z) => {
+    const { pts } = sectionAt(S, z);
+    const ax = Math.abs(x);
+    for (let k = 10; k > 6; k--) {
+      const [a, b] = [pts[k], pts[k - 1]];
+      if (ax >= a[0] && ax <= b[0]) return a[1] + (b[1] - a[1]) * ((ax - a[0]) / (b[0] - a[0] || 1));
+    }
+    return pts[8][1];
+  };
+  for (const d of SEDAN_DINGS) {
+    const top = Math.abs(d.n[1]) > 0.5;
+    const s = Math.sign(d.c[0]) || 1;
+    const pt = ([u, v]) => {
+      if (top) {
+        const x = d.c[0] + u;
+        const z = d.c[2] + v;
+        return [x, topY(x, z) + LIFT, z];
+      }
+      const z = d.c[2] + u;
+      const y = d.c[1] + v;
+      return [s * (sideX(z, y) + LIFT), y, z];
+    };
+    const up = top ? [0, 1, 0] : [s, 0, 0];
+    for (const [a, b] of d.scratches) T.rod(pt(a), pt(b), 0.006, 0.0015, 'scratch', up);
+  }
+}
+
 function trimParts(T, A) {
   const h = HALF_L;
   const endBelt = (z) => sectionAt(S, z).belt;
@@ -219,9 +284,16 @@ function trimParts(T, A) {
     for (let i = 0; i < p.length; i += 9) for (let k = 0; k < 3; k++) [p[i + 3 + k], p[i + 6 + k]] = [p[i + 6 + k], p[i + 3 + k]];
     n.translate(Math.sign(x) * (S.hw - 0.17), S.wheelY, z);
     T.geo(n, 'liner');
-    // Mud flap behind the wheel.
-    T.box(x, 0.24, z + 0.44, 0.2, 0.26, 0.012, 'rubber');
+    // Mud flap behind the wheel: ribbed rubber with mud on it, hung from a
+    // small bracket under the sill, its foot kicked back a little.
+    const fl = A.rect('flap', 1);
+    const fm = new THREE.Matrix4().makeTranslation(x, 0.385, z + 0.45)
+      .multiply(new THREE.Matrix4().makeRotationX(-0.07))
+      .multiply(new THREE.Matrix4().makeTranslation(0, -0.145, 0));
+    T.boxM(fm, 0.22, 0.29, 0.014, ['rubber', 'rubber', 'rubber', 'rubber', fl, fl]);
+    T.box(x, 0.392, z + 0.45, 0.18, 0.02, 0.03, 'steel');
   }
+  roofRack(T, A);
   T.box(0, 0.31, 0, 1.6, 0.04, 3.9, 'liner');
   // Exhaust and the aerial.
   T.geo(new THREE.CylinderGeometry(0.03, 0.03, 0.24, 8).rotateX(Math.PI / 2).translate(-0.48, 0.27, h - 0.02), 'exhaust');
@@ -243,6 +315,68 @@ function trimParts(T, A) {
   T.geo(wheel, 'black');
   T.geo(new THREE.CylinderGeometry(0.025, 0.03, 0.34, 6).rotateX(-0.95 + Math.PI / 2).translate(-0.4, 0.92, -0.47), 'black');
   T.box(0, 0.99, 1.38, 1.5, 0.03, 0.3, 'dash');
+}
+
+// Roof rack: black steel bars on four gutter clamps, low side rails, and
+// parcels strapped on with orange ratchet straps. All in the trim mesh, so
+// it costs no draw calls.
+const RACK_Z = [0.0, 0.9]; // the two load bars (on the roof, zR0..zR1)
+const RACK_X = 0.6; // side rails
+const BAR_Y = 1.49;
+const RAIL_Y = 1.535;
+const FLOOR_Y = BAR_Y + 0.016; // parcels sit here
+function roofRack(T, A) {
+  const zMid = (RACK_Z[0] + RACK_Z[1]) / 2;
+  const zLen = RACK_Z[1] - RACK_Z[0] + 0.08;
+  for (const z of RACK_Z) {
+    T.box(0, BAR_Y, z, 1.36, 0.028, 0.04, 'black');
+    for (const s of [-1, 1]) {
+      // Foot on the roof edge, clamp hooked into the drip rail.
+      T.box(s * 0.645, 1.445, z, 0.05, 0.085, 0.07, 'black');
+      T.box(s * 0.672, 1.4, z, 0.016, 0.045, 0.06, 'steel');
+      // Upright to the side rail.
+      T.box(s * RACK_X, (BAR_Y + RAIL_Y) / 2, z, 0.022, RAIL_Y - BAR_Y, 0.022, 'black');
+    }
+  }
+  // Slats between the load bars, and the side rails.
+  for (const z of [0.3, 0.6]) T.box(0, BAR_Y + 0.004, z, RACK_X * 2, 0.02, 0.025, 'black');
+  for (const s of [-1, 1]) T.box(s * RACK_X, RAIL_Y, zMid, 0.024, 0.024, zLen, 'black');
+
+  const side = A.rect('card', 1);
+  const top = A.rect('cardTop', 1);
+  const end = A.rect('cardEnd', 1);
+  // A parcel w x h x d, base centre (x, y, z), turned a by radians.
+  const parcel = (x, y, z, a, w, h, d, straps) => {
+    const M = new THREE.Matrix4().makeTranslation(x, y + h / 2, z).multiply(new THREE.Matrix4().makeRotationY(a));
+    const L = (lx, ly, lz) => new THREE.Vector3(lx, ly, lz).applyMatrix4(M).toArray();
+    T.boxM(M, w, h, d, [side, side, top, side, end, end]);
+    const sm = (lx, ly, lz) => M.clone().multiply(new THREE.Matrix4().makeTranslation(lx, ly, lz));
+    const SW = 0.05;
+    const TH = 0.004;
+    // Strap across the parcel (over the top and down both sides), its
+    // tails hooked to the side rails, and the ratchet buckle on top.
+    if (straps.across !== undefined) {
+      const sz = straps.across * d;
+      T.boxM(sm(0, h / 2 + 0.003, sz), w + 0.012, TH, SW, Array(6).fill('strap'));
+      for (const s of [-1, 1]) {
+        T.boxM(sm(s * (w / 2 + 0.003), 0, sz), TH, h + 0.004, SW, Array(6).fill('strap'));
+        const foot = L(s * (w / 2 + 0.003), -h / 2 + 0.01, sz);
+        const rail = [Math.sign(foot[0] || s) * (RACK_X - 0.01), RAIL_Y, foot[2]];
+        if (Math.abs(rail[0] - foot[0]) > 0.03) T.rod(foot, rail, SW, TH, 'strap');
+      }
+      T.boxM(sm(w * 0.22, h / 2 + 0.01, sz), 0.07, 0.014, 0.05, Array(6).fill('steel'));
+    }
+    // Strap along the parcel (front to back), over the top and down the ends.
+    if (straps.along !== undefined) {
+      const sx = straps.along * w;
+      T.boxM(sm(sx, h / 2 + 0.005, 0), SW, TH, d + 0.014, Array(6).fill('strap'));
+      for (const s of [-1, 1]) T.boxM(sm(sx, 0, s * (d / 2 + 0.004)), SW, h + 0.006, TH, Array(6).fill('strap'));
+    }
+  };
+  // A big box, a small one on top of it, and a flat one behind.
+  parcel(-0.14, FLOOR_Y, 0.26, 0.05, 0.56, 0.27, 0.46, { across: 0.22, along: -0.28 });
+  parcel(-0.1, FLOOR_Y + 0.278, 0.2, 0.28, 0.3, 0.14, 0.26, { along: 0.1 });
+  parcel(0.24, FLOOR_Y, 0.7, -0.12, 0.42, 0.2, 0.32, { across: -0.1 });
 }
 
 // Tyre and hubcap, axis along x, centre at the origin (atlas UVs).
@@ -320,6 +454,7 @@ export function buildCar(opts = {}) {
   const pc = new THREE.Color(PAINT);
   const cols = new Float32Array(body.paint.pos.length);
   for (let i = 0; i < cols.length; i += 3) cols.set([pc.r, pc.g, pc.b], i);
+  wearDings(paintGeo.attributes.position.array, cols);
   paintGeo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
   paintGeo.computeVertexNormals();
   const glassGeo = new THREE.BufferGeometry();
@@ -335,7 +470,10 @@ export function buildCar(opts = {}) {
   }
   surfaceStrips(T, body, A);
   trimParts(T, A);
+  dingScratches(T);
   const trimGeo = T.build();
+  wearDings(trimGeo.attributes.position.array, null);
+  trimGeo.computeVertexNormals();
 
   const M = makeMaterials(opts.env || null, A);
   const paint = new THREE.Mesh(paintGeo, M.paint);
