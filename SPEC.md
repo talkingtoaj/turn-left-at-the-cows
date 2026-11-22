@@ -398,3 +398,29 @@ Source: `docs/reviews/2026-11-15-critic-round-3-theme.md`. All five critics said
 - **Tagline** (the owner's words, splash, itch short description and page meta): "It's 1992, you have no GPS and a map five years out of date. Things have shifted in that time. You just might need to ask directions from the locals." The cow tagline and the "Even the cows" README line are gone.
 - **American English is the standard** for every word the player sees or hears (Mom, railroad, tire, "watch for"). Identifiers and docs may stay as they are. Changed lines go through the review rule as edits.
 - Not chosen: dating the bad-direction traps, an extra shift placed near the start of mission 1, rewriting the mission 1 brief and theme paragraph, the splash stamp wording.
+
+### 9q. Busier world, better traffic (LOCKED, 22 Nov 2026, grilling round)
+The owner compared the game with shots from other indie games: a hillside thick with grass tufts, rocks and cows, and boxy trucks with roof racks, jerry cans and spare wheels. The game looks bare next to them, traffic makes no engine sound, the traffic cars are plainer than the player's, and traffic drives through junctions in a way no one would.
+
+- **Keep the 9e look** (real textures on simple shapes) and make it busier. No switch to flat low-poly.
+- **Models are built in code** like the current cars, so dents and the one-mesh-per-type traffic keep working. CC0 packs only for small props such as jerry cans.
+- **Sound:** Freesound CC0 first, ElevenLabs for the gaps, $5 cap for this round, the owner keeps or redoes each sound on `sounds.html`.
+- **Every ticket** brings before and after shots and holds 60 FPS on a laptop with built-in graphics (see 2).
+- **Tier 1 is picked by what a player notices in the first minute** of mission 1: their own car, the ground beside the road, their engine, the cows, a car or two going by. Tier 1 lands before the public build on 28 Nov; tier 2 comes after the jam.
+
+**Tier 1, in order**
+1. **Roadside.** A carpet of grass blades near the camera that sways in the wind and fades out with distance (the tussocks stay for the far view); pebbles and tire ruts along dirt roads; tall weeds along verges and fence lines.
+2. **The player's car.** A roof rack with a couple of parcels strapped on (Darlene delivers packages), mud flaps, a dent or two.
+3. **Cows.** Crisper facets, patches that differ cow to cow, an udder, a head-down grazing pose.
+4. **Junctions.** Traffic slows before a turn and follows a curved path in its own lane; blinks the amber lamp a few seconds first; stops fully at a STOP sign where a dirt or minor road meets a paved one (paved roads never stop) and goes when clear; waits for cars already in the junction and for the player; at dead ends and broken bridges makes a three-point turn (the one it uses after honking), never a flip on the spot. STOP signs stand at every minor-to-paved junction: red octagon, painted word, a slight lean on rural roads. They are not a map trap tell.
+5. **Engine sounds.** Diesel on trucks and pickups, a quiet petrol hum on sedans, wagons and hatches, heard in 3D with a pitch drop as they pass. One review pass on the player's 3 engine loops; replace only the ones the owner marks redo.
+6. **Wildflowers and clover** patches.
+
+**Tier 2**
+- Traffic within about 40 m uses the player car's fine body; the coarse body past that, the stand-in past 140 m as now. This comes first; the rest of the vehicle work waits on it.
+- A random add-on kit per traffic car, fitted to its type (rack, spare wheel, bull bar, mud flaps, jerry cans, ladder, rust, a mismatched door; hay and rust on farm trucks, toolboxes and ladders on pickups).
+- Dirt on traffic's lower body, more on dirt roads.
+- New types: a boxy old 4x4 (our own design, not a copy of a real model), a panel van, a farmer's ex-army 6x6 bought as surplus (faded paint, rare, mostly parked), a semi with a flatbed or grain trailer (parked only at first: a 15 m truck needs new traffic rules), air-brake hiss for the semi.
+- Gravel crunch under traffic tires on dirt roads.
+
+- Not chosen: the flat low-poly look, AI-made 3D models, military traffic, semis driving (a later ticket), new tractors (they already exist).
