@@ -49,6 +49,8 @@ const MAT = {
   woodDark: [0x4a3624, 0, 0.9, 0],
   hay: [0xc9b26a, 0, 0.95, 0],
   liner: [0x0e0e0e, 0, 0.95, 0],
+  alu: [0xd4d8dc, 0, 0.32, 1], // bumper looks shared with the fine body (caratlas.js)
+  satin: [0x202224, 0, 0.4, 0],
 };
 
 // Tag a geometry with colour, paint mask and roughness / metalness.
