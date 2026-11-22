@@ -37,7 +37,7 @@ export const CARPET_ON = typeof window !== 'undefined' && new URLSearchParams(wi
 // Shared wind clock and direction (world x, z).
 export const WIND = { uTime: { value: 0 }, uWind: { value: new THREE.Vector2(0.8, 0.6).normalize() } };
 
-const BLADE_H = 0.4; // m, a clump at scale 1
+const BLADE_H = 0.62; // m, a clump at scale 1 (before per-clump height variety)
 const MAX_GRASS = 16000;
 const MAX_PEBBLES = 3000;
 const MAX_CLOVER = 6000;
@@ -105,19 +105,22 @@ normal = normalize( vNormal );`);
   return mat;
 }
 
-// A clump of nine thin blades: unit height, radius about 0.3, base at 0.
-// Vertex colours: dark at the root, light and a little straw at the tip
-// (multiplied by the clump's ground colour).
+// A clump of nine thin blades: unit height, base at 0, a tight tuft whose
+// blades fan out to a radius of about 0.3. Heights run from a third to full
+// so the clump has a ragged top. Vertex colours: dark at the root, light
+// yellow-green at the tip (multiplied by the clump's ground colour), so the
+// blades stand out from the ground texture behind them. A share of blades
+// turn dry tan in the shader (grassColor).
 function clumpGeo() {
   const pos = [];
   const col = [];
   const N = 9;
   for (let i = 0; i < N; i++) {
     const a = (i / N) * Math.PI * 2 + Math.sin(i * 2.3) * 0.5;
-    const r0 = 0.03 + 0.12 * ((i * 5) % 3) / 2;
-    const lean = 0.08 + 0.12 * ((i * 3) % 4) / 3;
-    const h = 0.55 + 0.45 * ((i * 7) % 5) / 4;
-    const w = 0.02;
+    const r0 = 0.012 + 0.05 * ((i * 5) % 3) / 2;
+    const lean = 0.1 + 0.2 * ((i * 3) % 4) / 3;
+    const h = 0.34 + 0.66 * ((i * 7) % 9) / 8;
+    const w = 0.026 + 0.008 * (i % 2);
     const cx = Math.cos(a);
     const cz = Math.sin(a);
     // The blade faces across its lean a little, so it reads from most sides.
@@ -127,8 +130,9 @@ function clumpGeo() {
     const bx = cx * r0;
     const bz = cz * r0;
     pos.push(bx - px, 0, bz - pz, bx + px, 0, bz + pz, bx + cx * lean, h, bz + cz * lean);
-    const tip = 0.96 + 0.1 * ((i * 3) % 2);
-    col.push(0.62, 0.68, 0.58, 0.62, 0.68, 0.58, tip, tip * 1.05, tip * 0.84);
+    // Short blades a little darker at the tip too: they sit in the tuft.
+    const tip = 1.12 + 0.22 * h + 0.08 * ((i * 3) % 2);
+    col.push(0.4, 0.46, 0.36, 0.4, 0.46, 0.36, tip * 0.98, tip * 1.04, tip * 0.6);
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
@@ -138,6 +142,57 @@ function clumpGeo() {
   for (let i = 1; i < nrm.length; i += 3) nrm[i] = 1;
   g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
   return g;
+}
+
+// Some blades in each clump are dry and tan instead of the ground's green:
+// which ones comes from the clump's position and the blade's index
+// (gl_VertexID / 3, the geometry is not indexed), so clumps differ.
+const DRY_SHARE = 0.12;
+function grassColor(mat) {
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (sh, r) => {
+    if (prev) prev(sh, r);
+    sh.vertexShader = sh.vertexShader.replace('#include <color_vertex>', `#include <color_vertex>
+#ifdef USE_INSTANCING_COLOR
+{
+  float lh = fract(sin(dot(instanceMatrix[3].xz, vec2(12.9898, 78.233))) * 43758.5453);
+  float lb = fract(lh * 7.31 + float(gl_VertexID / 3) * 0.618);
+  float ldry = step(lb, ${DRY_SHARE.toFixed(2)});
+  float ltip = step(0.001, position.y);
+  // Dry tan, a little lighter or darker with the clump's own colour.
+  vec3 ltan = mix(vec3(0.17, 0.16, 0.07), vec3(0.56, 0.5, 0.25), ltip) * (0.8 + 0.4 * lh);
+  vColor.rgb = mix(vColor.rgb, ltan, ldry);
+}
+#endif`);
+  };
+  const prevKey = mat.customProgramCacheKey;
+  mat.customProgramCacheKey = () => `${prevKey.call(mat)}grass`;
+  return mat;
+}
+
+// Wet plants (rain, src/game/wetness.js `wet`, set from main.js): darker, and
+// a little sheen at a glancing view, like the wet ground.
+const WET_U = { value: 0 };
+function wetLook(mat) {
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (sh, r) => {
+    if (prev) prev(sh, r);
+    sh.uniforms.uWet = WET_U;
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float uWet;')
+      .replace('#include <normal_fragment_begin>', 'diffuseColor.rgb *= 1.0 - 0.4 * uWet;\n#include <normal_fragment_begin>')
+      .replace('#include <opaque_fragment>', `if (uWet > 0.001) {
+  // Light falling here (what the Lambert term was lit by), sent back as a
+  // grey-blue sheen, strongest at a glancing view.
+  vec3 lirr = (reflectedLight.directDiffuse + reflectedLight.indirectDiffuse) / max(diffuseColor.rgb, vec3(0.03));
+  float lfr = 1.0 - abs(dot(normal, normalize(vViewPosition)));
+  outgoingLight += lirr * vec3(0.8, 0.86, 0.95) * (uWet * (0.008 + 0.035 * lfr * lfr));
+}
+#include <opaque_fragment>`);
+  };
+  const prevKey = mat.customProgramCacheKey;
+  mat.customProgramCacheKey = () => `${prevKey.call(mat)}wet`;
+  return mat;
 }
 
 // Petals take the instance colour, stems and leaves keep their own: aHead
@@ -338,16 +393,16 @@ export function buildCarpet(world, terrain, groundColor = null) {
   // Fades as uniforms: they move in when the reach shrinks (setDetail).
   const grassFade = { value: new THREE.Vector2(CARPET.fade, CARPET.radius) };
   const flowerFade = { value: new THREE.Vector2(FLOWER.fade, FLOWER.radius) };
-  const grassMat = swayMaterial(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }), 0.16, grassFade);
+  const grassMat = wetLook(grassColor(swayMaterial(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }), 0.16, grassFade)));
   const grass = new THREE.InstancedMesh(clumpGeo(), grassMat, MAX_GRASS);
   grass.name = 'carpet_grass';
   const pebbleMat = new THREE.MeshLambertMaterial({ flatShading: true });
   const pebbles = new THREE.InstancedMesh(pebbleGeo(), pebbleMat, MAX_PEBBLES);
   pebbles.name = 'carpet_pebbles';
-  const cloverMat = headColor(swayMaterial(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }), 0.08, grassFade), 'clover');
+  const cloverMat = wetLook(headColor(swayMaterial(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }), 0.08, grassFade), 'clover'));
   const clover = new THREE.InstancedMesh(cloverGeo(), cloverMat, MAX_CLOVER);
   clover.name = 'carpet_clover';
-  const flowerMat = headColor(swayMaterial(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }), 0.2, flowerFade), 'flower');
+  const flowerMat = wetLook(headColor(swayMaterial(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }), 0.2, flowerFade), 'flower'));
   const flowers = new THREE.InstancedMesh(flowerGeo(), flowerMat, MAX_FLOWERS);
   flowers.name = 'carpet_flowers';
   for (const m of [grass, pebbles, clover, flowers]) {
@@ -409,7 +464,9 @@ export function buildCarpet(world, terrain, groundColor = null) {
       const z = t.grass[o + 2];
       gn.set(H(x - 1, z) - H(x + 1, z), 2, H(x, z - 1) - H(x, z + 1)).normalize();
       q.setFromUnitVectors(up, gn).multiply(qr.setFromAxisAngle(up, t.grass[o + 3]));
-      m4.compose(v.set(x, t.grass[o + 1], z), q, s.set(sc, sc * BLADE_H, sc));
+      // Each clump its own height (0.75 to 1.35), from its rank's low digits.
+      const hv = 0.75 + 0.6 * ((t.grass[o + 6] * 97.3) % 1);
+      m4.compose(v.set(x, t.grass[o + 1], z), q, s.set(sc, sc * BLADE_H * hv, sc));
       m4.toArray(gm, k * 16);
       clumpColor(t.grass[o], t.grass[o + 2], t.grass[o + 1], t.grass[o + 5], col);
       col.toArray(gcol, k * 3);
@@ -589,6 +646,10 @@ export function buildCarpet(world, terrain, groundColor = null) {
     materials: { grass: grassMat, pebble: pebbleMat, clover: cloverMat, flower: flowerMat },
     // detail: 1 at full resolution .. 0 at the scaler's lowest step.
     // now: jump straight there (dev tools) instead of easing.
+    // wet: 0 dry .. 1 soaked (src/game/wetness.js), the same value the ground uses.
+    setWet(wet) {
+      WET_U.value = wet;
+    },
     setDetail(detail, now = false) {
       reachTarget = REACH_MIN + (1 - REACH_MIN) * Math.max(0, Math.min(1, detail));
       if (now) reach = reachTarget;
