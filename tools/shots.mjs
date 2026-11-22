@@ -72,6 +72,21 @@ const VIEWS = [
   // Wildflowers and clover (#41): a damp bottom by Pond Road, a dry meadow by Farm Road.
   { name: 'flowers_damp', car: { x: 4912, y: 674, heading: 0 }, cam: [4907, 1.7, 677], look: [4885, 0, 668] },
   { name: 'flowers_dry', car: { x: 2598, y: 493, heading: 0 }, cam: [2603, 1.7, 497], look: [2628, 0, 490] },
+  // Traffic (#40, #50): cars pinned on Highway 9 ahead of the player's car.
+  // pin: [id, metres along the road from the car, lane side (1 = the car's
+  // lane, -1 = the other), facing (1 = same way as the car, -1 = toward it)].
+  // tcam: camera on the first pinned car, [right, up, back] in its frame,
+  // looking at [right, up, back] on it.
+  { name: 'traffic_close', car: { road: 'hwy9', at: 0.4 }, pin: [['car0', 20, 1, 1]], tcam: [[-4.6, 1.6, -6.4], [0, 0.7, 0]] },
+  { name: 'traffic_close_rear', car: { road: 'hwy9', at: 0.4 }, pin: [['car3', 20, -1, -1]], tcam: [[-3.2, 1.7, 7.3], [0, 0.7, 0]] },
+  { name: 'traffic_pickup', car: { road: 'hwy9', at: 0.4 }, pin: [['car8', 20, 1, 1]], tcam: [[5.5, 1.5, -5.8], [0, 0.8, 0.3]] },
+  { name: 'traffic_pickup_side', car: { road: 'hwy9', at: 0.4 }, pin: [['car8', 20, 1, 1]], tcam: [[3.6, 1.1, -1.2], [0, 0.7, 0.2]] },
+  { name: 'traffic_wagon', car: { road: 'hwy9', at: 0.4 }, pin: [['car1', 20, -1, -1]], tcam: [[5.2, 1.3, 6.0], [0, 0.7, 0]] },
+  { name: 'traffic_row', car: { road: 'hwy9', at: 0.4 }, pin: [['car1', 30, -1, -1], ['car2', 38, 1, 1], ['car3', 46, -1, -1], ['car5', 54, 1, 1], ['car6', 62, -1, -1], ['car8', 70, 1, 1]], rel: [0.6, 2.2, 5.5] },
+  // One car each side of the 40 m switch, same camera: no pop between them.
+  { name: 'traffic_switch_in', car: { road: 'hwy9', at: 0.4 }, pin: [['car0', 37, -1, -1]], rel: [1.2, 2.4, -3], relLook: [-2.4, 0.6, -40] },
+  { name: 'traffic_switch_mid', car: { road: 'hwy9', at: 0.4 }, pin: [['car0', 40, -1, -1]], rel: [1.2, 2.4, -3], relLook: [-2.4, 0.6, -40] },
+  { name: 'traffic_switch_out', car: { road: 'hwy9', at: 0.4 }, pin: [['car0', 43, -1, -1]], rel: [1.2, 2.4, -3], relLook: [-2.4, 0.6, -40] },
 ];
 
 const pw = await import(findPlaywright());
@@ -128,6 +143,51 @@ for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) 
     st.car.y = y;
     st.car.heading = heading;
     st.car.speed = 0;
+    // Pin traffic cars on the car's road (re-applied after every traffic tick).
+    const amb = window.__amb;
+    if (amb && !amb.__pinWrap) {
+      const up = amb.update.bind(amb);
+      amb.update = (...a) => {
+        const r = up(...a);
+        for (const p of window.__pins || []) {
+          const c = amb.cars.find((q) => q.id === p.id);
+          if (c) Object.assign(c, { x: p.x, y: p.y, heading: p.heading, speed: 0, blink: 0 });
+        }
+        return r;
+      };
+      amb.__pinWrap = true;
+    }
+    window.__pins = [];
+    if (v.pin && v.car.road) {
+      const r = WORLD.roads.find((q) => q.id === v.car.road);
+      const i0 = Math.floor(r.points.length * v.car.at);
+      for (const [id, along, lane, facing] of v.pin) {
+        // Walk the road polyline `along` metres from point i0.
+        let i = i0;
+        let left = along;
+        let px = r.points[i][0];
+        let py = r.points[i][1];
+        let dx = 0;
+        let dy = -1;
+        while (i < r.points.length - 1) {
+          const [bx, by] = r.points[i + 1];
+          const L = Math.hypot(bx - px, by - py);
+          dx = (bx - px) / (L || 1);
+          dy = (by - py) / (L || 1);
+          if (L >= left) { px += dx * left; py += dy * left; break; }
+          left -= L;
+          px = bx;
+          py = by;
+          i++;
+        }
+        // Lane offset the same way the player's car is placed above.
+        const ox = -dy * -1.2 * lane;
+        const oy = dx * -1.2 * lane;
+        let hd = (Math.atan2(dx, -dy) * 180) / Math.PI;
+        if (facing < 0) hd += 180;
+        window.__pins.push({ id, x: px + ox, y: py + oy, heading: (hd + 360) % 360 });
+      }
+    }
     const { renderer, camera, world3d } = window.__three;
     if (!renderer.__orig) renderer.__orig = renderer.render.bind(renderer);
     const H = (px, py) => world3d.terrain.heightAt(px, py);
@@ -149,6 +209,19 @@ for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) 
           c.lookAt(a.x, H(a.x, a.y) + 0.8, a.y);
           c.updateMatrixWorld();
         }
+      } else if (v.tcam && window.__pins.length) {
+        // Camera beside the first pinned traffic car, looking at it.
+        const p = window.__pins[0];
+        const h = (p.heading * Math.PI) / 180;
+        const fx = Math.sin(h);
+        const fy = -Math.cos(h);
+        const at = ([rr, uu, bb]) => [p.x + -fy * rr - fx * bb, uu, p.y + fx * rr - fy * bb];
+        const [cx, cu, cy] = at(v.tcam[0]);
+        const [lx, lu, ly] = at(v.tcam[1]);
+        c.position.set(cx, H(cx, cy) + cu, cy);
+        c.up.set(0, 1, 0);
+        c.lookAt(lx, H(p.x, p.y) + lu, ly);
+        c.updateMatrixWorld();
       } else if (v.cam) {
         c.position.set(v.cam[0], H(v.cam[0], v.cam[2]) + v.cam[1], v.cam[2]);
         c.up.set(0, 1, 0);

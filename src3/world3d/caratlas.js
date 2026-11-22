@@ -50,6 +50,13 @@ const SW = {
   wood: ['#4a2e1c', 0.6, 0],
   strap: ['#d9541c', 0.7, 0],
   scratch: ['#b8aaa4', 0.55, 0.4],
+  // Traffic fine bodies (traffic3d.js): paint is tinted per car, so it is a
+  // light gray here (the same as the coarse bodies' paint).
+  tpaint: ['#dddddd', 0.38, 0],
+  tglass: ['#121a20', 0.06, 0.3],
+  hay: ['#c9b26a', 0.95, 0],
+  plank: ['#7a5a3a', 0.85, 0],
+  plankDark: ['#4a3624', 0.9, 0],
 };
 const SW_NAMES = Object.keys(SW);
 const swRect = (i) => [(i % 16) * 32, 320 + Math.floor(i / 16) * 32, 32, 32];

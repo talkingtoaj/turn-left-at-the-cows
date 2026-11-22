@@ -33,7 +33,7 @@ const WHEELS = [[-0.77, S.wheels[0][0]], [0.77, S.wheels[0][0]], [-0.77, S.wheel
 
 // ---------- trim builder (non-indexed, uv into the atlas) ----------
 
-function trimBuilder(A) {
+export function trimBuilder(A) {
   const pos = [];
   const uv = [];
   const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
