@@ -18,9 +18,9 @@
 import { carPaint } from './carpaint.js';
 import { makeRng, hashString } from '../drive/geom.js';
 
-export const TRAFFIC_TYPES = ['sedan', 'wagon', 'pickup', 'hatch', 'farmtruck'];
+export const TRAFFIC_TYPES = ['sedan', 'wagon', 'pickup', 'hatch', 'farmtruck', 'fourbyfour'];
 // Types for the ten traffic cars (car0..car9), mixed so each shows up.
-const TYPE_OF = ['sedan', 'wagon', 'pickup', 'hatch', 'sedan', 'farmtruck', 'wagon', 'hatch', 'pickup', 'sedan'];
+const TYPE_OF = ['sedan', 'wagon', 'pickup', 'hatch', 'fourbyfour', 'farmtruck', 'wagon', 'hatch', 'pickup', 'sedan'];
 const numOf = (id) => Number(String(id).replace(/\D/g, '')) || 0;
 export function trafficType(id) {
   return TYPE_OF[numOf(id) % TYPE_OF.length];
@@ -38,6 +38,8 @@ export const KIT_FITS = {
   hatch: { rack: 0.35, rackLoad: 0.6, flaps: 0.3, door: 0.25 },
   wagon: { rack: 0.6, rackLoad: 0.5, rackCans: 0.4, roofSpare: 0.35, bullbar: 0.3, rearSpare: 0.3, flaps: 0.4, door: 0.15 },
   pickup: { bullbar: 0.4, flaps: 0.5, ladder: 0.35, toolbox: 0.45, bedSpare: 0.3, bedCans: 0.35, hay: 0.4, door: 0.15 },
+  // The boxy old 4x4 (#44): its spare is always on the back door (part of the body).
+  fourbyfour: { rack: 0.7, rackLoad: 0.4, rackCans: 0.55, roofSpare: 0.3, bullbar: 0.5, flaps: 0.55, door: 0.15 },
   farmtruck: { hay: 1, hay2: 0.6, hay3: 0.45, rearSpare: 0.5, bedCans: 0.45, bullbar: 0.3, flaps: 0.4, door: 0.2 },
 };
 // The slow farm trucks in hazards3d.js have no id: two bales.
@@ -114,13 +116,13 @@ export function carKit(id) {
   const type = trafficType(id);
   const mask = maskFor(type, ordinalOf(id));
   const r = makeRng(hashString(`wear:${id}`) || 1);
-  const paint = carPaint(id);
+  const paint = carPaint(id, type);
   // Rust: older cars, farm trucks most, pickups next.
-  const rustBias = type === 'farmtruck' ? 0.45 : type === 'pickup' ? 0.1 : 0;
+  const rustBias = type === 'farmtruck' ? 0.45 : type === 'pickup' || type === 'fourbyfour' ? 0.1 : 0;
   let rust = Math.max(0, Math.min(1, (paint.age - 0.55) * 1.6 + rustBias + (r() - 0.5) * 0.3));
   if (type === 'farmtruck') rust = Math.max(rust, 0.45 + 0.3 * r()); // every farm truck has rust
   // Dirt they carry even on paved roads.
-  const [lo, hi] = type === 'farmtruck' ? [0.4, 0.65] : type === 'pickup' ? [0.12, 0.38] : [0, 0.18];
+  const [lo, hi] = type === 'farmtruck' ? [0.4, 0.65] : type === 'pickup' || type === 'fourbyfour' ? [0.12, 0.38] : [0, 0.18];
   const dirtBase = lo + (hi - lo) * r();
   const door = mask & (1 << KIT_BIT.door) ? doorColor(id, paint.color, r) : null;
   return { type, mask, parts: KIT_PARTS.filter((p, b) => mask & (1 << b)), rust, door, dirtBase };

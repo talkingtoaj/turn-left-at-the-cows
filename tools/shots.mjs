@@ -71,6 +71,12 @@ const VIEWS = [
   { name: 'traffic_kit_close', car: { road: 'hwy9', at: 0.4 }, pin: [['car6', 20, 1, 1]], tcam: [[4.6, 2.6, -4.6], [0, 1.0, 0.6]] },
   // The same three sedans, the near one after a long dirt road (#43).
   { name: 'traffic_sedans_dirty', car: { road: 'hwy9', at: 0.4 }, pin: [['car0', 16, 1, 1], ['car4', 24, 1, 1], ['car9', 32, 1, 1]], dirt: [['car0', 0.8], ['car4', 0.45]], tcam: [[6, 2.6, -22], [0, 0.8, -8]] },
+  // The boxy old 4x4 (#44, car4): front three-quarter, side, rear (spare on
+  // the door), and in a row with other traffic seen from the player's car.
+  { name: 'traffic_4x4', car: { road: 'hwy9', at: 0.4 }, pin: [['car4', 20, 1, 1]], tcam: [[4.4, 1.7, -5.6], [0, 1.0, 0]] },
+  { name: 'traffic_4x4_side', car: { road: 'hwy9', at: 0.4 }, pin: [['car4', 20, 1, 1]], tcam: [[5.6, 1.3, -0.2], [0, 1.0, 0]] },
+  { name: 'traffic_4x4_rear', car: { road: 'hwy9', at: 0.4 }, pin: [['car4', 20, 1, 1]], tcam: [[3.4, 1.9, 6.0], [0, 1.0, 0]] },
+  { name: 'traffic_4x4_row', car: { road: 'hwy9', at: 0.4 }, pin: [['car4', 26, -1, -1], ['car2', 34, 1, 1], ['car1', 44, -1, -1], ['car6', 54, 1, 1]], rel: [0.6, 2.2, 5.5] },
   { name: 'traffic_row', car: { road: 'hwy9', at: 0.4 }, pin: [['car1', 30, -1, -1], ['car2', 38, 1, 1], ['car3', 46, -1, -1], ['car5', 54, 1, 1], ['car6', 62, -1, -1], ['car8', 70, 1, 1]], rel: [0.6, 2.2, 5.5] },
   // One car each side of the 40 m switch, same camera: no pop between them.
   { name: 'traffic_switch_in', car: { road: 'hwy9', at: 0.4 }, pin: [['car0', 37, -1, -1]], rel: [1.2, 2.4, -3], relLook: [-2.4, 0.6, -40] },

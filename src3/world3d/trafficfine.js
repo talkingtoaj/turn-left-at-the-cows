@@ -19,6 +19,7 @@ import { carAtlas } from './caratlas.js';
 import { trimBuilder } from './car3d.js';
 import { kitInto } from './trafficKit.js';
 import { KIT_BIT } from '../../src/ambient/carkit.js';
+import { fourByFourFine } from './fourbyfour3d.js';
 
 // Bumper and trim look per type (the coarse bodies in traffic3d.js read it too).
 export const FINE_STYLE = {
@@ -225,11 +226,10 @@ function endParts(name, S, T, A) {
   }
 }
 
-function loftFine(name) {
-  const A = carAtlas();
-  const S = { ...SPECS[name], trunk: name === 'sedan', bed: name === 'pickup' };
+// The fine lofted shell of a spec: paint and glass parts, and a trim
+// builder holding the loft's trim (more trim goes on it before trimPart).
+function fineShell(S, A, paintMask) {
   const body = loftBody(S, { step: 0.09 });
-  const paintMask = name === 'pickup' ? 2 : 1;
   const parts = [loftPart(body.paint, A.sw('tpaint'), paintMask), loftPart(body.glass, A.sw('tglass'), 0)];
   const T = trimBuilder(A);
   for (const t of body.trim) {
@@ -237,6 +237,14 @@ function loftFine(name) {
     const p = t.tri;
     T.tri([p[0], p[1], p[2]], [p[3], p[4], p[5]], [p[6], p[7], p[8]], u, u, u);
   }
+  return { parts, T };
+}
+
+function loftFine(name) {
+  const A = carAtlas();
+  const S = { ...SPECS[name], trunk: name === 'sedan', bed: name === 'pickup' };
+  const paintMask = name === 'pickup' ? 2 : 1;
+  const { parts, T } = fineShell(S, A, paintMask);
   stripsFor(S, T, A);
   endParts(name, S, T, A);
   parts.push(trimPart(T, A, paintMask), ...fineKit(name, A));
@@ -337,5 +345,6 @@ function fineKit(type, A) {
 }
 
 export function fineGeometry(name) {
+  if (name === 'fourbyfour') return fourByFourFine({ fineShell, trimPart, stripsFor, wheelInto, fineKit });
   return name === 'farmtruck' ? farmTruckFine() : loftFine(name);
 }

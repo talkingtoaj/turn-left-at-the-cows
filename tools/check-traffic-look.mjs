@@ -9,7 +9,7 @@
 //   for every part that fits;
 // - dirt (dirtStep, #43): builds on dirt roads over ticks, fades on paved.
 //   node tools/check-traffic-look.mjs
-import { carPaint, PALETTE } from '../src/ambient/carpaint.js';
+import { carPaint, PALETTE, TYPE_PALETTE } from '../src/ambient/carpaint.js';
 import { createFineLod, distanceFade, FINE_NEAR, FINE_FAR, FINE_MAX, GATE_RATE } from '../src3/world3d/trafficlod.js';
 import { carKit, dirtStep, trafficType, KIT_FITS, KIT_NEEDS, KIT_PARTS, TRAFFIC_TYPES, DIRT_MAX } from '../src/ambient/carkit.js';
 import { kitInto } from '../src3/world3d/trafficKit.js';
@@ -63,6 +63,23 @@ const satOf = (list) => list.reduce((s, p) => s + hsv(p.color)[1], 0) / list.len
 const old = paints.filter((p) => p.age > 0.85);
 const young = paints.filter((p) => p.age < 0.4);
 ok('older cars are duller', satOf(old) < satOf(young), `sat ${satOf(old).toFixed(3)} vs ${satOf(young).toFixed(3)}`);
+
+// Types with their own colors (the 4x4, #44): no toy colors there either,
+// even after the shade shift and sun fade; the type picks the palette, and
+// the other types' paint is the same as without a type.
+{
+  ok('no toy colors in the type palettes', Object.values(TYPE_PALETTE).every((list) => list.every(([c]) => !toy(c))));
+  const four = ids.map((id) => carPaint(id, 'fourbyfour'));
+  const fourToys = four.map((p) => p.color).filter(toy);
+  ok('4x4 paint: no toy colors', fourToys.length === 0, fourToys.slice(0, 5).map((c) => `${c.toString(16)} ${toy(c)}`).join(', '));
+  const near = (c, list) => list.some(([b]) => Math.abs(((c >> 16) & 255) - ((b >> 16) & 255)) + Math.abs(((c >> 8) & 255) - ((b >> 8) & 255)) + Math.abs((c & 255) - (b & 255)) < 100);
+  // (shade shift and sun fade move a color a little off its base)
+  ok('4x4 paint comes from its own palette', four.every((p) => near(p.color, TYPE_PALETTE.fourbyfour)));
+  ok('4x4s include working colors (olive, sand, orange)', [0x4f5a36, 0xbfae88, 0x93552a].every((b) => four.some((p) => near(p.color, [[b, 1]]))));
+  ok('other types: same paint with or without the type', ids.slice(0, 200).every((id) => JSON.stringify(carPaint(id, trafficType(id) === 'fourbyfour' ? 'sedan' : trafficType(id))) === JSON.stringify(carPaint(id))));
+  ok('a 4x4 drives in traffic (one of the ten)', Array.from({ length: 10 }, (_, i) => trafficType(`car${i}`)).includes('fourbyfour'));
+  ok('kits use the 4x4 paint for the odd door test', Array.from({ length: 60 }, (_, i) => `car${i}`).filter((id) => trafficType(id) === 'fourbyfour').every((id) => carKit(id).door !== carPaint(id, 'fourbyfour').color));
+}
 
 // Fine body fade.
 ok('fully fine inside FINE_NEAR', distanceFade(FINE_NEAR - 1) === 1 && distanceFade(5) === 1);
@@ -125,9 +142,9 @@ ok('fade falls steadily across the band', distanceFade(38) > distanceFade(40) &&
   }
   const ten = a.slice(0, 10);
   ok('the ten traffic cars: some bare, some kitted', ten.some((k) => k.parts.length === 0 || k.parts.length === 1) && ten.some((k) => k.parts.length >= 3));
-  ok('odd doors only with the door part, and not the body color', a.every((k, i) => (k.door != null) === k.parts.includes('door') && k.door !== carPaint(kitIds[i]).color));
+  ok('odd doors only with the door part, and not the body color', a.every((k, i) => (k.door != null) === k.parts.includes('door') && k.door !== carPaint(kitIds[i], k.type).color));
   ok('rust between 0 and 1, older cars rustier', a.every((k) => k.rust >= 0 && k.rust <= 1)
-    && a.filter((k, i) => carPaint(kitIds[i]).age < 0.4 && k.type !== 'farmtruck').every((k) => k.rust < 0.3));
+    && a.filter((k, i) => carPaint(kitIds[i], k.type).age < 0.4 && k.type !== 'farmtruck').every((k) => k.rust < 0.3));
   // Every fitting part has pieces to show (door is drawn by the shader).
   for (const t of TRAFFIC_TYPES) {
     const seen = new Set();

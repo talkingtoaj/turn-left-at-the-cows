@@ -6,6 +6,7 @@
 // 3D code paints it on pickups only.
 //
 //   carPaint('car3') -> { color, color2, age }   // color2 null when one tone
+//   carPaint('car4', 'fourbyfour')               // a type with its own colors (TYPE_PALETTE)
 //
 // Same id, same paint, every time.
 
@@ -29,6 +30,27 @@ export const PALETTE = [
   [0x8e2a24, 4], // red (kept dark: they fade)
   [0x2b5452, 2], // dark teal (1990s)
 ];
+// The boxy old 4x4 (#44) has its own colors: the paint of working 4x4s
+// that live outside on farms, sand, khaki and olive, a burnt orange like
+// the owner's reference, white, and the odd faded red or blue-gray. All
+// kept dull: they fade.
+export const TYPE_PALETTE = {
+  fourbyfour: [
+    [0xe2ded2, 12], // white
+    [0xbfae88, 10], // sand
+    [0x8f8562, 6], // khaki
+    [0x4f5a36, 8], // olive
+    [0x24402f, 6], // dark green
+    [0x93552a, 8], // burnt orange
+    [0x6b4a2e, 5], // brown
+    [0x7a2620, 4], // faded red
+    [0x6f7d86, 5], // blue-gray
+    [0x1f2a42, 3], // navy
+    [0xa7abae, 4], // silver
+    [0xd2c7a8, 4], // cream
+    [0x1d1e20, 2], // black
+  ],
+};
 // Lower tones for two-tone paint, picked to go with the upper one.
 const LOWER_ON_LIGHT = [0x5a1a1e, 0x1f2a42, 0x4d3424, 0xb5a283, 0x24402f, 0x45484b];
 const LOWER_ON_DARK = [0xa7abae, 0xe6e4de, 0xb5a283, 0xd6cdb5];
@@ -63,9 +85,9 @@ function pick(list, r) {
   return list[list.length - 1][0];
 }
 
-export function carPaint(id) {
+export function carPaint(id, type) {
   const r = makeRng(hashString(String(id)) || 1);
-  const base = pick(PALETTE, r);
+  const base = pick(TYPE_PALETTE[type] || PALETTE, r);
   const age = r(); // 0 new-ish, 1 an old car that lived outside
   const color = weather(base, r, age);
   let color2 = null;

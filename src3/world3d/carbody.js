@@ -38,7 +38,7 @@ function pl(points) {
 // Body types. zA windscreen base, zR0 / zR1 roof front and back, zC rear
 // glass base. windows: side glass [z0, z1] ranges; pillars between are
 // blacked out (bPillar) or painted.
-function makeSpec(o) {
+export function makeSpec(o) {
   const L = o.L;
   const h = L / 2;
   const s = {

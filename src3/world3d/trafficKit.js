@@ -17,6 +17,7 @@
 // color: [z0, z1, top y, inner x] in car space (x right, z back).
 
 import { SPECS, sectionAt } from './carbody.js';
+import { FOURBYFOUR, fourByFourKit } from './fourbyfour.js';
 
 const lampY = (S) => (S.belt(-S.half) + S.y0 + 0.2) / 2 + 0.02;
 
@@ -175,12 +176,13 @@ function farmKit(B) {
 
 export function kitInto(type, B) {
   if (type === 'farmtruck') farmKit(B);
+  else if (type === 'fourbyfour') fourByFourKit(B, { rack, can, bullbar, flaps });
   else loftKit(type, B);
 }
 
 export function doorZone(type) {
   if (type === 'farmtruck') return [-1.12, -0.02, 1.5, 0.95];
-  const S = SPECS[type];
+  const S = type === 'fourbyfour' ? FOURBYFOUR : SPECS[type];
   const front = S.windows[0][0] - 0.08;
   const mid = (S.bPillar[0] + S.bPillar[1]) / 2 + (S.bPillar[0] === S.bPillar[1] ? 0.03 : 0);
   return [front, mid, S.belt(mid) + 0.02, S.hw - 0.3];

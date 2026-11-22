@@ -34,6 +34,8 @@ import { fineGeometry, FINE_STYLE } from './trafficfine.js';
 import { createFineLod, FINE_MAX } from './trafficlod.js';
 import { kitInto, doorZone } from './trafficKit.js';
 import { dirtGlsl } from './car3d.js';
+import { fourByFourCoarse } from './fourbyfour3d.js';
+import { FOURBYFOUR_LAMPS } from './fourbyfour.js';
 import { TRAFFIC_TYPES, trafficType, carKit, dirtStep, KIT_BIT, DEFAULT_KIT } from '../../src/ambient/carkit.js';
 
 export { TRAFFIC_TYPES, trafficType };
@@ -146,9 +148,8 @@ function fromArrays(pos, idx) {
   return g;
 }
 
-// A lofted car (carbody.js) with bumpers, lamps, plates, mirrors and wheels.
-function loftCar(name) {
-  const S = SPECS[name];
+// The lofted shell of a spec (carbody.js): paint, glass and the loft's trim.
+function loftShell(S) {
   const b = loftBody(S, { step: 0.26 });
   const parts = [tag(fromArrays(b.paint.pos, b.paint.idx), 'paint'), tag(fromArrays(b.glass.pos, b.glass.idx), 'glass')];
   const tri = [];
@@ -163,6 +164,13 @@ function loftCar(name) {
     tri.push(tag(g, sw === 'chrome' ? 'chrome' : 'black'));
   }
   parts.push(...tri);
+  return parts;
+}
+
+// A lofted car with bumpers, lamps, plates, mirrors and wheels.
+function loftCar(name) {
+  const S = SPECS[name];
+  const parts = loftShell(S);
   const h = S.half;
   const hw = S.hw;
   const bumper = FINE_STYLE[name]?.bumper ?? 'chrome'; // same as the fine body, so the switch doesn't show
@@ -382,14 +390,15 @@ function addInstanceAttrs(mesh, max, kit = 0, wear = [0, 0]) {
 
 // Where the blinkers sit on each type: half length, half width, front and
 // back lamp heights (the same spots as the head and tail lamps in loftCar).
-const LAMPS = { farmtruck: { half: 2.66, hw: 1.0, yF: 1.12, yR: 0.95 } };
+const LAMPS = { farmtruck: { half: 2.66, hw: 1.0, yF: 1.12, yR: 0.95 }, fourbyfour: FOURBYFOUR_LAMPS };
 for (const name of ['sedan', 'wagon', 'pickup', 'hatch']) {
   const S = SPECS[name];
   LAMPS[name] = { half: S.half, hw: S.hw, yF: (S.belt(-S.half) + S.y0 + 0.2) / 2 + 0.02, yR: (S.belt(S.half) + S.y0 + 0.2) / 2 + 0.06 };
 }
 
 // One instanced mesh of a type, on its own (the slow farm trucks in hazards3d).
-const GEOS = { sedan: () => loftCar('sedan'), wagon: () => loftCar('wagon'), pickup: () => loftCar('pickup'), hatch: () => loftCar('hatch'), farmtruck: farmTruck };
+const GEOS = { sedan: () => loftCar('sedan'), wagon: () => loftCar('wagon'), pickup: () => loftCar('pickup'), hatch: () => loftCar('hatch'), farmtruck: farmTruck,
+  fourbyfour: () => fourByFourCoarse({ loftShell, tag, box, quadZ, wheel, coarseKit }) };
 export function vehicleMesh(type, max, env = null) {
   const mesh = new THREE.InstancedMesh(GEOS[type](), makeMaterial(env), max);
   mesh.count = 0;
@@ -423,6 +432,7 @@ export function createTraffic3D(parent, opts = {}) {
     pickup: make(loftCar('pickup')),
     hatch: make(loftCar('hatch')),
     farmtruck: make(farmTruck()),
+    fourbyfour: make(GEOS.fourbyfour()),
   };
   const far = make(farGeo());
   far.castShadow = false;
