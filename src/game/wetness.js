@@ -18,17 +18,24 @@
 // function of the weather and game time from the mission start, so a mission
 // plays the same each time.
 //
-//   const W = createWetness(seed, { rain: 'on'|'off'|null, wet: 0..1|null, speed })
+//   const W = createWetness(seed, { rain: 'on'|'off'|null, wet: 0..1|null, speed, opening: true|false })
 //   W.update(state, w)    every frame; returns W
 //   W.rain, W.wet, W.puddle
 //   W.spell, W.dry   overcast spells so far this mission (0 before the
 //                    first), and whether the current one stays dry
+//   W.rainbow 0..1   the opening's rainbow (src/game/opening.js), else 0
+//   W.gloom   0..1   the opening's dark cloud (as storm darkening), else 0
+//   W.restart()      start the current mission's opening over (a replay)
+//
+// Mission 1 opens in steady rain on soaked ground that eases off within a
+// minute (src/game/opening.js); the ground then dries in the sun as usual.
 //
 // Dev: ?rain=on (rain now, ground already soaked unless ?wet is given),
 // ?rain=off (never rains), ?wet=<0..1> pins the ground's wetness and the
 // puddles. Handling numbers live in src/game/damage.js (TUNING.wet).
 
 import { weatherMinutes } from './clock.js';
+import { openingFor, openingAt, OPENING } from './opening.js';
 
 export const WETNESS = {
   RAIN_FROM: 0.8, // weather w where rain can start...
@@ -66,6 +73,7 @@ export function createWetness(seed, opts = {}) {
   const forceRain = opts.rain === 'on' ? 1 : opts.rain === 'off' ? 0 : null;
   const pinWet = Number.isFinite(opts.wet) ? Math.max(0, Math.min(1, opts.wet)) : null;
   const speed = opts.speed || 1;
+  const useOpening = opts.opening !== false;
   // Seeded phases for the drizzle / downpour drift (periods 9 to 31 game minutes).
   const h = hashStr(`rain:${seed}`);
   const ph = [h & 1023, (h >>> 10) & 1023, (h >>> 20) & 1023].map((v) => (v / 1024) * Math.PI * 2);
@@ -75,6 +83,8 @@ export function createWetness(seed, opts = {}) {
   let started = false;
   let mission = null;
   let inSpell = false;
+  let tm = 0; // weather minutes since this mission started (x speed)
+  let opening = false;
   const W = {
     rain: 0,
     wet: pinWet ?? 0,
@@ -82,6 +92,11 @@ export function createWetness(seed, opts = {}) {
     t: 0,
     spell: 0,
     dry: false,
+    rainbow: 0,
+    gloom: 0,
+    restart() {
+      mission = null; // the next update starts the mission afresh
+    },
     rainAt(w, tt) {
       if (forceRain !== null) return forceRain;
       if (W.dry) return 0;
@@ -98,12 +113,20 @@ export function createWetness(seed, opts = {}) {
       }
       lastClock = state.clockMinutes;
       t += dMin;
+      tm += dMin;
       W.t = t;
       // Overcast spells, counted afresh each mission.
       if (state.missionIndex !== mission) {
         mission = state.missionIndex;
         W.spell = 0;
         inSpell = false;
+        tm = 0;
+        opening = useOpening && forceRain === null && openingFor(mission);
+        if (opening && pinWet === null) {
+          started = true;
+          W.wet = OPENING.WET;
+          W.puddle = OPENING.PUDDLE;
+        }
       }
       if (!inSpell && w > WETNESS.RAIN_FROM) {
         inSpell = true;
@@ -113,7 +136,10 @@ export function createWetness(seed, opts = {}) {
         inSpell = false;
         W.dry = false;
       }
-      W.rain = W.rainAt(w, t);
+      const o = opening ? openingAt(tm) : null;
+      W.rainbow = o && forceRain === null ? o.rainbow : 0;
+      W.gloom = o && forceRain === null ? o.gloom : 0;
+      W.rain = o && forceRain === null ? o.rain : W.rainAt(w, t);
       if (!started) {
         started = true;
         if (pinWet === null) {

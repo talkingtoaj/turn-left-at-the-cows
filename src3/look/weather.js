@@ -17,12 +17,17 @@
 // optional field `weather: 'sunny' | 'cloudy' | 'overcast'` (src/game/missions.js);
 // without it the start comes from the seed too.
 //
+// Mission 1 opens in rain that clears (src/game/opening.js): its first
+// minute is scripted, then its timeline runs on from sunny.
+// restart() starts the current mission's weather over (a replay).
+//
 // Dev: ?weather=sunny|cloudy|overcast pins it; ?weather=cycle runs the
 // timeline 15x faster for review; ?weather=<0..1> pins a raw value.
 
 import * as THREE from 'three';
 import { MISSIONS } from '../../src/game/missions.js';
 import { weatherMinutes } from '../../src/game/clock.js';
+import { openingFor, openingAt, OPENING } from '../../src/game/opening.js';
 
 export const W_OF = { sunny: 0, cloudy: 0.5, overcast: 1 };
 const CYCLE_SPEED = 15;
@@ -83,7 +88,7 @@ function sample(keys, t) {
 }
 
 // The weather clock: w over game time, per mission.
-export function createWeatherClock(seed, param) {
+export function createWeatherClock(seed, param, { opening: useOpening = true } = {}) {
   const pinned = param in W_OF ? W_OF[param] : (param !== null && param !== 'cycle' && Number.isFinite(Number(param)) ? THREE.MathUtils.clamp(Number(param), 0, 1) : null);
   const speed = param === 'cycle' ? CYCLE_SPEED : 1;
   let mission = -1;
@@ -92,15 +97,21 @@ export function createWeatherClock(seed, param) {
   let lastClock = null;
   let w = pinned === null ? 0.5 : pinned;
   let from = null; // w when the mission changed, eased out over MISSION_BLEND
+  let opening = false; // this mission has the scripted opening
   return {
     get w() { return w; },
+    restart() {
+      mission = -1; // the next update starts the mission afresh, with no blend
+      from = null;
+    },
     update(state) {
       if (pinned !== null) return w;
       if (state.missionIndex !== mission) {
         const m = MISSIONS[state.missionIndex];
         const id = m ? m.id : String(state.missionIndex);
-        const startW = m && m.weather in W_OF ? W_OF[m.weather] : undefined;
-        if (mission !== -1) from = w;
+        opening = useOpening && openingFor(state.missionIndex);
+        const startW = opening ? 0 : m && m.weather in W_OF ? W_OF[m.weather] : undefined;
+        if (mission !== -1 && !opening) from = w;
         mission = state.missionIndex;
         keys = timeline((seed ^ hashStr(id)) >>> 0, startW);
         t = 0;
@@ -111,7 +122,8 @@ export function createWeatherClock(seed, param) {
         if (d > 0 && d < 60) t += weatherMinutes(d) * speed;
       }
       lastClock = state.clockMinutes;
-      w = sample(keys, t);
+      const o = opening ? openingAt(t) : null;
+      w = o ? o.w : sample(keys, opening ? t - OPENING.END_MIN : t);
       if (from !== null) {
         const u = Math.min(1, t / (MISSION_BLEND * speed));
         w = from + (w - from) * u * u * (3 - 2 * u);

@@ -199,8 +199,9 @@ async function buildRegion(id, title, quiet = false, mission = 0) {
       rain: params.get('rain'),
       wet: params.has('wet') ? Number(params.get('wet')) : null,
       speed: params.get('weather') === 'cycle' ? 15 : 1,
+      opening: params.get('opening') !== 'off', // mission 1's rain that clears (src/game/opening.js)
     });
-    ownWeather = look ? null : createWeatherClock(WORLD.seed || 1, params.get('weather'));
+    ownWeather = look ? null : createWeatherClock(WORLD.seed || 1, params.get('weather'), { opening: params.get('opening') !== 'off' });
     await step(0.14, 'Planting trees');
     scenery = generateScenery(WORLD);
     collider = new Collider(WORLD, scenery);
@@ -231,7 +232,7 @@ async function buildRegion(id, title, quiet = false, mission = 0) {
     // Damage, potholes and road hazards (also the ?hazard, ?fallen, ?spot dev flags).
     dh = createDamageHazards({ scene, scenery, collider, amb, world3d, rig, sunDir: SUN_DIR, params: devParams, env: look ? look.carEnv() : null });
     // Rain streaks and wheel spray.
-    rain3d = createRain3D(scene);
+    rain3d = createRain3D(scene, { reducedMotion: reducedMotion() });
     // Light planes flying circuits from the airfield (src/world/airfield.js).
     planes = createPlanes3D(scene, WORLD, world3d.terrain);
     // The tow truck that comes after a breakdown (src3/tow3d.js).
@@ -628,9 +629,9 @@ function frame(now) {
     camera.far = far;
     camera.updateProjectionMatrix();
   }
-  if (look) look.update(state, wetness.rain, wetness.wet, lightning ? lightning.storm : 0); // weather drift, rain, storm
+  if (look) look.update(state, wetness.rain, wetness.wet, Math.max(lightning ? lightning.storm : 0, wetness.gloom)); // weather drift, rain, storm (and the opening's dark cloud)
   world3d.puddles.update(wetness.puddle, wetness.rain, now / 1000, scene.fog.color);
-  rain3d.update(runtime.paused ? 0 : dt, now / 1000, camera, wetness.rain, scene.fog.color);
+  rain3d.update(runtime.paused ? 0 : dt, now / 1000, camera, wetness.rain, scene.fog.color, { rainbow: wetness.rainbow, sunDir: SUN_DIR });
   world3d.update(now / 1000, dt, foot.active ? viewer : car, rig.focus, rig.shadowRadius, camera, amb);
   amb3d.wet = wetness.wet;
   world3d.scatter?.carpet?.setWet?.(wetness.wet); // wet grass, clover and flowers (carpet3d.js)
@@ -953,6 +954,7 @@ function exposeDebug() {
   window.__look = look;
   window.__car3d = car3d;
   window.__wet = wetness;
+  window.__restartWeather = restartWeather;
   window.__rain3d = rain3d;
   window.__planes = planes;
   window.__towScene = tow;
@@ -999,6 +1001,7 @@ export async function startGame(index = 0) {
   if (home) radio.setStation(home.id);
   radio.setOn(true);
   exitMenu();
+  restartWeather();
   foot.reset();
   state.onFoot = false;
   const spot = spotName ? spotFor(spotName, WORLD) : null;
@@ -1013,6 +1016,14 @@ export async function startGame(index = 0) {
   // The sharp sky downloads now and swaps in when it is here (SPEC 9n).
   if (look) look.sharpenSky();
   console.info(`[start] driving ${Math.round(performance.now() - t0)} ms after Start`);
+}
+
+// The mission's weather and rain start over (mission 1's opening plays
+// again on a replay, and does not run on behind the start screen).
+function restartWeather() {
+  if (look) look.restartWeather();
+  if (ownWeather) ownWeather.restart();
+  if (wetness) wetness.restart();
 }
 
 // Plays mission `idOrIndex` from its own start (dev and checks).
