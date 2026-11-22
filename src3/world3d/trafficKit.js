@@ -13,10 +13,14 @@
 // mat: rack, steel, alu, jerry, jerryRed, tarp, carton, strap, hay,
 // plankDark, black, flap.
 //
+// B.part(null) starts pieces every car of the type has (no kit bit): the
+// van's rear doors, sliding door line and roof vent (vanKit.js).
+//
 // doorZone(type) is where the front right door is, for a door in another
 // color: [z0, z1, top y, inner x] in car space (x right, z back).
 
 import { SPECS, sectionAt } from './carbody.js';
+import { vanKit } from './vanKit.js';
 
 const lampY = (S) => (S.belt(-S.half) + S.y0 + 0.2) / 2 + 0.02;
 
@@ -175,6 +179,7 @@ function farmKit(B) {
 
 export function kitInto(type, B) {
   if (type === 'farmtruck') farmKit(B);
+  else if (type === 'van') vanKit(B);
   else loftKit(type, B);
 }
 

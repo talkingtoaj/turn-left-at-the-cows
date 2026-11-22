@@ -14,7 +14,7 @@ const f = (x) => x.toFixed(3);
 // Engines by type.
 ok('pickup is diesel', engineOf('pickup') === 'diesel');
 ok('farm truck is diesel', engineOf('farmtruck') === 'diesel');
-ok('sedan, wagon, hatch are petrol', ['sedan', 'wagon', 'hatch'].every((t) => engineOf(t) === 'petrol'));
+ok('sedan, wagon, hatch, van are petrol', ['sedan', 'wagon', 'hatch', 'van'].every((t) => engineOf(t) === 'petrol'));
 
 // You stand still at the origin, facing north. A car drives east along
 // y = -6 (6 m ahead of you) at 20 m/s, frame by frame.
