@@ -395,6 +395,14 @@ function wheelGeo(A) {
 
 // ---------- materials ----------
 
+// Dust on the lower body (GLSL lines): amount 0..1, p the car-space position.
+// The traffic shader (traffic3d.js) uses the same lines.
+export function dirtGlsl(amount, p) {
+  return `  float dn = 0.8 + 0.1 * sin( ${p}.x * 9.0 + ${p}.z * 3.1 ) * sin( ${p}.z * 6.3 + ${p}.y * 11.0 ) + 0.1 * sin( ${p}.z * 21.0 + ${p}.x * 5.0 );
+  float dk = clamp( ${amount} * smoothstep( 0.8, 0.28, ${p}.y ) * dn, 0.0, 0.8 );
+  diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.36, 0.29, 0.2 ), dk );`;
+}
+
 function makeMaterials(env, A) {
   const dirt = { value: 0 };
   const brake = { value: 0 };
@@ -425,9 +433,7 @@ function makeMaterials(env, A) {
     sh.uniforms.uDirt = dirt;
     sh.vertexShader = `varying vec3 vCarP;\n${sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vCarP = position;')}`;
     sh.fragmentShader = `uniform float uDirt;\nvarying vec3 vCarP;\n${sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
-  float dn = 0.8 + 0.1 * sin( vCarP.x * 9.0 + vCarP.z * 3.1 ) * sin( vCarP.z * 6.3 + vCarP.y * 11.0 ) + 0.1 * sin( vCarP.z * 21.0 + vCarP.x * 5.0 );
-  float dk = clamp( uDirt * smoothstep( 0.8, 0.28, vCarP.y ) * dn, 0.0, 0.8 );
-  diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.36, 0.29, 0.2 ), dk );`)}`;
+${dirtGlsl('uDirt', 'vCarP')}`)}`;
   };
   paint.customProgramCacheKey = () => 'carPaintDirt';
   const glass = new THREE.MeshStandardMaterial({

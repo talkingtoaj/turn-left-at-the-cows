@@ -3,10 +3,16 @@
 //   toy colors (baby blue, pink, mustard), sun-fade only dulls;
 // - fine body choice (src3/world3d/trafficlod.js): the fade follows distance,
 //   only the nearest few cars get the fine body, and losing a place slides
-//   the fade over several ticks instead of snapping.
+//   the fade over several ticks instead of snapping;
+// - kits (src/ambient/carkit.js, src3/world3d/trafficKit.js, #42): seeded
+//   per id, fitted to the type, no two alike within a type, pieces drawn
+//   for every part that fits;
+// - dirt (dirtStep, #43): builds on dirt roads over ticks, fades on paved.
 //   node tools/check-traffic-look.mjs
 import { carPaint, PALETTE } from '../src/ambient/carpaint.js';
 import { createFineLod, distanceFade, FINE_NEAR, FINE_FAR, FINE_MAX, GATE_RATE } from '../src3/world3d/trafficlod.js';
+import { carKit, dirtStep, trafficType, KIT_FITS, KIT_NEEDS, KIT_PARTS, TRAFFIC_TYPES, DIRT_MAX } from '../src/ambient/carkit.js';
+import { kitInto } from '../src3/world3d/trafficKit.js';
 
 let bad = 0;
 const ok = (name, cond, info = '') => {
@@ -96,6 +102,63 @@ ok('fade falls steadily across the band', distanceFade(38) > distanceFade(40) &&
   for (let k = 0; k < 50; k++) lod.step([{ id: `x${k}`, d: 10 }], 0.016);
   const f = lod.step([{ id: 'y', d: 10 }], 0.016);
   ok('only listed cars come back', f.size === 1 && f.get('y') === 1);
+}
+
+// Kits (#42): seeded per id (the same in any order of asking), fitted to
+// the type, never the same twice within a type.
+{
+  const kitIds = Array.from({ length: 60 }, (_, i) => `car${i}`);
+  const a = kitIds.map((id) => carKit(id));
+  const fresh = await import('../src/ambient/carkit.js?again');
+  const b = [...kitIds].reverse().map((id) => fresh.carKit(id)).reverse();
+  ok('kits seeded per id (fresh module, asked in reverse order)', a.every((k, i) => JSON.stringify(k) === JSON.stringify(b[i])));
+  ok('kit type is the car type', a.every((k, i) => k.type === trafficType(kitIds[i])));
+  const unfit = a.flatMap((k) => k.parts.filter((p) => !(p in KIT_FITS[k.type]) || (KIT_NEEDS[p] && !k.parts.includes(KIT_NEEDS[p]))).map((p) => `${k.type}:${p}`));
+  ok('every part fits its type (and has what it needs)', unfit.length === 0, unfit.slice(0, 5).join(' '));
+  ok('no roof racks on pickups or farm trucks', a.every((k) => !['pickup', 'farmtruck'].includes(k.type) || !k.parts.includes('rack')));
+  ok('no ladders or toolboxes off pickups', a.every((k) => k.type === 'pickup' || !k.parts.some((p) => p === 'ladder' || p === 'toolbox')));
+  const farm = a.filter((k) => k.type === 'farmtruck');
+  ok('farm trucks carry hay and rust', farm.every((k) => k.parts.includes('hay') && k.rust >= 0.45), farm.map((k) => k.rust.toFixed(2)).join(' '));
+  for (const t of TRAFFIC_TYPES) {
+    const masks = a.filter((k) => k.type === t).map((k) => k.mask);
+    ok(`no two ${t}s alike (${masks.length} cars)`, new Set(masks).size === masks.length);
+  }
+  const ten = a.slice(0, 10);
+  ok('the ten traffic cars: some bare, some kitted', ten.some((k) => k.parts.length === 0 || k.parts.length === 1) && ten.some((k) => k.parts.length >= 3));
+  ok('odd doors only with the door part, and not the body color', a.every((k, i) => (k.door != null) === k.parts.includes('door') && k.door !== carPaint(kitIds[i]).color));
+  ok('rust between 0 and 1, older cars rustier', a.every((k) => k.rust >= 0 && k.rust <= 1)
+    && a.filter((k, i) => carPaint(kitIds[i]).age < 0.4 && k.type !== 'farmtruck').every((k) => k.rust < 0.3));
+  // Every fitting part has pieces to show (door is drawn by the shader).
+  for (const t of TRAFFIC_TYPES) {
+    const seen = new Set();
+    let cur = null;
+    const B = { fine: true, part(n) { cur = n; }, box() { seen.add(cur); }, rod() { seen.add(cur); }, tyre() { seen.add(cur); } };
+    kitInto(t, B);
+    const missing = Object.keys(KIT_FITS[t]).filter((p) => p !== 'door' && !seen.has(p));
+    const extra = [...seen].filter((p) => !(p in KIT_FITS[t]));
+    ok(`${t}: pieces for every fitting part, none for others`, !missing.length && !extra.length, `missing ${missing} extra ${extra}`);
+  }
+  ok('kit bits fit in a float mask', KIT_PARTS.length <= 23);
+}
+// Dirt (#43): builds on dirt roads over ticks, fades on paved to the car's
+// base, never past DIRT_MAX or under the base.
+{
+  const base = 0.1;
+  let d = base;
+  const up = [];
+  for (let k = 0; k < 1200; k++) up.push((d = dirtStep(d, base, true, 12, 0.5)));
+  ok('dirt builds while driving a dirt road', up[1] > up[0] && up[20] > up[1] && up[199] > up[20], `${up[0].toFixed(3)} ${up[20].toFixed(3)} ${up[199].toFixed(3)}`);
+  ok('dirt stops at DIRT_MAX', up.every((v) => v <= DIRT_MAX + 1e-9) && up[1199] > DIRT_MAX - 0.02, up[1199].toFixed(3));
+  ok('a minute on dirt shows (over a third of max)', up[119] > DIRT_MAX * 0.35, up[119].toFixed(3));
+  ok('standing on dirt: no change', dirtStep(0.4, base, true, 0, 1) === 0.4);
+  const a1 = dirtStep(0.6, base, false, 14, 1);
+  const a2 = dirtStep(a1, base, false, 14, 1);
+  ok('fades on paved, slowly', a1 < 0.6 && a2 < a1 && 0.6 - a2 < 0.02, `${a1.toFixed(4)} ${a2.toFixed(4)}`);
+  let e = 0.6;
+  for (let k = 0; k < 2000; k++) e = dirtStep(e, base, false, 14, 1);
+  ok('fades back to its base, not under', e === base);
+  const avg = (t) => { const l = Array.from({ length: 60 }, (_, i) => carKit(`car${i}`)).filter((k) => k.type === t); return l.reduce((s, k) => s + k.dirtBase, 0) / l.length; };
+  ok('farm trucks dirtiest, then pickups, then cars', avg('farmtruck') > avg('pickup') && avg('pickup') > avg('sedan') && avg('pickup') > avg('wagon'));
 }
 
 console.log(bad ? `\n${bad} FAILED` : '\nall ok');
