@@ -6,8 +6,9 @@
 // geometry on the car atlas, so a type is one instanced draw call.
 //
 // Attributes: position, normal, uv (atlas), color (white; the paint is
-// tinted per car), paintMask (0 trim, 1 paint, 2 paint that can carry a
-// lower second tone: pickups).
+// tinted per car), carPart: x the paint mask (0 trim, 1 paint, 2 paint that
+// can carry a lower second tone: pickups), y the kit bit + 1 (0 not a kit
+// piece; trafficKit.js).
 //
 //   const geo = fineGeometry('sedan')   // 'sedan' | 'wagon' | 'pickup' | 'hatch' | 'farmtruck'
 
@@ -16,6 +17,8 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { SPECS, loftBody, sectionAt } from './carbody.js';
 import { carAtlas } from './caratlas.js';
 import { trimBuilder } from './car3d.js';
+import { kitInto } from './trafficKit.js';
+import { KIT_BIT } from '../../src/ambient/carkit.js';
 
 // Bumper and trim look per type (the coarse bodies in traffic3d.js match).
 export const FINE_STYLE = {
@@ -35,7 +38,7 @@ function loftPart(part, uv, mask) {
   return finish(n, () => uv, () => mask);
 }
 
-// Add uv (from uvAt(i) or kept), color (white) and paintMask (maskAt(i)).
+// Add uv (from uvAt(i) or kept), color (white) and carPart (maskAt(i), no kit bit).
 function finish(g, uvAt, maskAt) {
   const n = g.attributes.position.count;
   if (uvAt) {
@@ -44,9 +47,9 @@ function finish(g, uvAt, maskAt) {
     g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   }
   g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3).fill(1), 3));
-  const pm = new Float32Array(n);
-  for (let i = 0; i < n; i++) pm[i] = maskAt(i);
-  g.setAttribute('paintMask', new THREE.BufferAttribute(pm, 1));
+  const cp = new Float32Array(n * 2); // paint mask, kit bit (0: not a kit piece)
+  for (let i = 0; i < n; i++) cp[i * 2] = maskAt(i);
+  g.setAttribute('carPart', new THREE.BufferAttribute(cp, 2));
   return g;
 }
 
@@ -211,7 +214,7 @@ function endParts(name, S, T, A) {
   }
   T.box(0, S.y0 + 0.01, 0, hw * 2 - 0.15, 0.04, h * 2 - 0.7, 'liner');
   T.geo(new THREE.CylinderGeometry(0.03, 0.03, 0.24, 6).rotateX(Math.PI / 2).translate(-0.48, S.y0 - 0.03, h - 0.02), 'exhaust');
-  // Pickup: open bed (dark floor, painted top rails, a hay bale).
+  // Pickup: open bed (dark floor, painted top rails; the hay bale is a kit part).
   if (S.bed) {
     const z0 = S.zC + 0.12;
     const z1 = h - 0.05;
@@ -219,9 +222,6 @@ function endParts(name, S, T, A) {
     T.geo(new THREE.PlaneGeometry(hw * 2 - 0.2, z1 - z0).rotateX(-Math.PI / 2).translate(0, top + 0.004, (z0 + z1) / 2), 'plankDark');
     for (const x of [-1, 1]) T.box(x * (hw - 0.07), top + 0.02, (z0 + z1) / 2, 0.08, 0.05, z1 - z0, 'tpaint');
     T.box(0, top + 0.02, z1, hw * 2 - 0.1, 0.05, 0.08, 'tpaint');
-    T.box(0.25, top + 0.19, z1 - 0.6, 0.55, 0.38, 0.45, 'hay');
-    // Twine round the bale.
-    for (const dz of [-0.12, 0.12]) T.box(0.25, top + 0.19, z1 - 0.6 + dz, 0.56, 0.39, 0.012, 'plankDark');
   }
 }
 
@@ -239,7 +239,7 @@ function loftFine(name) {
   }
   stripsFor(S, T, A);
   endParts(name, S, T, A);
-  parts.push(trimPart(T, A, paintMask));
+  parts.push(trimPart(T, A, paintMask), ...fineKit(name, A));
   return mergeGeometries(parts);
 }
 
@@ -278,12 +278,62 @@ function farmTruckFine() {
   }
   b(2.15, 0.12, 3.2, 0, 0.82, 1.2, 'plank');
   for (const y of [1.05, 1.3, 1.55]) b(2.1, 0.1, 0.04, 0, y, 2.6, 'plank');
-  b(0.6, 0.45, 0.9, 0.35, 1.12, 1.6, 'hay');
-  b(0.6, 0.45, 0.9, -0.35, 1.12, 1.1, 'hay');
   for (const x of [-0.86, 0.86]) wheelInto(T, A, 0.45, x, 0.45, -1.95, Math.sign(x));
   for (const x of [-1.02, 1.02]) wheelInto(T, A, 0.45, x, 0.45, 1.55, Math.sign(x));
   for (const x of [-0.78, 0.78]) T.geo(new THREE.CylinderGeometry(0.45, 0.45, 0.2, 12).rotateZ(Math.PI / 2).translate(x, 0.45, 1.55), 'rubber');
-  return trimPart(T, A, 1);
+  return mergeGeometries([trimPart(T, A, 1), ...fineKit('farmtruck', A)]);
+}
+
+// Kit pieces (trafficKit.js) on the atlas, one part per kit bit (carPart.y is
+// the bit + 1; the shader folds away the parts a car's kit leaves out).
+const KIT_SW = { rack: 'black' };
+function fineKit(type, A) {
+  const Ts = new Map();
+  let cur = null;
+  const flapR = A.rect('flap', 1);
+  const tread = A.rect('tread', 1);
+  const hub = A.rect('hubcap', 2);
+  const B = {
+    fine: true,
+    part(name) {
+      const bit = KIT_BIT[name] + 1;
+      if (!Ts.has(bit)) Ts.set(bit, trimBuilder(A));
+      cur = Ts.get(bit);
+    },
+    box(x, y, z, w, h, d, mat, ry = 0) {
+      if (mat === 'flap') {
+        const m = new THREE.Matrix4().makeRotationY(ry).setPosition(x, y, z);
+        cur.boxM(m, w, h, d, ['rubber', 'rubber', 'rubber', 'rubber', flapR, flapR]);
+      } else cur.box(x, y, z, w, h, d, KIT_SW[mat] || mat, 0, ry, 0);
+    },
+    rod(a, b, th, mat) {
+      cur.rod(a, b, th, th, KIT_SW[mat] || mat);
+    },
+    // Spare wheel: the same tread and hubcap as the road wheels.
+    tyre(r, w, x, y, z, axis) {
+      const k = r / 0.315;
+      const s = w / 0.204;
+      const prof = [[0.19, -0.098], [0.27, -0.102], [0.3, -0.095], [0.315, -0.07], [0.317, 0], [0.315, 0.07], [0.3, 0.095], [0.27, 0.102], [0.19, 0.098]]
+        .map(([rr, yy]) => new THREE.Vector2(rr * k, yy * s));
+      const geos = [
+        [new THREE.LatheGeometry(prof, 16), null, tread],
+        [new THREE.CircleGeometry(0.2 * k, 14).rotateX(-Math.PI / 2).translate(0, 0.094 * s, 0), null, hub],
+        [new THREE.CircleGeometry(0.2 * k, 8).rotateX(Math.PI / 2).translate(0, -0.094 * s, 0), 'rubber', null],
+      ];
+      for (const [g, sw, rect] of geos) {
+        if (axis === 'x') g.rotateZ(-Math.PI / 2);
+        else if (axis === 'z') g.rotateX(Math.PI / 2);
+        cur.geo(g.translate(x, y, z), sw, rect);
+      }
+    },
+  };
+  kitInto(type, B);
+  return [...Ts].map(([bit, T]) => {
+    const g = trimPart(T, A, 0);
+    const cp = g.attributes.carPart.array;
+    for (let i = 1; i < cp.length; i += 2) cp[i] = bit;
+    return g;
+  });
 }
 
 export function fineGeometry(name) {

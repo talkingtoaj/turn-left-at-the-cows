@@ -82,6 +82,14 @@ const VIEWS = [
   { name: 'traffic_pickup', car: { road: 'hwy9', at: 0.4 }, pin: [['car8', 20, 1, 1]], tcam: [[5.5, 1.5, -5.8], [0, 0.8, 0.3]] },
   { name: 'traffic_pickup_side', car: { road: 'hwy9', at: 0.4 }, pin: [['car8', 20, 1, 1]], tcam: [[3.6, 1.1, -1.2], [0, 0.7, 0.2]] },
   { name: 'traffic_wagon', car: { road: 'hwy9', at: 0.4 }, pin: [['car1', 20, -1, -1]], tcam: [[5.2, 1.3, 6.0], [0, 0.7, 0]] },
+  // Kits and dirt (#42, #43): the farm truck, three sedans side by side,
+  // the two wagons and two pickups (no two of a type alike).
+  { name: 'traffic_farmtruck', car: { road: 'hwy9', at: 0.4 }, pin: [['car5', 20, 1, 1]], tcam: [[4.8, 2.2, -6.0], [0, 1.0, 0.4]] },
+  { name: 'traffic_sedans', car: { road: 'hwy9', at: 0.4 }, pin: [['car0', 16, 1, 1], ['car4', 24, 1, 1], ['car9', 32, 1, 1]], tcam: [[6, 2.6, -22], [0, 0.8, -8]] },
+  { name: 'traffic_pairs', car: { road: 'hwy9', at: 0.4 }, pin: [['car1', 16, 1, 1], ['car6', 23, 1, 1], ['car2', 30, 1, 1], ['car8', 37, 1, 1]], tcam: [[6, 3.0, -27], [0, 0.8, -10]] },
+  { name: 'traffic_kit_close', car: { road: 'hwy9', at: 0.4 }, pin: [['car6', 20, 1, 1]], tcam: [[4.6, 2.6, -4.6], [0, 1.0, 0.6]] },
+  // The same three sedans, the near one after a long dirt road (#43).
+  { name: 'traffic_sedans_dirty', car: { road: 'hwy9', at: 0.4 }, pin: [['car0', 16, 1, 1], ['car4', 24, 1, 1], ['car9', 32, 1, 1]], dirt: [['car0', 0.8], ['car4', 0.45]], tcam: [[6, 2.6, -22], [0, 0.8, -8]] },
   { name: 'traffic_row', car: { road: 'hwy9', at: 0.4 }, pin: [['car1', 30, -1, -1], ['car2', 38, 1, 1], ['car3', 46, -1, -1], ['car5', 54, 1, 1], ['car6', 62, -1, -1], ['car8', 70, 1, 1]], rel: [0.6, 2.2, 5.5] },
   // One car each side of the 40 m switch, same camera: no pop between them.
   { name: 'traffic_switch_in', car: { road: 'hwy9', at: 0.4 }, pin: [['car0', 37, -1, -1]], rel: [1.2, 2.4, -3], relLook: [-2.4, 0.6, -40] },
@@ -189,6 +197,12 @@ for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) 
         if (facing < 0) hd += 180;
         window.__pins.push({ id, x: px + ox, y: py + oy, heading: (hd + 360) % 360 });
       }
+    }
+    // Dirt on traffic cars for this view (#43). Cars an earlier view dirtied
+    // go back to their own base dirt (0 is under it, so the next tick lifts it).
+    if (window.__trafficDirt) {
+      for (const id of window.__dirtied || []) window.__trafficDirt(id, 0);
+      window.__dirtied = (v.dirt || []).map(([id, d]) => (window.__trafficDirt(id, d), id));
     }
     const { renderer, camera, world3d } = window.__three;
     if (!renderer.__orig) renderer.__orig = renderer.render.bind(renderer);

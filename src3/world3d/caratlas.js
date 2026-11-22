@@ -57,6 +57,11 @@ const SW = {
   hay: ['#c9b26a', 0.95, 0],
   plank: ['#7a5a3a', 0.85, 0],
   plankDark: ['#4a3624', 0.9, 0],
+  // Traffic kits (trafficKit.js): jerry cans, a tarp, a carton.
+  jerry: ['#4b5a2a', 0.6, 0],
+  jerryRed: ['#8a2a1c', 0.55, 0],
+  tarp: ['#34506a', 0.8, 0],
+  carton: ['#a8834f', 0.9, 0],
 };
 const SW_NAMES = Object.keys(SW);
 const swRect = (i) => [(i % 16) * 32, 320 + Math.floor(i / 16) * 32, 32, 32];

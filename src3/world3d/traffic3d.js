@@ -12,6 +12,16 @@
 // with a screen-door dither (lodFade per instance), so there is no pop.
 // Pickups can carry a lower second tone (paint2 per instance, c.color2).
 //
+// Kits and dirt (#42, #43): every type's geometry holds all its kit pieces
+// (trafficKit.js), each tagged with its kit bit (carPart.y); a per-instance
+// kit mask (src/ambient/carkit.js) folds away the pieces a car's kit leaves
+// out, so no extra draw calls. Per instance too: dirt, rust and a door in
+// another color. Dirt builds on dirt roads (dirtStep). Attributes are packed
+// to stay under 16 (laptop GPUs): per vertex carPart (paint mask, kit bit);
+// per instance paint2 (second tone, door color as a packed 24-bit number or
+// -1), carInst (lodFade, kit mask, dirt, rust) and doorZone.
+// Shadows use a depth material that folds the same pieces away.
+//
 //   const traffic = createTraffic3D(group, { env })
 //   traffic.update(amb.cars, focus, surfaceAt, near)   // near(x, y): within draw range
 
@@ -22,16 +32,14 @@ import { SPECS, loftBody } from './carbody.js';
 import { carAtlas } from './caratlas.js';
 import { fineGeometry } from './trafficfine.js';
 import { createFineLod, FINE_MAX } from './trafficlod.js';
+import { kitInto, doorZone } from './trafficKit.js';
+import { dirtGlsl } from './car3d.js';
+import { TRAFFIC_TYPES, trafficType, carKit, dirtStep, KIT_BIT, DEFAULT_KIT } from '../../src/ambient/carkit.js';
+
+export { TRAFFIC_TYPES, trafficType };
 
 const MAX = 24; // per type
 const FAR = 140; // m: past this, the stand-in
-export const TRAFFIC_TYPES = ['sedan', 'wagon', 'pickup', 'hatch', 'farmtruck'];
-// Types for the ten traffic cars (car0..car9), mixed so each shows up.
-const TYPE_OF = ['sedan', 'wagon', 'pickup', 'hatch', 'sedan', 'farmtruck', 'wagon', 'hatch', 'pickup', 'sedan'];
-export function trafficType(id) {
-  const n = Number(String(id).replace(/\D/g, '')) || 0;
-  return TYPE_OF[n % TYPE_OF.length];
-}
 
 // Material per vertex: [hex, paint mask, roughness, metalness].
 const MAT = {
@@ -49,6 +57,17 @@ const MAT = {
   woodDark: [0x4a3624, 0, 0.9, 0],
   hay: [0xc9b26a, 0, 0.95, 0],
   liner: [0x0e0e0e, 0, 0.95, 0],
+  // Kit pieces (trafficKit.js).
+  rack: [0x1a1b1c, 0, 0.6, 0],
+  steel: [0x8a8d90, 0, 0.35, 1],
+  alu: [0xc8ccd0, 0, 0.32, 1],
+  jerry: [0x4b5a2a, 0, 0.6, 0],
+  jerryRed: [0x8a2a1c, 0, 0.55, 0],
+  tarp: [0x34506a, 0, 0.8, 0],
+  carton: [0xa8834f, 0, 0.9, 0],
+  strap: [0xd9541c, 0, 0.7, 0],
+  flap: [0x161616, 0, 0.9, 0],
+  plankDark: [0x4a3624, 0, 0.9, 0],
 };
 
 // Tag a geometry with colour, paint mask and roughness / metalness.
@@ -68,9 +87,47 @@ function tag(geo, m) {
     rm.set([rough, metal], i * 2);
   }
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  g.setAttribute('paintMask', new THREE.BufferAttribute(pm, 1));
+  const cp = new Float32Array(n * 2); // paint mask, kit bit (0: not a kit piece)
+  for (let i = 0; i < n; i++) cp[i * 2] = pm[i];
+  g.setAttribute('carPart', new THREE.BufferAttribute(cp, 2));
   g.setAttribute('carMat', new THREE.BufferAttribute(rm, 2));
   return g;
+}
+
+// The kit pieces of a type, coarse: plain boxes and cylinders, kit bit set.
+function coarseKit(type) {
+  const parts = [];
+  let bit = 0;
+  const add = (g, m) => {
+    const t = tag(g, m);
+    const cp = t.attributes.carPart.array;
+    for (let i = 1; i < cp.length; i += 2) cp[i] = bit;
+    parts.push(t);
+  };
+  kitInto(type, {
+    fine: false,
+    part(name) {
+      bit = KIT_BIT[name] + 1;
+    },
+    box(x, y, z, w, h, d, m, ry = 0) {
+      add(new THREE.BoxGeometry(w, h, d).rotateY(ry).translate(x, y, z), m);
+    },
+    rod(a, b, th, m) {
+      const va = new THREE.Vector3(...a);
+      const vb = new THREE.Vector3(...b);
+      const mm = new THREE.Matrix4().lookAt(va, vb, new THREE.Vector3(0, 1, 0));
+      mm.setPosition(va.clone().add(vb).multiplyScalar(0.5));
+      add(new THREE.BoxGeometry(th, th, va.distanceTo(vb)).applyMatrix4(mm), m);
+    },
+    tyre(r, w, x, y, z, axis) {
+      for (const [g, m] of [[new THREE.CylinderGeometry(r, r, w, 10), 'rubber'], [new THREE.CylinderGeometry(r * 0.55, r * 0.55, w + 0.02, 8), 'hub']]) {
+        if (axis === 'x') g.rotateZ(Math.PI / 2);
+        else if (axis === 'z') g.rotateX(Math.PI / 2);
+        add(g.translate(x, y, z), m);
+      }
+    },
+  });
+  return parts;
 }
 const box = (w, h, d, x, y, z, m) => tag(new THREE.BoxGeometry(w, h, d).translate(x, y, z), m);
 const quadZ = (w, h, x, y, z, m) => tag(new THREE.PlaneGeometry(w, h).rotateY(z < 0 ? Math.PI : 0).translate(x, y, z), m);
@@ -122,19 +179,24 @@ function loftCar(name) {
   if (name !== 'pickup' && name !== 'hatch') parts.push(quadZ(0.56, 0.13, 0, ly, -h - 0.01, 'chrome'));
   else parts.push(quadZ(0.56, 0.13, 0, ly, -h - 0.01, 'black'));
   if (name === 'pickup') {
-    // Open load bed: dark floor and painted top rails, a hay bale or two.
+    // Open load bed: dark floor and painted top rails (hay is a kit part).
     const z0 = S.zC + 0.12;
     const z1 = h - 0.05;
     const top = S.belt(h) + 0.03;
     parts.push(tag(new THREE.PlaneGeometry(hw * 2 - 0.2, z1 - z0).rotateX(-Math.PI / 2).translate(0, top + 0.004, (z0 + z1) / 2), 'woodDark'));
     for (const x of [-1, 1]) parts.push(box(0.08, 0.05, z1 - z0, x * (hw - 0.07), top + 0.02, (z0 + z1) / 2, 'paint'));
     parts.push(box(hw * 2 - 0.1, 0.05, 0.08, 0, top + 0.02, z1, 'paint'));
-    parts.push(box(0.55, 0.38, 0.45, 0.25, top + 0.19, z1 - 0.6, 'hay'));
   }
   const wr = S.wheelR;
   for (const [z] of S.wheels) for (const x of [-1, 1]) parts.push(...wheel(wr, 0.2, x * (hw - 0.1), wr, z));
+  parts.push(...coarseKit(name));
   // Pickup paint can take a lower second tone (TWO_TONE_Y in the shader).
-  if (name === 'pickup') for (const g of parts) if (g.attributes.paintMask.array[0] === 1) g.attributes.paintMask.array.fill(2);
+  if (name === 'pickup') {
+    for (const g of parts) {
+      const cp = g.attributes.carPart.array;
+      if (cp[0] === 1) for (let i = 0; i < cp.length; i += 2) cp[i] = 2;
+    }
+  }
   return mergeGeometries(parts);
 }
 
@@ -161,9 +223,9 @@ function farmTruck() {
     for (const y of [1.05, 1.3, 1.55]) parts.push(box(0.04, 0.1, 3.0, x * 1.05, y, 1.05, 'wood'));
   }
   for (const y of [1.05, 1.3, 1.55]) parts.push(box(2.1, 0.1, 0.04, 0, y, 2.6, 'wood'));
-  parts.push(box(0.6, 0.45, 0.9, 0.35, 1.12, 1.6, 'hay'), box(0.6, 0.45, 0.9, -0.35, 1.12, 1.1, 'hay'));
   parts.push(...wheel(0.45, 0.26, -0.86, 0.45, -1.95), ...wheel(0.45, 0.26, 0.86, 0.45, -1.95));
   for (const x of [-0.78, -1.02, 0.78, 1.02]) parts.push(...wheel(0.45, 0.22, x, 0.45, 1.55));
+  parts.push(...coarseKit('farmtruck'));
   return mergeGeometries(parts);
 }
 
@@ -179,41 +241,99 @@ function farGeo() {
 }
 
 // Shared shader parts: paint tint (instance colour, or paint2 below
-// TWO_TONE_Y on paintMask 2), and the dithered cross-fade between the coarse
+// TWO_TONE_Y on paint mask 2), and the dithered cross-fade between the coarse
 // and fine body (lodFade: 0 coarse .. 1 fine). Interleaved gradient noise
 // splits the pixels, so the two bodies never both cover one.
 const TWO_TONE_Y = 0.66; // m: the pickup's lower tone, just under the rub strip
-const VERT_HEAD = `attribute float paintMask;
-attribute vec3 paint2;
-attribute float lodFade;
+const VERT_HEAD = `attribute vec2 carPart;
+attribute vec4 paint2;
+attribute vec4 carInst;
+attribute vec4 doorZone;
 varying vec3 vTint1;
 varying vec3 vTint2;
 varying float vTone;
-varying float vLocalY;
+varying float vPaint;
+varying vec3 vLocalP;
 varying float vFade;
+varying vec2 vWear;
+varying vec4 vDoor;
+varying vec4 vDoorZone;
 `;
 const FRAG_HEAD = `varying vec3 vTint1;
 varying vec3 vTint2;
 varying float vTone;
-varying float vLocalY;
+varying float vPaint;
+varying vec3 vLocalP;
 varying float vFade;
+varying vec2 vWear;
+varying vec4 vDoor;
+varying vec4 vDoorZone;
 float lodDither( vec2 p ) { return fract( 52.9829189 * fract( dot( p, vec2( 0.06711056, 0.00583715 ) ) ) ); }
+float kitHash( vec3 p ) { return fract( sin( dot( p, vec3( 127.1, 311.7, 74.7 ) ) ) * 43758.5453 ); }
+float kitNoise( vec3 p ) {
+  vec3 i = floor( p );
+  vec3 f = fract( p );
+  f = f * f * ( 3.0 - 2.0 * f );
+  return mix( mix( mix( kitHash( i ), kitHash( i + vec3( 1, 0, 0 ) ), f.x ), mix( kitHash( i + vec3( 0, 1, 0 ) ), kitHash( i + vec3( 1, 1, 0 ) ), f.x ), f.y ),
+    mix( mix( kitHash( i + vec3( 0, 0, 1 ) ), kitHash( i + vec3( 1, 0, 1 ) ), f.x ), mix( kitHash( i + vec3( 0, 1, 1 ) ), kitHash( i + vec3( 1, 1, 1 ) ), f.x ), f.y ), f.z );
+}
+`;
+// A kit piece whose bit is not in the car's kit folds to a point (no pixels).
+const KIT_FOLD = 'if ( carPart.y > 0.5 && mod( floor( carInst.y / exp2( carPart.y - 1.0 ) ), 2.0 ) < 0.5 ) transformed = vec3( 0.0 );';
+// Paint tint (body, lower tone, odd door), rust patches low on the paint,
+// then the player car's dust (dirtGlsl), lighter on trim. kitWear is how
+// much rust or dust covers the pixel (it roughens the finish below).
+const COLOR_CHUNK = `
+  vec3 tint = ( vTone > 0.5 && vLocalP.y < ${TWO_TONE_Y.toFixed(3)} ) ? vTint2 : vTint1;
+  if ( vPaint > 0.5 && vDoor.w > 0.5 && vLocalP.z > vDoorZone.x && vLocalP.z < vDoorZone.y && vLocalP.y < vDoorZone.z && vLocalP.x > vDoorZone.w ) tint = vDoor.rgb;
+  diffuseColor.rgb *= tint;
+  float rk = 0.0;
+  if ( vPaint > 0.5 && vWear.y > 0.01 ) {
+    float rn = 0.65 * kitNoise( vLocalP * 6.0 ) + 0.35 * kitNoise( vLocalP * 19.0 + 3.7 );
+    // Low on the body first; heavy rust (farm trucks) climbs higher.
+    float rLow = min( 1.0, smoothstep( 0.85, 0.35, vLocalP.y ) + vWear.y * vWear.y * 0.6 );
+    float rt = 1.0 - vWear.y * ( 0.08 + 0.62 * rLow );
+    rk = smoothstep( rt, rt + 0.04, rn );
+    vec3 rustC = mix( vec3( 0.2, 0.1, 0.05 ), vec3( 0.42, 0.2, 0.08 ), smoothstep( rt + 0.02, rt + 0.15, rn ) );
+    diffuseColor.rgb = mix( diffuseColor.rgb, rustC, rk );
+  }
+${dirtGlsl('vWear.x * ( 0.6 + 0.4 * vPaint )', 'vLocalP')}
+  float kitWear = max( rk, dk );
 `;
 function patchShader(sh, fine, extraVert = (s) => s, extraFrag = (s) => s) {
   sh.vertexShader = VERT_HEAD + extraVert(sh.vertexShader
     // (three tints every vertex by instanceColor; undo that and tint only the paint)
     .replace('#include <color_vertex>', `#include <color_vertex>
   vColor.rgb = color.rgb;
-  float pm = min( paintMask, 1.0 );
+  float pm = min( carPart.x, 1.0 );
   vTint1 = mix( vec3( 1.0 ), instanceColor.rgb, pm );
-  vTint2 = mix( vec3( 1.0 ), paint2, pm );
-  vTone = step( 1.5, paintMask );`)
-    .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vLocalY = position.y;\n  vFade = lodFade;'));
+  vTint2 = mix( vec3( 1.0 ), paint2.rgb, pm );
+  vTone = step( 1.5, carPart.x );
+  vPaint = pm;`)
+    .replace('#include <begin_vertex>', `#include <begin_vertex>
+  vLocalP = position;
+  vFade = carInst.x;
+  vWear = carInst.zw;
+  vDoor = paint2.w < 0.0 ? vec4( 0.0 ) : vec4( floor( paint2.w / 65536.0 ), mod( floor( paint2.w / 256.0 ), 256.0 ), mod( paint2.w, 256.0 ), 255.0 ) / 255.0;
+  vDoorZone = doorZone;
+  ${KIT_FOLD}`));
   const keep = fine ? 'if ( lodDither( gl_FragCoord.xy ) >= vFade ) discard;' : 'if ( lodDither( gl_FragCoord.xy ) < vFade ) discard;';
   sh.fragmentShader = FRAG_HEAD + extraFrag(sh.fragmentShader
     .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>\n  ${keep}`)
-    .replace('#include <color_fragment>', `#include <color_fragment>
-  diffuseColor.rgb *= ( vTone > 0.5 && vLocalY < ${TWO_TONE_Y.toFixed(3)} ) ? vTint2 : vTint1;`));
+    .replace('#include <color_fragment>', `#include <color_fragment>${COLOR_CHUNK}`)
+    .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  roughnessFactor = mix( roughnessFactor, 0.95, kitWear );'));
+}
+
+// Shadows: the same kit pieces fold away.
+let depthMat = null;
+function kitDepthMaterial() {
+  if (depthMat) return depthMat;
+  depthMat = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+  depthMat.onBeforeCompile = (sh) => {
+    sh.vertexShader = `attribute vec2 carPart;\nattribute vec4 carInst;\n${sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>\n  ${KIT_FOLD}`)}`;
+  };
+  depthMat.customProgramCacheKey = () => 'trafficKitDepth';
+  return depthMat;
 }
 
 function makeMaterial(env) {
@@ -244,10 +364,19 @@ function makeFineMaterial(env) {
   return m;
 }
 
-// Per-instance second tone and fade, on every traffic mesh.
-function addInstanceAttrs(mesh, max) {
-  mesh.geometry.setAttribute('paint2', new THREE.InstancedBufferAttribute(new Float32Array(max * 3).fill(1), 3).setUsage(THREE.DynamicDrawUsage));
-  mesh.geometry.setAttribute('lodFade', new THREE.InstancedBufferAttribute(new Float32Array(max), 1).setUsage(THREE.DynamicDrawUsage));
+// Per-instance second tone, fade, kit, wear and door, on every traffic mesh.
+// kit / wear: the defaults for a mesh fed without them (hazards3d's trucks).
+const INST = ['paint2', 'carInst', 'doorZone'];
+function addInstanceAttrs(mesh, max, kit = 0, wear = [0, 0]) {
+  const at = (name, size, fill) => {
+    const a = new Float32Array(max * size);
+    for (let i = 0; i < max; i++) a.set(fill, i * size);
+    mesh.geometry.setAttribute(name, new THREE.InstancedBufferAttribute(a, size).setUsage(THREE.DynamicDrawUsage));
+  };
+  at('paint2', 4, [1, 1, 1, -1]);
+  at('carInst', 4, [0, kit, ...wear]);
+  at('doorZone', 4, [0, 0, 0, 0]);
+  mesh.customDepthMaterial = kitDepthMaterial();
 }
 
 // Where the blinkers sit on each type: half length, half width, front and
@@ -268,10 +397,11 @@ export function vehicleMesh(type, max, env = null) {
   mesh.receiveShadow = true;
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   mesh.setColorAt(0, new THREE.Color(1, 1, 1));
-  addInstanceAttrs(mesh, max);
+  addInstanceAttrs(mesh, max, DEFAULT_KIT[type] || 0, [0.5, 0.4]);
   return mesh;
 }
 
+const DIRT_HOOKS = new Set();
 export function createTraffic3D(parent, opts = {}) {
   const mat = makeMaterial(opts.env || null);
   const make = (geo, material = mat, max = MAX) => {
@@ -320,7 +450,23 @@ export function createTraffic3D(parent, opts = {}) {
   const col = new THREE.Color();
   const col2 = new THREE.Color();
   const dists = [];
-  // Put a car into a mesh: matrix, paint, second tone (pickups only), fade.
+  // Per car: its kit (seeded, carKit) and its dirt (dirtStep each tick).
+  const looks = new Map();
+  const lookOf = (c, type) => {
+    let L = looks.get(c.id);
+    if (!L) {
+      const kit = carKit(c.id);
+      // Door color, linear, packed into one number (8 bits a channel).
+      const dc = new THREE.Color(kit.door ?? 0xffffff);
+      const b8 = (v) => Math.round(Math.max(0, Math.min(1, v)) * 255);
+      const door = kit.door == null ? -1 : b8(dc.r) * 65536 + b8(dc.g) * 256 + b8(dc.b);
+      L = { kit, door, zone: doorZone(type), dirt: kit.dirtBase };
+      looks.set(c.id, L);
+    }
+    return L;
+  };
+  // Put a car into a mesh: matrix, paint, second tone (pickups only), fade,
+  // kit, dirt and rust, odd door.
   const put = (mesh, c, type, fade) => {
     const n = counts.get(mesh) || 0;
     if (n >= mesh.instanceMatrix.count) return false;
@@ -328,11 +474,21 @@ export function createTraffic3D(parent, opts = {}) {
     mesh.setColorAt(n, col.setHex(c.color));
     if (type === 'pickup' && c.color2 != null) col2.setHex(c.color2);
     else col2.copy(col);
-    mesh.geometry.attributes.paint2.setXYZ(n, col2.r, col2.g, col2.b);
-    mesh.geometry.attributes.lodFade.setX(n, fade);
+    const at = mesh.geometry.attributes;
+    const L = lookOf(c, type);
+    at.paint2.setXYZW(n, col2.r, col2.g, col2.b, L.door);
+    at.carInst.setXYZW(n, fade, L.kit.mask, L.dirt, L.kit.rust);
+    at.doorZone.setXYZW(n, ...L.zone);
     counts.set(mesh, n + 1);
     return true;
   };
+  // Dev and shots (tools/shots.mjs 'dirt'): set a car's dirt now; it then
+  // builds or fades from there as usual.
+  // (Every traffic view made so far listens: the game can build more than one.)
+  DIRT_HOOKS.add((id, v) => {
+    lookOf({ id }, trafficType(id)).dirt = v;
+  });
+  if (typeof window !== 'undefined') window.__trafficDirt = (id, v) => DIRT_HOOKS.forEach((f) => f(id, v));
   return {
     meshes,
     far,
@@ -342,6 +498,10 @@ export function createTraffic3D(parent, opts = {}) {
       const dt = lastT ? Math.min(0.1, Math.max(0, now - lastT)) : 0;
       lastT = now;
       for (const mesh of all()) counts.set(mesh, 0);
+      for (const c of cars) {
+        const L = lookOf(c, trafficType(c.id));
+        L.dirt = dirtStep(L.dirt, L.kit.dirtBase, c.onDirt, c.speed, dt);
+      }
       dists.length = 0;
       for (const c of cars) if (near(c.x, c.y)) dists.push({ id: c.id, d: Math.hypot(c.x - focus.x, c.y - focus.z) });
       const fades = lod.step(dists, dt);
@@ -380,8 +540,7 @@ export function createTraffic3D(parent, opts = {}) {
         mesh.visible = mesh.count > 0;
         mesh.instanceMatrix.needsUpdate = true;
         if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-        mesh.geometry.attributes.paint2.needsUpdate = true;
-        mesh.geometry.attributes.lodFade.needsUpdate = true;
+        for (const k of INST) mesh.geometry.attributes[k].needsUpdate = true;
       }
     },
   };
