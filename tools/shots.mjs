@@ -97,6 +97,20 @@ const VIEWS = [
   // One car each side of the 40 m switch, same camera: no pop between them.
   { name: 'traffic_switch_in', car: { road: 'hwy9', at: 0.4 }, pin: [['car0', 37, -1, -1]], rel: [1.2, 2.4, -3], relLook: [-2.4, 0.6, -40] },
   { name: 'traffic_switch_mid', car: { road: 'hwy9', at: 0.4 }, pin: [['car0', 40, -1, -1]], rel: [1.2, 2.4, -3], relLook: [-2.4, 0.6, -40] },
+  // Locals (#56). `person: [id, dist, up, side]` puts the car 9 m from that
+  // local and the camera `dist` m from them at `up` m, on the car's side
+  // (side 0) or turned `side` degrees round them. `lineup` stands those
+  // locals in a row 1.3 m apart where the first one stands, facing the car.
+  { name: 'people_close', person: ['mabel', 3, 1.6, 0] },
+  { name: 'people_side', person: ['mabel', 3.4, 1.3, 90] },
+  { name: 'people_farmer', person: ['hartley', 3, 1.6, 0] },
+  { name: 'people_foreman', person: ['marisol', 3, 1.6, 0] },
+  { name: 'people_waitress', person: ['bev', 3, 1.6, 20] },
+  { name: 'people_fisher', person: ['dot', 4.5, 1.7, 40] },
+  // Mid-conversation: hands moving (talk: that local's id).
+  { name: 'people_talk', person: ['mabel', 2.6, 1.6, 25], talk: 'mabel' },
+  { name: 'people_lineup', person: ['mabel', 7, 1.5, 0], lineup: ['mabel', 'hartley', 'marisol', 'bev', 'earl', 'gus'] },
+  { name: 'people_wide', person: ['mabel', 16, 3.5, 0], lineup: ['mabel', 'hartley', 'frank'] },
   { name: 'traffic_switch_out', car: { road: 'hwy9', at: 0.4 }, pin: [['car0', 43, -1, -1]], rel: [1.2, 2.4, -3], relLook: [-2.4, 0.6, -40] },
   // Parked semis (#47). Calder grain silos (mission 1 region): close 3/4,
   // side, rear and the site. The Brandt co-op elevator ones (semib_*) need
@@ -150,8 +164,8 @@ for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) 
   await page.evaluate(async (v) => {
     const { WORLD } = await import('/src/world/world.js');
     const st = window.__state;
-    let { x, y, heading } = v.car;
-    if (v.car.road) {
+    let { x, y, heading } = v.car || {};
+    if (v.car && v.car.road) {
       const r = WORLD.roads.find((q) => q.id === v.car.road);
       const i = Math.floor(r.points.length * v.car.at);
       const [ax, ay] = r.points[i];
@@ -183,6 +197,36 @@ for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) 
       amb.__pinWrap = true;
     }
     window.__pins = [];
+    // Locals for this view (#56): the car 9 m from the one named, others lined up.
+    window.__lineup = null;
+    st.talkingTo = v.talk || null;
+    if (v.person) {
+      const l = WORLD.locals.find((q) => q.id === v.person[0]);
+      const p = (amb && amb.personPos(l.id)) || l;
+      x = p.x + 9;
+      y = p.y;
+      heading = 270;
+      if (v.lineup) {
+        // A row across the line to the car, centred where that local stands,
+        // everyone facing the car (east).
+        window.__lineup = v.lineup.map((id, k) => ({ id, x: p.x, y: p.y + (k - (v.lineup.length - 1) / 2) * 1.3, heading: 90 }));
+      }
+      st.car.x = x;
+      st.car.y = y;
+      st.car.heading = heading;
+    }
+    if (amb && !amb.__lineWrap) {
+      const up2 = amb.update.bind(amb);
+      amb.update = (...a) => {
+        const r = up2(...a);
+        for (const q of window.__lineup || []) {
+          const p = amb.personPos(q.id);
+          if (p) Object.assign(p, { x: q.x, y: q.y, heading: q.heading, moving: false });
+        }
+        return r;
+      };
+      amb.__lineWrap = true;
+    }
     if (v.pin && v.car.road) {
       const r = WORLD.roads.find((q) => q.id === v.car.road);
       const i0 = Math.floor(r.points.length * v.car.at);
@@ -229,7 +273,24 @@ for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) 
     if (!renderer.__orig) renderer.__orig = renderer.render.bind(renderer);
     const H = (px, py) => world3d.terrain.heightAt(px, py);
     renderer.render = (s, c) => {
-      if (v.cows && window.__amb) {
+      if (v.person && window.__amb) {
+        // Aim at the local (or the middle of the lineup) from the car's side,
+        // turned v.person[3] degrees round them.
+        const row = window.__lineup;
+        const p = row ? { x: (row[0].x + row[row.length - 1].x) / 2, y: (row[0].y + row[row.length - 1].y) / 2 } : window.__amb.personPos(v.person[0]);
+        const L = Math.hypot(st.car.x - p.x, st.car.y - p.y) || 1;
+        const ux = (st.car.x - p.x) / L;
+        const uy = (st.car.y - p.y) / L;
+        const t = (v.person[3] * Math.PI) / 180;
+        const ax = ux * Math.cos(t) - uy * Math.sin(t);
+        const ay = ux * Math.sin(t) + uy * Math.cos(t);
+        const cx = p.x + ax * v.person[1];
+        const cy = p.y + ay * v.person[1];
+        c.position.set(cx, H(cx, cy) + v.person[2], cy);
+        c.up.set(0, 1, 0);
+        c.lookAt(p.x, H(p.x, p.y) + (v.person[1] > 5 ? 1.0 : 1.3), p.y);
+        c.updateMatrixWorld();
+      } else if (v.cows && window.__amb) {
         // Aim at the cow nearest the car, from the car's side of it.
         let best = null;
         for (const a of window.__amb.animals) {
