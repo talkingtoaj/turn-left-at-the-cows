@@ -4,7 +4,8 @@
 //   npm run check:boot
 //
 // Starts its own Vite server. Missing private assets (assets.txt) only cause
-// failed loads, which are ignored; uncaught errors and console errors fail.
+// failed loads and undecodable sounds, which are ignored; any other uncaught
+// error, console error or failed game load fails.
 
 import { createServer } from 'vite';
 import { launchChromium } from './browser.mjs';
@@ -20,7 +21,11 @@ const errors = [];
 let ok = false;
 try {
   const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
-  page.on('pageerror', (e) => errors.push(`uncaught: ${e.stack || e}`));
+  page.on('pageerror', (e) => {
+    // Private sounds absent (CI): the server answers with HTML, which won't decode.
+    if (/Unable to decode audio data/.test(String(e))) return;
+    errors.push(`uncaught: ${e.stack || e}`);
+  });
   page.on('console', (m) => {
     const t = m.text();
     // The menu loads the game behind it and catches a failure as a warning (src3/boot.js).
