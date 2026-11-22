@@ -17,13 +17,16 @@
 
 import { carPaint } from './carpaint.js';
 import { makeRng, hashString } from '../drive/geom.js';
+import { SIX_SLOT, sixBySixOn, sixBySixPaint } from './sixbysix.js';
 
-export const TRAFFIC_TYPES = ['sedan', 'wagon', 'pickup', 'hatch', 'farmtruck', 'van', 'fourbyfour'];
+export const TRAFFIC_TYPES = ['sedan', 'wagon', 'pickup', 'hatch', 'farmtruck', 'van', 'fourbyfour', 'sixbysix'];
 // Types for the ten traffic cars (car0..car9), mixed so each shows up.
 const TYPE_OF = ['sedan', 'wagon', 'pickup', 'hatch', 'fourbyfour', 'farmtruck', 'van', 'hatch', 'pickup', 'sedan'];
 const numOf = (id) => Number(String(id).replace(/\D/g, '')) || 0;
 export function trafficType(id) {
-  return TYPE_OF[numOf(id) % TYPE_OF.length];
+  const n = numOf(id) % TYPE_OF.length;
+  if (n === SIX_SLOT && sixBySixOn()) return 'sixbysix'; // the surplus 6x6 on some missions (#45)
+  return TYPE_OF[n];
 }
 
 // Kit parts, each one bit of the mask. 'door' is drawn by the shader (a
@@ -47,6 +50,7 @@ export const KIT_FITS = {
   farmtruck: { hay: 1, hay2: 0.6, hay3: 0.45, rearSpare: 0.5, bedCans: 0.45, bullbar: 0.3, flaps: 0.4, door: 0.2 },
   // Panel van: a roof rack (rear ladder, pipes on it), a ladder on roof bars, flaps, business paint.
   van: { rack: 0.4, rackLoad: 0.5, ladder: 0.4, flaps: 0.45, door: 0.12, stripe: 0.35, lowerTone: 0.25 },
+  sixbysix: { hay: 0.5, hay2: 0.5, bedCans: 0.6, flaps: 0.5, door: 0.3 },
 };
 // The slow farm trucks in hazards3d.js have no id: two bales.
 export const DEFAULT_KIT = { farmtruck: (1 << KIT_BIT.hay) | (1 << KIT_BIT.hay2) };
@@ -120,15 +124,17 @@ function doorColor(id, body, r) {
 
 export function carKit(id) {
   const type = trafficType(id);
-  const mask = maskFor(type, ordinalOf(id));
+  // The 6x6 is one of a kind (no slot in TYPE_OF): its own seeded roll.
+  const mask = type === 'sixbysix' ? rollMask(type, makeRng(hashString(`kit6:${id}`) || 1)) : maskFor(type, ordinalOf(id));
   const r = makeRng(hashString(`wear:${id}`) || 1);
-  const paint = carPaint(id, type);
-  // Rust: older cars, farm trucks most, pickups, 4x4s and work vans next.
-  const rustBias = type === 'farmtruck' ? 0.45 : type === 'pickup' || type === 'fourbyfour' ? 0.1 : type === 'van' ? 0.05 : 0;
+  const paint = type === 'sixbysix' ? sixBySixPaint(id) : carPaint(id, type);
+  // Rust: older cars, farm trucks most, pickups, 4x4s and work vans next; the 6x6 (thick army paint) a little.
+  const rustBias = type === 'farmtruck' ? 0.45 : type === 'pickup' || type === 'fourbyfour' ? 0.1 : type === 'van' || type === 'sixbysix' ? 0.05 : 0;
   let rust = Math.max(0, Math.min(1, (paint.age - 0.55) * 1.6 + rustBias + (r() - 0.5) * 0.3));
+  if (type === 'sixbysix') rust = Math.min(rust, 0.3);
   if (type === 'farmtruck') rust = Math.max(rust, 0.45 + 0.3 * r()); // every farm truck has rust
   // Dirt they carry even on paved roads.
-  const [lo, hi] = type === 'farmtruck' ? [0.4, 0.65] : type === 'pickup' || type === 'fourbyfour' ? [0.12, 0.38] : type === 'van' ? [0.04, 0.24] : [0, 0.18];
+  const [lo, hi] = type === 'farmtruck' || type === 'sixbysix' ? [0.4, 0.65] : type === 'pickup' || type === 'fourbyfour' ? [0.12, 0.38] : type === 'van' ? [0.04, 0.24] : [0, 0.18];
   const dirtBase = lo + (hi - lo) * r();
   const door = mask & (1 << KIT_BIT.door) ? doorColor(id, paint.color, r) : null;
   return { type, mask, parts: KIT_PARTS.filter((p, b) => mask & (1 << b)), rust, door, dirtBase };

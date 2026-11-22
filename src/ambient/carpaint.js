@@ -84,7 +84,7 @@ const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
 // Shade shift (lightness by up to +-k), then sun fade: toward its own gray,
 // and a little lighter and chalkier.
-function weather(hex, r, age) {
+export function weather(hex, r, age) {
   let c = toRgb(hex);
   const k = 1 + (r() * 2 - 1) * 0.07;
   c = c.map((v) => clamp01(v * k));

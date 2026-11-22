@@ -20,6 +20,8 @@ import { trimBuilder } from './car3d.js';
 import { kitInto } from './trafficKit.js';
 import { KIT_BIT } from '../../src/ambient/carkit.js';
 import { fourByFourFine } from './fourbyfour3d.js';
+import { farmTruckInto } from './farmtruck3d.js';
+import { sixBySixInto } from './sixbysix3d.js';
 
 // Bumper and trim look per type (the coarse bodies in traffic3d.js read it too).
 export const FINE_STYLE = {
@@ -63,16 +65,19 @@ function trimPart(T, A, paintMask) {
   return finish(g, null, (i) => (Math.abs(uv[i * 2] - pu) < 1e-6 && Math.abs(uv[i * 2 + 1] - pv) < 1e-6 ? paintMask : 0));
 }
 
-// Tyre (tread and sidewall) and hubcaps for a wheel of radius r, axis x.
-function wheelInto(T, A, r, x, y, z, side) {
+// Tyre (tread and sidewall) and hubcaps for a wheel of radius r, axis x
+// (or z), w wide (the car tyre is 0.204).
+function wheelInto(T, A, r, x, y, z, side, w = 0.204, axis = 'x') {
   const k = r / 0.315;
+  const s = w / 0.204;
   const prof = [[0.19, -0.098], [0.27, -0.102], [0.3, -0.095], [0.315, -0.07], [0.317, 0], [0.315, 0.07], [0.3, 0.095], [0.27, 0.102], [0.19, 0.098]]
-    .map(([rr, yy]) => new THREE.Vector2(rr * k, yy));
-  T.geo(new THREE.LatheGeometry(prof, 16).rotateZ(Math.PI / 2).translate(x, y, z), null, A.rect('tread', 1));
+    .map(([rr, yy]) => new THREE.Vector2(rr * k, yy * s));
+  const turn = (g) => (axis === 'z' ? g.rotateY(Math.PI / 2) : g).translate(x, y, z);
+  T.geo(turn(new THREE.LatheGeometry(prof, 16).rotateZ(Math.PI / 2)), null, A.rect('tread', 1));
   // Hubcap on the outer face, a dark hub on the inner face.
-  const cap = new THREE.CircleGeometry(0.2 * k, 14).rotateY(side * Math.PI / 2).translate(x + side * 0.094, y, z);
-  T.geo(cap, null, A.rect('hubcap', 2));
-  T.geo(new THREE.CircleGeometry(0.2 * k, 8).rotateY(-side * Math.PI / 2).translate(x - side * 0.094, y, z), 'rubber');
+  const cap = new THREE.CircleGeometry(0.2 * k, 14).rotateY(side * Math.PI / 2).translate(side * 0.094 * s, 0, 0);
+  T.geo(turn(cap), null, A.rect('hubcap', 2));
+  T.geo(turn(new THREE.CircleGeometry(0.2 * k, 8).rotateY(-side * Math.PI / 2).translate(-side * 0.094 * s, 0, 0)), 'rubber');
 }
 
 // Strips that follow the body surface (as car3d.js surfaceStrips, for any spec).
@@ -252,45 +257,36 @@ function loftFine(name) {
   return mergeGeometries(parts);
 }
 
-// Old flatbed farm truck with stake sides (the coarse one in traffic3d.js,
-// with lamps, grille, plates and tyres from the atlas).
-function farmTruckFine() {
+// A body drawn through a builder (farmtruck3d.js, sixbysix3d.js; see
+// roundShapes.js) on the atlas: flat parts in one trim builder, rounded
+// panels keep their smooth normals.
+const FINE_ALIAS = { paint: 'tpaint', glass: 'tglass', wood: 'plank', woodDark: 'plankDark', hub: 'steel', tail: 'red', flap: 'rubber' };
+function fineBody(into, type) {
   const A = carAtlas();
   const T = trimBuilder(A);
-  const b = (w, h, d, x, y, z, sw) => T.box(x, y, z, w, h, d, sw);
-  b(1.9, 0.2, 5.3, 0, 0.62, 0.1, 'black');
-  b(1.75, 0.62, 1.35, 0, 1.08, -1.95, 'tpaint');
-  b(2.0, 0.2, 0.5, 0, 0.92, -1.6, 'tpaint');
-  b(2.0, 1.25, 1.45, 0, 1.38, -0.6, 'tpaint');
-  b(1.86, 0.5, 0.04, 0, 1.72, -1.34, 'tglass');
-  b(2.02, 0.42, 0.9, 0, 1.72, -0.58, 'tglass');
-  b(2.04, 0.06, 1.5, 0, 2.02, -0.6, 'tpaint');
-  b(1.82, 0.1, 0.12, 0, 0.6, -2.68, 'chrome');
-  // Grille in a chrome surround, headlamps, plates, tail lamps.
-  b(1.0, 0.46, 0.02, 0, 1.08, -2.63, 'chrome');
-  T.pic([0, 1.08, -2.645], [-1, 0, 0], [0, 1, 0], 0.92, 0.4, A.rect('grille', 1));
-  T.pic([0, 0.6, -2.745], [-1, 0, 0], [0, 1, 0], 0.32, 0.16, A.rect('plate', 2));
-  T.pic([0, 0.92, 2.83], [1, 0, 0], [0, 1, 0], 0.32, 0.16, A.rect('plate', 2));
-  const r = A.rect('tail', 1);
-  for (const x of [-1, 1]) {
-    b(0.24, 0.18, 0.03, x * 0.68, 1.12, -2.63, 'chrome');
-    T.pic([x * 0.68, 1.12, -2.65], [-1, 0, 0], [0, 1, 0], 0.2, 0.14, A.rect('head', 1));
-    T.pic([x * 0.85, 0.95, 2.82], [1, 0, 0], [0, 1, 0], 0.2, 0.12, x > 0 ? r : [r[2], r[1], r[0], r[3]]);
-    // Mirror on an arm, door line and handle.
-    b(0.04, 0.04, 0.3, x * 1.06, 1.75, -1.2, 'black');
-    b(0.06, 0.26, 0.14, x * 1.12, 1.75, -1.25, 'black');
-    b(0.006, 1.0, 0.012, x * 1.002, 1.35, -0.02, 'gap');
-    b(0.006, 1.0, 0.012, x * 1.002, 1.35, -1.12, 'gap');
-    b(0.03, 0.03, 0.14, x * 1.01, 1.45, -0.18, 'chrome');
-    for (const z of [-0.3, 0.6, 1.5, 2.4]) b(0.08, 0.75, 0.08, x * 1.03, 1.25, z, 'plankDark');
-    for (const y of [1.05, 1.3, 1.55]) b(0.04, 0.1, 3.0, x * 1.05, y, 1.05, 'plank');
-  }
-  b(2.15, 0.12, 3.2, 0, 0.82, 1.2, 'plank');
-  for (const y of [1.05, 1.3, 1.55]) b(2.1, 0.1, 0.04, 0, y, 2.6, 'plank');
-  for (const x of [-0.86, 0.86]) wheelInto(T, A, 0.45, x, 0.45, -1.95, Math.sign(x));
-  for (const x of [-1.02, 1.02]) wheelInto(T, A, 0.45, x, 0.45, 1.55, Math.sign(x));
-  for (const x of [-0.78, 0.78]) T.geo(new THREE.CylinderGeometry(0.45, 0.45, 0.2, 12).rotateZ(Math.PI / 2).translate(x, 0.45, 1.55), 'rubber');
-  return mergeGeometries([trimPart(T, A, 1), ...fineKit('farmtruck', A)]);
+  const smooth = [];
+  const sw = (m) => FINE_ALIAS[m] || m;
+  into({
+    fine: true,
+    box: (x, y, z, w, h, d, m, rx = 0, ry = 0, rz = 0) => T.box(x, y, z, w, h, d, sw(m), rx, ry, rz),
+    bar: (a, b, w, th, m, up) => T.rod(a, b, w, th, sw(m), up),
+    smooth(g, m) {
+      const n = g.index ? g.toNonIndexed() : g;
+      smooth.push(finish(n, () => A.sw(sw(m)), () => (m === 'paint' ? 1 : 0)));
+    },
+    geo: (g, m) => T.geo(g, sw(m)),
+    pic(c, r, u, w, h, name, flip = false) {
+      const q = A.rect(name, 1);
+      T.pic(c, r, u, w, h, flip ? [q[2], q[1], q[0], q[3]] : q);
+    },
+    disc(c, n, rad, name) {
+      const g = new THREE.CircleGeometry(rad, 14);
+      g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(...n)));
+      T.geo(g.translate(...c), null, A.rect(name, 1));
+    },
+    wheel: (r, w, x, y, z, side, axis = 'x') => wheelInto(T, A, r, x, y, z, side, w, axis),
+  });
+  return mergeGeometries([trimPart(T, A, 1), ...smooth, ...fineKit(type, A)]);
 }
 
 // Kit pieces (trafficKit.js) on the atlas, one part per kit bit (carPart.y is
@@ -347,5 +343,7 @@ function fineKit(type, A) {
 
 export function fineGeometry(name) {
   if (name === 'fourbyfour') return fourByFourFine({ fineShell, trimPart, stripsFor, wheelInto, fineKit });
-  return name === 'farmtruck' ? farmTruckFine() : loftFine(name);
+  if (name === 'farmtruck') return fineBody(farmTruckInto, 'farmtruck');
+  if (name === 'sixbysix') return fineBody(sixBySixInto, 'sixbysix');
+  return loftFine(name);
 }
