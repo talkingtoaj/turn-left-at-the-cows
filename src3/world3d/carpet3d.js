@@ -97,8 +97,8 @@ function clumpGeo() {
     const bx = cx * r0;
     const bz = cz * r0;
     pos.push(bx - px, 0, bz - pz, bx + px, 0, bz + pz, bx + cx * lean, h, bz + cz * lean);
-    const tip = 1.0 + 0.12 * ((i * 3) % 2);
-    col.push(0.62, 0.68, 0.58, 0.62, 0.68, 0.58, tip, tip * 1.04, tip * 0.8);
+    const tip = 0.96 + 0.1 * ((i * 3) % 2);
+    col.push(0.62, 0.68, 0.58, 0.62, 0.68, 0.58, tip, tip * 1.05, tip * 0.84);
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
@@ -190,7 +190,7 @@ export function buildCarpet(world, terrain, groundColor = null) {
       const g = R.at(x, y);
       groundColor(x, y, h, gc, g.rough, g.open);
     } else gc.copy(GREEN);
-    out.copy(gc).multiplyScalar(0.9 + 0.2 * tint);
+    out.copy(gc).multiplyScalar(0.84 + 0.2 * tint);
     if (tint > 0.62) out.lerp(STRAW, (tint - 0.62) * 0.7);
     else if (tint < 0.4) out.lerp(LUSH, (0.4 - tint) * 1.2);
   };
@@ -284,6 +284,11 @@ export function buildCarpet(world, terrain, groundColor = null) {
   // ---- Ruts: the dirt roads' wheel tracks.
   const ruts = buildRuts(world, terrain, R);
   if (ruts) group.add(ruts.mesh);
+  // Where the camera was when the scene was last drawn: the same as the
+  // update's camera in the game, but review tools (tools/shots.mjs) move the
+  // camera just before drawing, and the carpet should be round that one.
+  const drawn = new THREE.Vector3(NaN, 0, 0);
+  if (ruts) ruts.mesh.onBeforeRender = (r, sc, cam) => drawn.copy(cam.position);
 
   let tiles = [];
   let dirty = false;
@@ -297,8 +302,9 @@ export function buildCarpet(world, terrain, groundColor = null) {
     materials: { grass: grassMat, pebble: pebbleMat },
     update(camera) {
       WIND.uTime.value = (performance.now() - t0) / 1000;
-      const cx = camera.position.x;
-      const cz = camera.position.z;
+      const at = Number.isNaN(drawn.x) ? camera.position : drawn;
+      const cx = at.x;
+      const cz = at.z;
       const w = win.update(cx, cz);
       if (w.changed) {
         tiles = w.tiles;

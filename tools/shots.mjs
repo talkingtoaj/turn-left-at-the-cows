@@ -50,6 +50,8 @@ const VIEWS = [
   { name: 'paved', car: { road: 'hwy9', at: 0.4 } },
   { name: 'paved_low', car: { road: 'rt40', at: 0.5 }, rel: [-3.2, 0.9, 5] },
   { name: 'dirtroad_ridge_low', car: { road: 'ridge_rd', at: 0.5 }, rel: [2.8, 0.8, 7.5] },
+  // A wire fence by Hartley Farm, low along the posts (weeds at its foot).
+  { name: 'fence_low', car: { x: 2610, y: 490, heading: 0 }, cam: [2617, 1.4, 556], look: [2628, 0.4, 578] },
 ];
 
 const pw = await import(findPlaywright());
