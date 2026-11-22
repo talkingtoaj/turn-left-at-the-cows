@@ -16,6 +16,7 @@
 import * as THREE from 'three';
 import { scatterFor } from '../../src/world/scatter.js';
 import { districtsFor } from '../../src/world/districts.js';
+import { buildCarpet, swayMaterial } from './carpet3d.js';
 
 const CELL = 50;
 const VIEW_MARGIN = 10;
@@ -31,7 +32,10 @@ const REACH = {
   rock: { base: 150, per: 160 }, // r 0.25: 190 m, r 1.25: 350 m, bigger: always
   shrub: { base: 190, per: 55 },
   tuft: { base: 60, per: 70 },
+  weed: { base: 70, per: 90 }, // r 0.3: 97 m
 };
+// Verge and fence weeds (SPEC 9q): tip sway per metre of height.
+const WEED_SWAY = 0.12;
 
 const ON = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('scatter') !== 'off';
 const MODELS = ON ? await loadModels() : null;
@@ -193,19 +197,112 @@ function tuftGeo() {
   return g;
 }
 
-export function buildScatter(world, scenery, terrain, sunDir, audit = null) {
+// Verge weeds (SPEC 9q). Unit radius, height 1, base at 0, vertex coloured,
+// normals mostly up like the tussocks.
+//   foxtail: tall grass, a few stalks with pale seed heads.
+//   dock:    broad low leaves and rusty seed spikes on tall stalks.
+function blade(pos, col, bx, bz, tx, ty, tz, w, c0, c1) {
+  const len = Math.hypot(tx - bx, tz - bz) || 1;
+  const px = (-(tz - bz) / len) * w;
+  const pz = ((tx - bx) / len) * w;
+  const ex = len < 0.05 ? w : 0;
+  pos.push(bx - px - ex, 0, bz - pz, bx + px + ex, 0, bz + pz, tx, ty, tz);
+  col.push(c0.r, c0.g, c0.b, c0.r, c0.g, c0.b, c1.r, c1.g, c1.b);
+}
+// A seed head: two crossed diamonds from y0 to y1 around (x, z).
+function head(pos, col, x, z, y0, y1, w, c) {
+  const ym = y0 + (y1 - y0) * 0.45;
+  for (const [ax, az] of [[w, 0], [0, w]]) {
+    pos.push(x, y0, z, x + ax, ym, z + az, x, y1, z);
+    pos.push(x, y0, z, x, y1, z, x - ax, ym, z - az);
+    for (let k = 0; k < 6; k++) col.push(c.r, c.g, c.b);
+  }
+}
+function weedGeo(kind) {
+  const pos = [];
+  const col = [];
+  const C = (h, k = 1) => new THREE.Color(h).multiplyScalar(k);
+  if (kind === 'foxtail') {
+    const root = C(0x4a6428);
+    const tip = C(0xa9a860);
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2 + (i % 3) * 0.5;
+      const lean = 0.35 + (i % 4) * 0.13;
+      const h = 0.55 + ((i * 7) % 5) * 0.06;
+      blade(pos, col, Math.cos(a) * 0.1, Math.sin(a) * 0.1, Math.cos(a) * lean, h, Math.sin(a) * lean, 0.07, root, tip);
+    }
+    const stalk = C(0x8d8a4c);
+    const seed = C(0xcbbd84);
+    for (let i = 0; i < 5; i++) {
+      const a = i * 2.4 + 0.3;
+      const tx = Math.cos(a) * (0.2 + 0.08 * (i % 3));
+      const tz = Math.sin(a) * (0.2 + 0.08 * (i % 3));
+      const h = 0.82 + 0.045 * i;
+      blade(pos, col, tx * 0.2, tz * 0.2, tx, h, tz, 0.022, root, stalk);
+      head(pos, col, tx, tz, h - 0.04, h + 0.16, 0.035, seed);
+    }
+  } else {
+    const leaf = C(0x3f5a26);
+    const leafTip = C(0x5c7434);
+    // Broad leaves: a long diamond each, widest a third of the way out.
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + 0.4 * (i % 2);
+      const cx = Math.cos(a);
+      const cz = Math.sin(a);
+      const L = 0.75 + 0.15 * (i % 2);
+      const tip = [cx * L, 0.26 + 0.07 * (i % 3), cz * L];
+      const mid = [cx * L * 0.38, 0.2, cz * L * 0.38];
+      const w = 0.17;
+      const l = [mid[0] - cz * w, mid[1], mid[2] + cx * w];
+      const r = [mid[0] + cz * w, mid[1], mid[2] - cx * w];
+      const base = [cx * 0.05, 0, cz * 0.05];
+      pos.push(...base, ...r, ...l, ...l, ...r, ...tip);
+      col.push(leaf.r, leaf.g, leaf.b, leafTip.r, leafTip.g, leafTip.b, leafTip.r, leafTip.g, leafTip.b);
+      col.push(leafTip.r, leafTip.g, leafTip.b, leafTip.r, leafTip.g, leafTip.b, leafTip.r, leafTip.g, leafTip.b);
+    }
+    const stalk = C(0x5e5a2e);
+    const rust = C(0x8a4f2a);
+    for (let i = 0; i < 3; i++) {
+      const a = i * 2.1 + 0.7;
+      const tx = Math.cos(a) * 0.18;
+      const tz = Math.sin(a) * 0.18;
+      const h = 0.62 + 0.1 * i;
+      blade(pos, col, 0, 0, tx, h, tz, 0.025, leaf, stalk);
+      head(pos, col, tx, tz, h - 0.08, h + 0.3, 0.06, rust.clone().multiplyScalar(0.85 + 0.15 * i));
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.computeVertexNormals();
+  const nr = g.attributes.normal;
+  const n = new THREE.Vector3();
+  for (let i = 0; i < nr.count; i++) {
+    n.set(nr.getX(i) * 0.35, 1, nr.getZ(i) * 0.35).normalize();
+    nr.setXYZ(i, n.x, n.y, n.z);
+  }
+  return g;
+}
+
+// groundColor: the terrain's colour function (world3d.js), for the grass
+// carpet; null outside the game.
+export function buildScatter(world, scenery, terrain, sunDir, audit = null, groundColor = null) {
   const S = scatterFor(world, scenery);
   const group = new THREE.Group();
   group.name = 'scatter';
   if (!S.rocks.length && !S.shrubs.length && !S.grass.length) return { object: group, update() {}, counts: {} };
   const D = districtsFor(world);
+  // The grass carpet, pebbles and ruts round the camera (carpet3d.js).
+  const carpet = buildCarpet(world, terrain, groundColor);
+  group.add(carpet.object);
   // Gorse is made here (round 8): the cut-down model read papery and spiky.
-  const geo = { ...(MODELS || fallbackGeo()), gorse: gorseGeo(), tuft: tuftGeo() };
+  const geo = { ...(MODELS || fallbackGeo()), gorse: gorseGeo(), tuft: tuftGeo(), foxtail: weedGeo('foxtail'), dock: weedGeo('dock') };
   // Rocks and shrubs have their own materials so the look (src3/look) can
   // give rocks a stone texture and both a wet look in the rain.
   const rockMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
   const solidMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
   const tuftMat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
+  const weedMat = swayMaterial(new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }), WEED_SWAY);
 
   const size = world.size;
   const ncx = Math.ceil(size.w / CELL) + 1;
@@ -270,6 +367,19 @@ export function buildScatter(world, scenery, terrain, sunDir, audit = null) {
     push('tuft', t.x, t.y, t.r, m, c, hgt);
     if (audit) audit.circle(`tuft${gi++}`, 'scatter_tuft', t.x, t.y, t.r * 0.3, base, base + 0.6 * hgt);
   }
+  let wi = 0;
+  for (const t of S.weeds || []) {
+    const hgt = t.hs; // m tall
+    const { min } = terrain.groundRange({ circle: { x: t.x, y: t.y, r: t.r * 0.3 } });
+    const base = min - 0.04;
+    const m = new THREE.Matrix4().compose(v.set(t.x, base, t.y), q.setFromAxisAngle(up, t.rot), sc.set(t.r, hgt, t.r));
+    // Greener in wet ground, drier and paler on the downs and at random.
+    const w = D.at(t.x, t.y).w;
+    const f = 0.85 + 0.3 * t.tint;
+    const c = new THREE.Color(f * (1 + 0.1 * w.bare - 0.08 * w.willow), f * (1 + 0.04 * w.willow), f * (1 - 0.12 * w.bare - 0.06 * w.willow));
+    push(t.model, t.x, t.y, t.r, m, c, hgt);
+    if (audit) audit.circle(`weed${wi++}`, 'scatter_tuft', t.x, t.y, t.r * 0.3, base, base + 0.6 * hgt);
+  }
 
   // Sets: instances sorted by cell, then big to small.
   const sets = [];
@@ -288,9 +398,10 @@ export function buildScatter(world, scenery, terrain, sunDir, audit = null) {
     });
     for (let c = 0; c < nCells; c++) start[c + 1] += start[c];
     const isRock = part === 'boulder' || part === 'slab';
-    const kind = isRock ? 'rock' : part === 'tuft' ? 'tuft' : 'shrub';
+    const isWeed = part === 'foxtail' || part === 'dock';
+    const kind = isRock ? 'rock' : part === 'tuft' ? 'tuft' : isWeed ? 'weed' : 'shrub';
     const mk = (cast) => {
-      const mesh = new THREE.InstancedMesh(geo[part], part === 'tuft' ? tuftMat : isRock ? rockMat : solidMat, n);
+      const mesh = new THREE.InstancedMesh(geo[part], part === 'tuft' ? tuftMat : isWeed ? weedMat : isRock ? rockMat : solidMat, n);
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3).setUsage(THREE.DynamicDrawUsage);
       mesh.count = 0;
@@ -405,13 +516,15 @@ export function buildScatter(world, scenery, terrain, sunDir, audit = null) {
     }
   }
 
-  const counts = { rocks: S.rocks.length, shrubs: S.shrubs.length, tufts: S.grass.length, outcrops: S.outcrops.length, ms: S.ms };
-  console.info(`[scatter] ${counts.rocks} rocks (${S.solids.length} solid, ${counts.outcrops} outcrops), ${counts.shrubs} shrubs, ${counts.tufts} tussocks; placed in ${S.ms} ms`);
+  const counts = { rocks: S.rocks.length, shrubs: S.shrubs.length, tufts: S.grass.length, weeds: (S.weeds || []).length, outcrops: S.outcrops.length, ms: S.ms };
+  console.info(`[scatter] ${counts.rocks} rocks (${S.solids.length} solid, ${counts.outcrops} outcrops), ${counts.shrubs} shrubs, ${counts.tufts} tussocks, ${counts.weeds} weeds; placed in ${S.ms} ms`);
   return {
     object: group,
     counts,
-    materials: { rock: rockMat, shrub: solidMat, tuft: tuftMat },
+    carpet,
+    materials: { rock: rockMat, shrub: solidMat, tuft: tuftMat, weed: weedMat },
     update(camera, focus, shadowRadius) {
+      carpet.update(camera);
       camera.getWorldDirection(camDir);
       const key = `${camera.far},${camera.fov},${camera.aspect},${shadowRadius}`;
       const changed = camPos.distanceToSquared(camera.position) > MOVE * MOVE || camDir.dot(lastDir) < TURN

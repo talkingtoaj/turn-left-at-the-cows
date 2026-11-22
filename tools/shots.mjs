@@ -67,6 +67,8 @@ const VIEWS = [
   // Pruitt Lane (dirt) meeting Route 40: STOP sign, about 15 m and up high.
   { name: 'junction_stop', car: { x: 2965, y: 1100, heading: 180 }, cam: [2981.5, 1.4, 1276], look: [2978, 1.2, 1296] },
   { name: 'junction_wide', car: { x: 2965, y: 1100, heading: 180 }, cam: [3005, 14, 1265], look: [2978, 0, 1300] },
+  // A wire fence by Hartley Farm, low along the posts (weeds at its foot).
+  { name: 'fence_low', car: { x: 2610, y: 490, heading: 0 }, cam: [2617, 1.4, 556], look: [2628, 0.4, 578] },
 ];
 
 const pw = await import(findPlaywright());
