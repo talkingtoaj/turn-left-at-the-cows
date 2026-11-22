@@ -66,8 +66,8 @@ function trimPart(T, A, paintMask) {
 }
 
 // Tyre (tread and sidewall) and hubcaps for a wheel of radius r, axis x
-// (or z), w wide (the car tyre is 0.204).
-function wheelInto(T, A, r, x, y, z, side, w = 0.204, axis = 'x') {
+// (or z), w wide (the car tyre is 0.204). Also used by the parked semis (parked3d.js).
+export function wheelInto(T, A, r, x, y, z, side, w = 0.204, axis = 'x') {
   const k = r / 0.315;
   const s = w / 0.204;
   const prof = [[0.19, -0.098], [0.27, -0.102], [0.3, -0.095], [0.315, -0.07], [0.317, 0], [0.315, 0.07], [0.3, 0.095], [0.27, 0.102], [0.19, 0.098]]

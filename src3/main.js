@@ -36,6 +36,8 @@ import { createRadio } from '../src/radio/radio.js';
 import { STATIONS } from '../src/radio/segments.js';
 import { createAmbient3D } from './world3d/ambient3d.js';
 import { createStopSigns3D } from './world3d/stopsigns3d.js';
+import { createParked3D } from './world3d/parked3d.js';
+import { parkedIn } from '../src/world/parked.js';
 import { addCloudShadowsTo, cloudUniforms } from './world3d/clouds.js';
 import { campfireOf } from './world3d/landmarks3d.js';
 import { SUN_DIR } from './world3d/world3d.js';
@@ -229,6 +231,7 @@ async function buildRegion(id, title, quiet = false, mission = 0) {
       campfire: campfireOf(WORLD, world3d.terrain), chimneyFix, carEnv: look ? look.carEnv() : null,
     });
     createStopSigns3D(scene, amb.stopSigns, world3d.terrain);
+    createParked3D(scene, { list: parkedIn(id), terrain: world3d.terrain, env: look ? look.carEnv() : null }); // parked semis (#47)
     addCloudShadowsTo(scene);
     if (look) look.afterAmbient(scene);
     // Damage, potholes and road hazards (also the ?hazard, ?fallen, ?spot dev flags).
