@@ -249,6 +249,20 @@ const VIEWS = [
   { name: 'oak_close', car: { x: 3907, y: 2250, heading: 180 }, cam: [3958, 7, 2228], look: [3990, 15, 2262] },
   { name: 'oak_front', car: { x: 3907, y: 2250, heading: 180 }, cam: [3940, 12, 2262], look: [3990, 20, 2262] },
   { name: 'oak_road', car: { x: 3920, y: 2140, heading: 180 }, cam: [3920, 1.4, 2140], look: [3990, 18, 2262] },
+  // Trees (#69). Rows along Pruitt Lane (dirt, off Route 40 to the Pruitt
+  // farm): from the car turning in, straight down the lane, 3/4 close on a
+  // row tree, its trunk and branches up close, and the dead one in the row.
+  // Rows on Ridge Road by Hartley's and on Old River Road from the car.
+  // A dead tree and a broken one out in the open.
+  { name: 'rows_road', car: { x: 2982.2, y: 1276.7, heading: 7 } },
+  { name: 'rows_lane', car: { x: 2982.2, y: 1276.7, heading: 7 }, cam: [2987.6, 1.6, 1237.1], look: [2986.8, 2.5, 1157.5] },
+  { name: 'rows_close', car: { x: 2982.2, y: 1276.7, heading: 7 }, cam: [2986, 1.7, 1216], look: [2977.1, 3, 1208.4] },
+  { name: 'rows_bark', car: { x: 2982.2, y: 1276.7, heading: 7 }, cam: [2981.5, 1.4, 1211.5], look: [2977.1, 2.6, 1208.4] },
+  { name: 'rows_dead', car: { x: 2982.2, y: 1276.7, heading: 7 }, cam: [2987, 2, 1227], look: [2976.3, 5, 1218.9] },
+  { name: 'rows_ridge_road', car: { x: 2648.3, y: 290.1, heading: 74 } },
+  { name: 'rows_river_road', car: { x: 3306.4, y: 2243.3, heading: 106 } },
+  { name: 'dead_open', car: { x: 2700, y: 660, heading: 0 }, cam: [2692, 2, 652], look: [2670, 6, 638] },
+  { name: 'snag_open', car: { x: 2190, y: 1440, heading: 0 }, cam: [2178, 1.8, 1428], look: [2167, 2.2, 1418] },
   // Tractors (#65): slow farm tractors on Ridge Road (pin ids 'hz:<paint>'):
   // 3/4 front close, straight side, the big tire, the back, three in a row,
   // and from the car as the player comes up behind one.
