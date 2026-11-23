@@ -303,6 +303,19 @@ const VIEWS = [
   { name: 'barnsilo_close', car: { x: 2610, y: 490, heading: 0 }, cam: [2742, 3, 442], look: [2722, 8, 417] },
   { name: 'barnsilo_front', car: { x: 2610, y: 490, heading: 0 }, cam: [2722, 4, 448], look: [2722, 8, 417] },
   { name: 'barnsilo_road', car: { x: 2610, y: 490, heading: 0 }, cam: [2610, 1.4, 490], look: [2722, 8, 417] },
+  // Barns (#79): Hartley's barn 3/4, straight on, from the back, and from Farm
+  // Road; Pruitt's, Okafor's and Dolan's 3/4 and from their lane, so the
+  // seeded differences between neighbours show.
+  { name: 'barn_close', car: { x: 2610, y: 490, heading: 0 }, cam: [2682, 3, 446], look: [2705, 5, 420] },
+  { name: 'barn_front', car: { x: 2610, y: 490, heading: 0 }, cam: [2705, 3.5, 452], look: [2705, 5.5, 420] },
+  { name: 'barn_back', car: { x: 2610, y: 490, heading: 0 }, cam: [2728, 4, 392], look: [2702, 5, 420] },
+  { name: 'barn_road', car: { x: 2610, y: 490, heading: 0 }, cam: [2650, 1.4, 460], look: [2705, 5, 420] },
+  { name: 'barn_p_close', car: { x: 2960, y: 1062, heading: 45 }, cam: [3020, 3, 1058], look: [2995, 5, 1030] },
+  { name: 'barn_p_road', car: { x: 2960, y: 1062, heading: 45 }, cam: [2960, 1.4, 1062], look: [2995, 5, 1030] },
+  { name: 'barn_o_close', car: { x: 4897, y: 1963, heading: 90 }, cam: [4940, 3, 2016], look: [4965, 5, 1990] },
+  { name: 'barn_o_road', car: { x: 4897, y: 1963, heading: 90 }, cam: [4897, 1.4, 1963], look: [4965, 5, 1990] },
+  { name: 'barn_dl_close', car: { x: 2495, y: 848, heading: 90 }, cam: [2515, 3, 880], look: [2536, 5, 858] },
+  { name: 'barn_dl_road', car: { x: 2495, y: 848, heading: 90 }, cam: [2495, 1.4, 848], look: [2536, 5, 858] },
   { name: 'elev_b_close', car: { x: 1700, y: 1440, heading: 0 }, cam: [1772, 3, 1432], look: [1745, 14, 1405] },
   { name: 'elev_b_front', car: { x: 1700, y: 1440, heading: 0 }, cam: [1745, 4, 1452], look: [1745, 14, 1405] },
   { name: 'elev_b_sign', car: { x: 1700, y: 1440, heading: 0 }, cam: [1752, 19, 1378], look: [1745, 19.5, 1405] },
