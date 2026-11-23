@@ -223,6 +223,7 @@ export function personLook(l) {
   return {
     id: l.id, outfit, woman, age, height, build, skin, hair, gray, hairStyle, beard, glasses,
     ...c, carry: l.carry || (outfit === 'fisher' ? 'rod' : null), idle, seed: r(),
+    seated: !!l.sit, // on a bridge's edge, legs over (#64)
   };
 }
 
@@ -317,7 +318,7 @@ export function personPose(look, a, t, inp) {
         rot.faR[0] = 0.85;
         rot.uaL[0] = 0.45; rot.faL[0] = 0.9; rot.uaL[2] = 0.12; // left hand near the reel
         const cyc = (t + look.seed * 11) % 11;
-        if (cyc < 1.6) {
+        if (cyc < 1.6 && !look.seated) { // sitting, she waits on the bobber
           const back = smooth(cyc / 0.7) * (1 - smooth((cyc - 0.8) / 0.35));
           rot.uaR[0] += 1.5 * back - 0.25 * smooth((cyc - 1.0) / 0.3) * (1 - smooth((cyc - 1.3) / 0.3));
           rot.faR[0] += 0.4 * back;
@@ -326,8 +327,18 @@ export function personPose(look, a, t, inp) {
         break;
       }
     }
-    // Shift of weight now and then.
-    rot.pelvis[2] += 0.015 * Math.sin(t * 0.37 + s);
+    if (look.seated) {
+      // Sitting on an edge: thighs out level, shins hanging over and swinging
+      // slowly, one after the other; a little hunched toward the water.
+      rot.thL[0] = 1.5; rot.thR[0] = 1.5;
+      rot.thL[2] = -0.07; rot.thR[2] = 0.07;
+      rot.shL[0] = -1.4 + 0.2 * Math.sin(t * 0.8 + s);
+      rot.shR[0] = -1.4 + 0.2 * Math.sin(t * 0.8 + s + 2.4);
+      rot.spine[0] += 0.14;
+    } else {
+      // Shift of weight now and then.
+      rot.pelvis[2] += 0.015 * Math.sin(t * 0.37 + s);
+    }
   }
   // Talking: hands move a little, the head nods.
   if (a.talk > 0 && !inp.moving && look.idle !== 'cast') {
@@ -342,8 +353,9 @@ export function personPose(look, a, t, inp) {
     rot.faR[0] = rot.faR[0] * (1 - k) + k * (1.1 + 0.35 * Math.sin(t * 3.1 + s + 2));
     rot.head[0] += k * 0.05 * Math.sin(t * 2.2 + s);
   }
-  // A wave: the right arm up and out, the hand swinging side to side.
-  if (a.wave > 0) {
+  // A wave: the right arm up and out, the hand swinging side to side. Not
+  // sitting fishing: that hand holds the rod out over the water.
+  if (a.wave > 0 && !look.seated) {
     const e = smooth((WAVE_S - a.wave) / 0.35) * smooth(a.wave / 0.4);
     rot.uaR[0] = rot.uaR[0] * (1 - e) + e * 0.25;
     rot.uaR[1] = rot.uaR[1] * (1 - e);
