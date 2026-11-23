@@ -12,6 +12,12 @@
 
 import { makeRng, hashString } from '../../src/drive/geom.js';
 
+// Every local is drawn this much bigger than life (owner's playtest, #87:
+// Dot at the bridge was easy to miss). The one place people are scaled:
+// people3d.js scales each whole body by it, so heights, builds and poses
+// here stay true to life.
+export const PERSON_SCALE = 1.5;
+
 // Locals drawn with a woman's figure (narrower waist, longer hair, no beard).
 // From how the game's own text names them (Mrs, her). Everyone else gets a
 // man's figure.

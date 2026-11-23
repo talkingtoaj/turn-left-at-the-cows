@@ -14,7 +14,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { state } from '../../src/state.js';
 import { currentMissionId } from '../../src/game/tourists.js';
-import { personLook, newAct, actStep, personPose, BONES } from './peopleLook.js';
+import { personLook, newAct, actStep, personPose, BONES, PERSON_SCALE } from './peopleLook.js';
 import { localToWorld } from '../../src/drive/geom.js';
 import { DECK_TOP } from './ground.js';
 import { WATER_LEVEL } from './terrain.js';
@@ -426,6 +426,8 @@ function makePerson(L) {
   mesh.add(bones[0]);
   mesh.updateMatrixWorld(true);
   mesh.bind(new THREE.Skeleton(bones));
+  // Bound at life size, then the whole body is scaled up (#87).
+  mesh.scale.setScalar(PERSON_SCALE);
   mesh.castShadow = true;
   // The arms swing a little past the rest pose: a sphere round the body.
   near.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1, 0), 1.6);
@@ -442,9 +444,10 @@ function seatOf(l, world, look, made) {
   const yaw = -(l.sit.heading * Math.PI) / 180;
   const J = made.J;
   const thighR = (look.woman ? 0.075 : 0.072) * look.build;
-  const y = DECK_TOP - J.y.hip + thighR * 0.8;
+  // Model sizes times PERSON_SCALE: the body is scaled up as a whole.
+  const y = DECK_TOP - (J.y.hip - thighR * 0.8) * PERSON_SCALE;
   const toMid = Math.sign(l.sit.along) || 1; // the bridge's middle is toward -along
-  const bk = localToWorld(b.x, b.y, b.angle, l.sit.across - 0.7, l.sit.along + toMid * 0.45);
+  const bk = localToWorld(b.x, b.y, b.angle, l.sit.across - 0.7 * PERSON_SCALE, l.sit.along + toMid * 0.45 * PERSON_SCALE);
   // Pose the bones as she sits, then read the rod tip off the right forearm.
   const pose = personPose(look, newAct(), 0, { moving: false, walk: 0, headYaw: null });
   const { mesh, bones } = made;
@@ -506,7 +509,7 @@ export function buildLocals(world, terrain, audit = null) {
     if (look.carry === 'rod') {
       // The bucket stands beside her (on the ground, or on the deck she sits
       // on) and does not turn with her.
-      const at = sit ? sit.bucket : { x: l.x + 0.7, y: l.y + 0.5, h: null };
+      const at = sit ? sit.bucket : { x: l.x + 0.7 * PERSON_SCALE, y: l.y + 0.5 * PERSON_SCALE, h: null };
       const bh = at.h ?? terrain.heightAt(at.x, at.y) - 0.04;
       const parts = [
         colored(cylinder(0.2, 0.16, 0.36, 12).translate(0, 0.18, 0), 0x8a8f96),
