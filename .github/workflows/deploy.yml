@@ -23,6 +23,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # A failing map server test stops the deploy (#83).
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: server/uv.lock
+      - name: Map server tests
+        run: uv run --frozen pytest -q
+        working-directory: server
+
       - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: projects/493602269932/locations/global/workloadIdentityPools/github-pool/providers/github

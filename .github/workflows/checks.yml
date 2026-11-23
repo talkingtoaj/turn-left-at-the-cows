@@ -23,3 +23,16 @@ jobs:
       # Start the game in a headless browser: check:all never loads the scene.
       - run: npx -y playwright@1.65.1 install --with-deps chromium
       - run: npm run -s check:boot
+
+  # The map server's pytest suite (server/tests).
+  server:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: server/uv.lock
+      - run: uv run --frozen pytest -q
+        working-directory: server
