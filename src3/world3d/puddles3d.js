@@ -224,6 +224,8 @@ function findOffRoad(world, terrain, ex, mud) {
     // Every corner of the decal must be allowed ground.
     let ok = true;
     for (let j = box.j0; j <= box.j1 && ok; j++) for (let i = box.i0; i <= box.i1; i++) if (ex.blocked(i * CELL, j * CELL, false)) { ok = false; break; }
+    // Nor on the finer yard ground (#85): the decal follows the big cells.
+    if (terrain.yard) for (let j = box.j0 - 1; j <= box.j1 && ok; j++) for (let i = box.i0 - 1; i <= box.i1; i++) if (terrain.yard.has(i, j)) { ok = false; break; }
     if (!ok) continue;
     // The water must stop short of the decal's edge all round (no straight
     // edges): the level stays under the lowest ground along the border.
