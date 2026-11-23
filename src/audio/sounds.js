@@ -97,6 +97,8 @@ export const SOUND_GROUPS = [
       { id: 'animals/dog1', kind: 'oneshot', label: 'Dog bark 1' },
       { id: 'animals/dog2', kind: 'oneshot', label: 'Dog bark 2' },
       { id: 'animals/dog3', kind: 'oneshot', label: 'Dog barks 3 (several)' },
+      { id: 'animals/collie1', kind: 'oneshot', label: "Okafor's collie, one bark" },
+      { id: 'animals/collie2', kind: 'oneshot', label: "Okafor's collie, three barks" },
       { id: 'animals/horse1', kind: 'oneshot', label: 'Horse whinny 1' },
       { id: 'animals/horse2', kind: 'oneshot', label: 'Horse neigh 2' },
     ],

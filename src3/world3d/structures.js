@@ -18,6 +18,7 @@ import { buildFarmhouse } from './farmhouse3d.js';
 import { buildWaterTower } from './watertower3d.js';
 import { buildGrainElevator, buildFarmSilo } from './elevator3d.js';
 import { buildShop } from './shops3d.js';
+import { buildDogYards } from './dog3d.js';
 import { Batcher } from './batch.js';
 import { state } from '../../src/state.js';
 import { currentMissionId } from '../../src/game/tourists.js';
@@ -132,6 +133,7 @@ export function buildStructures(world, terrain, batch, materials, extras = {}) {
     const d = buildLandmark(terrain, batch, l, rng, materials);
     if (d) dynamic.push(d);
   }
+  buildDogYards(world, terrain, batch); // the farm dog's fence and doghouse (dog3d.js, #68)
   const wheels = buildWindpumpWheels(world, terrain);
   if (wheels) dynamic.push(wheels);
   const signs = buildSigns(batch);
