@@ -379,6 +379,29 @@ const VIEWS = [
   // Name plates up close: Route 40's end post (Fenwick), South Road's (Brandt).
   { name: 'bridge_rt40_plate', car: { x: 4195.1, y: 1184.9, heading: 87.4 }, cam: [4236.4, 1.3, 1184.8], look: [4239.7, 1.0, 1185.9] },
   { name: 'bridgeb_south_plate', car: { x: 2535.8, y: 2567.1, heading: 90 }, cam: [2577.8, 1.1, 2567.7], look: [2581.1, 0.8, 2568.7] },
+  // Other landmarks (#75): the mill ruin, covered bridge, fire lookout, quarry
+  // and campground. Close 3/4, straight on, and from the road as the player
+  // first sees it; a few extra close views of the parts with the most detail.
+  { name: 'lm_mill_close', car: { x: 1500, y: 1525, heading: 20 }, cam: [1546, 3, 1514], look: [1530, 2.5, 1500] },
+  { name: 'lm_mill_front', car: { x: 1500, y: 1525, heading: 20 }, cam: [1530, 2.5, 1523], look: [1530, 2.5, 1500] },
+  { name: 'lm_mill_wheel', car: { x: 1500, y: 1525, heading: 20 }, cam: [1517, 2, 1484], look: [1524.5, 1.5, 1491.6] },
+  { name: 'lm_mill_road', car: { x: 1500, y: 1525, heading: 20 }, cam: [1500, 1.4, 1525], look: [1530, 3, 1500] },
+  { name: 'lm_covered_close', car: { x: 4142.6, y: 465.4, heading: 106.1 }, cam: [4171.1, 3, 482], look: [4183, 3, 477] },
+  { name: 'lm_covered_front', car: { x: 4142.6, y: 465.4, heading: 106.1 }, cam: [4169.5, 2.5, 473.2], look: [4181, 4, 476.5] },
+  { name: 'lm_covered_side', car: { x: 4142.6, y: 465.4, heading: 106.1 }, cam: [4194.1, 3, 503.2], look: [4200.2, 2, 482] },
+  { name: 'lm_covered_road', car: { x: 4142.6, y: 465.4, heading: 106.1 } },
+  { name: 'lm_lookout_close', car: { x: 5150, y: 330, heading: 45 }, cam: [5263, 3, 238], look: [5250, 7, 225] },
+  { name: 'lm_lookout_cab', car: { x: 5150, y: 330, heading: 45 }, cam: [5259, 26, 236], look: [5250, 24.5, 225] },
+  { name: 'lm_lookout_front', car: { x: 5150, y: 330, heading: 45 }, cam: [5250, 4, 252], look: [5250, 12, 225] },
+  { name: 'lm_lookout_road', car: { x: 5150, y: 330, heading: 45 }, cam: [5150, 1.4, 330], look: [5250, 15, 225] },
+  { name: 'lm_quarry_close', car: { x: 3558.6, y: 783.1, heading: 95 }, cam: [3719, 2.5, 742], look: [3711.4, 1.2, 733.5] },
+  { name: 'lm_quarry_crane', car: { x: 3558.6, y: 783.1, heading: 95 }, cam: [3757, 5, 776], look: [3777, 9, 761] },
+  { name: 'lm_quarry_front', car: { x: 3558.6, y: 783.1, heading: 95 }, cam: [3605, 6, 779], look: [3690, -8, 770] },
+  { name: 'lm_quarry_road', car: { x: 3558.6, y: 783.1, heading: 95 } },
+  { name: 'lm_camp_close', car: { x: 5476.7, y: 494.4, heading: 281 }, cam: [5481, 2.5, 466], look: [5474, 1, 456] },
+  { name: 'lm_camp_hut', car: { x: 5476.7, y: 494.4, heading: 281 }, cam: [5450, 2.2, 443], look: [5442, 1.5, 436] },
+  { name: 'lm_camp_front', car: { x: 5476.7, y: 494.4, heading: 281 }, cam: [5472, 4, 482], look: [5472, 1, 450] },
+  { name: 'lm_camp_road', car: { x: 5476.7, y: 494.4, heading: 281 }, cam: [5476.7, 1.4, 494.4], look: [5470, 1, 450] },
 ];
 
 const browser = await launchChromium();

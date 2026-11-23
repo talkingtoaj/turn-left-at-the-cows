@@ -5,12 +5,13 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { hashString, localToWorld, distToPolyline, makeRng } from '../../src/drive/geom.js';
 import {
-  GAS, MILL, RADIO_MAST, SILO, anchorPoints,
+  GAS, RADIO_MAST, SILO, anchorPoints,
 } from '../../src/drive/layout.js';
 import { box, cyl, cone, pyramid, gable, strut, disc, flatPolygon } from './shapes.js';
 import { buildKind } from './kinds.js';
 import { buildNewLandmark } from './landmarks3d.js';
 import { buildChurch } from './church3d.js';
+import { buildMill } from './mill3d.js';
 import { buildRuin, buildWindpumpWheels } from './ruins3d.js';
 import { buildAirfield, buildAirfieldBuilding } from './airfield3d.js';
 import { buildGasStation } from './gas3d.js';
@@ -226,60 +227,7 @@ function buildLandmark(terrain, batch, l, rng, materials) {
   }
 
   if (l.kind === 'mill_ruin') {
-    // Scorched ground with ash.
-    const pts = [];
-    for (let i = 0; i < 14; i++) {
-      const ang = (i / 14) * Math.PI * 2;
-      const r = 11 + rng() * 4;
-      pts.push([l.x + Math.cos(ang) * r * 1.1, l.y + Math.sin(ang) * r * 0.85]);
-    }
-    // Painted onto the ground, so it follows the slope.
-    if (batch.paint) {
-      batch.paint.polygon(pts, 0x4a4436);
-      const ash = [];
-      for (let i = 0; i < 12; i++) {
-        const ang = (i / 12) * Math.PI * 2;
-        ash.push([l.x - 1 + Math.cos(ang) * 6.5 * 1.15, l.y + Math.sin(ang) * 6.5 * 0.85]);
-      }
-      batch.paint.polygon(ash, 0x34302a);
-    }
-    // Standing walls: jagged stone, blackened on top.
-    for (const w of MILL.walls) {
-      const along = w.w >= w.h;
-      const len = along ? w.w : w.h;
-      const pieces = Math.max(1, Math.round(len / 1.5));
-      const seg = len / pieces;
-      const maxH = 2 + rng() * 4.5;
-      for (let i = 0; i < pieces; i++) {
-        const t = -len / 2 + seg * (i + 0.5);
-        const hgt = Math.max(0.6, maxH * (0.5 + rng() * 0.5));
-        const lx = w.lx + (along ? t : 0);
-        const ly = w.ly + (along ? 0 : t);
-        const gw = along ? seg : w.w;
-        const gd = along ? w.h : seg;
-        P(box(gw, hgt + FOUND, gd), lx, ly, -FOUND, 0x877763); // stone wall texture
-        if (A) A.rect(l.id, 'mill_wall', l.x + lx, l.y + ly, gw, gd, 0, base - FOUND, base + Math.min(0.5, hgt / 2));
-        P(box(gw + 0.02, 0.5 + rng() * 0.6, gd + 0.02), lx, ly, hgt - 0.4, 0x3b342d); // scorched
-      }
-    }
-    const c = MILL.chimney;
-    P(box(c.w, 13 + FOUND, c.h), c.lx, c.ly, -FOUND, 0x7a6c5b);
-    P(box(c.w + 0.3, 0.5, c.h + 0.3), c.lx, c.ly, 12.6, 0x3c332b);
-    P(box(c.w * 0.5, 0.3, c.h * 0.5), c.lx, c.ly, 13.0, 0x111111);
-    // Rubble, fallen charred beams (some leaning), and a millstone.
-    const rubble = new THREE.DodecahedronGeometry(0.4, 0);
-    for (let i = 0; i < 40; i++) {
-      const s = 0.5 + rng() * 1.2;
-      const m = mAt(l.x + (rng() - 0.5) * 20, base, l.y + (rng() - 0.5) * 14, new THREE.Matrix4().makeScale(s, s * 0.6, s));
-      batch.add(rubble, m, rng() < 0.5 ? 0x857563 : 0x5f554a, { cast: false });
-    }
-    for (let i = 0; i < 7; i++) {
-      const lean = new THREE.Matrix4().makeRotationX(i < 3 ? 0.6 + rng() * 0.4 : Math.PI / 2 - 0.05);
-      batch.place(box(0.45, 3 + rng() * 4, 0.45), l.x, l.y, base, rng() * 180, (rng() - 0.5) * 10, (rng() - 0.5) * 8, 0.1, 0x2a2520, { extra: lean }); // charred
-    }
-    P(cyl(1.4, 0.45, 12), 11, 5, 0, 0x8f8a80);
-    if (A) A.circle(l.id, 'millstone', l.x + 11, l.y + 5, 1.4, base, base + 0.2);
-    millWheel(terrain, batch, l, rng);
+    buildMill(terrain, batch, l); // mill3d.js (#75)
     return null;
   }
 
@@ -362,37 +310,6 @@ function buildLandmark(terrain, batch, l, rng, materials) {
     };
   }
   return null;
-}
-
-// The mill's water wheel: fallen off its axle in the fire and leaning back
-// against the creek-side wall, charred paddles between two rusted iron rims,
-// its foot sunk in the bank.
-function millWheel(terrain, batch, l, rng) {
-  const W = MILL.wheel;
-  const R = W.r;
-  const cx = l.x + W.lx;
-  const cy = l.y + W.ly;
-  const g = terrain.groundRange({ rect: { x: cx, y: cy, w: W.w, h: W.h, angle: 0 } });
-  const lean = new THREE.Matrix4().makeRotationX(0.3).multiply(new THREE.Matrix4().makeRotationZ(0.12));
-  const frame = new THREE.Matrix4().makeTranslation(cx, g.min + R - 0.55, cy).multiply(lean);
-  const rim = new THREE.TorusGeometry(R, 0.11, 4, 22);
-  // Iron rims and axle, heavy rust; spokes and paddles old wet wood, some charred.
-  for (const z of [-0.55, 0.55]) batch.add(rim, frame.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, z)), 0x5f3b25);
-  batch.add(new THREE.CylinderGeometry(0.35, 0.35, 1.5, 8).rotateX(Math.PI / 2), frame, 0x52301c);
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2;
-    for (const z of [-0.5, 0.5]) {
-      const sp = box(0.14, R, 0.14).rotateZ(a);
-      batch.add(sp, frame.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, z)), 0x3a3430, { cast: false });
-    }
-  }
-  for (let i = 0; i < 20; i++) {
-    if (rng() < 0.3) continue; // burned away
-    const a = (i / 20) * Math.PI * 2;
-    const paddle = new THREE.BoxGeometry(0.08, 0.7, 1.2).translate(0, R - 0.3, 0).rotateZ(a);
-    batch.add(paddle, frame, rng() < 0.5 ? 0x2b2621 : 0x3a3430, { cast: false });
-  }
-  if (batch.audit) batch.audit.rect(l.id, 'mill_wheel', cx, cy, 1.0, 0.8, 0, g.min - 0.55 + R - R * Math.cos(0.12) - 0.4, null);
 }
 
 function mAt(x, y, z, extra = null) {
