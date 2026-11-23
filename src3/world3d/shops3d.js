@@ -88,7 +88,7 @@ export function buildShop(b, base, batch, side) {
 // proud, the sash and glass sit back inside it, a meeting rail splits upper
 // and lower sash, then a sill and a head (stone lintel with a keystone on
 // brick, a drip cap on boards).
-function framedWindow(P, cx, cy, n, w, h, up, o) {
+export function framedWindow(P, cx, cy, n, w, h, up, o) {
   const alongX = n === '-y' || n === '+y';
   const out = n[0] === '-' ? -1 : 1;
   const B = (aa, hh, dep) => (alongX ? box(aa, hh, dep) : box(dep, hh, aa));
