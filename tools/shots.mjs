@@ -28,6 +28,17 @@ const VIEWS = [
   // Okafor's herd of 16: the cow nearest the car's west side, from 14 m.
   { name: 'cows_okafor', car: { x: 4935, y: 2125, heading: 0 }, cows: [14, 3] },
   { name: 'cows_okafor_low', car: { x: 4935, y: 2125, heading: 0 }, cows: [5, 1] },
+  // Horses, sheep and deer (#80): close 3/4 from the car's side, straight onto
+  // the flank, and from the driver's seat. `kind` picks the animal.
+  { name: 'horse_close', car: { x: 2716, y: 1354, heading: 75 }, kind: 'horse', cows: [6, 1.8] },
+  { name: 'horse_side', car: { x: 2716, y: 1354, heading: 75 }, kind: 'horse', cows: [6, 1.3], side: true },
+  { name: 'horse_road', car: { x: 2716, y: 1354, heading: 75 }, kind: 'horse', cows: [0, 1.4], fromCar: true },
+  { name: 'sheep_close', car: { x: 2978, y: 1121, heading: 270 }, kind: 'sheep', cows: [4, 1.3] },
+  { name: 'sheep_side', car: { x: 2978, y: 1121, heading: 270 }, kind: 'sheep', cows: [4, 0.8], side: true },
+  { name: 'sheep_road', car: { x: 2978, y: 1121, heading: 270 }, kind: 'sheep', cows: [0, 1.4], fromCar: true },
+  { name: 'deer_close', car: { x: 4305, y: 1060, heading: 0 }, kind: 'deer', cows: [4.5, 1.5] },
+  { name: 'deer_side', car: { x: 4305, y: 1060, heading: 0 }, kind: 'deer', cows: [4.5, 1.1], side: true },
+  { name: 'deer_road', car: { x: 4305, y: 1060, heading: 0 }, kind: 'deer', cows: [0, 1.4], fromCar: true },
   // Steep pasture west of the farm: trough and feeder on the slope.
   { name: 'slope', car: { x: 2498, y: 564, heading: 0 }, cam: [2506, 1.6, 452], look: [2488, 0.3, 430] },
   { name: 'slope_wide', car: { x: 2498, y: 564, heading: 0 }, cam: [2530, 8, 480], look: [2480, 0, 420] },
@@ -546,14 +557,17 @@ for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) 
         // Aim at the cow nearest the car, from the car's side of it.
         let best = null;
         for (const a of window.__amb.animals) {
-          if (a.kind !== 'cow') continue;
+          if (a.kind !== (v.kind || 'cow')) continue;
           const d = Math.hypot(a.x - st.car.x, a.y - st.car.y);
           if (!best || d < best.d) best = { a, d };
         }
         if (best) {
           const { a, d } = best;
-          const px = a.x + ((st.car.x - a.x) / d) * v.cows[0];
-          const py = a.y + ((st.car.y - a.y) / d) * v.cows[0];
+          // side: straight onto the animal's flank; fromCar: from the driver's seat.
+          const hr = (a.heading * Math.PI) / 180;
+          const [ux, uy] = v.side ? [Math.cos(hr), Math.sin(hr)] : [(st.car.x - a.x) / d, (st.car.y - a.y) / d];
+          const px = v.fromCar ? st.car.x : a.x + ux * v.cows[0];
+          const py = v.fromCar ? st.car.y : a.y + uy * v.cows[0];
           c.position.set(px, H(px, py) + v.cows[1], py);
           c.up.set(0, 1, 0);
           c.lookAt(a.x, H(a.x, a.y) + 0.8, a.y);

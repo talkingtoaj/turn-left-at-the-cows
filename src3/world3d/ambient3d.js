@@ -12,6 +12,7 @@ import { canopyTopAt } from './trees.js';
 import { buildSkyClouds, updateCloudUniforms } from './clouds.js';
 import { FOG_COLOR } from './world3d.js';
 import { cowLook, cowPose, PATCH_FREQ } from './cowLook.js';
+import { sheepGeo, horseGeo, deerGeo, coatMaterial } from './animals3d.js';
 
 const BIRD_R = 260; // show birds within this range of the focus
 const CAR_R = 650;
@@ -181,69 +182,11 @@ if (vColor.r + vColor.g + vColor.b > 2.99) {
   return mat;
 }
 
-function sheepGeo() {
-  const D = 0x2b2826;
-  const parts = [
-    colored(new THREE.IcosahedronGeometry(1, 1).scale(0.42, 0.38, 0.62).translate(0, 0.72, 0), 0xffffff),
-    colored(box(0.24, 0.28, 0.34).translate(0, 0.85, -0.68), D),
-    colored(box(0.42, 0.06, 0.1).translate(0, 0.94, -0.6), D), // ears
-  ];
-  for (const [x, z] of [[-0.18, -0.35], [0.18, -0.35], [-0.18, 0.35], [0.18, 0.35]]) parts.push(colored(box(0.1, 0.45, 0.1).translate(x, 0, z), D));
-  return mergeGeometries(parts);
-}
-
 // One leg hanging from the hip at (x, hip, z), swung by `ang` (rad, + = foot forward).
 function leg(x, z, hip, len, w, ang, coat, hoof) {
   const upper = colored(box(w, len - 0.12, w).translate(0, -(len - 0.12), 0), coat);
   const foot = colored(box(w * 1.12, 0.12, w * 1.12).translate(0, -len, 0), hoof);
   return mergeGeometries([upper, foot]).rotateX(ang).translate(x, hip, z);
-}
-
-// Horse, facing -z. Coat parts are white so the instance colour sets the coat
-// (brown, chestnut, grey); mane, tail and hooves stay dark.
-// legs: swing angles [front left, front right, back left, back right].
-function horseGeo(legs) {
-  const W = 0xffffff;
-  const D = 0x3a2e26;
-  const neck = (g, c) => colored(g.rotateX(-0.55).translate(0, 1.45, -0.7), c);
-  const parts = [
-    colored(box(0.56, 0.62, 1.7).translate(0, 0.98, 0), W),
-    neck(box(0.3, 0.88, 0.42).translate(0, 0, 0), W),
-    neck(box(0.08, 0.82, 0.12).translate(0, 0.06, 0.2), D), // mane
-    colored(box(0.26, 0.3, 0.66).translate(0, -0.15, 0).rotateX(-0.6).translate(0, 2.08, -1.33), W), // head
-    colored(box(0.06, 0.14, 0.06).translate(-0.08, 0, 0).translate(0, 2.18, -1.08), W), // ears
-    colored(box(0.06, 0.14, 0.06).translate(0.08, 0, 0).translate(0, 2.18, -1.08), W),
-    colored(box(0.11, 0.8, 0.13).translate(0, -0.8, 0).rotateX(-0.28).translate(0, 1.56, 0.84), D), // tail
-  ];
-  const [fl, fr, bl, br] = legs;
-  parts.push(leg(-0.17, -0.62, 1.06, 1.06, 0.14, fl, W, 0x2a2522));
-  parts.push(leg(0.17, -0.62, 1.06, 1.06, 0.14, fr, W, 0x2a2522));
-  parts.push(leg(-0.17, 0.64, 1.06, 1.06, 0.15, bl, W, 0x2a2522));
-  parts.push(leg(0.17, 0.64, 1.06, 1.06, 0.15, br, W, 0x2a2522));
-  return mergeGeometries(parts);
-}
-
-// Deer, facing -z: light brown with a pale belly, white rump and tail.
-// A raised tail (`flag`) when running.
-function deerGeo(legs, flag = false) {
-  const C = 0xa87a4e;
-  const parts = [
-    colored(box(0.34, 0.42, 1.0).translate(0, 0.74, 0), C),
-    colored(box(0.28, 0.06, 0.78).translate(0, 0.72, 0), 0xe8dcc4), // belly
-    colored(box(0.3, 0.26, 0.04).translate(0, 0.8, 0.5), 0xf4efe6), // rump patch
-    colored(box(0.16, 0.52, 0.2).rotateX(-0.35).translate(0, 1.02, -0.42), C),
-    colored(box(0.16, 0.18, 0.36).translate(0, -0.09, 0).rotateX(-0.4).translate(0, 1.55, -0.66), C), // head
-    colored(box(0.06, 0.06, 0.06).translate(0, 1.42, -0.86), 0x2a2522), // nose
-    colored(box(0.06, 0.15, 0.09).rotateZ(0.5).translate(-0.1, 1.62, -0.58), C), // ears
-    colored(box(0.06, 0.15, 0.09).rotateZ(-0.5).translate(0.1, 1.62, -0.58), C),
-    colored(box(0.11, 0.18, 0.06).translate(0, flag ? 0 : -0.18, 0).rotateX(flag ? 0.5 : 0).translate(0, 1.08, 0.52), 0xfaf8f2), // tail
-  ];
-  const [fl, fr, bl, br] = legs;
-  parts.push(leg(-0.1, -0.38, 0.8, 0.8, 0.08, fl, C, 0x2a2522));
-  parts.push(leg(0.1, -0.38, 0.8, 0.8, 0.08, fr, C, 0x2a2522));
-  parts.push(leg(-0.1, 0.4, 0.8, 0.8, 0.09, bl, C, 0x2a2522));
-  parts.push(leg(0.1, 0.4, 0.8, 0.8, 0.09, br, C, 0x2a2522));
-  return mergeGeometries(parts);
 }
 
 // ---------- puffs (dust and smoke) ----------
@@ -392,18 +335,21 @@ export function createAmbient3D(scene, opts) {
   const STAND = [0, 0, 0, 0];
   const cowMat = cowMaterial();
   const cowLooks = new Map(); // animal id -> cowLook
+  const horseMat = coatMaterial({ freq: 7, amp: 0.06, coatOnly: true });
+  const deerMat = coatMaterial({ freq: 9, amp: 0.06 });
   const herd = {
     // Cows: head up, halfway, grazing. Colour comes from cowLook, not instanceColor.
     cow: { cow: true, poses: [0, 1, 2].map((pose) => instanced(cowGeo(pose), cowMat, MAX_ANIMALS)) },
-    sheep: { colors: [0xf2efe6, 0xe6dfcf, 0xfaf8f2], poses: [instanced(sheepGeo(), vc, MAX_ANIMALS)] },
+    // Horses, sheep and deer (#80): animals3d.js, each with its own coat texture.
+    sheep: { colors: [0xf2efe6, 0xe6dfcf, 0xfaf8f2], poses: [instanced(sheepGeo(), coatMaterial({ freq: 18, amp: 0.13 }), MAX_ANIMALS)] },
     horse: {
       colors: [0x6b4226, 0x8a4b23, 0x9a9590, 0x4a3020, 0xb07a4a, 0xd8d2c8],
-      poses: [STAND, [0.4, -0.3, -0.3, 0.4], [-0.3, 0.4, 0.4, -0.3]].map((l) => instanced(horseGeo(l), vc, MAX_ANIMALS)),
+      poses: [STAND, [0.4, -0.3, -0.3, 0.4], [-0.3, 0.4, 0.4, -0.3]].map((l) => instanced(horseGeo(l), horseMat, MAX_ANIMALS)),
     },
     deer: {
       colors: [0xffffff, 0xf2e8de, 0xe8dccf],
       poses: [deerGeo(STAND), deerGeo([-0.55, -0.45, 0.6, 0.7], true), deerGeo([0.75, 0.65, -0.7, -0.6], true)]
-        .map((g) => instanced(g, vc, MAX_ANIMALS)),
+        .map((g) => instanced(g, deerMat, MAX_ANIMALS)),
     },
   };
   const animalMeshes = Object.values(herd).flatMap((h) => h.poses);
