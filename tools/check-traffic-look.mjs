@@ -7,14 +7,21 @@
 // - kits (src/ambient/carkit.js, src3/world3d/trafficKit.js, #42): seeded
 //   per id, fitted to the type, no two alike within a type, pieces drawn
 //   for every part that fits;
-// - dirt (dirtStep, #43): builds on dirt roads over ticks, fades on paved.
+// - dirt (dirtStep, #43): builds on dirt roads over ticks, fades on paved;
+// - far stand-ins (trafficlod.js farMask, trafficfar.js, #62): one shape per
+//   type, racks follow the kit, the van and 4x4 shapes as big as their bodies.
 //   node tools/check-traffic-look.mjs
 import { carPaint, PALETTE, VAN_PALETTE, TYPE_PALETTE } from '../src/ambient/carpaint.js';
 import { createFineLod, distanceFade, FINE_NEAR, FINE_FAR, FINE_MAX, GATE_RATE } from '../src3/world3d/trafficlod.js';
-import { carKit, dirtStep, trafficType, KIT_FITS, KIT_NEEDS, KIT_PARTS, SHADER_PARTS, TRAFFIC_TYPES, DIRT_MAX } from '../src/ambient/carkit.js';
+import { carKit, dirtStep, trafficType, KIT_BIT, KIT_FITS, KIT_NEEDS, KIT_PARTS, SHADER_PARTS, TRAFFIC_TYPES, DIRT_MAX } from '../src/ambient/carkit.js';
 import { kitInto } from '../src3/world3d/trafficKit.js';
 import { setSixBySixDay, sixBySixRoll, sixBySixPaint, SIX_ODDS } from '../src/ambient/sixbysix.js';
 import { engineOf } from '../src/audio/trafficSound.js';
+import * as THREE from 'three';
+import { farMask, farShape, FAR_BIT } from '../src3/world3d/trafficlod.js';
+import { farStandIns } from '../src3/world3d/trafficfar.js';
+import { SPECS } from '../src3/world3d/carbody.js';
+import { FOURBYFOUR } from '../src3/world3d/fourbyfour.js';
 
 let bad = 0;
 const ok = (name, cond, info = '') => {
@@ -236,6 +243,57 @@ ok('fade falls steadily across the band', distanceFade(38) > distanceFade(40) &&
   const [h, s, v] = hsv(p[0].color);
   ok('6x6 paint: dull army colors (olive, green, tan), faded', p.every((q) => { const [hh, ss, vv] = hsv(q.color); return hh >= 35 && hh <= 110 && ss < 0.6 && vv < 0.6 && q.age >= 0.75; }), `${h.toFixed(0)} ${s.toFixed(2)} ${v.toFixed(2)}`);
   ok('6x6 has a diesel', engineOf('sixbysix') === 'diesel');
+}
+
+// Far stand-ins (#62): past FAR m every car is one instance of the far mesh;
+// farMask picks its shape (and rack, and the van's paint), the shader folds
+// the rest away. The shape a type shows is as tall and long as its coarse body.
+{
+  const show = (mask, bit) => Math.floor(Math.fround(mask) / 2 ** bit) % 2 === 1; // the shader's KIT_FOLD test
+  ok('far bits come after the kit bits, under float precision', Math.min(...Object.values(FAR_BIT)) > KIT_PARTS.length && Math.max(...Object.values(FAR_BIT)) < 24);
+  for (const t of TRAFFIC_TYPES) {
+    const m = farMask(t, 0);
+    const shapes = ['low', 'van', 'fourbyfour'].filter((p) => show(m, FAR_BIT[p]));
+    ok(`far ${t}: one shape (${shapes.join()})`, shapes.length === 1 && shapes[0] === farShape(t));
+  }
+  ok('van and 4x4 get their own stand-in, the rest the low car', farShape('van') === 'van' && farShape('fourbyfour') === 'fourbyfour' && ['sedan', 'wagon', 'pickup', 'hatch', 'farmtruck', 'sixbysix'].every((t) => farShape(t) === 'low'));
+  // A car's kit changing between calls (shots, a new region): the rack follows it.
+  const rackBit = 1 << KIT_BIT.rack;
+  const seq = [0, rackBit, 0].map((k) => show(farMask('fourbyfour', k), FAR_BIT.fourbyfourRack));
+  ok('4x4 rack shows only while its kit has one', seq.join() === 'false,true,false', seq.join());
+  const vseq = [0, 1 << KIT_BIT.ladder, rackBit].map((k) => show(farMask('van', k), FAR_BIT.vanRack));
+  ok('van rack shows with a rack or a ladder', vseq.join() === 'false,true,true', vseq.join());
+  ok('a sedan with a rack shows no van or 4x4 rack', !show(farMask('sedan', rackBit), FAR_BIT.vanRack) && !show(farMask('sedan', rackBit), FAR_BIT.fourbyfourRack));
+  const stripe = farMask('van', (1 << KIT_BIT.stripe) | (1 << KIT_BIT.lowerTone));
+  ok('van keeps its stripe and lower tone far off', show(stripe, KIT_BIT.stripe) && show(stripe, KIT_BIT.lowerTone));
+  ok('other types drop kit bits far off', farMask('pickup', 0xffff) === 1 << FAR_BIT.low);
+  // The geometry: each shape's pieces span about its coarse body.
+  const tag = (g, m) => {
+    const t = g.index ? g.toNonIndexed() : g;
+    for (const k of Object.keys(t.attributes)) if (k !== 'position') t.deleteAttribute(k);
+    const n = t.attributes.position.count;
+    t.setAttribute('carPart', new THREE.BufferAttribute(new Float32Array(n * 2).fill(m === 'paint' ? 1 : 0).map((v, i) => (i % 2 ? 0 : v)), 2));
+    return t;
+  };
+  const box = (w, h, d, x, y, z, m) => tag(new THREE.BoxGeometry(w, h, d).translate(x, y, z), m);
+  const quadZ = (w, h, x, y, z, m) => tag(new THREE.PlaneGeometry(w, h).translate(x, y, z), m);
+  const geo = farStandIns({ tag, box, quadZ });
+  const pos = geo.attributes.position.array;
+  const cp = geo.attributes.carPart.array;
+  const span = (piece) => {
+    const lo = [Infinity, Infinity, Infinity];
+    const hi = [-Infinity, -Infinity, -Infinity];
+    for (let i = 0; i < cp.length / 2; i++) if (cp[i * 2 + 1] === FAR_BIT[piece] + 1) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], pos[i * 3 + k]); hi[k] = Math.max(hi[k], pos[i * 3 + k]); }
+    return { h: hi[1], L: hi[2] - lo[2], W: hi[0] - lo[0] };
+  };
+  const v = span('van');
+  const f = span('fourbyfour');
+  const l = span('low');
+  ok('far van: tall as the van (2 m), about 5 m long', Math.abs(v.h - SPECS.van.roofY) < 0.06 && Math.abs(v.L - SPECS.van.L) < 0.3, JSON.stringify(v));
+  ok('far 4x4: tall as the 4x4 (1.93 m)', Math.abs(f.h - FOURBYFOUR.roofY) < 0.06 && Math.abs(f.L - FOURBYFOUR.L) < 0.6, JSON.stringify(f));
+  ok('both taller than the low car', v.h > l.h + 0.5 && f.h > l.h + 0.4);
+  const tris = cp.length / 2 / 3;
+  ok('far mesh stays small (all three shapes)', tris < 2500, `${tris} tris`);
 }
 
 console.log(bad ? `\n${bad} FAILED` : '\nall ok');

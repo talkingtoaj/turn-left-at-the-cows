@@ -117,6 +117,18 @@ const VIEWS = [
   { name: 'people_lineup', person: ['mabel', 7, 1.5, 0], lineup: ['mabel', 'hartley', 'marisol', 'bev', 'earl', 'gus'] },
   { name: 'people_wide', person: ['mabel', 16, 3.5, 0], lineup: ['mabel', 'hartley', 'frank'] },
   { name: 'traffic_switch_out', car: { road: 'hwy9', at: 0.4 }, pin: [['car0', 43, -1, -1]], rel: [1.2, 2.4, -3], relLook: [-2.4, 0.6, -40] },
+  // Far stand-ins (#62): the van (car6) and the 4x4 (car4) pinned past 140 m,
+  // shot up close. The stand-in is picked by distance to the camera focus,
+  // 35 m ahead of the player's car, so 190 m along is 155 m from it.
+  // _in: the same camera with the car at 170 m (135 m: coarse body) to compare.
+  { name: 'far_van', car: { road: 'hwy9', at: 0.4 }, pin: [['car6', 190, 1, 1]], tcam: [[4.4, 1.8, -5.4], [0, 1.0, 0.3]] },
+  { name: 'far_van_in', car: { road: 'hwy9', at: 0.4 }, pin: [['car6', 170, 1, 1]], tcam: [[4.4, 1.8, -5.4], [0, 1.0, 0.3]] },
+  { name: 'far_van_side', car: { road: 'hwy9', at: 0.4 }, pin: [['car6', 190, 1, 1]], tcam: [[5.8, 1.5, 0.4], [0, 1.0, 0.4]] },
+  { name: 'far_4x4', car: { road: 'hwy9', at: 0.4 }, pin: [['car4', 190, 1, 1]], tcam: [[4.4, 1.7, -5.6], [0, 1.0, 0]] },
+  { name: 'far_4x4_in', car: { road: 'hwy9', at: 0.4 }, pin: [['car4', 170, 1, 1]], tcam: [[4.4, 1.7, -5.6], [0, 1.0, 0]] },
+  { name: 'far_4x4_rear', car: { road: 'hwy9', at: 0.4 }, pin: [['car4', 190, 1, 1]], tcam: [[3.4, 1.9, 6.0], [0, 1.0, 0]] },
+  // From the road: a van, a 4x4 and a sedan up the highway, all past 140 m from the focus.
+  { name: 'far_road', car: { road: 'hwy9', at: 0.4 }, pin: [['car6', 185, -1, -1], ['car4', 200, 1, 1], ['car0', 215, -1, -1]], rel: [0.4, 1.6, -1], relLook: [-0.6, 1.2, -160] },
   // Parked semis (#47). Calder grain silos (mission 1 region): close 3/4,
   // side, rear and the site. The Brandt co-op elevator ones (semib_*) need
   // SHOTS_QUERY='opening=off&spot=brandt' (Brandt region).
