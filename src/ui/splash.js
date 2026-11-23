@@ -17,7 +17,6 @@ import { unlockAudio, isMuted, setMuted, onMuteChange } from '../audio/context.j
 import { available as mapsAvailable } from '../net/mapsApi.js';
 import { getRecords, recordRows } from '../net/records.js';
 import { touristFor } from '../game/tourists.js';
-import { myMap } from '../game/myMaps.js';
 import { tipsEnabled, setTipsEnabled } from '../game/tips.js';
 
 export const TITLE = 'Turn Left at the Cows';
@@ -269,8 +268,9 @@ export function showSplash({ version = '3d', load, preferred = null, phone = fal
     });
   });
 
-  // Finished jobs get a "Maps" link to other drivers' maps (src/ui/mapShare.js,
-  // loaded on click), only when the map server answers.
+  // Finished jobs get a "Maps" link to the map wall (src/ui/mapShare.js,
+  // loaded on click; straight to the wall, no pick), only when the map
+  // server answers.
   if (anyDone) {
     mapsAvailable().then((config) => {
       if (!config || !root.isConnected) return;
@@ -282,8 +282,8 @@ export function showSplash({ version = '3d', load, preferred = null, phone = fal
         b.type = 'button';
         b.setAttribute('aria-label', `Other drivers’ maps for ${m.title}`);
         b.addEventListener('click', async () => {
-          const { openMapsBrowser } = await import('./mapShare.js');
-          openMapsBrowser({ missionId: m.id, missionTitle: m.title, mySketch: myMap(m.id)?.sketch || null });
+          const { openMapWall } = await import('./mapShare.js');
+          openMapWall({ missionId: m.id, missionTitle: m.title, pick: false });
         });
       });
     });

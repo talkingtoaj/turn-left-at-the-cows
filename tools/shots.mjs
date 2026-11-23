@@ -52,6 +52,24 @@ const VIEWS = [
   { name: 'ford', car: { x: 4380, y: 2100, heading: 80 } },
   { name: 'paved_low', car: { road: 'rt40', at: 0.5 }, rel: [-3.2, 0.9, 5] },
   { name: 'dirtroad_ridge_low', car: { road: 'ridge_rd', at: 0.5 }, rel: [2.8, 0.8, 7.5] },
+  // Houses (#76): Millbrook m_h1 (one floor, faces south), Calder c_h1 (two
+  // floors, faces north), Dutch Ridge d_h3: close 3/4, straight on, and from
+  // the road as the player first sees each. house_street: Calder's houses from above.
+  { name: 'house_m1_close', car: { x: 2165, y: 701.5, heading: 90 }, cam: [2213, 2.2, 690], look: [2200, 2.4, 676] },
+  { name: 'house_m1_front', car: { x: 2165, y: 701.5, heading: 90 }, cam: [2203.5, 1.7, 697], look: [2200, 2.8, 676] },
+  { name: 'house_m1_road', car: { x: 2165, y: 701.5, heading: 90 }, cam: [2165, 1.3, 701.5], look: [2200, 3, 676] },
+  { name: 'house_c1_close', car: { x: 4640, y: 1165, heading: 270 }, cam: [4588, 2.4, 1176], look: [4600, 3.2, 1192] },
+  { name: 'house_c1_front', car: { x: 4640, y: 1165, heading: 270 }, cam: [4600, 1.8, 1170], look: [4600, 3.6, 1192] },
+  { name: 'house_c1_road', car: { x: 4640, y: 1165, heading: 270 }, cam: [4640, 1.3, 1165], look: [4600, 3.5, 1192] },
+  { name: 'house_d3_close', car: { x: 3395, y: 290.5, heading: 96 }, cam: [3436, 2.4, 316], look: [3425, 3, 331] },
+  { name: 'house_d3_road', car: { x: 3395, y: 290.5, heading: 96 }, cam: [3395, 1.3, 290.5], look: [3425, 3.5, 331] },
+  { name: 'house_street', car: { x: 4640, y: 1165, heading: 270 }, cam: [4690, 22, 1150], look: [4680, 0, 1215] },
+  // Dutch Ridge d_h2: side gable, one floor, a shed hood over the stoop.
+  { name: 'house_d2_close', car: { x: 3395, y: 290.5, heading: 96 }, cam: [3301, 2.2, 307], look: [3290, 2.4, 320] },
+  // Calder c_h6: front gable, a porch with its own gable.
+  { name: 'house_c6_close', car: { x: 4600, y: 1164, heading: 270 }, cam: [4572, 2.2, 1153], look: [4560, 2.6, 1140] },
+  { name: 'house_c6_front', car: { x: 4600, y: 1164, heading: 270 }, cam: [4560, 1.7, 1157], look: [4560, 3.0, 1138] },
+  { name: 'house_c6_road', car: { x: 4600, y: 1164, heading: 270 }, cam: [4600, 1.3, 1164], look: [4560, 3, 1140] },
   // The player's car up close (roof rack, parcels, mud flaps, dings): relLook
   // aims at a point on the car (local right, up, back) instead of ahead of it.
   { name: 'car_rear_high', car: { road: 'hwy9', at: 0.4 }, rel: [2.6, 2.7, 5.2], relLook: [0, 0.9, 0.3] },
@@ -314,6 +332,19 @@ const VIEWS = [
   { name: 'barnsilo_close', car: { x: 2610, y: 490, heading: 0 }, cam: [2742, 3, 442], look: [2722, 8, 417] },
   { name: 'barnsilo_front', car: { x: 2610, y: 490, heading: 0 }, cam: [2722, 4, 448], look: [2722, 8, 417] },
   { name: 'barnsilo_road', car: { x: 2610, y: 490, heading: 0 }, cam: [2610, 1.4, 490], look: [2722, 8, 417] },
+  // Barns (#79): Hartley's barn 3/4, straight on, from the back, and from Farm
+  // Road; Pruitt's, Okafor's and Dolan's 3/4 and from their lane, so the
+  // seeded differences between neighbours show.
+  { name: 'barn_close', car: { x: 2610, y: 490, heading: 0 }, cam: [2682, 3, 446], look: [2705, 5, 420] },
+  { name: 'barn_front', car: { x: 2610, y: 490, heading: 0 }, cam: [2705, 3.5, 452], look: [2705, 5.5, 420] },
+  { name: 'barn_back', car: { x: 2610, y: 490, heading: 0 }, cam: [2728, 4, 392], look: [2702, 5, 420] },
+  { name: 'barn_road', car: { x: 2610, y: 490, heading: 0 }, cam: [2650, 1.4, 460], look: [2705, 5, 420] },
+  { name: 'barn_p_close', car: { x: 2960, y: 1062, heading: 45 }, cam: [3020, 3, 1058], look: [2995, 5, 1030] },
+  { name: 'barn_p_road', car: { x: 2960, y: 1062, heading: 45 }, cam: [2960, 1.4, 1062], look: [2995, 5, 1030] },
+  { name: 'barn_o_close', car: { x: 4897, y: 1963, heading: 90 }, cam: [4940, 3, 2016], look: [4965, 5, 1990] },
+  { name: 'barn_o_road', car: { x: 4897, y: 1963, heading: 90 }, cam: [4897, 1.4, 1963], look: [4965, 5, 1990] },
+  { name: 'barn_dl_close', car: { x: 2495, y: 848, heading: 90 }, cam: [2515, 3, 880], look: [2536, 5, 858] },
+  { name: 'barn_dl_road', car: { x: 2495, y: 848, heading: 90 }, cam: [2495, 1.4, 848], look: [2536, 5, 858] },
   { name: 'elev_b_close', car: { x: 1700, y: 1440, heading: 0 }, cam: [1772, 3, 1432], look: [1745, 14, 1405] },
   { name: 'elev_b_front', car: { x: 1700, y: 1440, heading: 0 }, cam: [1745, 4, 1452], look: [1745, 14, 1405] },
   { name: 'elev_b_sign', car: { x: 1700, y: 1440, heading: 0 }, cam: [1752, 19, 1378], look: [1745, 19.5, 1405] },
@@ -401,6 +432,23 @@ const VIEWS = [
   // Name plates up close: Route 40's end post (Fenwick), South Road's (Brandt).
   { name: 'bridge_rt40_plate', car: { x: 4195.1, y: 1184.9, heading: 87.4 }, cam: [4236.4, 1.3, 1184.8], look: [4239.7, 1.0, 1185.9] },
   { name: 'bridgeb_south_plate', car: { x: 2535.8, y: 2567.1, heading: 90 }, cam: [2577.8, 1.1, 2567.7], look: [2581.1, 0.8, 2568.7] },
+  // Diner, store and cabin (#77): close 3/4, straight on, and from the road
+  // as the player first sees them. Fenwick: Calder diner, Dunmore store, the
+  // cabin on Pond Road. Brandt's (kindb_*, SHOTS_QUERY='opening=off&spot=brandt'):
+  // the Brandt diner and the Oakham store.
+  { name: 'kind_diner_close', car: { x: 4630, y: 1161, heading: 88 }, cam: [4663, 2.6, 1151], look: [4650, 2, 1133] },
+  { name: 'kind_diner_front', car: { x: 4630, y: 1161, heading: 88 }, cam: [4650, 1.7, 1159], look: [4650, 2.6, 1132] },
+  { name: 'kind_diner_road', car: { x: 4630, y: 1161, heading: 88 }, cam: [4624, 1.5, 1162], look: [4650, 2.2, 1132] },
+  { name: 'kind_store_close', car: { x: 3360, y: 286, heading: 96 }, cam: [3393, 2.6, 279], look: [3380, 2, 261] },
+  { name: 'kind_store_front', car: { x: 3360, y: 286, heading: 96 }, cam: [3380, 1.7, 286], look: [3380, 2.8, 259] },
+  { name: 'kind_store_road', car: { x: 3360, y: 286, heading: 96 }, cam: [3354, 1.5, 287], look: [3380, 2.2, 261] },
+  { name: 'kind_cabin_close', car: { x: 5845, y: 416, heading: 80 }, cam: [5885, 2.2, 406], look: [5900, 1.3, 396] },
+  { name: 'kind_cabin_front', car: { x: 5845, y: 416, heading: 80 }, cam: [5885, 1.6, 398], look: [5905, 1.8, 398] },
+  { name: 'kind_cabin_road', car: { x: 5845, y: 416, heading: 80 }, cam: [5856, 1.5, 419], look: [5902, 1.5, 398] },
+  { name: 'kindb_diner_close', car: { x: 1600, y: 1599, heading: 90 }, cam: [1635, 2.6, 1621], look: [1622, 2, 1639] },
+  { name: 'kindb_diner_road', car: { x: 1600, y: 1599, heading: 90 }, cam: [1598, 1.5, 1600], look: [1622, 2.2, 1636] },
+  { name: 'kindb_store_close', car: { x: 3902, y: 2300, heading: 180 }, cam: [3919, 2.6, 2331], look: [3935, 2, 2318] },
+  { name: 'kindb_store_road', car: { x: 3902, y: 2300, heading: 180 }, cam: [3903, 1.5, 2294], look: [3934, 2.2, 2318] },
 ];
 
 const browser = await launchChromium();

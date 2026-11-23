@@ -15,17 +15,16 @@ import { buildRuin, buildWindpumpWheels } from './ruins3d.js';
 import { buildAirfield, buildAirfieldBuilding } from './airfield3d.js';
 import { buildGasStation } from './gas3d.js';
 import { buildFarmhouse } from './farmhouse3d.js';
+import { buildHouse } from './house3d.js';
 import { buildWaterTower } from './watertower3d.js';
 import { buildGrainElevator, buildFarmSilo } from './elevator3d.js';
 import { buildShop } from './shops3d.js';
+import { buildBarn } from './barn3d.js';
 import { buildDogYards } from './dog3d.js';
 import { Batcher } from './batch.js';
 import { state } from '../../src/state.js';
 import { currentMissionId } from '../../src/game/tourists.js';
 
-const WALLS = [0xe8e2d0, 0xf1ede4, 0xe6d9a8, 0xc9d3d6, 0xd9b9a0, 0xcfd8c4];
-const ROOFS = [0x8e4b3a, 0x5a5f66, 0x6b4a3a, 0x4f6a5a, 0x7a3b3b, 0x6e6a60];
-const WINDOW = 0x2c3a46;
 const FOUND = 1.5; // walls reach this far below ground so slopes never show gaps
 
 const PLINTH = 0x9a958a;
@@ -64,32 +63,6 @@ function roadSide(world, b) {
   let best = 'n';
   for (const k of ['n', 's', 'e', 'w']) if (d[k] < d[best]) best = k;
   return best;
-}
-
-// Windows (and a door on `doorSide`) on the four walls of a w x d box.
-function addOpenings(P, w, d, floors, doorSide, doorColor = 0x5b3a2a) {
-  const sides = [
-    { k: 'n', len: w, at: (t) => [t, -d / 2], g: (s) => box(s, 1.2, 0.12) },
-    { k: 's', len: w, at: (t) => [t, d / 2], g: (s) => box(s, 1.2, 0.12) },
-    { k: 'e', len: d, at: (t) => [w / 2, t], g: (s) => box(0.12, 1.2, s) },
-    { k: 'w', len: d, at: (t) => [-w / 2, t], g: (s) => box(0.12, 1.2, s) },
-  ];
-  for (const s of sides) {
-    const n = Math.max(1, Math.floor(s.len / 3.5));
-    for (let f = 0; f < floors; f++) {
-      for (let i = 0; i < n; i++) {
-        const t = -s.len / 2 + (s.len * (i + 0.5)) / n;
-        const door = s.k === doorSide && f === 0 && i === Math.floor(n / 2);
-        const [lx, ly] = s.at(t);
-        if (door) {
-          const dg = s.k === 'n' || s.k === 's' ? box(1.1, 2.1, 0.14) : box(0.14, 2.1, 1.1);
-          P(dg, lx, ly, 0, doorColor);
-        } else {
-          P(s.g(1.1), lx, ly, 1.1 + f * 2.8, WINDOW);
-        }
-      }
-    }
-  }
 }
 
 // extras.chimneys (optional Map): building id -> { x, y, top } where a model's
@@ -187,30 +160,7 @@ function buildBuilding(world, terrain, batch, b) {
   }
 
   if (b.kind === 'barn') {
-    const wallH = 6;
-    P(box(b.w, wallH + FOUND, b.h), 0, 0, -FOUND, 0xa8352b);
-    P(gable(b.w + 0.8, b.h + 0.8, 4.5), 0, 0, wallH, 0x5a5f66);
-    // White corner trim and big doors with an X on the long south side.
-    for (const [lx, ly] of [[-b.w / 2, -b.h / 2], [b.w / 2, -b.h / 2], [b.w / 2, b.h / 2], [-b.w / 2, b.h / 2]]) {
-      P(box(0.35, wallH, 0.35), lx, ly, 0, 0xf0ece2);
-    }
-    for (const side of [-1, 1]) {
-      const ly = side * (b.h / 2);
-      P(box(5, 4.4, 0.14), 0, ly, 0, 0x8c2a22);
-      P(box(5.2, 0.25, 0.18), 0, ly, 4.4, 0xf0ece2);
-      const diag = new THREE.Matrix4().makeRotationZ(Math.atan2(4.4, 5));
-      batch.place(box(6.6, 0.22, 0.18), b.x, b.y, base, a, 0, ly, 2.1, 0xf0ece2, { extra: diag });
-      const diag2 = new THREE.Matrix4().makeRotationZ(-Math.atan2(4.4, 5));
-      batch.place(box(6.6, 0.22, 0.18), b.x, b.y, base, a, 0, ly, 2.1, 0xf0ece2, { extra: diag2 });
-      P(box(1.4, 1.4, 0.14), 0, ly, 7.0 - 0.9, 0xf0ece2);
-    }
-    // Hay loft opening in the gable ends.
-    for (const side of [-1, 1]) P(box(0.14, 1.6, 2), side * b.w / 2, 0, 6.4, 0x3a2a20);
-    // Cupola on the ridge.
-    P(box(2.4, 2.2, 2.4), 0, 0, wallH + 3.6, 0xf0ece2);
-    P(pyramid(3.0, 1.6), 0, 0, wallH + 5.8, 0x5a5f66);
-    // Silo with a domed top.
-    buildFarmSilo(batch, b, base, b.w / 2 + SILO.dx, SILO.ly, SILO.r, 14); // elevator3d.js (#67)
+    buildBarn(batch, b, base, sideDistances(world, b)); // barn3d.js (#79)
     return;
   }
 
@@ -222,19 +172,7 @@ function buildBuilding(world, terrain, batch, b) {
     return;
   }
 
-  // Houses.
-  const floors = hsh % 3 === 0 ? 2 : 1;
-  const wallH = floors === 2 ? 5.6 : 3.2;
-  const wall = WALLS[(hsh >> 3) % WALLS.length];
-  const roof = ROOFS[hsh % ROOFS.length];
-  P(box(b.w, wallH + FOUND, b.h), 0, 0, -FOUND, wall);
-  const short = Math.min(b.w, b.h);
-  P(gable(b.w + 0.8, b.h + 0.8, short * 0.42), 0, 0, wallH, roof);
-  addOpenings(P, b.w, b.h, floors, roadSide(world, b));
-  // Chimney poking through the roof.
-  const cx = ((hsh >> 4) % 2 ? 1 : -1) * b.w * 0.25;
-  const cy = ((hsh >> 6) % 2 ? 1 : -1) * b.h * 0.2;
-  P(box(1, short * 0.42 + 1.4, 1), cx, cy, wallH, 0x7b5a4a);
+  return buildHouse(world, terrain, batch, b, base, roadSide(world, b)); // house3d.js (#76)
 }
 
 function buildLandmark(terrain, batch, l, rng, materials) {
