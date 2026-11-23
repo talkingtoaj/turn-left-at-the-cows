@@ -425,3 +425,17 @@ The owner compared the game with shots from other indie games: a hillside thick 
 - Gravel crunch under traffic tires on dirt roads.
 
 - Not chosen: the flat low-poly look, AI-made 3D models, military traffic, semis driving (a later ticket), new tractors (they already exist).
+
+### 9r. Detail pass before the jam ends (LOCKED, 23 Nov 2026, owner's ratings)
+
+The owner rated every open idea 1 to 5 (ratings in the artifact https://claude.ai/artifact/QkBtbwLs8MkR5eMBxG63Nb, collection `ranks`). Build everything rated 3 to 5 before 1 Dec, highest rating first. Most buildings are plain boxes with a gable roof; the goal is the detail of the cars, in our own designs.
+
+- **Rule for every model:** round or bevel corners, give windows, doors and trim real depth, use the existing texture and batch code, keep draw calls flat and triangles modest (60 FPS on built-in graphics). Before and after shots of the same views; the owner marks keep or redo.
+- **Words:** any new painted words (a letter board, a shop name) go through line review (CLAUDE.md). Price numbers and plain signs like OPEN need none.
+- **Rated 5:** gas station, church.
+- **Rated 4:** water tower, power poles and fences, far stand-ins for the van and 4x4, farmhouse porch, Dot fishing off the snapped bridge, tractors, roadside fill, grain elevators (fix the Brandt sign reading "ASHFORD CO-OP"), the farm dog, trees (more of them, and rows lining some roads), Ashford main street. The shared map gallery (rated 4) is already built and live (`server/`, `src/ui/mapShare.js`); it has no shared maps yet.
+- **Rated 3:** semi cab shape, mud as a clue, horn reactions, other landmarks (mill ruin, covered bridge, lookout, quarry, campground), houses, diner, store and cabins, road bridges, barns, horses, sheep and deer, the share postcard.
+- **Farm dog:** runs along its own fence barking as you pass and stops at the end of its yard. It never goes on the road. Also a clue.
+- **Tree rows:** rows on both sides of some stretches, like old farm lanes, mostly dirt roads near farms, none in town.
+- **The 6x6:** only the Hartley one stays parked; Okafor's goes. The 25% driving roll stays.
+- Main street is the biggest job and runs in its own worktree so it holds up nothing else.

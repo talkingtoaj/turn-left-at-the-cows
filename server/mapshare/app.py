@@ -13,7 +13,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
 from .config import Settings
-from .maps import MAX_NICKNAME, BadRequest, Busy, MapStore, NotFound, check_player, clean_upload
+from .maps import MAX_NICKNAME, MAX_SEEDS, BadRequest, Busy, MapStore, NotFound, check_player, clean_seed, clean_upload
 from .ratelimit import RateLimiter
 from .records import RecordStore, clean_finish
 from .static import make_static_handler
@@ -215,6 +215,24 @@ def create_app(settings: Settings | None = None, storage: Storage | None = None,
         rec = store.set_hidden(mission, map_id, what == "hide")
         log.info("admin %s mission=%s id=%s", what, mission, map_id)
         return _ok({"id": rec["id"], "hidden": rec["hidden"]})
+
+    # Seed maps (tools/seed-maps.mjs): the poor maps the wall starts with.
+    # Each has a fixed id, so loading the same file again adds nothing.
+    @app.post("/api/admin/seed")
+    async def admin_seed(request: Request):
+        if not admin_ok(request):
+            return _err(401, "unauthorized")
+        body = await read_json(request)
+        items = body.get("maps") if isinstance(body, dict) else None
+        if not isinstance(items, list) or not items or len(items) > MAX_SEEDS:
+            return _err(400, "bad_body", f"expected 1 to {MAX_SEEDS} maps")
+        seeds = [clean_seed(it) for it in items]  # all checked before any is stored
+        added, skipped = [], []
+        for map_id, fields, votes, created in seeds:
+            rec = await run_in_threadpool(store.create_seed, fields, map_id, votes, created)
+            (added if rec else skipped).append(map_id)
+        log.info("admin seed added=%s skipped=%s", len(added), len(skipped))
+        return _ok({"added": added, "skipped": skipped})
 
     static = make_static_handler(settings.dist_dir)
     app.add_api_route("/", static, methods=["GET", "HEAD"], include_in_schema=False)

@@ -58,6 +58,7 @@ API at the same time, run the server as above and `API_PROXY=http://localhost:87
 | `POST /api/records` | A finish: `{mission, ms, tourist}`; answers that mission's `{best, tourist, new}` |
 | `GET /api/admin/maps?mission=m1_parcel[&hidden_only=false]` | Admin: hidden maps |
 | `POST /api/admin/maps/{mission}/{id}/unhide` (or `/hide`) | Admin |
+| `POST /api/admin/seed` | Admin: load seed maps `{maps: [...]}` from `tools/seed-maps.mjs`; answers `{added, skipped}` |
 
 Admin calls need `Authorization: Bearer $ADMIN_TOKEN`, for example:
 
@@ -69,6 +70,21 @@ curl -s -X POST -H "Authorization: Bearer $TOKEN" "$URL/api/admin/maps/m1_parcel
 ```
 
 An unhidden map is marked reviewed and later reports no longer hide it.
+
+### Seed maps (the map wall, #82)
+
+`tools/seed-maps.mjs` makes a few deliberately poor maps for every mission
+(fixed ids `seed-<mission>-<n>`, stored with `"seeded": true` and owner
+`seed`), so the map wall isn't empty on day one. Loading the same set twice
+adds nothing. Try it on a local server first:
+
+```bash
+cd server && ADMIN_TOKEN=local STORAGE=local uv run python -m mapshare   # port 8080
+ADMIN_TOKEN=local node tools/seed-maps.mjs --post http://127.0.0.1:8080
+```
+
+The tool only posts to localhost unless `--live` is given. Loading the live
+server waits for the owner's go-ahead.
 
 ## Storage, votes and reports
 
