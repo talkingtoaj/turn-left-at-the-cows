@@ -17,6 +17,7 @@ import { buildGasStation } from './gas3d.js';
 import { buildFarmhouse } from './farmhouse3d.js';
 import { buildWaterTower } from './watertower3d.js';
 import { buildGrainElevator, buildFarmSilo } from './elevator3d.js';
+import { buildShop } from './shops3d.js';
 import { Batcher } from './batch.js';
 import { state } from '../../src/state.js';
 import { currentMissionId } from '../../src/game/tourists.js';
@@ -179,20 +180,7 @@ function buildBuilding(world, terrain, batch, b) {
   }
 
   if (b.kind === 'shop') {
-    P(box(b.w, 5 + FOUND, b.h), 0, 0, -FOUND, 0xc9b28f);
-    P(box(b.w + 0.3, 0.5, b.h + 0.3), 0, 0, 5, 0x8a7a62); // parapet
-    P(box(b.w - 0.6, 0.1, b.h - 0.6), 0, 0, 5.2, 0x6f6d68);
-    // Shop front on the west (street) side with a striped awning.
-    P(box(0.12, 1.8, b.h * 0.7), -b.w / 2, 0, 0.8, WINDOW);
-    P(box(0.14, 2.2, 1.2), -b.w / 2, b.h * 0.4, 0, 0x5b3a2a);
-    const n = 8;
-    const seg = (b.h - 1) / n;
-    for (let i = 0; i < n; i++) {
-      const tilt = new THREE.Matrix4().makeRotationZ(-0.35);
-      batch.place(box(1.8, 0.08, seg), b.x, b.y, base, a, -b.w / 2 - 0.85, -b.h / 2 + 0.5 + (i + 0.5) * seg, 2.9,
-        i % 2 ? 0xf2efe6 : 0x2f6f8f, { extra: tilt });
-    }
-    P(box(0.12, 0.8, 1.2), b.w / 2, -2, 2.4, WINDOW);
+    buildShop(b, base, batch, roadSide(world, b)); // shops3d.js (#70)
     return;
   }
 

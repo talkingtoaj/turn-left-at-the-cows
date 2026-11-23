@@ -261,6 +261,20 @@ const VIEWS = [
   { name: 'elev_b_front', car: { x: 1700, y: 1440, heading: 0 }, cam: [1745, 4, 1452], look: [1745, 14, 1405] },
   { name: 'elev_b_sign', car: { x: 1700, y: 1440, heading: 0 }, cam: [1752, 19, 1378], look: [1745, 19.5, 1405] },
   { name: 'elev_b_road', car: { x: 1700, y: 1560, heading: 0 }, cam: [1700, 1.4, 1560], look: [1745, 14, 1405] },
+  // Main street shops (#70): Millbrook (m_h3, front west onto Church Street)
+  // and Calder's feed store (c_feed, front north onto Route 40); Brandt's
+  // store (br_store, front south onto the highway) needs
+  // SHOTS_QUERY='opening=off&spot=brandt'. Close 3/4, straight on, and from
+  // the road driving into town.
+  { name: 'shop_m_close', car: { x: 2302, y: 680, heading: 0 }, cam: [2318, 2.0, 586], look: [2333, 3.0, 601] },
+  { name: 'shop_m_front', car: { x: 2302, y: 680, heading: 0 }, cam: [2311, 2.2, 600], look: [2332, 3.6, 600] },
+  { name: 'shop_m_road', car: { x: 2302, y: 680, heading: 0 }, cam: [2302, 1.4, 680], look: [2336, 3, 600] },
+  { name: 'shop_c_close', car: { x: 4740, y: 1166, heading: 90 }, cam: [4819, 2.0, 1182], look: [4835, 3.0, 1197] },
+  { name: 'shop_c_front', car: { x: 4740, y: 1166, heading: 90 }, cam: [4835, 2.2, 1176], look: [4835, 3.6, 1196] },
+  { name: 'shop_c_road', car: { x: 4740, y: 1166, heading: 90 }, cam: [4740, 1.4, 1166], look: [4835, 3, 1200] },
+  { name: 'shop_b_close', car: { x: 1860, y: 1603, heading: 270 }, cam: [1781, 2.0, 1590], look: [1766, 3.0, 1574] },
+  { name: 'shop_b_front', car: { x: 1860, y: 1603, heading: 270 }, cam: [1765, 2.2, 1595], look: [1765, 3.6, 1574] },
+  { name: 'shop_b_road', car: { x: 1860, y: 1603, heading: 270 }, cam: [1860, 1.4, 1603], look: [1765, 3, 1570] },
 ];
 
 const browser = await launchChromium();
