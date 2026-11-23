@@ -25,7 +25,7 @@ const ROOF = 0x4f6a5a;
 const IRON = 0x2f3a33;
 const PUMP = 0x2f5a3a;
 const STONE = 0x7d786f;
-const NC = { cast: false };
+const NC = { cast: false, share: true }; // small pieces join a bucket the chunk has (batch.js)
 
 export function buildCampground(terrain, batch, l) {
   const A = batch.audit;

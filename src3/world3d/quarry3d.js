@@ -32,7 +32,11 @@ const CONCRETE = 0xa9a69c;
 const NC = { cast: false };
 const I = new THREE.Matrix4();
 
-export function buildQuarry(terrain, batch, l) {
+export function buildQuarry(terrain, batchIn, l) {
+  // Every piece joins a bucket its chunk already has (opts.share in
+  // batch.js), so the quarry's new parts add no draw calls.
+  const batch = Object.create(batchIn);
+  batch.add = (g, m, c, o = {}) => batchIn.add(g, m, c, { ...o, share: true });
   const q = terrain.quarries.find((p) => p.x === l.x && p.y === l.y);
   if (!q) return true;
   const rng = makeRng(hashString(l.id));
@@ -102,7 +106,7 @@ function stoneStacks(terrain, batch, l, R, oa, rng) {
       for (let i = 0; i < n; i++) {
         const lx = (i - (n - 1) / 2) * 1.62 + (rng() - 0.5) * 0.1;
         const m = new THREE.Matrix4().makeRotationY((rng() - 0.5) * 0.06);
-        P(uprightSlab(1.55, 2.2 - row * 0.2, 0.9, 0.04, 0.04), lx, (rng() - 0.5) * 0.1, up, STONE[(row + i) % 3], { extra: m });
+        P(uprightSlab(1.55, 2.2 - row * 0.2, 0.9, 0.04, 0.04, 1), lx, (rng() - 0.5) * 0.1, up, STONE[(row + i) % 3], { extra: m });
       }
       up += 0.9;
     }
@@ -119,7 +123,7 @@ function guardRail(terrain, batch, l, R, oa) {
       const x = l.x + Math.cos(a) * r;
       const y = l.y + Math.sin(a) * r;
       const h = terrain.heightAt(x, y);
-      batch.place(uprightSlab(0.2, 0.2, 1.6, 0.03, 0.03), x, y, h - 0.5, (a * 180) / Math.PI, 0, 0, 0, WOOD[0]);
+      batch.place(box(0.2, 1.6, 0.2), x, y, h - 0.5, (a * 180) / Math.PI, 0, 0, 0, WOOD[0]);
       if (batch.audit) batch.audit.rect(l.id, 'quarry_rail_post', x, y, 0.2, 0.2, 0, h - 0.5, null);
       if (prev) {
         for (const up of [0.45, 0.95]) {
@@ -168,7 +172,7 @@ function loader(terrain, batch, l, R, oa) {
   P(slab(hood, 1.7, 0.06, 'zy', 0, 3), 0, 0, 0, YELLOW);
   P(box(1.3, 0.75, 0.06), 0, 2.63, 0.85, 0x2a2a2a, NC);
   for (let i = 0; i < 5; i++) P(box(1.3, 0.05, 0.05), 0, 2.66, 0.9 + i * 0.14, 0x555555, NC);
-  P(uprightSlab(1.9, 0.5, 0.5, 0.12, 0.04), 0, 2.75, 0.3, YELLOW_DARK);
+  P(uprightSlab(1.9, 0.5, 0.5, 0.12, 0.04, 2), 0, 2.75, 0.3, YELLOW_DARK);
   P(cyl(0.08, 0.9, 8), 0.45, 1.6, 1.7, 0x2a2a2a, NC); // exhaust stack
   P(cyl(0.11, 0.06, 8), 0.45, 1.6, 2.6, 0x2a2a2a, NC);
   // Cab: four posts, a roof with a lip, glass all round, lights on the roof.
@@ -234,7 +238,7 @@ function derrick(terrain, batch, l, q, R, oa) {
   lattice(batch, V(cx, ch - 1, cy), top, 0.55, 0.3, 3, 1.4, CRANE, 0.08);
   if (batch.audit) batch.audit.circle(l.id, 'crane', cx, cy, 0.35, ch - 1);
   // Footing and the bull wheel the mast turns on.
-  batch.add(uprightSlab(2.4, 2.4, 1.0, 0.2, 0.06), objMatrix(cx, cy, ch - 0.7, 0), CONCRETE);
+  batch.add(uprightSlab(2.4, 2.4, 1.0, 0.2, 0.06, 1), objMatrix(cx, cy, ch - 0.7, 0), CONCRETE);
   batch.add(new THREE.TorusGeometry(1.8, 0.07, 4, 24).rotateX(Math.PI / 2), objMatrix(cx, cy, ch + 1.1, 0), CRANE, NC);
   for (let i = 0; i < 6; i++) batch.add(box(1.8, 0.08, 0.08).translate(0.9, 0, 0).rotateY((i * Math.PI) / 3), objMatrix(cx, cy, ch + 1.08, 0), CRANE, NC);
   // Boom from the mast foot out over the pit.
@@ -255,7 +259,7 @@ function derrick(terrain, batch, l, q, R, oa) {
     const dx = cx + Math.cos(a) * 22;
     const dy = cy + Math.sin(a) * 22;
     const dh = terrain.heightAt(dx, dy);
-    batch.add(uprightSlab(1.2, 1.2, 0.9, 0.15, 0.05), objMatrix(dx, dy, dh - 0.5, (a * 180) / Math.PI), CONCRETE);
+    batch.add(uprightSlab(1.2, 1.2, 0.9, 0.15, 0.05, 1), objMatrix(dx, dy, dh - 0.5, (a * 180) / Math.PI), CONCRETE);
     if (batch.audit) batch.audit.rect(l.id, 'deadman', dx, dy, 1.2, 1.2, (a * 180) / Math.PI, dh - 0.5, null);
     batch.add(strut(V(top.x, top.y - 0.2, top.z), V(dx, dh + 0.4, dy), 0.03, 3), I, CABLE, NC);
   }
