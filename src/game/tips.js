@@ -37,9 +37,28 @@ export const TIP_CONTEXT = {
   shiftAge: Infinity, // seconds since you last came on something the printed map has wrong
   radioOn: false, // the car radio is on and you're in the car
   radioSignal: 1, // 0..1, the strongest station's signal here (0: out of range, only static)
+  bridgeOutAge: Infinity, // seconds since you last went by a BRIDGE OUT sign (bridgeOutStep)
 };
 
+// How close counts as passing a BRIDGE OUT sign (#87). Signs read from about
+// 15 m; a little more catches a car going by fast.
+export const BRIDGE_OUT_NEAR = 25;
+
+// Seconds since you were last within BRIDGE_OUT_NEAR of a BRIDGE OUT sign,
+// so the tip stays up after you drive past. mem: { at } kept between frames
+// (start with {}); d: metres to the nearest sign now; now: seconds.
+export function bridgeOutStep(mem, d, now) {
+  if (d < BRIDGE_OUT_NEAR) mem.at = now;
+  return mem.at === undefined ? Infinity : now - mem.at;
+}
+
 export const TIPS = [
+  // The owner's words (#87, approved on the review page): the first time you
+  // pass the BRIDGE OUT sign. First, so it wins over map_wrong just after.
+  { id: 'bridge_out', max: 1, secs: 11,
+    // line id: T87-bridge-out-hint
+    text: "Uh oh, looks like Darlene's map is out of date. Better check if there's anyone nearby you can ask for directions.",
+    when: (c) => !c.busy && c.bridgeOutAge < 14 },
   // The owner's words (15 Nov 2026). First, so it wins over the others.
   { id: 'map_wrong', max: 2, secs: 11,
     text: 'It looks like the map is wrong. Press M to view and mark changes on the map, then try to find a local to get directions from.',

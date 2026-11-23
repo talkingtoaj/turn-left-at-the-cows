@@ -58,7 +58,7 @@ import { WALK, localsAround, carGap } from '../src/game/onfoot.js';
 import { lookablesFor, pickLookable, compassWord } from '../src/game/lookables.js';
 import { createThunder } from '../src/game/thunder.js';
 import { createLightning3D } from './world3d/lightning3d.js';
-import { createTips, TIP_CONTEXT, setTipsEnabled, resetTips } from '../src/game/tips.js';
+import { createTips, TIP_CONTEXT, setTipsEnabled, resetTips, bridgeOutStep } from '../src/game/tips.js';
 import { createTipsView } from './hud/tips.js';
 import { warningLights } from '../src/game/damage.js';
 
@@ -320,6 +320,8 @@ const tipsView = createTipsView(ui);
 const tipCtx = { ...TIP_CONTEXT };
 // When you last came on a shift (something the printed map has wrong).
 const shiftTip = { n: 0, at: -Infinity };
+// When you last went by a BRIDGE OUT sign (#87, bridgeOutStep).
+const bridgeOutMem = {};
 const reducedMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
 // ---------- input ----------
@@ -738,6 +740,12 @@ function updateTips(dt) {
   if (state.won) shiftTip.at = -Infinity;
   shiftTip.n = nShifts; // drops back to 0 when a mission starts
   c.shiftAge = now - shiftTip.at;
+  // BRIDGE OUT signs (#87): the first one you pass brings the bridge_out tip.
+  let bridgeOutD = Infinity;
+  for (const s of WORLD.signs) {
+    if (s.lines && /BRIDGE OUT/.test(s.lines[0])) bridgeOutD = Math.min(bridgeOutD, Math.hypot(s.x - vx, s.y - vy));
+  }
+  c.bridgeOutAge = bridgeOutStep(bridgeOutMem, bridgeOutD, now);
   tipsView.show(tips.update(c, now));
 }
 
