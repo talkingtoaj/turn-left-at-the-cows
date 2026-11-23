@@ -109,6 +109,17 @@ const VIEWS = [
   { name: 'parked6x6_okafor_yard', car: { x: 4935, y: 2125, heading: 0 }, cam: [4972, 4.5, 2026], look: [4955, 1.5, 1996] },
   // Okafor's yard from the car as the player drives up (no 6x6 parked there since #71).
   { name: 'parked6x6_okafor_road', car: { x: 4935, y: 2125, heading: 0 } },
+  // Okafor's collie and its fence (#68). `dog: [s, v, toward]` holds the dog
+  // s m along its run, galloping at v m/s (0: standing, facing toward [x, y];
+  // 'rest': lying down).
+  { name: 'dog_aerial', car: { x: 4870, y: 2020, heading: 0 }, cam: [4880, 90, 2080], look: [4905, 0, 2010] },
+  { name: 'dog_close', car: { x: 4760, y: 2036, heading: 79 }, dog: [118, 0, [4899.4, 2005.8]], cam: [4900.7, 0.8, 2003.4], look: [4898.6, 0.4, 2003.7] },
+  { name: 'dog_lying', car: { x: 4760, y: 2036, heading: 79 }, dog: [118, 'rest'], cam: [4901.0, 0.9, 2002.9], look: [4898.6, 0.3, 2003.7] },
+  { name: 'dog_yard', car: { x: 4760, y: 2036, heading: 79 }, dog: [118, 0, [4893, 1999]], cam: [4897.7, 1.5, 1997.4], look: [4899.6, 0.4, 2004.4] },
+  { name: 'dog_straight', car: { x: 4760, y: 2036, heading: 79 }, dog: [118, 0, [4889, 1993]], cam: [4888.3, 1.6, 1994.2], look: [4900, 0.7, 2005] },
+  { name: 'dog_run', car: { x: 4760, y: 2036, heading: 79 }, dog: [60, 8.5], cam: [4852.8, 1.2, 2028.4], look: [4850.6, 0.4, 2035.9] },
+  { name: 'dog_run_side', car: { x: 4760, y: 2036, heading: 79 }, dog: [60, 8.5], cam: [4852.2, 0.7, 2039.8], look: [4850.6, 0.35, 2035.9] },
+  { name: 'dog_road', car: { x: 4790, y: 2031, heading: 77 }, dog: [70, -8.5] },
   { name: 'traffic_sedans', car: { road: 'hwy9', at: 0.4 }, pin: [['car0', 16, 1, 1], ['car4', 24, 1, 1], ['car9', 32, 1, 1]], tcam: [[6, 2.6, -22], [0, 0.8, -8]] },
   { name: 'traffic_pairs', car: { road: 'hwy9', at: 0.4 }, pin: [['car1', 16, 1, 1], ['car6', 23, 1, 1], ['car2', 30, 1, 1], ['car8', 37, 1, 1]], tcam: [[6, 3.0, -27], [0, 0.8, -10]] },
   { name: 'traffic_kit_close', car: { road: 'hwy9', at: 0.4 }, pin: [['car6', 20, 1, 1]], tcam: [[4.6, 2.6, -4.6], [0, 1.0, 0.6]] },
@@ -347,6 +358,27 @@ const VIEWS = [
   { name: 'shop_b_close', car: { x: 1860, y: 1603, heading: 270 }, cam: [1781, 2.0, 1590], look: [1766, 3.0, 1574] },
   { name: 'shop_b_front', car: { x: 1860, y: 1603, heading: 270 }, cam: [1765, 2.2, 1595], look: [1765, 3.6, 1574] },
   { name: 'shop_b_road', car: { x: 1860, y: 1603, heading: 270 }, cam: [1860, 1.4, 1603], look: [1765, 3, 1570] },
+  // Road bridges (#78): Highway 9 over Willow Creek (bridge_hwy_*) and Route 40
+  // over the Coldwater (bridge_rt40_*): close 3/4 of the end posts, straight
+  // down the deck, side on from the bank, and from the road as you drive up.
+  // Brandt's (bridgeb_*, SHOTS_QUERY='opening=off&spot=brandt'): Route 40
+  // over Sandy Creek and the dirt South Road bridge.
+  { name: 'bridge_hwy_close', car: { x: 2404, y: 1615.9, heading: 358.4 }, cam: [2413.3, 2.4, 1579.7], look: [2405.4, 1.4, 1567.9] },
+  { name: 'bridge_hwy_front', car: { x: 2404, y: 1615.9, heading: 358.4 }, cam: [2399.5, 1.6, 1587], look: [2400.1, 2, 1555] },
+  { name: 'bridge_hwy_side', car: { x: 2404, y: 1615.9, heading: 358.4 }, cam: [2439.6, 2, 1553.9], look: [2400.1, 1, 1555] },
+  { name: 'bridge_hwy_road', car: { x: 2404, y: 1615.9, heading: 358.4 } },
+  { name: 'bridge_rt40_close', car: { x: 4195.1, y: 1184.9, heading: 87.4 }, cam: [4231.6, 2.4, 1193.6], look: [4243.2, 1.4, 1185.5] },
+  { name: 'bridge_rt40_front', car: { x: 4195.1, y: 1184.9, heading: 87.4 }, cam: [4223.9, 1.6, 1179.9], look: [4260, 2, 1179.8] },
+  { name: 'bridge_rt40_side', car: { x: 4195.1, y: 1184.9, heading: 87.4 }, cam: [4261.8, 2, 1219.2], look: [4260, 1, 1179.8] },
+  { name: 'bridge_rt40_road', car: { x: 4195.1, y: 1184.9, heading: 87.4 } },
+  { name: 'bridgeb_sandy_close', car: { x: 2414.9, y: 1658.2, heading: 99.5 }, cam: [2448.7, 2.4, 1674.3], look: [2461.8, 1.4, 1668.9] },
+  { name: 'bridgeb_sandy_road', car: { x: 2414.9, y: 1658.2, heading: 99.5 } },
+  { name: 'bridgeb_south_close', car: { x: 2535.8, y: 2567.1, heading: 90 }, cam: [2571.8, 2.4, 2575.9], look: [2583.8, 1.4, 2568.4] },
+  { name: 'bridgeb_south_front', car: { x: 2535.8, y: 2567.1, heading: 90 }, cam: [2564.8, 1.6, 2563.4], look: [2594.8, 2, 2564.9] },
+  { name: 'bridgeb_south_road', car: { x: 2535.8, y: 2567.1, heading: 90 } },
+  // Name plates up close: Route 40's end post (Fenwick), South Road's (Brandt).
+  { name: 'bridge_rt40_plate', car: { x: 4195.1, y: 1184.9, heading: 87.4 }, cam: [4236.4, 1.3, 1184.8], look: [4239.7, 1.0, 1185.9] },
+  { name: 'bridgeb_south_plate', car: { x: 2535.8, y: 2567.1, heading: 90 }, cam: [2577.8, 1.1, 2567.7], look: [2581.1, 0.8, 2568.7] },
 ];
 
 const browser = await launchChromium();
@@ -381,6 +413,31 @@ if (process.env.SHOTS_MISSION) {
   await page.evaluate((id) => window.__playMission(id), process.env.SHOTS_MISSION);
   await page.waitForTimeout(3000);
   await dismissCards();
+}
+
+// SHOTS_EXTRA_TRIS=<n> adds one mesh of about n triangles that is drawn in
+// every view (the budget check's self-test: it must then fail).
+if (process.env.SHOTS_EXTRA_TRIS) {
+  await page.evaluate((n) => {
+    // Added to the live scene before each view (regions swap scenes). No bare
+    // 'three' import in the page: borrow the classes from a mesh in the scene.
+    let m = null;
+    window.__addExtraTris = (scene) => {
+      if (m && m.parent === scene) return;
+      if (!m) {
+        let src = null;
+        scene.traverse((o) => { if (!src && o.isMesh && !o.isInstancedMesh && !o.isSkinnedMesh && o.material && (o.material.isMeshStandardMaterial || o.material.isMeshLambertMaterial || o.material.isMeshBasicMaterial)) src = o; });
+        const g = new src.geometry.constructor();
+        const pos = new Float32Array(n * 9);
+        for (let i = 0; i < pos.length; i += 9) { pos[i + 3] = 0.01; pos[i + 7] = 0.01; } // tiny triangles at the origin
+        g.setAttribute('position', new src.geometry.attributes.position.constructor(pos, 3));
+        m = new src.constructor(g, new src.material.constructor({ color: 0xff00ff }));
+        m.frustumCulled = false;
+        m.castShadow = false;
+      }
+      scene.add(m);
+    };
+  }, Number(process.env.SHOTS_EXTRA_TRIS));
 }
 
 fs.mkdirSync(outDir, { recursive: true });
@@ -515,6 +572,10 @@ for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) 
       for (const id of window.__kitted || []) window.__trafficKit(id, null);
       window.__kitted = (v.kit || []).map(([id, parts]) => (window.__trafficKit(id, parts), id));
     }
+    // The farm dog held running or standing for this view (#68), else free.
+    for (const d of (window.__amb && window.__amb.farmDogs) || []) {
+      d.hold = v.dog ? { s: v.dog[0], v: v.dog[1], rest: v.dog[1] === 'rest', toward: v.dog[2] ? { x: v.dog[2][0], y: v.dog[2][1] } : null } : null;
+    }
     // Mud on the player's car (#73): set it, then wash it in mudRain s of rain.
     if (window.__car3d && v.mud !== undefined) {
       let m = v.mud;
@@ -600,13 +661,14 @@ for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) 
         } else c.lookAt(st.car.x + fx * 6, H(st.car.x, st.car.y) + 0.6, st.car.y + fy * 6);
         c.updateMatrixWorld();
       }
+      if (window.__addExtraTris) window.__addExtraTris(s);
       renderer.__orig(s, c);
     };
   }, v);
   await page.waitForTimeout(2500);
   await dismissCards();
   const file = path.join(outDir, `${prefix}_${v.name}.png`);
-  await page.screenshot({ path: file });
+  if (!process.env.SHOTS_NO_PNG) await page.screenshot({ path: file }); // SHOTS_NO_PNG=1: numbers only
   stats[v.name] = await page.evaluate(() => {
     const el = [...document.querySelectorAll('div')].find((d) => /calls \d+/.test(d.textContent) && d.style.position === 'fixed');
     return el ? el.textContent.split('\n').filter((l) => /calls/.test(l)).join(' | ') : null;

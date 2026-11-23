@@ -12,6 +12,7 @@ import { canopyTopAt } from './trees.js';
 import { buildSkyClouds, updateCloudUniforms } from './clouds.js';
 import { FOG_COLOR } from './world3d.js';
 import { cowLook, cowPose, PATCH_FREQ } from './cowLook.js';
+import { collieGeo } from './collie3d.js';
 import { sheepGeo, horseGeo, deerGeo, coatMaterial } from './animals3d.js';
 
 const BIRD_R = 260; // show birds within this range of the focus
@@ -351,6 +352,9 @@ export function createAmbient3D(scene, opts) {
       poses: [deerGeo(STAND), deerGeo([-0.55, -0.45, 0.6, 0.7], true), deerGeo([0.75, 0.65, -0.7, -0.6], true)]
         .map((g) => instanced(g, deerMat, MAX_ANIMALS)),
     },
+    // Farm dogs (#68): standing, two gallop poses, lying down. Their logic
+    // (src/world/farmDog.js) picks the pose, bob and pitch.
+    dog: { colors: [0xffffff], poses: [0, 1, 2, 3].map((pose) => instanced(collieGeo(pose), vc, MAX_ANIMALS)) },
   };
   const animalMeshes = Object.values(herd).flatMap((h) => h.poses);
   const animalCount = new Map();
@@ -461,7 +465,11 @@ export function createAmbient3D(scene, opts) {
         let bob = a.moving ? Math.abs(Math.sin(time * 7 + i)) * 0.05 : 0;
         let pitch = a.moving ? 0 : 0.04 + Math.sin(time * 0.8 + i * 1.7) * 0.03;
         let look = null;
-        if (h.cow) {
+        if (a.kind === 'dog') {
+          pose = a.pose;
+          bob = a.bob;
+          pitch = a.pitch;
+        } else if (h.cow) {
           const id = a.id ?? `n${i}`;
           look = cowLooks.get(id);
           if (!look) cowLooks.set(id, (look = cowLook(id)));
