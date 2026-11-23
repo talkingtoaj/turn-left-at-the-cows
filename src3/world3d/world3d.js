@@ -12,6 +12,7 @@ import { buildSigns, buildLocals } from './props.js';
 import { buildDressing } from './dressing.js';
 import { buildTrees } from './trees.js';
 import { buildScatter } from './scatter3d.js';
+import { buildVerge } from './verge3d.js';
 import { buildPuddles } from './puddles3d.js';
 import { mudFor } from '../../src/world/mud.js';
 import { districtsFor, KIND_LIST, RECIPES } from '../../src/world/districts.js';
@@ -141,6 +142,7 @@ export function buildObjects(world, scenery, terrain, batch, materials = {}) {
   const words = batch.faces && batch.faces.build(); // painted words on signs and mailboxes
   if (words) dynamic.push(words);
   buildStones(terrain, batch); // last: stones join the buckets already there
+  buildVerge(world, terrain, batch); // tar patches, ditches, posts (#66): join them too
   const trees = buildTrees(scenery, terrain, SUN_DIR, batch.audit);
   const scatter = buildScatter(world, scenery, terrain, SUN_DIR, batch.audit, materials.groundColor);
   const locals = buildLocals(world, terrain, batch.audit);

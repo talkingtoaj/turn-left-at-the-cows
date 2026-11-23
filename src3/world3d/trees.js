@@ -16,6 +16,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { hashString } from '../../src/drive/geom.js';
 import { cyl, cone } from './shapes.js';
+import { closeTree, deadTree, snag, deadwood, deadwoodMaterials, DEAD_H } from './treeShapes.js';
 
 const CELL = 50; // metres per culling cell
 const LOD_FAR = 230; // beyond this (from the camera), simpler shapes
@@ -64,7 +65,7 @@ function makeParts() {
     new THREE.IcosahedronGeometry(1, 0).scale(1.1, 0.8, 1.1).translate(0, 1.3, 0),
     new THREE.CylinderGeometry(1.05, 1.15, 0.9, 6, 1, true).translate(0, 0.75, 0),
   ]);
-  return { trunk, pine, oakA, oakB, willow, bush, far: { oakA: oakAFar, willow: willowFar } };
+  return { trunk, pine, oakA, oakB, willow, bush, dead: deadTree(), snag: snag(), deadwood: deadwood(), far: { oakA: oakAFar, willow: willowFar }, close: {} };
 }
 
 const BASE = { pine: 0x2f5a33, oak: 0x41733a, willow: 0x7f9e48 };
@@ -95,7 +96,12 @@ async function loadModels() {
   });
   const { pine, oakA, oakB, willow, bush } = geo;
   console.info(`[trees] models loaded: ${Object.keys(geo).join(', ')}`);
-  return { pine, oakA, oakB, willow, bush, far: { pine: geo.pineFar, oakA: geo.oakAFar, oakB: geo.oakBFar, willow: geo.willowFar } };
+  return {
+    pine, oakA, oakB, willow, bush, dead: deadTree(), snag: snag(), deadwood: deadwood(),
+    far: { pine: geo.pineFar, oakA: geo.oakAFar, oakB: geo.oakBFar, willow: geo.willowFar },
+    // Trees near the car (the shadow box) show bark and limbs (#69).
+    close: { pine: closeTree(pine, 'pine'), oakA: closeTree(oakA, 'oakA'), oakB: closeTree(oakB, 'oakB') },
+  };
 }
 
 // The CC0 model a tree of this kind at (x, y) uses (the same pick as
@@ -104,6 +110,8 @@ export function treeModelFor(t) {
   if (!MODELS) return null;
   if (t.kind === 'pine') return MODELS.pine;
   if (t.kind === 'willow') return MODELS.willow;
+  if (t.kind === 'dead') return MODELS.dead;
+  if (t.kind === 'snag') return MODELS.snag;
   return hashString(`${t.x | 0},${t.y | 0}`) % 2 ? MODELS.oakA : MODELS.oakB;
 }
 
@@ -161,6 +169,8 @@ function topMapOf(geo) {
 export function canopyTopAt(t, x, y, ground) {
   const geo = treeModelFor(t);
   if (!geo) return null;
+  if (t.kind === 'snag') return ground + t.h * 0.97;
+  const sy = tallness(t);
   const tm = topMapOf(geo);
   // Undo the instance's turn (tint * 2 pi about up) and scale (r).
   const a = -t.tint * Math.PI * 2;
@@ -170,11 +180,20 @@ export function canopyTopAt(t, x, y, ground) {
   const lz = -Math.sin(a) * wx + Math.cos(a) * wz;
   const i = Math.max(0, Math.min(TOP_N - 1, Math.floor((lx - tm.x0) / tm.dx)));
   const j = Math.max(0, Math.min(TOP_N - 1, Math.floor((lz - tm.z0) / tm.dz)));
-  return ground - 0.15 * t.r + tm.h[j * TOP_N + i] * t.r;
+  return ground - 0.15 * t.r + tm.h[j * TOP_N + i] * t.r * sy;
 }
 
-// One shape's instances, sorted by cell, plus its output meshes.
-function makeSet(geo, farGeo, mat, list, cellOf, nCells, casts) {
+// Living trees vary in height (taller and slimmer, or squat) by tint, so
+// trees of one model don't all stand alike. Dead and broken ones keep theirs.
+export function tallness(t) {
+  if (t.kind === 'dead' || t.kind === 'snag') return 1;
+  const u = (t.tint * 13.7) % 1;
+  return 0.88 + u * 0.26;
+}
+
+// One shape's instances, sorted by cell, plus its output meshes. castGeo:
+// the shape for the cast mesh (the trees near the car), when it has one.
+function makeSet(geo, farGeo, mat, list, cellOf, nCells, casts, castGeo = geo) {
   const n = list.length;
   const order = list.map((_, i) => i).sort((a, b) => cellOf[a] - cellOf[b]);
   const mats = new Float32Array(n * 16);
@@ -205,7 +224,7 @@ function makeSet(geo, farGeo, mat, list, cellOf, nCells, casts) {
     mats,
     cols,
     start,
-    cast: casts ? out(geo, true) : null,
+    cast: casts ? out(castGeo, true) : null,
     near: out(geo, false),
     far: farGeo ? out(farGeo, false) : null,
   };
@@ -245,6 +264,8 @@ export function buildTrees(scenery, terrain, sunDir, audit = null) {
     ? new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true, flatShading: true })
     : new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true });
   const trunkMat = new THREE.MeshLambertMaterial({ color: 0x5a4030, flatShading: true });
+  // Dead and broken trees: one batch for both shapes (treeShapes.js).
+  const dw = deadwoodMaterials();
   const group = new THREE.Group();
 
   const size = terrain.world.size;
@@ -279,6 +300,16 @@ export function buildTrees(scenery, terrain, sunDir, audit = null) {
     const h = terrain.heightAt(t.x, t.y);
     const r = t.r;
     q.setFromAxisAngle(up, t.tint * Math.PI * 2);
+    if (t.kind === 'dead' || t.kind === 'snag') {
+      // Bare dead tree (r * DEAD_H tall) or a broken trunk t.h tall (#69).
+      const dead = t.kind === 'dead';
+      const s = dead ? new THREE.Vector3(r, r, r) : new THREE.Vector3(r, t.h, r);
+      const m = new THREE.Matrix4().compose(new THREE.Vector3(t.x, h - (dead ? 0.1 * r : 0.05), t.y), q, s);
+      const f = 0.85 + t.tint * 0.3;
+      push(t.x, t.y, 'deadwood', m, new THREE.Color(f, f, dead ? f : f + 2), dead ? r * DEAD_H : t.h * 1.2);
+      if (audit) audit.circle(`tree@${Math.round(t.x)},${Math.round(t.y)}`, 'tree', t.x, t.y, 0.1 * r * 1.6, h - 0.3);
+      continue;
+    }
     const f = 0.82 + t.tint * 0.36;
     col.setHex(BASE[t.kind] || BASE.oak).multiplyScalar(f);
     let trunkH;
@@ -300,7 +331,7 @@ export function buildTrees(scenery, terrain, sunDir, audit = null) {
     if (MODELS) {
       // Whole tree from the ground, a little sunk for slopes; the model has
       // the kind's colours, the instance only brightens or darkens it.
-      const m = new THREE.Matrix4().compose(new THREE.Vector3(t.x, h - 0.15 * r, t.y), q, new THREE.Vector3(r, r, r));
+      const m = new THREE.Matrix4().compose(new THREE.Vector3(t.x, h - 0.15 * r, t.y), q, new THREE.Vector3(r, r * tallness(t), r));
       push(t.x, t.y, part, m, new THREE.Color(f, f, f), r * 4.5);
       if (audit) audit.circle(`tree@${Math.round(t.x)},${Math.round(t.y)}`, 'tree', t.x, t.y, 0.1 * r * 1.6, h - 0.3);
       continue;
@@ -322,9 +353,10 @@ export function buildTrees(scenery, terrain, sunDir, audit = null) {
 
   const setList = [];
   for (const [part, { list, cells }] of Object.entries(byPart)) {
-    const mat = part === 'trunk' ? trunkMat : leafMat;
+    const mat = part === 'trunk' ? trunkMat : part === 'deadwood' ? dw.mat : leafMat;
     // Bushes never cast shadows (as before).
-    const set = makeSet(parts[part], parts.far[part], mat, list, cells, nCells, part !== 'bush');
+    const set = makeSet(parts[part], parts.far[part], mat, list, cells, nCells, part !== 'bush', parts.close[part]);
+    if (part === 'deadwood') set.cast.customDepthMaterial = dw.depth;
     for (const m of set.meshes) group.add(m);
     setList.push({ part, set });
   }

@@ -69,6 +69,14 @@ export class Batcher {
     return g;
   }
 
+  // Is there a bucket of this material (cast or not) in the chunk at world
+  // (x, z)? Lets small pieces pick a material that adds no draw call.
+  hasBucket(x, z, material) {
+    const cx = Math.floor(x / BATCH_CHUNK);
+    const cz = Math.floor(z / BATCH_CHUNK);
+    return this.buckets.has(`${cx}:${cz}:true:${material}`) || this.buckets.has(`${cx}:${cz}:false:${material}`);
+  }
+
   // Place a geometry at world (x, y) with ground height `base`, rotated by a
   // heading-style angle (deg), then offset in the local frame (lx right, ly back, up).
   place(geo, x, y, base, angle, lx, ly, up, color, opts) {

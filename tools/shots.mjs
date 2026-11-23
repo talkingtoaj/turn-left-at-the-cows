@@ -163,6 +163,11 @@ const VIEWS = [
   { name: 'semib_close', car: { x: 1700, y: 1440, heading: 0 }, cam: [1754, 2.4, 1416.5], look: [1745, 1.8, 1427] },
   { name: 'semib_side', car: { x: 1700, y: 1440, heading: 0 }, cam: [1760, 1.9, 1428], look: [1745, 1.7, 1428] },
   { name: 'semib_site', car: { x: 1700, y: 1440, heading: 0 }, cam: [1778, 13, 1462], look: [1745, 6, 1416] },
+  // Semi cab shape (#72): close 3/4 of the cab and sleeper step, straight on
+  // the nose, and the Calder semi from the road as the player drives up.
+  { name: 'semi_cab', car: { x: 4925, y: 1140, heading: 90 }, cam: [4952.5, 3.3, 1124.5], look: [4956.5, 2.6, 1119] },
+  { name: 'semi_front', car: { x: 4925, y: 1140, heading: 90 }, cam: [4969, 2.4, 1119.2], look: [4956, 2.2, 1119.2] },
+  { name: 'semi_road', car: { x: 4925, y: 1140, heading: 90 }, cam: [4925, 1.4, 1140], look: [4955, 2.2, 1119] },
   // Gas stations (#58): Ashford (a_gas) and Brandt (br_gas, needs
   // SHOTS_QUERY='opening=off&spot=brandt'). Close 3/4, straight on, the shop
   // door, a pump island, from above, and from the road as you first see it.
@@ -217,6 +222,27 @@ const VIEWS = [
   { name: 'porch_d_front', car: { x: 2470, y: 853, heading: 77 }, cam: [2488, 1.8, 836], look: [2505, 2.2, 836] },
   { name: 'porch_d_swing', car: { x: 2470, y: 853, heading: 77 }, cam: [2509, 1.7, 852], look: [2507, 1.2, 844] },
   { name: 'porch_d_road', car: { x: 2470, y: 853, heading: 77 }, cam: [2470, 1.4, 853], look: [2510, 3, 838] },
+  // Roadside fill (#66): from the driver's seat up three roads (Highway 9 and
+  // Route 40 paved, River Road dirt), and low over each verge.
+  { name: 'verge_hwy', car: { road: 'hwy9', at: 0.25 }, rel: [-0.4, 1.3, -0.5], relLook: [-0.6, 0.9, -60] },
+  { name: 'verge_rt40', car: { road: 'rt40', at: 0.3 }, rel: [-0.4, 1.3, -0.5], relLook: [-0.6, 0.9, -60] },
+  { name: 'verge_river', car: { road: 'river_rd', at: 0.6 }, rel: [-0.4, 1.3, -0.5], relLook: [-0.6, 0.9, -60] },
+  { name: 'verge_hwy_side', car: { road: 'hwy9', at: 0.25 }, rel: [-6.5, 1.5, 3], relLook: [-7, 0.2, -14] },
+  { name: 'verge_river_side', car: { road: 'river_rd', at: 0.6 }, rel: [-5.5, 1.5, 3], relLook: [-6, 0.2, -14] },
+  // A ditch along Highway 9 (3/4, straight across, from the road), a run of
+  // leaning posts with wire, a tar patch, and a culvert at Pruitt Lane.
+  // Before shots of these: SHOTS_QUERY='opening=off&verge=off'.
+  { name: 'verge_ditch_close', car: { x: 1369, y: 2241, heading: 98 }, cam: [1430.3, 2, 2245.9], look: [1437.6, 0, 2242] },
+  { name: 'verge_ditch_front', car: { x: 1369, y: 2241, heading: 98 }, cam: [1437, 1.5, 2249.4], look: [1437.8, 0, 2238] },
+  { name: 'verge_ditch_road', car: { x: 1369, y: 2241, heading: 98 }, cam: [1363.3, 1.3, 2242.6], look: [1418.5, 0.6, 2244.2] },
+  { name: 'verge_posts_close', car: { x: 977.4, y: 2302.9, heading: 250 }, cam: [950.8, 1.5, 2320.4], look: [948.1, 0.7, 2324.6] },
+  { name: 'verge_posts_front', car: { x: 977.4, y: 2302.9, heading: 250 }, cam: [946, 1.3, 2318.9], look: [948.1, 0.7, 2324.6] },
+  { name: 'verge_posts_road', car: { x: 911.8, y: 2327.2, heading: 70 }, cam: [977.4, 1.3, 2302.9], look: [948.1, 0.8, 2324.6] },
+  { name: 'verge_posts_road2', car: { x: 977.4, y: 2302.9, heading: 250 }, cam: [911.8, 1.3, 2327.2], look: [948.1, 0.8, 2324.6] },
+  { name: 'verge_tar_close', car: { x: 1369, y: 2241, heading: 98 }, cam: [1379.5, 1.6, 2249.2], look: [1375, 0, 2245.1] },
+  { name: 'verge_tar_front', car: { x: 1369, y: 2241, heading: 98 }, cam: [1369.4, 2.5, 2242], look: [1375, 0, 2245.1] },
+  { name: 'verge_tar_road', car: { x: 1369, y: 2241, heading: 98 }, cam: [1342.8, 1.3, 2240], look: [1402.5, 0.3, 2246.4] },
+  { name: 'verge_culvert', car: { x: 2965, y: 1100, heading: 180 }, cam: [2990.5, 1.4, 1286.3], look: [2986.7, 0, 1288.7] },
   // Water towers (#60). Ashford's, south of Highway 9: 3/4 close, straight on
   // from the highway side, up at the catwalk, and from the highway driving
   // east. Oakham's (run with SHOTS_QUERY='opening=off&spot=brandt'): 3/4, straight on
@@ -228,6 +254,20 @@ const VIEWS = [
   { name: 'oak_close', car: { x: 3907, y: 2250, heading: 180 }, cam: [3958, 7, 2228], look: [3990, 15, 2262] },
   { name: 'oak_front', car: { x: 3907, y: 2250, heading: 180 }, cam: [3940, 12, 2262], look: [3990, 20, 2262] },
   { name: 'oak_road', car: { x: 3920, y: 2140, heading: 180 }, cam: [3920, 1.4, 2140], look: [3990, 18, 2262] },
+  // Trees (#69). Rows along Pruitt Lane (dirt, off Route 40 to the Pruitt
+  // farm): from the car turning in, straight down the lane, 3/4 close on a
+  // row tree, its trunk and branches up close, and the dead one in the row.
+  // Rows on Ridge Road by Hartley's and on Old River Road from the car.
+  // A dead tree and a broken one out in the open.
+  { name: 'rows_road', car: { x: 2982.2, y: 1276.7, heading: 7 } },
+  { name: 'rows_lane', car: { x: 2982.2, y: 1276.7, heading: 7 }, cam: [2987.6, 1.6, 1237.1], look: [2986.8, 2.5, 1157.5] },
+  { name: 'rows_close', car: { x: 2982.2, y: 1276.7, heading: 7 }, cam: [2986, 1.7, 1216], look: [2977.1, 3, 1208.4] },
+  { name: 'rows_bark', car: { x: 2982.2, y: 1276.7, heading: 7 }, cam: [2981.5, 1.4, 1211.5], look: [2977.1, 2.6, 1208.4] },
+  { name: 'rows_dead', car: { x: 2982.2, y: 1276.7, heading: 7 }, cam: [2987, 2, 1227], look: [2976.3, 5, 1218.9] },
+  { name: 'rows_ridge_road', car: { x: 2648.3, y: 290.1, heading: 74 } },
+  { name: 'rows_river_road', car: { x: 3306.4, y: 2243.3, heading: 106 } },
+  { name: 'dead_open', car: { x: 2700, y: 660, heading: 0 }, cam: [2692, 2, 652], look: [2670, 6, 638] },
+  { name: 'snag_open', car: { x: 2190, y: 1440, heading: 0 }, cam: [2178, 1.8, 1428], look: [2167, 2.2, 1418] },
   // Tractors (#65): slow farm tractors on Ridge Road (pin ids 'hz:<paint>'):
   // 3/4 front close, straight side, the big tire, the back, three in a row,
   // and from the car as the player comes up behind one.
@@ -269,6 +309,20 @@ const VIEWS = [
   { name: 'washed_chase', car: { road: 'ridge_rd', at: 0.5 }, mud: 0.9, mudRain: 60 },
   { name: 'washed_side', car: { road: 'ridge_rd', at: 0.5 }, mud: 0.9, mudRain: 60, rel: [-4.6, 1.3, -0.6], relLook: [0, 0.7, 0.2] },
   { name: 'washed_rear', car: { road: 'ridge_rd', at: 0.5 }, mud: 0.9, mudRain: 60, rel: [2.8, 1.6, 5], relLook: [0, 0.7, 0.4] },
+  // Main street shops (#70): Millbrook (m_h3, front west onto Church Street)
+  // and Calder's feed store (c_feed, front north onto Route 40); Brandt's
+  // store (br_store, front south onto the highway) needs
+  // SHOTS_QUERY='opening=off&spot=brandt'. Close 3/4, straight on, and from
+  // the road driving into town.
+  { name: 'shop_m_close', car: { x: 2302, y: 680, heading: 0 }, cam: [2318, 2.0, 586], look: [2333, 3.0, 601] },
+  { name: 'shop_m_front', car: { x: 2302, y: 680, heading: 0 }, cam: [2311, 2.2, 600], look: [2332, 3.6, 600] },
+  { name: 'shop_m_road', car: { x: 2302, y: 680, heading: 0 }, cam: [2302, 1.4, 680], look: [2336, 3, 600] },
+  { name: 'shop_c_close', car: { x: 4740, y: 1166, heading: 90 }, cam: [4819, 2.0, 1182], look: [4835, 3.0, 1197] },
+  { name: 'shop_c_front', car: { x: 4740, y: 1166, heading: 90 }, cam: [4835, 2.2, 1176], look: [4835, 3.6, 1196] },
+  { name: 'shop_c_road', car: { x: 4740, y: 1166, heading: 90 }, cam: [4740, 1.4, 1166], look: [4835, 3, 1200] },
+  { name: 'shop_b_close', car: { x: 1860, y: 1603, heading: 270 }, cam: [1781, 2.0, 1590], look: [1766, 3.0, 1574] },
+  { name: 'shop_b_front', car: { x: 1860, y: 1603, heading: 270 }, cam: [1765, 2.2, 1595], look: [1765, 3.6, 1574] },
+  { name: 'shop_b_road', car: { x: 1860, y: 1603, heading: 270 }, cam: [1860, 1.4, 1603], look: [1765, 3, 1570] },
 ];
 
 const browser = await launchChromium();

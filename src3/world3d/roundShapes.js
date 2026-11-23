@@ -60,6 +60,14 @@ export function outline(items) {
   return s;
 }
 
+// An upright slab: a rounded rectangle in plan (w across x, d across z), h
+// tall, bottom at y = 0. Corners rounded with r, top and bottom edges
+// bevelled by bv. (gas3d.js has its own copy, vslab, from before this one.)
+export function uprightSlab(w, d, h, r, bv = 0.02, seg = 3) {
+  const s = outline([[-w / 2, -d / 2, r], [w / 2, -d / 2, r], [w / 2, d / 2, r], [-w / 2, d / 2, r]]);
+  return slab(s, h, bv, 'xy', 0, seg).rotateX(-Math.PI / 2).translate(0, h / 2, 0);
+}
+
 // Merge shared corners and recompute normals: rounded edges shade smoothly.
 export function smoothed(g) {
   g.deleteAttribute('normal');
