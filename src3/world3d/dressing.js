@@ -21,6 +21,9 @@ import { box, cyl, cone, strut } from './shapes.js';
 import { objMatrix } from './batch.js';
 import { FaceAtlas } from './signtext.js';
 import { roundPump } from './gas3d.js';
+import { boardFaces } from '../../src/world/churchBoard.js';
+import { state } from '../../src/state.js';
+import { currentMissionId } from '../../src/game/tourists.js';
 
 const DEG = Math.PI / 180;
 const NEAR = 150; // metres: things only move inside this
@@ -102,6 +105,80 @@ function boardFace(lines, st) {
 function addFace(batch, key, w, h, ppm, draw, x, y, base, heading, lx, ly, up) {
   if (!batch.faces) batch.faces = new FaceAtlas();
   batch.faces.add(key, w, h, ppm, draw, objMatrix(x, y, base, heading, lx, ly, up));
+}
+
+// Black felt with white push-in letters. The top line (the church's name) is
+// as big as it fits; the lines under it share one letter size, the biggest
+// that lets the longest of them fit without letters running into each other.
+function drawLetterBoard(ctx, x, y, pw, ph, lines) {
+  ctx.fillStyle = '#1b1d1c';
+  ctx.fillRect(x - PAD, y - PAD, pw + PAD * 2, ph + PAD * 2);
+  ctx.fillStyle = '#f2efe6';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const pitch = ph / (lines.length + 0.4);
+  const room = pw - 40;
+  const fit = (t) => Math.min(Math.round(pitch * 0.62), Math.floor(room / Math.max(1, t.length) / 0.78));
+  const rest = Math.min(...lines.slice(1).map(fit));
+  lines.forEach((t, i) => {
+    // Letters pushed on a track one at a time: spaced out, a touch off level.
+    const px = i === 0 ? fit(t) : rest;
+    ctx.font = FONT.replace('{px}', String(px));
+    const step = px * 0.78;
+    const x0 = x + pw / 2 - (step * (t.length - 1)) / 2;
+    const cy = y + pitch * (i + 0.7);
+    for (let k = 0; k < t.length; k++) ctx.fillText(t[k], x0 + k * step, cy + (((k * 7 + i * 3) % 5) - 2) * 0.8);
+  });
+}
+
+// The two faces of a mission board: one mesh, one small canvas (front cell
+// on top, back below), redrawn when the mission changes. Browser only.
+function missionBoard(p, w, h, base, up) {
+  if (typeof document === 'undefined') return null;
+  const PPM = 150;
+  const pw = Math.ceil(w * PPM);
+  const ph = Math.ceil(h * PPM);
+  const cw = pw + PAD * 2;
+  const ch = ph + PAD * 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = cw;
+  canvas.height = ch * 2;
+  const ctx = canvas.getContext('2d');
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  const quad = (row, heading) => {
+    const g = new THREE.PlaneGeometry(w, h);
+    const uv = g.attributes.uv;
+    const u0 = PAD / cw;
+    const u1 = (PAD + pw) / cw;
+    const v1 = 1 - (row * ch + PAD) / (ch * 2); // canvas y runs down, texture v runs up
+    const v0 = 1 - (row * ch + PAD + ph) / (ch * 2);
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) ? u1 : u0, uv.getY(i) ? v1 : v0);
+    g.rotateY(Math.PI); // front faces local -z, single sided
+    return g.applyMatrix4(objMatrix(p.x, p.y, base, heading, 0, -0.1, up));
+  };
+  const geo = mergeGeometries([quad(0, p.heading), quad(1, (p.heading || 0) + 180)]);
+  const mat = new THREE.MeshLambertMaterial({ map: tex, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.receiveShadow = true;
+  mesh.matrixAutoUpdate = false;
+  // Review shots (tools/shots.mjs) show another mission's lines without
+  // switching mission (that would load its region).
+  let forced = null;
+  mesh.userData.showMission = (id) => { forced = id; };
+  let shown;
+  const draw = () => {
+    const id = forced || currentMissionId(state);
+    if (id === shown) return;
+    shown = id;
+    const { front, back } = boardFaces(p, id);
+    drawLetterBoard(ctx, PAD, PAD, pw, ph, front);
+    drawLetterBoard(ctx, PAD, ch + PAD, pw, ph, back);
+    tex.needsUpdate = true;
+  };
+  draw();
+  return { object: mesh, update: draw };
 }
 
 // ---------------------------------------------------------------- kinds
@@ -295,7 +372,10 @@ const BUILDERS = {
     return null;
   },
 
-  // A letter board on two posts: black felt, white letters.
+  // A letter board on two posts: black felt, white letters. A board with a
+  // `missions` list (St. Luke's, #59) shows each mission's own lines on both
+  // faces (src/world/churchBoard.js) on a small face mesh of its own, redrawn
+  // when the mission changes; any other board paints its `lines` on the front.
   church_board(c) {
     const { p, terrain, P, batch } = c;
     const w = p.w || 4.4;
@@ -306,23 +386,9 @@ const BUILDERS = {
     for (const sx of [-1, 1]) P(box(0.16, 1.0 + f.drop, 0.16), sx * (w / 2 - 0.2), 0, -f.drop, 0xe8e4da);
     P(box(w + 0.2, h + 0.2, 0.18), 0, 0, 1.0, 0xe8e4da);
     P(box(w + 0.4, 0.12, 0.3), 0, 0, 1.0 + h + 0.2, 0x4a4e55);
-    addFace(batch, `board:${p.lines.join('|')}`, w, h, 150, (ctx, x, y, pw, ph) => {
-      ctx.fillStyle = '#1b1d1c';
-      ctx.fillRect(x - PAD, y - PAD, pw + PAD * 2, ph + PAD * 2);
-      ctx.fillStyle = '#f2efe6';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      const pitch = ph / (p.lines.length + 0.4);
-      p.lines.forEach((t, i) => {
-        // Letters pushed on a track one at a time: spaced out, a touch off level.
-        const px = Math.round(pitch * 0.62);
-        ctx.font = FONT.replace('{px}', String(px));
-        const step = Math.min(px * 0.78, (pw - 40) / t.length);
-        const x0 = x + pw / 2 - (step * (t.length - 1)) / 2;
-        const cy = y + pitch * (i + 0.7);
-        for (let k = 0; k < t.length; k++) ctx.fillText(t[k], x0 + k * step, cy + (((k * 7 + i * 3) % 5) - 2) * 0.8);
-      });
-    }, p.x, p.y, f.base, p.heading, 0, -0.1, 1.0 + h / 2 + 0.1);
+    const up = 1.0 + h / 2 + 0.1;
+    if (p.missions) return missionBoard(p, w, h, f.base, up);
+    addFace(batch, `board:${p.lines.join('|')}`, w, h, 150, (ctx, x, y, pw, ph) => drawLetterBoard(ctx, x, y, pw, ph, p.lines), p.x, p.y, f.base, p.heading, 0, -0.1, up);
     return null;
   },
 

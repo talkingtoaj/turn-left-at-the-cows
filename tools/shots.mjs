@@ -186,6 +186,15 @@ const VIEWS = [
   { name: 'churchb_side', car: { x: 1650, y: 1560, heading: 0 }, cam: [1626, 2.6, 1541], look: [1603, 5, 1515] },
   { name: 'churchb_road', car: { x: 1598, y: 1601, heading: 270 }, cam: [1606, 1.5, 1598], look: [1600, 12, 1515] },
   { name: 'churchb_board', car: { x: 1580, y: 1601, heading: 90 }, cam: [1592, 1.6, 1595], look: [1596, 1.6, 1589] },
+  // St. Luke's letter board (#59): front (faces Route 40) and back, straight
+  // on, for each mission, and from Route 40 coming in from the west.
+  { name: 'board_m1_front', mission: 'm1_parcel', car: { x: 1580, y: 1601, heading: 90 }, cam: [1596, 1.9, 1595.5], look: [1596, 2.0, 1589] },
+  { name: 'board_m1_back', mission: 'm1_parcel', car: { x: 1580, y: 1601, heading: 90 }, cam: [1596, 1.9, 1582.5], look: [1596, 2.0, 1589] },
+  { name: 'board_m2_front', mission: 'm2_cabin', car: { x: 1580, y: 1601, heading: 90 }, cam: [1596, 1.9, 1595.5], look: [1596, 2.0, 1589] },
+  { name: 'board_m2_back', mission: 'm2_cabin', car: { x: 1580, y: 1601, heading: 90 }, cam: [1596, 1.9, 1582.5], look: [1596, 2.0, 1589] },
+  { name: 'board_m3_front', mission: 'm3_airfield', car: { x: 1580, y: 1601, heading: 90 }, cam: [1596, 1.9, 1595.5], look: [1596, 2.0, 1589] },
+  { name: 'board_m3_back', mission: 'm3_airfield', car: { x: 1580, y: 1601, heading: 90 }, cam: [1596, 1.9, 1582.5], look: [1596, 2.0, 1589] },
+  { name: 'board_road', mission: 'm3_airfield', car: { x: 1560, y: 1601, heading: 90 }, cam: [1562, 1.4, 1601], look: [1596, 1.8, 1590] },
   // Farmhouse porch (#63): Pruitt (front door east, porch wraps to the south)
   // and Dolan (front door west, porch wraps to the south). 3/4 close,
   // straight on, the swing end up close, and from the lane as you drive up.
@@ -275,6 +284,8 @@ for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) 
     // Locals for this view (#56): the car 9 m from the one named, others lined up.
     window.__lineup = null;
     st.talkingTo = v.talk || null;
+    // mission: letter boards show that mission's lines for this view (#59), without changing mission.
+    window.__three.scene.traverse((o) => o.userData.showMission && o.userData.showMission(v.mission || null));
     if (v.person) {
       const l = WORLD.locals.find((q) => q.id === v.person[0]);
       const p = (amb && amb.personPos(l.id)) || l;
