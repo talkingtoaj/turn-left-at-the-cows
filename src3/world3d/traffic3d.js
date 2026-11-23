@@ -3,8 +3,8 @@
 // and lamps in one geometry. The instance colour only tints the paint (a
 // per-vertex paint mask), and a per-vertex roughness / metalness lets the
 // glass and chrome shine under the sky reflection (opts.env). Cars far off
-// share one plain low-poly stand-in. About six draw calls at most, fewer
-// when a type is not near.
+// share one stand-in mesh (trafficfar.js: a low car, the van and the 4x4,
+// #62). About six draw calls at most, fewer when a type is not near.
 //
 // Close cars (the nearest few within about 40 m, trafficlod.js) get the fine
 // body instead (trafficfine.js: the player car's loft and atlas trim), one
@@ -31,7 +31,8 @@ import { DEG } from '../../src/drive/geom.js';
 import { SPECS, loftBody } from './carbody.js';
 import { carAtlas } from './caratlas.js';
 import { fineGeometry, FINE_STYLE } from './trafficfine.js';
-import { createFineLod, FINE_MAX } from './trafficlod.js';
+import { createFineLod, FINE_MAX, FAR, farMask } from './trafficlod.js';
+import { farStandIns } from './trafficfar.js';
 import { kitInto, doorZone } from './trafficKit.js';
 import { farmTruckInto, FARM } from './farmtruck3d.js';
 import { sixBySixInto, SIX } from './sixbysix3d.js';
@@ -44,7 +45,6 @@ import { TRAFFIC_TYPES, trafficType, carKit, dirtStep, KIT_BIT, DEFAULT_KIT } fr
 export { TRAFFIC_TYPES, trafficType };
 
 const MAX = 24; // per type
-const FAR = 140; // m: past this, the stand-in
 
 // Material per vertex: [hex, paint mask, roughness, metalness].
 const MAT = {
@@ -264,16 +264,6 @@ function coarseBody(into, type) {
 const farmTruck = () => coarseBody(farmTruckInto, 'farmtruck');
 const sixBySix = () => coarseBody(sixBySixInto, 'sixbysix');
 
-// Far stand-in: body, glass band and dark wheels in a few boxes.
-function farGeo() {
-  return mergeGeometries([
-    box(1.75, 0.6, 4.5, 0, 0.62, 0, 'paint'),
-    box(1.45, 0.42, 2.0, 0, 1.12, 0.25, 'glass'),
-    box(1.35, 0.05, 1.6, 0, 1.35, 0.3, 'paint'),
-    box(1.8, 0.5, 0.6, 0, 0.32, -1.38, 'rubber'),
-    box(1.8, 0.5, 0.6, 0, 0.32, 1.3, 'rubber'),
-  ]);
-}
 
 // Shared shader parts: paint tint (instance colour, or paint2 below
 // TWO_TONE_Y on paint mask 2), and the dithered cross-fade between the coarse
@@ -475,7 +465,7 @@ export function createTraffic3D(parent, opts = {}) {
     fourbyfour: make(GEOS.fourbyfour()),
     sixbysix: make(sixBySix()),
   };
-  const far = make(farGeo());
+  const far = make(farStandIns({ tag, box, quadZ, wheel })); // three shapes, one draw call (trafficfar.js)
   far.castShadow = false;
   // Fine bodies for the nearest few cars (built on first use).
   const fineMat = makeFineMaterial(opts.env || null);
@@ -529,7 +519,7 @@ export function createTraffic3D(parent, opts = {}) {
     else col2.copy(col);
     const at = mesh.geometry.attributes;
     at.paint2.setXYZW(n, col2.r, col2.g, col2.b, L.door);
-    at.carInst.setXYZW(n, fade, L.kit.mask, L.dirt, L.kit.rust);
+    at.carInst.setXYZW(n, fade, mesh === far ? farMask(type, L.kit.mask) : L.kit.mask, L.dirt, L.kit.rust);
     at.doorZone.setXYZW(n, ...L.zone);
     counts.set(mesh, n + 1);
     return true;
