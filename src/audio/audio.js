@@ -56,6 +56,7 @@ const IDLE_RPM = 850;
 const BIRDS = ['nature/bird1', 'nature/bird2', 'nature/bird3', 'nature/bird4'];
 const COWS = ['animals/cow1', 'animals/cow2', 'animals/cow3'];
 const DOGS = ['animals/dog1', 'animals/dog2'];
+const COLLIE = ['animals/collie1', 'animals/collie2']; // Okafor's collie (#68): one bark, three quick ones
 const CHIPS = ['damage/chip1', 'damage/chip2', 'damage/chip3'];
 const THUMPS = ['damage/thump1', 'damage/thump2'];
 const HORSES = ['animals/horse1', 'animals/horse2'];
@@ -1014,6 +1015,13 @@ export function createAudio(world, opts = {}) {
         const t0 = ctx.currentTime + 0.05 + delay;
         const lp = Math.max(1200, 12000 - r.d * 4);
         for (let k = 0; k < (e.count || 1); k++) oneShot('bell/bell', t0 + k * 2.3, r.pan, vol, 0.98 + Math.random() * 0.03, lp);
+      } else if (e.type === 'dog_bark' && e.voice === 'collie') {
+        // The farm dog running its fence beside you (src/world/farmDog.js).
+        if (r.d > 300) continue;
+        const vol = 0.4 * (1 - r.d / 300);
+        const t0 = ctx.currentTime + 0.02 + r.d / 343;
+        const lp = Math.max(1800, 11000 - r.d * 25);
+        oneShot(COLLIE[Math.random() < 0.7 ? 0 : 1], t0, r.pan, vol, 0.95 + Math.random() * 0.1, lp);
       } else if (e.type === 'dog_bark') {
         if (r.d > 350) continue;
         const vol = 0.28 * (1 - r.d / 350);

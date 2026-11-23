@@ -8,6 +8,7 @@ import {
 } from './layout.js';
 import { parkedIn, parkedSolids } from '../world/parked.js';
 import { yardFenceSolids } from '../world/yards.js';
+import { dogFenceSolids } from '../world/farmDog.js';
 
 const CELL = 32;
 
@@ -48,6 +49,7 @@ export class Collider {
     this.addSolids(fenceSolids(world));
     this.addSolids(yardFenceSolids(world, scenery.trees)); // yard fences (#85)
     for (const p of parkedIn(world.regionId)) this.addSolids(parkedSolids(p)); // parked semis (#47)
+    this.addSolids(dogFenceSolids(world)); // the farm dog's fence (#68)
     for (const t of scenery.trees) this.addCircle({ x: t.x, y: t.y, r: TREE_HIT_R, kind: 'tree' });
     // Countryside fill: bales, haystacks, rocks and power poles.
     for (const p of world.props || []) this.addCircle({ x: p.x, y: p.y, r: p.r, kind: p.kind });

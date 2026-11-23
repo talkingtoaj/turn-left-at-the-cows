@@ -28,6 +28,17 @@ const VIEWS = [
   // Okafor's herd of 16: the cow nearest the car's west side, from 14 m.
   { name: 'cows_okafor', car: { x: 4935, y: 2125, heading: 0 }, cows: [14, 3] },
   { name: 'cows_okafor_low', car: { x: 4935, y: 2125, heading: 0 }, cows: [5, 1] },
+  // Horses, sheep and deer (#80): close 3/4 from the car's side, straight onto
+  // the flank, and from the driver's seat. `kind` picks the animal.
+  { name: 'horse_close', car: { x: 2716, y: 1354, heading: 75 }, kind: 'horse', cows: [6, 1.8] },
+  { name: 'horse_side', car: { x: 2716, y: 1354, heading: 75 }, kind: 'horse', cows: [6, 1.3], side: true },
+  { name: 'horse_road', car: { x: 2716, y: 1354, heading: 75 }, kind: 'horse', cows: [0, 1.4], fromCar: true },
+  { name: 'sheep_close', car: { x: 2978, y: 1121, heading: 270 }, kind: 'sheep', cows: [4, 1.3] },
+  { name: 'sheep_side', car: { x: 2978, y: 1121, heading: 270 }, kind: 'sheep', cows: [4, 0.8], side: true },
+  { name: 'sheep_road', car: { x: 2978, y: 1121, heading: 270 }, kind: 'sheep', cows: [0, 1.4], fromCar: true },
+  { name: 'deer_close', car: { x: 4305, y: 1060, heading: 0 }, kind: 'deer', cows: [4.5, 1.5] },
+  { name: 'deer_side', car: { x: 4305, y: 1060, heading: 0 }, kind: 'deer', cows: [4.5, 1.1], side: true },
+  { name: 'deer_road', car: { x: 4305, y: 1060, heading: 0 }, kind: 'deer', cows: [0, 1.4], fromCar: true },
   // Steep pasture west of the farm: trough and feeder on the slope.
   { name: 'slope', car: { x: 2498, y: 564, heading: 0 }, cam: [2506, 1.6, 452], look: [2488, 0.3, 430] },
   { name: 'slope_wide', car: { x: 2498, y: 564, heading: 0 }, cam: [2530, 8, 480], look: [2480, 0, 420] },
@@ -98,6 +109,17 @@ const VIEWS = [
   { name: 'parked6x6_okafor_yard', car: { x: 4935, y: 2125, heading: 0 }, cam: [4972, 4.5, 2026], look: [4955, 1.5, 1996] },
   // Okafor's yard from the car as the player drives up (no 6x6 parked there since #71).
   { name: 'parked6x6_okafor_road', car: { x: 4935, y: 2125, heading: 0 } },
+  // Okafor's collie and its fence (#68). `dog: [s, v, toward]` holds the dog
+  // s m along its run, galloping at v m/s (0: standing, facing toward [x, y];
+  // 'rest': lying down).
+  { name: 'dog_aerial', car: { x: 4870, y: 2020, heading: 0 }, cam: [4880, 90, 2080], look: [4905, 0, 2010] },
+  { name: 'dog_close', car: { x: 4760, y: 2036, heading: 79 }, dog: [118, 0, [4899.4, 2005.8]], cam: [4900.7, 0.8, 2003.4], look: [4898.6, 0.4, 2003.7] },
+  { name: 'dog_lying', car: { x: 4760, y: 2036, heading: 79 }, dog: [118, 'rest'], cam: [4901.0, 0.9, 2002.9], look: [4898.6, 0.3, 2003.7] },
+  { name: 'dog_yard', car: { x: 4760, y: 2036, heading: 79 }, dog: [118, 0, [4893, 1999]], cam: [4897.7, 1.5, 1997.4], look: [4899.6, 0.4, 2004.4] },
+  { name: 'dog_straight', car: { x: 4760, y: 2036, heading: 79 }, dog: [118, 0, [4889, 1993]], cam: [4888.3, 1.6, 1994.2], look: [4900, 0.7, 2005] },
+  { name: 'dog_run', car: { x: 4760, y: 2036, heading: 79 }, dog: [60, 8.5], cam: [4852.8, 1.2, 2028.4], look: [4850.6, 0.4, 2035.9] },
+  { name: 'dog_run_side', car: { x: 4760, y: 2036, heading: 79 }, dog: [60, 8.5], cam: [4852.2, 0.7, 2039.8], look: [4850.6, 0.35, 2035.9] },
+  { name: 'dog_road', car: { x: 4790, y: 2031, heading: 77 }, dog: [70, -8.5] },
   { name: 'traffic_sedans', car: { road: 'hwy9', at: 0.4 }, pin: [['car0', 16, 1, 1], ['car4', 24, 1, 1], ['car9', 32, 1, 1]], tcam: [[6, 2.6, -22], [0, 0.8, -8]] },
   { name: 'traffic_pairs', car: { road: 'hwy9', at: 0.4 }, pin: [['car1', 16, 1, 1], ['car6', 23, 1, 1], ['car2', 30, 1, 1], ['car8', 37, 1, 1]], tcam: [[6, 3.0, -27], [0, 0.8, -10]] },
   { name: 'traffic_kit_close', car: { road: 'hwy9', at: 0.4 }, pin: [['car6', 20, 1, 1]], tcam: [[4.6, 2.6, -4.6], [0, 1.0, 0.6]] },
@@ -296,6 +318,19 @@ const VIEWS = [
   { name: 'elev_b_front', car: { x: 1700, y: 1440, heading: 0 }, cam: [1745, 4, 1452], look: [1745, 14, 1405] },
   { name: 'elev_b_sign', car: { x: 1700, y: 1440, heading: 0 }, cam: [1752, 19, 1378], look: [1745, 19.5, 1405] },
   { name: 'elev_b_road', car: { x: 1700, y: 1560, heading: 0 }, cam: [1700, 1.4, 1560], look: [1745, 14, 1405] },
+  // Mud on the player's car (#73), on Ridge Road (dirt): chase view, side,
+  // and 3/4 rear up close. mud: the car's mud amount 0..1. mudRain: then that
+  // many seconds of full rain parked (src/game/mud.js); run the washed_* views
+  // with SHOTS_QUERY='opening=off&rain=on'.
+  { name: 'mud_chase', car: { road: 'ridge_rd', at: 0.5 }, mud: 0 },
+  { name: 'mud_side', car: { road: 'ridge_rd', at: 0.5 }, mud: 0, rel: [-4.6, 1.3, -0.6], relLook: [0, 0.7, 0.2] },
+  { name: 'mud_rear', car: { road: 'ridge_rd', at: 0.5 }, mud: 0, rel: [2.8, 1.6, 5], relLook: [0, 0.7, 0.4] },
+  { name: 'muddy_chase', car: { road: 'ridge_rd', at: 0.5 }, mud: 0.9 },
+  { name: 'muddy_side', car: { road: 'ridge_rd', at: 0.5 }, mud: 0.9, rel: [-4.6, 1.3, -0.6], relLook: [0, 0.7, 0.2] },
+  { name: 'muddy_rear', car: { road: 'ridge_rd', at: 0.5 }, mud: 0.9, rel: [2.8, 1.6, 5], relLook: [0, 0.7, 0.4] },
+  { name: 'washed_chase', car: { road: 'ridge_rd', at: 0.5 }, mud: 0.9, mudRain: 60 },
+  { name: 'washed_side', car: { road: 'ridge_rd', at: 0.5 }, mud: 0.9, mudRain: 60, rel: [-4.6, 1.3, -0.6], relLook: [0, 0.7, 0.2] },
+  { name: 'washed_rear', car: { road: 'ridge_rd', at: 0.5 }, mud: 0.9, mudRain: 60, rel: [2.8, 1.6, 5], relLook: [0, 0.7, 0.4] },
   // Main street shops (#70): Millbrook (m_h3, front west onto Church Street)
   // and Calder's feed store (c_feed, front north onto Route 40); Brandt's
   // store (br_store, front south onto the highway) needs
@@ -314,7 +349,7 @@ const VIEWS = [
   // lot (src/world/yards.js): 3/4 on the path, straight on to the fence (or
   // a bank), and from the road. Millbrook shop, Ashford gas, St. Anne's,
   // Hartley, Dunmore store, Calder diner:
-{ name: 'yard_m_close', car: { x: 2300, y: 602.9, heading: 87 }, cam: [2368, 1.9, 595], look: [2361, 0, 600] },
+  { name: 'yard_m_close', car: { x: 2300, y: 602.9, heading: 87 }, cam: [2368, 1.9, 595], look: [2361, 0, 600] },
   { name: 'yard_m_front', car: { x: 2300, y: 602.9, heading: 87 }, cam: [2340, 1.5, 623.5], look: [2340, 0.7, 614.5] },
   { name: 'yard_m_road', car: { x: 2300, y: 602.9, heading: 87 }, cam: [2300, 1.4, 602.9], look: [2361, 0.5, 600] },
   { name: 'yard_ga_close', car: { x: 697.7, y: 2375.7, heading: 194 }, cam: [675.8, 1.9, 2467.2], look: [677.2, 0, 2458.7] },
@@ -345,6 +380,27 @@ const VIEWS = [
   { name: 'yard_dg_close', car: { x: 2478, y: 930, heading: 357 }, cam: [2473, 1.9, 879], look: [2475.9, 0, 887] },
   { name: 'yard_dg_front', car: { x: 2478, y: 930, heading: 357 }, cam: [2474, 1.5, 902], look: [2483, 0.7, 902] },
   { name: 'yard_dg_road', car: { x: 2478, y: 930, heading: 357 }, cam: [2478, 1.4, 930], look: [2475.9, 0.5, 887] },
+  // Road bridges (#78): Highway 9 over Willow Creek (bridge_hwy_*) and Route 40
+  // over the Coldwater (bridge_rt40_*): close 3/4 of the end posts, straight
+  // down the deck, side on from the bank, and from the road as you drive up.
+  // Brandt's (bridgeb_*, SHOTS_QUERY='opening=off&spot=brandt'): Route 40
+  // over Sandy Creek and the dirt South Road bridge.
+  { name: 'bridge_hwy_close', car: { x: 2404, y: 1615.9, heading: 358.4 }, cam: [2413.3, 2.4, 1579.7], look: [2405.4, 1.4, 1567.9] },
+  { name: 'bridge_hwy_front', car: { x: 2404, y: 1615.9, heading: 358.4 }, cam: [2399.5, 1.6, 1587], look: [2400.1, 2, 1555] },
+  { name: 'bridge_hwy_side', car: { x: 2404, y: 1615.9, heading: 358.4 }, cam: [2439.6, 2, 1553.9], look: [2400.1, 1, 1555] },
+  { name: 'bridge_hwy_road', car: { x: 2404, y: 1615.9, heading: 358.4 } },
+  { name: 'bridge_rt40_close', car: { x: 4195.1, y: 1184.9, heading: 87.4 }, cam: [4231.6, 2.4, 1193.6], look: [4243.2, 1.4, 1185.5] },
+  { name: 'bridge_rt40_front', car: { x: 4195.1, y: 1184.9, heading: 87.4 }, cam: [4223.9, 1.6, 1179.9], look: [4260, 2, 1179.8] },
+  { name: 'bridge_rt40_side', car: { x: 4195.1, y: 1184.9, heading: 87.4 }, cam: [4261.8, 2, 1219.2], look: [4260, 1, 1179.8] },
+  { name: 'bridge_rt40_road', car: { x: 4195.1, y: 1184.9, heading: 87.4 } },
+  { name: 'bridgeb_sandy_close', car: { x: 2414.9, y: 1658.2, heading: 99.5 }, cam: [2448.7, 2.4, 1674.3], look: [2461.8, 1.4, 1668.9] },
+  { name: 'bridgeb_sandy_road', car: { x: 2414.9, y: 1658.2, heading: 99.5 } },
+  { name: 'bridgeb_south_close', car: { x: 2535.8, y: 2567.1, heading: 90 }, cam: [2571.8, 2.4, 2575.9], look: [2583.8, 1.4, 2568.4] },
+  { name: 'bridgeb_south_front', car: { x: 2535.8, y: 2567.1, heading: 90 }, cam: [2564.8, 1.6, 2563.4], look: [2594.8, 2, 2564.9] },
+  { name: 'bridgeb_south_road', car: { x: 2535.8, y: 2567.1, heading: 90 } },
+  // Name plates up close: Route 40's end post (Fenwick), South Road's (Brandt).
+  { name: 'bridge_rt40_plate', car: { x: 4195.1, y: 1184.9, heading: 87.4 }, cam: [4236.4, 1.3, 1184.8], look: [4239.7, 1.0, 1185.9] },
+  { name: 'bridgeb_south_plate', car: { x: 2535.8, y: 2567.1, heading: 90 }, cam: [2577.8, 1.1, 2567.7], look: [2581.1, 0.8, 2568.7] },
 ];
 
 const browser = await launchChromium();
@@ -379,6 +435,31 @@ if (process.env.SHOTS_MISSION) {
   await page.evaluate((id) => window.__playMission(id), process.env.SHOTS_MISSION);
   await page.waitForTimeout(3000);
   await dismissCards();
+}
+
+// SHOTS_EXTRA_TRIS=<n> adds one mesh of about n triangles that is drawn in
+// every view (the budget check's self-test: it must then fail).
+if (process.env.SHOTS_EXTRA_TRIS) {
+  await page.evaluate((n) => {
+    // Added to the live scene before each view (regions swap scenes). No bare
+    // 'three' import in the page: borrow the classes from a mesh in the scene.
+    let m = null;
+    window.__addExtraTris = (scene) => {
+      if (m && m.parent === scene) return;
+      if (!m) {
+        let src = null;
+        scene.traverse((o) => { if (!src && o.isMesh && !o.isInstancedMesh && !o.isSkinnedMesh && o.material && (o.material.isMeshStandardMaterial || o.material.isMeshLambertMaterial || o.material.isMeshBasicMaterial)) src = o; });
+        const g = new src.geometry.constructor();
+        const pos = new Float32Array(n * 9);
+        for (let i = 0; i < pos.length; i += 9) { pos[i + 3] = 0.01; pos[i + 7] = 0.01; } // tiny triangles at the origin
+        g.setAttribute('position', new src.geometry.attributes.position.constructor(pos, 3));
+        m = new src.constructor(g, new src.material.constructor({ color: 0xff00ff }));
+        m.frustumCulled = false;
+        m.castShadow = false;
+      }
+      scene.add(m);
+    };
+  }, Number(process.env.SHOTS_EXTRA_TRIS));
 }
 
 fs.mkdirSync(outDir, { recursive: true });
@@ -513,6 +594,19 @@ for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) 
       for (const id of window.__kitted || []) window.__trafficKit(id, null);
       window.__kitted = (v.kit || []).map(([id, parts]) => (window.__trafficKit(id, parts), id));
     }
+    // The farm dog held running or standing for this view (#68), else free.
+    for (const d of (window.__amb && window.__amb.farmDogs) || []) {
+      d.hold = v.dog ? { s: v.dog[0], v: v.dog[1], rest: v.dog[1] === 'rest', toward: v.dog[2] ? { x: v.dog[2][0], y: v.dog[2][1] } : null } : null;
+    }
+    // Mud on the player's car (#73): set it, then wash it in mudRain s of rain.
+    if (window.__car3d && v.mud !== undefined) {
+      let m = v.mud;
+      if (v.mudRain) {
+        const { stepMud } = await import('/src/game/mud.js').catch(() => ({}));
+        for (let t = 0; stepMud && t < v.mudRain; t += 0.5) m = stepMud(m, 0.5, { surface: 'dirt', speed: 0, rain: 1, wet: 1 });
+      }
+      window.__car3d.dirt.value = m;
+    }
     const { renderer, camera, world3d } = window.__three;
     if (!renderer.__orig) renderer.__orig = renderer.render.bind(renderer);
     const H = (px, py) => world3d.terrain.heightAt(px, py);
@@ -538,14 +632,17 @@ for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) 
         // Aim at the cow nearest the car, from the car's side of it.
         let best = null;
         for (const a of window.__amb.animals) {
-          if (a.kind !== 'cow') continue;
+          if (a.kind !== (v.kind || 'cow')) continue;
           const d = Math.hypot(a.x - st.car.x, a.y - st.car.y);
           if (!best || d < best.d) best = { a, d };
         }
         if (best) {
           const { a, d } = best;
-          const px = a.x + ((st.car.x - a.x) / d) * v.cows[0];
-          const py = a.y + ((st.car.y - a.y) / d) * v.cows[0];
+          // side: straight onto the animal's flank; fromCar: from the driver's seat.
+          const hr = (a.heading * Math.PI) / 180;
+          const [ux, uy] = v.side ? [Math.cos(hr), Math.sin(hr)] : [(st.car.x - a.x) / d, (st.car.y - a.y) / d];
+          const px = v.fromCar ? st.car.x : a.x + ux * v.cows[0];
+          const py = v.fromCar ? st.car.y : a.y + uy * v.cows[0];
           c.position.set(px, H(px, py) + v.cows[1], py);
           c.up.set(0, 1, 0);
           c.lookAt(a.x, H(a.x, a.y) + 0.8, a.y);
@@ -586,13 +683,14 @@ for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) 
         } else c.lookAt(st.car.x + fx * 6, H(st.car.x, st.car.y) + 0.6, st.car.y + fy * 6);
         c.updateMatrixWorld();
       }
+      if (window.__addExtraTris) window.__addExtraTris(s);
       renderer.__orig(s, c);
     };
   }, v);
   await page.waitForTimeout(2500);
   await dismissCards();
   const file = path.join(outDir, `${prefix}_${v.name}.png`);
-  await page.screenshot({ path: file });
+  if (!process.env.SHOTS_NO_PNG) await page.screenshot({ path: file }); // SHOTS_NO_PNG=1: numbers only
   stats[v.name] = await page.evaluate(() => {
     const el = [...document.querySelectorAll('div')].find((d) => /calls \d+/.test(d.textContent) && d.style.position === 'fixed');
     return el ? el.textContent.split('\n').filter((l) => /calls/.test(l)).join(' | ') : null;
