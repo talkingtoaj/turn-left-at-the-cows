@@ -79,6 +79,11 @@ const VIEWS = [
   { name: 'car_trunk', car: { road: 'hwy9', at: 0.4 }, rel: [1.4, 1.5, 4.2], relLook: [0.3, 0.9, 1.8] },
   // Pruitt Lane (dirt) meeting Route 40: STOP sign, about 15 m and up high.
   { name: 'junction_stop', car: { x: 2965, y: 1100, heading: 180 }, cam: [2981.5, 1.4, 1276], look: [2978, 1.2, 1296] },
+  // The STOP sign where Old River Road meets Highway 9 (#87): it stood on the
+  // highway. Close 3/4, straight on, and from the car coming west on Old River Road.
+  { name: 'stop_river_close', car: { x: 2330, y: 2110, heading: 290 }, cam: [2262, 1.8, 2108], look: [2250, 1.2, 2090] },
+  { name: 'stop_river_front', car: { x: 2330, y: 2110, heading: 290 }, cam: [2275, 1.6, 2098], look: [2245, 1.2, 2086] },
+  { name: 'stop_river_road', car: { x: 2300, y: 2102, heading: 290 }, rel: [0, 1.3, 0], relLook: [0, 1, -30] },
   { name: 'junction_wide', car: { x: 2965, y: 1100, heading: 180 }, cam: [3005, 14, 1265], look: [2978, 0, 1300] },
   // A wire fence by Hartley Farm, low along the posts (weeds at its foot).
   { name: 'fence_low', car: { x: 2610, y: 490, heading: 0 }, cam: [2617, 1.4, 556], look: [2628, 0.4, 578] },
