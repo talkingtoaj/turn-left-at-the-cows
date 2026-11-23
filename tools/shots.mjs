@@ -163,6 +163,11 @@ const VIEWS = [
   { name: 'semib_close', car: { x: 1700, y: 1440, heading: 0 }, cam: [1754, 2.4, 1416.5], look: [1745, 1.8, 1427] },
   { name: 'semib_side', car: { x: 1700, y: 1440, heading: 0 }, cam: [1760, 1.9, 1428], look: [1745, 1.7, 1428] },
   { name: 'semib_site', car: { x: 1700, y: 1440, heading: 0 }, cam: [1778, 13, 1462], look: [1745, 6, 1416] },
+  // Semi cab shape (#72): close 3/4 of the cab and sleeper step, straight on
+  // the nose, and the Calder semi from the road as the player drives up.
+  { name: 'semi_cab', car: { x: 4925, y: 1140, heading: 90 }, cam: [4952.5, 3.3, 1124.5], look: [4956.5, 2.6, 1119] },
+  { name: 'semi_front', car: { x: 4925, y: 1140, heading: 90 }, cam: [4969, 2.4, 1119.2], look: [4956, 2.2, 1119.2] },
+  { name: 'semi_road', car: { x: 4925, y: 1140, heading: 90 }, cam: [4925, 1.4, 1140], look: [4955, 2.2, 1119] },
   // Gas stations (#58): Ashford (a_gas) and Brandt (br_gas, needs
   // SHOTS_QUERY='opening=off&spot=brandt'). Close 3/4, straight on, the shop
   // door, a pump island, from above, and from the road as you first see it.
