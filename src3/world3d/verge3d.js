@@ -9,7 +9,7 @@
 // the ground paint (paint.js). Dev: three.html?verge=off (verge.js).
 
 import * as THREE from 'three';
-import { vergeFor, culvertMouths } from '../../src/world/verge.js';
+import { vergeFor, culvertMouths, VERGE } from '../../src/world/verge.js';
 import { cyl, strut } from './shapes.js';
 import { objMatrix } from './batch.js';
 import { PAVED_LIFT } from './ground.js';
@@ -39,8 +39,9 @@ const DITCH_BED = [0x2c4520, 0.92];
 const DITCH_FAR = [0x9db46a, 0.6];
 const POST = [0x7f7668, 0x8d8372, 0x6c6459, 0x766a5a];
 const WIRE = 0x5e4632; // rusted barbed wire
-const PIPE_IN = 0x3a3c3e;
-const CONCRETE = 0x9b988e;
+const PIPE_IN = 0x0f1011;
+const CONCRETE = 0xa8a59b; // lighter than the steel
+const GALV_DARK = 0x7d8184;
 
 // A flat piece of tar draped on the ground: rows of [left, right] world
 // points ({x, y}), each row a cross-section. Returns a geometry facing up.
@@ -137,23 +138,24 @@ function postGeo() {
 // stub of corrugated pipe with ribs, a dark inside that ends in a black disc,
 // and a concrete headwall ring round it. The rest of the pipe is under the
 // road and is not drawn.
-const PIPE_R = 0.4;
-const WALL_R = 0.78;
+const PIPE_R = VERGE.culvertR;
 function culvertParts() {
-  const L = 1.1;
-  const skin = (r, len, z) => new THREE.CylinderGeometry(r, r, len, 14, 1, true).rotateX(Math.PI / 2).translate(0, 0, z);
-  const outer = skin(PIPE_R, L, 0.12 - L / 2);
-  const inner = skin(PIPE_R - 0.025, L, 0.12 - L / 2);
+  const L = 0.55; // just a stub: the rest of the pipe is under the road
+  const skin = (r, len, z) => new THREE.CylinderGeometry(r, r, len, 16, 1, true).rotateX(Math.PI / 2).translate(0, 0, z);
+  // Corrugated steel is the main shape: it sticks out past the concrete.
+  const outer = skin(PIPE_R, L, 0.14 - L / 2);
+  const inner = skin(PIPE_R - 0.03, L, 0.14 - L / 2);
   inner.applyMatrix4(new THREE.Matrix4().makeScale(-1, 1, 1)); // mirrored: faces inward
-  const dark = new THREE.CircleGeometry(PIPE_R - 0.03, 14).translate(0, 0, 0.12 - L);
+  const dark = new THREE.CircleGeometry(PIPE_R - 0.03, 16).translate(0, 0, 0.14 - L);
+  // Four ribs round the rim, slightly proud of the skin.
   const ribs = [];
-  for (let k = 0; k < 4; k++) ribs.push(new THREE.CylinderGeometry(PIPE_R + 0.02, PIPE_R + 0.02, 0.05, 14, 1, true).rotateX(Math.PI / 2).translate(0, 0, 0.1 - k * 0.2));
-  // Headwall: a thick ring, its face a little proud, a chamfer step and a skirt.
-  const face = new THREE.RingGeometry(PIPE_R - 0.01, WALL_R - 0.07, 14).translate(0, 0, 0.0);
-  const step = new THREE.RingGeometry(WALL_R - 0.07, WALL_R, 14).translate(0, 0, -0.07);
-  const chamfer = new THREE.CylinderGeometry(WALL_R - 0.07, WALL_R, 0.07, 14, 1, true).rotateX(Math.PI / 2).translate(0, 0, -0.035);
-  const skirt = skin(WALL_R, 0.3, -0.22);
-  return { outer, inner, dark, ribs, walls: [face, step, chamfer, skirt] };
+  for (let k = 0; k < 4; k++) ribs.push(new THREE.CylinderGeometry(PIPE_R + 0.025, PIPE_R + 0.025, 0.045, 16, 1, true).rotateX(Math.PI / 2).translate(0, 0, 0.12 - k * 0.16));
+  // Rolled lip: a thin steel ring at the very mouth.
+  const lip = new THREE.RingGeometry(PIPE_R - 0.03, PIPE_R + 0.03, 16).translate(0, 0, 0.14);
+  // Headwall: a slim flat concrete ring about 10 cm proud of the pipe, 4 cm thick.
+  const face = new THREE.RingGeometry(PIPE_R, PIPE_R + 0.1, 16).translate(0, 0, 0.0);
+  const rim = new THREE.CylinderGeometry(PIPE_R + 0.1, PIPE_R + 0.1, 0.12, 16, 1, true).rotateX(Math.PI / 2).translate(0, 0, -0.06);
+  return { outer, inner, dark, ribs, lip, walls: [face, rim] };
 }
 
 export function buildVerge(world, terrain, batch) {
@@ -179,13 +181,22 @@ export function buildVerge(world, terrain, batch) {
     const mix = [0, 0, 0];
     for (const dt of V.ditches) {
       const hw = dt.w / 2;
-      const n = dt.pts.length;
+      // A ditch that ends at a culvert runs on to the mouth, full strength.
+      const pts = dt.pts.slice();
+      const cut = { s: false, e: false };
+      for (const cv of V.culverts) {
+        if (cv.ditch !== V.ditches.indexOf(dt)) continue;
+        const k = Math.hypot(cv.x2 - cv.x, cv.y2 - cv.y) || 1;
+        const q = [cv.x + ((cv.x2 - cv.x) / k) * -0.2, cv.y + ((cv.y2 - cv.y) / k) * -0.2].map((v) => Math.round(v * 100) / 100);
+        if (cv.dir < 0) { pts.unshift(q); cut.s = true; } else { pts.push(q); cut.e = true; }
+      }
+      const n = pts.length;
       // Texel -> nearest point on this ditch: distance out from the road
       // (signed, + away from it) and the end taper there.
       const best = new Map();
       for (let i = 0; i < n - 1; i++) {
-        const [ax, ay] = dt.pts[i];
-        const [bx, by] = dt.pts[i + 1];
+        const [ax, ay] = pts[i];
+        const [bx, by] = pts[i + 1];
         const L = Math.hypot(bx - ax, by - ay) || 1;
         const tx = (bx - ax) / L;
         const ty = (by - ay) / L;
@@ -202,7 +213,7 @@ export function buildVerge(world, terrain, batch) {
           // + right of the road's direction, times the side: + away from the road.
           const u = (-ty * dx + tx * dy) * dt.side;
           // Metres from the ditch's nearer end.
-          const end = Math.min(i * seg + t, (n - 2 - i) * seg + (seg - t));
+          const end = Math.min(cut.s ? 99 : i * seg + t, cut.e ? 99 : (n - 2 - i) * seg + (seg - t));
           best.set(k, { d, u, ti, tj, end });
         });
       }
@@ -238,7 +249,8 @@ export function buildVerge(world, terrain, batch) {
       if (!o) continue;
       batch.add(C.outer, m, GALV, o);
       batch.add(C.inner, m, PIPE_IN, o);
-      batch.add(C.dark, m, 0x0c0d0e, o);
+      batch.add(C.dark, m, 0x030303, o);
+      batch.add(C.lip, m, GALV_DARK, o);
       for (const r of C.ribs) batch.add(r, m, GALV, o);
       for (const w of C.walls) batch.add(w, m, CONCRETE, o);
     }

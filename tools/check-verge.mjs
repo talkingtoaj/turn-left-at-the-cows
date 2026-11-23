@@ -93,10 +93,10 @@ for (const id of REGION_IDS) {
     // The heading is the pipe's direction, first mouth to second.
     const h = (c.angle * Math.PI) / 180;
     if (Math.abs(-Math.sin(h) - (c.x2 - c.x) / Math.hypot(c.x2 - c.x, c.y2 - c.y)) > 0.02) fail(`${id} culvert at ${c.x},${c.y} heading ${c.angle} does not point at its far mouth`);
-    // Mouths sit at or below the ground, on a slope too.
+    // Mouths are sunk: the pipe's bottom well below the ground, its centre no more than half a radius above, on a slope too.
     for (const slope of [0, 0.3, -0.3]) {
       const H = (x, y) => 5 + slope * (x - c.x);
-      for (const m of culvertMouths(c, H)) if (m.z > H(m.x, m.y) + 1e-9) fail(`${id} culvert mouth above ground at ${m.x},${m.y}`);
+      for (const m of culvertMouths(c, H)) if (m.z - VERGE.culvertR > H(m.x, m.y) - 0.2 || m.z > H(m.x, m.y) + VERGE.culvertR / 2) fail(`${id} culvert mouth not sunk into the bank at ${m.x},${m.y}`);
     }
   }
   for (const p of V.posts) {

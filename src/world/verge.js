@@ -54,7 +54,8 @@ export const VERGE = {
   ditchOut: 2.7, // m past the shoulder to the ditch's centre line
   ditchW: 3.4, // m across, bank to bank
   ditchMin: 30, // m: shorter runs are dropped
-  culvertSink: 0.1, // m a culvert mouth's centre sits below the ground
+  culvertR: 0.4, // m, pipe radius
+  culvertSink: -0.1, // m a mouth's centre sits below the ground (negative: above): its lower third is buried
   culvertGap: 0.5, // m past a crossing road's shoulder where a culvert mouth sits
   ditchStep: 2, // m between samples along the road
   ditchClear: 12, // m from signs, mailboxes and poles
