@@ -28,6 +28,17 @@ const VIEWS = [
   // Okafor's herd of 16: the cow nearest the car's west side, from 14 m.
   { name: 'cows_okafor', car: { x: 4935, y: 2125, heading: 0 }, cows: [14, 3] },
   { name: 'cows_okafor_low', car: { x: 4935, y: 2125, heading: 0 }, cows: [5, 1] },
+  // Horses, sheep and deer (#80): close 3/4 from the car's side, straight onto
+  // the flank, and from the driver's seat. `kind` picks the animal.
+  { name: 'horse_close', car: { x: 2716, y: 1354, heading: 75 }, kind: 'horse', cows: [6, 1.8] },
+  { name: 'horse_side', car: { x: 2716, y: 1354, heading: 75 }, kind: 'horse', cows: [6, 1.3], side: true },
+  { name: 'horse_road', car: { x: 2716, y: 1354, heading: 75 }, kind: 'horse', cows: [0, 1.4], fromCar: true },
+  { name: 'sheep_close', car: { x: 2978, y: 1121, heading: 270 }, kind: 'sheep', cows: [4, 1.3] },
+  { name: 'sheep_side', car: { x: 2978, y: 1121, heading: 270 }, kind: 'sheep', cows: [4, 0.8], side: true },
+  { name: 'sheep_road', car: { x: 2978, y: 1121, heading: 270 }, kind: 'sheep', cows: [0, 1.4], fromCar: true },
+  { name: 'deer_close', car: { x: 4305, y: 1060, heading: 0 }, kind: 'deer', cows: [4.5, 1.5] },
+  { name: 'deer_side', car: { x: 4305, y: 1060, heading: 0 }, kind: 'deer', cows: [4.5, 1.1], side: true },
+  { name: 'deer_road', car: { x: 4305, y: 1060, heading: 0 }, kind: 'deer', cows: [0, 1.4], fromCar: true },
   // Steep pasture west of the farm: trough and feeder on the slope.
   { name: 'slope', car: { x: 2498, y: 564, heading: 0 }, cam: [2506, 1.6, 452], look: [2488, 0.3, 430] },
   { name: 'slope_wide', car: { x: 2498, y: 564, heading: 0 }, cam: [2530, 8, 480], look: [2480, 0, 420] },
@@ -163,6 +174,11 @@ const VIEWS = [
   { name: 'semib_close', car: { x: 1700, y: 1440, heading: 0 }, cam: [1754, 2.4, 1416.5], look: [1745, 1.8, 1427] },
   { name: 'semib_side', car: { x: 1700, y: 1440, heading: 0 }, cam: [1760, 1.9, 1428], look: [1745, 1.7, 1428] },
   { name: 'semib_site', car: { x: 1700, y: 1440, heading: 0 }, cam: [1778, 13, 1462], look: [1745, 6, 1416] },
+  // Semi cab shape (#72): close 3/4 of the cab and sleeper step, straight on
+  // the nose, and the Calder semi from the road as the player drives up.
+  { name: 'semi_cab', car: { x: 4925, y: 1140, heading: 90 }, cam: [4952.5, 3.3, 1124.5], look: [4956.5, 2.6, 1119] },
+  { name: 'semi_front', car: { x: 4925, y: 1140, heading: 90 }, cam: [4969, 2.4, 1119.2], look: [4956, 2.2, 1119.2] },
+  { name: 'semi_road', car: { x: 4925, y: 1140, heading: 90 }, cam: [4925, 1.4, 1140], look: [4955, 2.2, 1119] },
   // Gas stations (#58): Ashford (a_gas) and Brandt (br_gas, needs
   // SHOTS_QUERY='opening=off&spot=brandt'). Close 3/4, straight on, the shop
   // door, a pump island, from above, and from the road as you first see it.
@@ -249,6 +265,20 @@ const VIEWS = [
   { name: 'oak_close', car: { x: 3907, y: 2250, heading: 180 }, cam: [3958, 7, 2228], look: [3990, 15, 2262] },
   { name: 'oak_front', car: { x: 3907, y: 2250, heading: 180 }, cam: [3940, 12, 2262], look: [3990, 20, 2262] },
   { name: 'oak_road', car: { x: 3920, y: 2140, heading: 180 }, cam: [3920, 1.4, 2140], look: [3990, 18, 2262] },
+  // Trees (#69). Rows along Pruitt Lane (dirt, off Route 40 to the Pruitt
+  // farm): from the car turning in, straight down the lane, 3/4 close on a
+  // row tree, its trunk and branches up close, and the dead one in the row.
+  // Rows on Ridge Road by Hartley's and on Old River Road from the car.
+  // A dead tree and a broken one out in the open.
+  { name: 'rows_road', car: { x: 2982.2, y: 1276.7, heading: 7 } },
+  { name: 'rows_lane', car: { x: 2982.2, y: 1276.7, heading: 7 }, cam: [2987.6, 1.6, 1237.1], look: [2986.8, 2.5, 1157.5] },
+  { name: 'rows_close', car: { x: 2982.2, y: 1276.7, heading: 7 }, cam: [2986, 1.7, 1216], look: [2977.1, 3, 1208.4] },
+  { name: 'rows_bark', car: { x: 2982.2, y: 1276.7, heading: 7 }, cam: [2981.5, 1.4, 1211.5], look: [2977.1, 2.6, 1208.4] },
+  { name: 'rows_dead', car: { x: 2982.2, y: 1276.7, heading: 7 }, cam: [2987, 2, 1227], look: [2976.3, 5, 1218.9] },
+  { name: 'rows_ridge_road', car: { x: 2648.3, y: 290.1, heading: 74 } },
+  { name: 'rows_river_road', car: { x: 3306.4, y: 2243.3, heading: 106 } },
+  { name: 'dead_open', car: { x: 2700, y: 660, heading: 0 }, cam: [2692, 2, 652], look: [2670, 6, 638] },
+  { name: 'snag_open', car: { x: 2190, y: 1440, heading: 0 }, cam: [2178, 1.8, 1428], look: [2167, 2.2, 1418] },
   // Tractors (#65): slow farm tractors on Ridge Road (pin ids 'hz:<paint>'):
   // 3/4 front close, straight side, the big tire, the back, three in a row,
   // and from the car as the player comes up behind one.
@@ -277,6 +307,19 @@ const VIEWS = [
   { name: 'elev_b_front', car: { x: 1700, y: 1440, heading: 0 }, cam: [1745, 4, 1452], look: [1745, 14, 1405] },
   { name: 'elev_b_sign', car: { x: 1700, y: 1440, heading: 0 }, cam: [1752, 19, 1378], look: [1745, 19.5, 1405] },
   { name: 'elev_b_road', car: { x: 1700, y: 1560, heading: 0 }, cam: [1700, 1.4, 1560], look: [1745, 14, 1405] },
+  // Mud on the player's car (#73), on Ridge Road (dirt): chase view, side,
+  // and 3/4 rear up close. mud: the car's mud amount 0..1. mudRain: then that
+  // many seconds of full rain parked (src/game/mud.js); run the washed_* views
+  // with SHOTS_QUERY='opening=off&rain=on'.
+  { name: 'mud_chase', car: { road: 'ridge_rd', at: 0.5 }, mud: 0 },
+  { name: 'mud_side', car: { road: 'ridge_rd', at: 0.5 }, mud: 0, rel: [-4.6, 1.3, -0.6], relLook: [0, 0.7, 0.2] },
+  { name: 'mud_rear', car: { road: 'ridge_rd', at: 0.5 }, mud: 0, rel: [2.8, 1.6, 5], relLook: [0, 0.7, 0.4] },
+  { name: 'muddy_chase', car: { road: 'ridge_rd', at: 0.5 }, mud: 0.9 },
+  { name: 'muddy_side', car: { road: 'ridge_rd', at: 0.5 }, mud: 0.9, rel: [-4.6, 1.3, -0.6], relLook: [0, 0.7, 0.2] },
+  { name: 'muddy_rear', car: { road: 'ridge_rd', at: 0.5 }, mud: 0.9, rel: [2.8, 1.6, 5], relLook: [0, 0.7, 0.4] },
+  { name: 'washed_chase', car: { road: 'ridge_rd', at: 0.5 }, mud: 0.9, mudRain: 60 },
+  { name: 'washed_side', car: { road: 'ridge_rd', at: 0.5 }, mud: 0.9, mudRain: 60, rel: [-4.6, 1.3, -0.6], relLook: [0, 0.7, 0.2] },
+  { name: 'washed_rear', car: { road: 'ridge_rd', at: 0.5 }, mud: 0.9, mudRain: 60, rel: [2.8, 1.6, 5], relLook: [0, 0.7, 0.4] },
   // Main street shops (#70): Millbrook (m_h3, front west onto Church Street)
   // and Calder's feed store (c_feed, front north onto Route 40); Brandt's
   // store (br_store, front south onto the highway) needs
@@ -484,6 +527,15 @@ for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) 
       for (const id of window.__kitted || []) window.__trafficKit(id, null);
       window.__kitted = (v.kit || []).map(([id, parts]) => (window.__trafficKit(id, parts), id));
     }
+    // Mud on the player's car (#73): set it, then wash it in mudRain s of rain.
+    if (window.__car3d && v.mud !== undefined) {
+      let m = v.mud;
+      if (v.mudRain) {
+        const { stepMud } = await import('/src/game/mud.js').catch(() => ({}));
+        for (let t = 0; stepMud && t < v.mudRain; t += 0.5) m = stepMud(m, 0.5, { surface: 'dirt', speed: 0, rain: 1, wet: 1 });
+      }
+      window.__car3d.dirt.value = m;
+    }
     const { renderer, camera, world3d } = window.__three;
     if (!renderer.__orig) renderer.__orig = renderer.render.bind(renderer);
     const H = (px, py) => world3d.terrain.heightAt(px, py);
@@ -509,14 +561,17 @@ for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) 
         // Aim at the cow nearest the car, from the car's side of it.
         let best = null;
         for (const a of window.__amb.animals) {
-          if (a.kind !== 'cow') continue;
+          if (a.kind !== (v.kind || 'cow')) continue;
           const d = Math.hypot(a.x - st.car.x, a.y - st.car.y);
           if (!best || d < best.d) best = { a, d };
         }
         if (best) {
           const { a, d } = best;
-          const px = a.x + ((st.car.x - a.x) / d) * v.cows[0];
-          const py = a.y + ((st.car.y - a.y) / d) * v.cows[0];
+          // side: straight onto the animal's flank; fromCar: from the driver's seat.
+          const hr = (a.heading * Math.PI) / 180;
+          const [ux, uy] = v.side ? [Math.cos(hr), Math.sin(hr)] : [(st.car.x - a.x) / d, (st.car.y - a.y) / d];
+          const px = v.fromCar ? st.car.x : a.x + ux * v.cows[0];
+          const py = v.fromCar ? st.car.y : a.y + uy * v.cows[0];
           c.position.set(px, H(px, py) + v.cows[1], py);
           c.up.set(0, 1, 0);
           c.lookAt(a.x, H(a.x, a.y) + 0.8, a.y);

@@ -7,6 +7,7 @@ import {
   polygonArea, bbox, circleHitsRect, SegIndex, measurePolyline, pointAlong, nearestOnPolyline,
 } from './geom.js';
 import { pickFallenTrees } from '../world/fallenTrees.js';
+import { planTreeRows, planDeadTrees } from '../world/treeRows.js';
 import { AIRFIELD, airfieldFrame } from '../world/airfield.js';
 
 // Gas station, in the building's local frame (w = 22, h = 14).
@@ -692,6 +693,18 @@ export function generateScenery(world) {
       standing.push(t);
       addTreeToGrid(t);
     }
+  }
+
+  // Rows of trees along some dirt roads by farms, and a few dead and broken
+  // trees (src/world/treeRows.js, #69). Added last, with their own random
+  // streams, so everything above stays where it was.
+  const avoid = fallen.map((f) => ({ x: f.x, y: f.y, r: f.h }));
+  const more = [...planTreeRows(world, { reject, tooClose, avoid }).trees, ...planDeadTrees(world, { reject, tooClose })];
+  for (const t of more) {
+    if (tooClose(t.x, t.y, 4)) continue;
+    t.more = true;
+    standing.push(t);
+    addTreeToGrid(t);
   }
 
   return { trees: standing, pads, bushes, fallen };
