@@ -13,7 +13,7 @@
 
 import { setRegion, REGION_IDS } from '../src/world/world.js';
 import { distToPolyline } from '../src/drive/geom.js';
-import { makeVerge, vergeFor, VERGE } from '../src/world/verge.js';
+import { makeVerge, vergeFor, culvertMouths, VERGE } from '../src/world/verge.js';
 
 let failed = 0;
 const fail = (msg) => {
@@ -59,7 +59,46 @@ for (const id of REGION_IDS) {
     const [mx, my] = d.pts[Math.floor(d.pts.length / 2)];
     if (V.ditchAt(mx, my) < 0.95) fail(`${id} ditchAt ${V.ditchAt(mx, my).toFixed(2)} on the line of a ditch on ${d.road}`);
   }
-  for (const c of V.culverts) if (offRoad(c.x, c.y) < 0.5) fail(`${id} culvert on a road at ${c.x},${c.y}`);
+  for (const c of V.culverts) {
+    const r = byId.get(c.road);
+    if (!r) { fail(`${id} culvert crosses unknown road ${c.road}`); continue; }
+    // Both mouths off every road, on opposite sides of the one it crosses.
+    for (const [x, y] of [[c.x, c.y], [c.x2, c.y2]]) if (offRoad(x, y) < VERGE.culvertGap - 0.3) fail(`${id} culvert mouth on a road at ${x},${y}`);
+    const side = (x, y) => {
+      let best = Infinity, sg = 0;
+      for (let i = 0; i < r.points.length - 1; i++) {
+        const a = r.points[i], b = r.points[i + 1];
+        const ax = a.x ?? a[0], ay = a.y ?? a[1], bx = b.x ?? b[0], by = b.y ?? b[1];
+        const d = distToPolyline(x, y, [a, b]);
+        if (d < best) { best = d; sg = Math.sign((bx - ax) * (y - ay) - (by - ay) * (x - ax)); }
+      }
+      return sg;
+    };
+    if (side(c.x, c.y) === side(c.x2, c.y2)) fail(`${id} culvert at ${c.x},${c.y} has both mouths on one side of ${c.road}`);
+    // The pipe's axis runs across that road (at least 45 degrees off its line)
+    // and is long enough to span it.
+    let nearest = Infinity, roadAng = 0;
+    const mx = (c.x + c.x2) / 2, my = (c.y + c.y2) / 2;
+    for (let i = 0; i < r.points.length - 1; i++) {
+      const a = r.points[i], b = r.points[i + 1];
+      const ax = a.x ?? a[0], ay = a.y ?? a[1], bx = b.x ?? b[0], by = b.y ?? b[1];
+      const d = distToPolyline(mx, my, [a, b]);
+      if (d < nearest) { nearest = d; roadAng = Math.atan2(by - ay, bx - ax); }
+    }
+    const axis = Math.atan2(c.y2 - c.y, c.x2 - c.x);
+    let da = Math.abs(((axis - roadAng) * 180) / Math.PI) % 180;
+    if (da > 90) da = 180 - da;
+    if (da < 45) fail(`${id} culvert at ${c.x},${c.y} runs along ${c.road} (${da.toFixed(0)} degrees), not across`);
+    if (Math.hypot(c.x2 - c.x, c.y2 - c.y) < r.width) fail(`${id} culvert at ${c.x},${c.y} is shorter than ${c.road} is wide`);
+    // The heading is the pipe's direction, first mouth to second.
+    const h = (c.angle * Math.PI) / 180;
+    if (Math.abs(-Math.sin(h) - (c.x2 - c.x) / Math.hypot(c.x2 - c.x, c.y2 - c.y)) > 0.02) fail(`${id} culvert at ${c.x},${c.y} heading ${c.angle} does not point at its far mouth`);
+    // Mouths sit at or below the ground, on a slope too.
+    for (const slope of [0, 0.3, -0.3]) {
+      const H = (x, y) => 5 + slope * (x - c.x);
+      for (const m of culvertMouths(c, H)) if (m.z > H(m.x, m.y) + 1e-9) fail(`${id} culvert mouth above ground at ${m.x},${m.y}`);
+    }
+  }
   for (const p of V.posts) {
     if (offRoad(p.x, p.y) < 3) fail(`${id} post ${p.x},${p.y} too near a road`);
     for (const s of [...(W.signs || []), ...(W.mailboxes || [])]) {

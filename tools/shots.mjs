@@ -303,6 +303,17 @@ const VIEWS = [
   { name: 'verge_tar_front', car: { x: 1369, y: 2241, heading: 98 }, cam: [1369.4, 2.5, 2242], look: [1375, 0, 2245.1] },
   { name: 'verge_tar_road', car: { x: 1369, y: 2241, heading: 98 }, cam: [1342.8, 1.3, 2240], look: [1402.5, 0.3, 2246.4] },
   { name: 'verge_culvert', car: { x: 2965, y: 1100, heading: 180 }, cam: [2990.5, 1.4, 1286.3], look: [2986.7, 0, 1288.7] },
+  // Every culvert shows two mouths with a concrete collar, one each side of the
+  // road it goes under: Pruitt Lane (straight on), Highway 9 west of Fenwick
+  // (3/4 and straight on) and Route 40 at Fenwick (3/4 and straight on), and
+  // from the road as the player first sees it.
+  { name: 'verge_culvert_front', car: { x: 2965, y: 1100, heading: 180 }, cam: [2989.5, 1.1, 1288.4], look: [2984.3, 0.1, 1288.6] },
+  { name: 'verge_culvert_far', car: { x: 2965, y: 1100, heading: 180 }, cam: [2972.5, 1.5, 1291.5], look: [2977.3, 0.1, 1289.1] },
+  { name: 'verge_culvert_hwy', car: { x: 2404, y: 1395, heading: 180 }, cam: [2408.3, 1.4, 1414.2], look: [2404.3, 0.1, 1410.8] },
+  { name: 'verge_culvert_hwy_front', car: { x: 2404, y: 1395, heading: 180 }, cam: [2409.5, 1.1, 1410.3], look: [2404.3, 0.1, 1410.8] },
+  { name: 'verge_culvert_rt40', car: { x: 2986, y: 1270, heading: 180 }, cam: [2989, 1.4, 1287.3], look: [2986.3, 0.1, 1290.8] },
+  { name: 'verge_culvert_rt40_front', car: { x: 2986, y: 1270, heading: 180 }, cam: [2986.4, 1.1, 1285.5], look: [2986.3, 0.1, 1290.8] },
+  { name: 'verge_culvert_rt40_road', car: { x: 2986, y: 1270, heading: 180 }, rel: [-0.4, 1.3, -0.5], relLook: [-0.6, 0.5, -22] },
   // Water towers (#60). Ashford's, south of Highway 9: 3/4 close, straight on
   // from the highway side, up at the catwalk, and from the highway driving
   // east. Oakham's (run with SHOTS_QUERY='opening=off&spot=brandt'): 3/4, straight on

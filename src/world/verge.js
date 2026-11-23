@@ -10,8 +10,11 @@
 //   V.seals    [{ road, d, len, off, cross }]           crack seal: along a wheel
 //                                                       track, or across a lane
 //   V.ditches  [{ road, side, d0, d1, off, w, pts }]    a damp swale along a verge
-//   V.culverts [{ x, y, angle, ditch }]                 pipe ends where a ditch
-//                                                       meets a crossing road
+//   V.culverts [{ x, y, x2, y2, angle, road, dir, ditch }]  a pipe under the road
+//                                                       that stops a ditch: mouths
+//                                                       at (x,y) and (x2,y2) either
+//                                                       side, heading angle first
+//                                                       to second, `road` crossed
 //   V.posts    [{ x, y, rot, lean, leanTo, h, wire }]  old fence posts, leaning
 //   V.ditchAt(x, y)  -> 0..1, how deep in a ditch (1 on its line)
 //   V.flowerAt(x, y) -> 0..1, extra wildflower patch strength on a verge
@@ -51,6 +54,8 @@ export const VERGE = {
   ditchOut: 2.7, // m past the shoulder to the ditch's centre line
   ditchW: 3.4, // m across, bank to bank
   ditchMin: 30, // m: shorter runs are dropped
+  culvertSink: 0.1, // m a culvert mouth's centre sits below the ground
+  culvertGap: 0.5, // m past a crossing road's shoulder where a culvert mouth sits
   ditchStep: 2, // m between samples along the road
   ditchClear: 12, // m from signs, mailboxes and poles
   // Posts
@@ -73,6 +78,16 @@ export function setVergeEnabled(on) {
 const EMPTY = {
   patches: [], seals: [], ditches: [], culverts: [], posts: [], ditchAt: () => 0, flowerAt: () => 0, frame: () => null, at: () => null,
 };
+
+// The two visible mouths of a culvert, each { x, y, z, heading }: z is the
+// mouth centre, a little below the ground (H(x, y) -> ground height), heading
+// turns the mouth to face out of its bank (objMatrix: local +z points out).
+export function culvertMouths(cv, H) {
+  return [
+    { x: cv.x, y: cv.y, z: H(cv.x, cv.y) - VERGE.culvertSink, heading: cv.angle + 180 },
+    { x: cv.x2, y: cv.y2, z: H(cv.x2, cv.y2) - VERGE.culvertSink, heading: cv.angle },
+  ];
+}
 
 const cache = new WeakMap();
 export function vergeFor(world) {
@@ -223,6 +238,36 @@ export function makeVerge(world) {
   }
 
   // ---------- ditches ----------
+  // A culvert carries a ditch under the road that stops it. From the ditch's
+  // end p0, walk on along (ux, uy) (the ditch's line) to the crossing road's
+  // two shoulders: the pipe is buried between them and only its two mouths
+  // show, one each side. Returns { x, y, x2, y2 } (the mouths), the road it
+  // crosses, and angle, the heading of the pipe from the first mouth to the
+  // second (local +z points that way, same convention as objMatrix). null
+  // when the line never gets across a road within 30 m.
+  const culvertAt = (p0, ux, uy, main) => {
+    let near = -1;
+    let far = -1;
+    let road = null;
+    for (let s = 0; s <= 30; s += 0.25) {
+      const e = roadEdge(p0.x + ux * s, p0.y + uy * s, main);
+      const thr = shoulderOf(e.road || main) + VERGE.culvertGap;
+      if (e.d <= thr) {
+        if (near < 0) near = s;
+        far = s;
+        road = e.road;
+      } else if (near >= 0 && e.d > thr + 0.25) break;
+    }
+    if (near < 0 || !road || far - near < road.width * 0.6 || near > 6) return null;
+    // Still on a road at the far end of the walk: not across it.
+    if (roadEdge(p0.x + ux * far, p0.y + uy * far, main).d > shoulderOf(road) + VERGE.culvertGap + 0.01) return null;
+    return {
+      x: r2(p0.x + ux * near), y: r2(p0.y + uy * near),
+      x2: r2(p0.x + ux * far), y2: r2(p0.y + uy * far),
+      angle: r2((Math.atan2(-ux, uy) * 180) / Math.PI),
+      road: road.id,
+    };
+  };
   const ditches = [];
   const culverts = [];
   for (const rd of roads) {
@@ -264,8 +309,8 @@ export function makeVerge(world) {
           for (const [q, rs, dir] of [[run.d0, run.why, -1], [d, reason, 1]]) {
             if (rs !== 'road') continue;
             const f = frame(rd, q);
-            const p = at(f, side * off, dir * 0.6);
-            culverts.push({ x: r2(p.x), y: r2(p.y), angle: r2((Math.atan2(f.tx, -f.ty) * 180) / Math.PI), dir, ditch: di });
+            const cv = culvertAt(at(f, side * off), dir * f.tx, dir * f.ty, rd.r);
+            if (cv) culverts.push({ ...cv, dir, ditch: di });
           }
         }
         run = null;

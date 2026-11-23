@@ -9,7 +9,7 @@
 // the ground paint (paint.js). Dev: three.html?verge=off (verge.js).
 
 import * as THREE from 'three';
-import { vergeFor } from '../../src/world/verge.js';
+import { vergeFor, culvertMouths } from '../../src/world/verge.js';
 import { cyl, strut } from './shapes.js';
 import { objMatrix } from './batch.js';
 import { PAVED_LIFT } from './ground.js';
@@ -40,6 +40,7 @@ const DITCH_FAR = [0x9db46a, 0.6];
 const POST = [0x7f7668, 0x8d8372, 0x6c6459, 0x766a5a];
 const WIRE = 0x5e4632; // rusted barbed wire
 const PIPE_IN = 0x3a3c3e;
+const CONCRETE = 0x9b988e;
 
 // A flat piece of tar draped on the ground: rows of [left, right] world
 // points ({x, y}), each row a cross-section. Returns a geometry facing up.
@@ -132,18 +133,27 @@ function postGeo() {
   return g;
 }
 
-// Corrugated steel pipe end, lying along z, centre at 0: an outer skin,
-// a dark inner skin facing in, and ribs round the mouth.
+// One culvert mouth, local +z facing out of the bank, centre at 0: a short
+// stub of corrugated pipe with ribs, a dark inside that ends in a black disc,
+// and a concrete headwall ring round it. The rest of the pipe is under the
+// road and is not drawn.
+const PIPE_R = 0.4;
+const WALL_R = 0.78;
 function culvertParts() {
-  const L = 1.4;
-  const outer = new THREE.CylinderGeometry(0.32, 0.32, L, 12, 1, true).rotateX(Math.PI / 2);
-  const inner = new THREE.CylinderGeometry(0.3, 0.3, L, 12, 1, true).rotateX(Math.PI / 2);
+  const L = 1.1;
+  const skin = (r, len, z) => new THREE.CylinderGeometry(r, r, len, 14, 1, true).rotateX(Math.PI / 2).translate(0, 0, z);
+  const outer = skin(PIPE_R, L, 0.12 - L / 2);
+  const inner = skin(PIPE_R - 0.025, L, 0.12 - L / 2);
   inner.applyMatrix4(new THREE.Matrix4().makeScale(-1, 1, 1)); // mirrored: faces inward
+  const dark = new THREE.CircleGeometry(PIPE_R - 0.03, 14).translate(0, 0, 0.12 - L);
   const ribs = [];
-  for (let k = 0; k < 4; k++) {
-    ribs.push(new THREE.CylinderGeometry(0.335, 0.335, 0.05, 12, 1, true).rotateX(Math.PI / 2).translate(0, 0, L / 2 - 0.06 - k * 0.22));
-  }
-  return { outer, inner, ribs, L };
+  for (let k = 0; k < 4; k++) ribs.push(new THREE.CylinderGeometry(PIPE_R + 0.02, PIPE_R + 0.02, 0.05, 14, 1, true).rotateX(Math.PI / 2).translate(0, 0, 0.1 - k * 0.2));
+  // Headwall: a thick ring, its face a little proud, a chamfer step and a skirt.
+  const face = new THREE.RingGeometry(PIPE_R - 0.01, WALL_R - 0.07, 14).translate(0, 0, 0.0);
+  const step = new THREE.RingGeometry(WALL_R - 0.07, WALL_R, 14).translate(0, 0, -0.07);
+  const chamfer = new THREE.CylinderGeometry(WALL_R - 0.07, WALL_R, 0.07, 14, 1, true).rotateX(Math.PI / 2).translate(0, 0, -0.035);
+  const skirt = skin(WALL_R, 0.3, -0.22);
+  return { outer, inner, dark, ribs, walls: [face, step, chamfer, skirt] };
 }
 
 export function buildVerge(world, terrain, batch) {
@@ -218,18 +228,20 @@ export function buildVerge(world, terrain, batch) {
     }
   }
 
-  // Culverts: half sunk in the ditch end, mouth toward the ditch.
+  // Culverts: the pipe is under the side road; a mouth with a concrete
+  // headwall shows at each end, sunk into the bank.
   const C = culvertParts();
   for (const cv of V.culverts) {
-    const base = H(cv.x, cv.y) - 0.16;
-    // dir 1: the ditch ends ahead (the pipe runs on past its end); -1: behind.
-    const turn = cv.dir > 0 ? 180 : 0;
-    const m = objMatrix(cv.x, cv.y, base, cv.angle + turn, 0, C.L / 2 - 0.3, 0.3);
-    const o = optsAt(batch, cv.x, cv.y, SMALL);
-    if (!o) continue;
-    batch.add(C.outer, m, GALV, o);
-    batch.add(C.inner, m, PIPE_IN, o);
-    for (const r of C.ribs) batch.add(r, m, GALV, o);
+    for (const mo of culvertMouths(cv, H)) {
+      const m = objMatrix(mo.x, mo.y, mo.z, mo.heading);
+      const o = optsAt(batch, mo.x, mo.y, SMALL);
+      if (!o) continue;
+      batch.add(C.outer, m, GALV, o);
+      batch.add(C.inner, m, PIPE_IN, o);
+      batch.add(C.dark, m, 0x0c0d0e, o);
+      for (const r of C.ribs) batch.add(r, m, GALV, o);
+      for (const w of C.walls) batch.add(w, m, CONCRETE, o);
+    }
   }
 
   // Leaning posts, and old wire sagging between some of them.
