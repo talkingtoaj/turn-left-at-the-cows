@@ -183,6 +183,17 @@ const VIEWS = [
   { name: 'churchb_side', car: { x: 1650, y: 1560, heading: 0 }, cam: [1626, 2.6, 1541], look: [1603, 5, 1515] },
   { name: 'churchb_road', car: { x: 1598, y: 1601, heading: 270 }, cam: [1606, 1.5, 1598], look: [1600, 12, 1515] },
   { name: 'churchb_board', car: { x: 1580, y: 1601, heading: 90 }, cam: [1592, 1.6, 1595], look: [1596, 1.6, 1589] },
+  // Farmhouse porch (#63): Pruitt (front door east, porch wraps to the south)
+  // and Dolan (front door west, porch wraps to the south). 3/4 close,
+  // straight on, the swing end up close, and from the lane as you drive up.
+  { name: 'porch_p_close', car: { x: 2960, y: 1062, heading: 345 }, cam: [2955, 1.8, 1059], look: [2942, 1.8, 1044] },
+  { name: 'porch_p_front', car: { x: 2960, y: 1062, heading: 345 }, cam: [2959, 1.8, 1041], look: [2942, 2.2, 1041] },
+  { name: 'porch_p_swing', car: { x: 2960, y: 1062, heading: 345 }, cam: [2948, 1.7, 1053], look: [2941, 1.2, 1046] },
+  { name: 'porch_p_road', car: { x: 2960, y: 1062, heading: 345 }, cam: [2960, 1.4, 1062], look: [2937, 3, 1040] },
+  { name: 'porch_d_close', car: { x: 2470, y: 853, heading: 77 }, cam: [2492, 1.8, 856], look: [2506, 1.8, 841] },
+  { name: 'porch_d_front', car: { x: 2470, y: 853, heading: 77 }, cam: [2488, 1.8, 836], look: [2505, 2.2, 836] },
+  { name: 'porch_d_swing', car: { x: 2470, y: 853, heading: 77 }, cam: [2509, 1.7, 852], look: [2507, 1.2, 844] },
+  { name: 'porch_d_road', car: { x: 2470, y: 853, heading: 77 }, cam: [2470, 1.4, 853], look: [2510, 3, 838] },
 ];
 
 const browser = await launchChromium();

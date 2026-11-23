@@ -14,6 +14,7 @@ import { buildChurch } from './church3d.js';
 import { buildRuin, buildWindpumpWheels } from './ruins3d.js';
 import { buildAirfield, buildAirfieldBuilding } from './airfield3d.js';
 import { buildGasStation } from './gas3d.js';
+import { buildFarmhouse } from './farmhouse3d.js';
 import { Batcher } from './batch.js';
 import { state } from '../../src/state.js';
 import { currentMissionId } from '../../src/game/tourists.js';
@@ -41,21 +42,23 @@ function standOn(terrain, batch, x, y, w, h, angle) {
   return { base: max, bottom };
 }
 
-// Which side of a building faces the nearest road: 'n' | 's' | 'e' | 'w' in local terms.
-function roadSide(world, b) {
+// How far each side of a building ('n' | 's' | 'e' | 'w' in local terms) is from the nearest road.
+export function sideDistances(world, b) {
   const sides = { n: [0, -b.h / 2], s: [0, b.h / 2], e: [b.w / 2, 0], w: [-b.w / 2, 0] };
-  let best = 's';
-  let bestD = Infinity;
+  const out = {};
   for (const [k, [lx, ly]] of Object.entries(sides)) {
     const p = localToWorld(b.x, b.y, b.angle || 0, lx * 3, ly * 3);
-    for (const r of world.roads) {
-      const d = distToPolyline(p.x, p.y, r.points);
-      if (d < bestD) {
-        bestD = d;
-        best = k;
-      }
-    }
+    out[k] = Infinity;
+    for (const r of world.roads) out[k] = Math.min(out[k], distToPolyline(p.x, p.y, r.points));
   }
+  return out;
+}
+
+// Which side of a building faces the nearest road.
+function roadSide(world, b) {
+  const d = sideDistances(world, b);
+  let best = 'n';
+  for (const k of ['n', 's', 'e', 'w']) if (d[k] < d[best]) best = k;
   return best;
 }
 
@@ -218,12 +221,16 @@ function buildBuilding(world, terrain, batch, b) {
   const kind = buildKind(batch, b, base, roadSide(world, b));
   if (kind) return kind;
 
-  // Houses and the farmhouse.
-  const farm = b.kind === 'farmhouse';
-  const floors = farm || hsh % 3 === 0 ? 2 : 1;
+  if (b.kind === 'farmhouse') {
+    buildFarmhouse(terrain, batch, b, base, hsh, sideDistances(world, b)); // farmhouse3d.js (#63)
+    return;
+  }
+
+  // Houses.
+  const floors = hsh % 3 === 0 ? 2 : 1;
   const wallH = floors === 2 ? 5.6 : 3.2;
-  const wall = farm ? 0xf1ede4 : WALLS[(hsh >> 3) % WALLS.length];
-  const roof = farm ? 0x5d6066 : ROOFS[hsh % ROOFS.length];
+  const wall = WALLS[(hsh >> 3) % WALLS.length];
+  const roof = ROOFS[hsh % ROOFS.length];
   P(box(b.w, wallH + FOUND, b.h), 0, 0, -FOUND, wall);
   const short = Math.min(b.w, b.h);
   P(gable(b.w + 0.8, b.h + 0.8, short * 0.42), 0, 0, wallH, roof);
@@ -232,12 +239,6 @@ function buildBuilding(world, terrain, batch, b) {
   const cx = ((hsh >> 4) % 2 ? 1 : -1) * b.w * 0.25;
   const cy = ((hsh >> 6) % 2 ? 1 : -1) * b.h * 0.2;
   P(box(1, short * 0.42 + 1.4, 1), cx, cy, wallH, 0x7b5a4a);
-  if (farm) {
-    // Porch on the south side.
-    P(box(b.w * 0.7, 0.2, 2.4), 0, b.h / 2 + 1.2, 2.6, 0x8a8c8f);
-    P(box(b.w * 0.7, 0.25, 2.4), 0, b.h / 2 + 1.2, 0, 0xb8b0a0, { cast: false });
-    for (const lx of [-b.w * 0.33, 0, b.w * 0.33]) P(box(0.2, 2.6, 0.2), lx, b.h / 2 + 2.2, 0, 0xf1ede4);
-  }
 }
 
 function buildLandmark(terrain, batch, l, rng, materials) {
