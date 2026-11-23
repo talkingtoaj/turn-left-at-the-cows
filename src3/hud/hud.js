@@ -146,6 +146,10 @@ const CSS = `
   border-radius: 8px; padding: 10px 34px; cursor: pointer; box-shadow: 3px 3px 0 rgba(0,0,0,0.35); }
 .hud-win-go:hover, .hud-win-go:focus-visible { background: #f3d58c; outline: none; }
 .hud-win-keys { color: #8a8d92; font-size: 13px; }
+.hud-win-card { font: 600 14px Oswald, "Arial Narrow", sans-serif; letter-spacing: 0.06em; text-transform: uppercase; color: #e6b450;
+  background: transparent; border: 1px solid rgba(230,180,80,0.6); border-radius: 6px; padding: 6px 18px; cursor: pointer; }
+.hud-win-card:hover, .hud-win-card:focus-visible { background: rgba(230,180,80,0.14); outline: none; }
+.hud-win-card:disabled { opacity: 0.55; cursor: progress; }
 .hud-win-tabs { display: flex; justify-content: center; gap: 6px; margin: 4px 0 16px; border-bottom: 1px solid rgba(230,180,80,0.35); }
 .hud-win-tab { font: 600 15px Oswald, "Arial Narrow", sans-serif; letter-spacing: 0.06em; text-transform: uppercase; color: #a9acb2;
   background: transparent; border: 1px solid transparent; border-bottom: 0; border-radius: 8px 8px 0 0; padding: 8px 18px 7px;
@@ -868,8 +872,44 @@ export function createHUD(root, { openMap, radio } = {}) {
     const go = el('button', 'hud-win-go', foot, nextMission(state) ? 'Next mission \u25B8' : 'Finish \u25B8');
     go.type = 'button';
     go.addEventListener('click', () => onContinueKey());
+    if (m) mountPostcardButton(foot, m, goal);
     el('div', 'hud-win-keys hud-mono', foot, 'M: finish your map · R: start over');
     winShade.style.display = 'block';
+  }
+
+  // The share postcard (#81, src/ui/postcard.js): your sketch and this trip
+  // as a picture to save. Loaded on the first click.
+  function mountPostcardButton(foot, m, goal) {
+    // line id: T81-save-btn (placeholder, not yet approved)
+    const b = el('button', 'hud-win-card', foot, 'Save a postcard');
+    b.type = 'button';
+    // Enter here saves the card, not continue.
+    b.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') e.stopPropagation();
+    });
+    b.addEventListener('click', async () => {
+      if (b.disabled) return;
+      b.disabled = true;
+      try {
+        const [{ savePostcard }, { postcardFacts }] = await Promise.all([
+          import('../../src/ui/postcard.js'), import('../../src/ui/postcardFacts.js'),
+        ]);
+        const facts = postcardFacts({
+          missionTitle: m.title,
+          goalName: goal ? goal.name : null,
+          timeMs: state.elapsedMs,
+          metres: state.odometer,
+          clockMinutes: state.clockMinutes,
+          localsAsked: state.talkedTo.size,
+          tows: state.tows || 0,
+        });
+        await savePostcard({ sketch: state.sketch, facts, missionId: m.id });
+      } catch (e) {
+        console.warn('[postcard]', e);
+      } finally {
+        b.disabled = false;
+      }
+    });
   }
 
   function showWin() {
