@@ -41,6 +41,7 @@ import { pointInPolygon, distToPolygonEdge, bbox, circleHitsRect } from '../driv
 import { makePads } from '../drive/layout.js';
 import { makeNoise, smoothstep } from './noise.js';
 import { mudFor } from './mud.js';
+import { vergeFor } from './verge.js';
 
 export const TILE = 8; // m
 export const CARPET = {
@@ -93,6 +94,8 @@ export function makeCarpet(world, R, heightAt, quarries = []) {
   const nKind = makeNoise((world.seed || 1) + 4405);
   const nClover = makeNoise((world.seed || 1) + 4406);
   const mud = mudFor(world);
+  // Verge flowers and ditches (#66, ./verge.js).
+  const V = vergeFor(world);
   // Forests and crop fields exactly (the roughness patches blend at their edges).
   const forests = [
     ...(world.forests || []).map((f) => ({ poly: f.polygon, bb: bbox(f.polygon), pad: 2 })),
@@ -139,7 +142,8 @@ export function makeCarpet(world, R, heightAt, quarries = []) {
     // Shorter in grazed pasture and right by the road (mown verge).
     let s = g.type === 'pasture' ? 0.6 : 1;
     s *= 0.6 + 0.4 * smoothstep(CARPET.roadGap, CARPET.roadGap + 3, g.fd);
-    return s;
+    // Ranker in a ditch: nobody mows the bottom.
+    return s * (1 + 0.3 * V.ditchAt(x, y));
   }
 
   // How damp the ground is: the wet bottoms (mud.js) and hollows.
@@ -148,7 +152,7 @@ export function makeCarpet(world, R, heightAt, quarries = []) {
   }
   // h: the ground's bump height there (R.at with height).
   function dampFrom(x, y, h) {
-    return Math.min(1, Math.max(mud.at(x, y), 0.8 * smoothstep(0.1, -0.6, h)));
+    return Math.min(1, Math.max(mud.at(x, y), 0.8 * smoothstep(0.1, -0.6, h), 0.95 * V.ditchAt(x, y)));
   }
   // Patch strength (0..1) of wildflowers here, before the ground rules; damp
   // ground lowers the bar, so its patches are bigger and run together.
@@ -165,7 +169,7 @@ export function makeCarpet(world, R, heightAt, quarries = []) {
   function flowerAt(x, y) {
     if (grassAt(x, y) <= 0) return 0;
     const pasture = R.at(x, y).type === 'pasture';
-    return flowerPatch(x, y, dampAt(x, y)) * (pasture ? 0.45 : 1);
+    return Math.max(flowerPatch(x, y, dampAt(x, y)) * (pasture ? 0.45 : 1), 0.85 * V.flowerAt(x, y));
   }
   function cloverAt(x, y) {
     if (grassAt(x, y) <= 0) return 0;
@@ -206,9 +210,10 @@ export function makeCarpet(world, R, heightAt, quarries = []) {
       for (let b = 0; b < n; b++) {
         const gx = x0 + (a + 0.5) * (TILE / n);
         const gy = y0 + (b + 0.5) * (TILE / n);
-        // Cheap reject first: no patch even at the dampest.
+        // Cheap reject first: no patch even at the dampest, and no verge drift.
         const n0 = 0.7 * nFlower(gx / 26, gy / 26) + 0.3 * nFlower2(gx / 7, gy / 7);
-        if (n0 < 0.02) continue;
+        const verge = 0.85 * V.flowerAt(gx, gy);
+        if (n0 < 0.02 && verge <= 0) continue;
         const x = gx + (hash(gx, gy, 21) - 0.5) * sp * 0.95;
         const y = gy + (hash(gx, gy, 22) - 0.5) * sp * 0.95;
         // One ground look-up (with height) serves grass, damp and pasture.
@@ -216,7 +221,7 @@ export function makeCarpet(world, R, heightAt, quarries = []) {
         if (grassFrom(x, y, g) <= 0) continue;
         const pasture = g.type === 'pasture';
         const damp = dampFrom(x, y, g.h);
-        const p = flowerPatch(x, y, damp) * (pasture ? 0.45 : 1);
+        const p = Math.max(flowerPatch(x, y, damp) * (pasture ? 0.45 : 1), verge);
         if (hash(gx, gy, 23) >= p * 0.75) continue;
         const kind = kindAt(x, y, damp, hash(gx, gy, 24));
         out.push(

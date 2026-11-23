@@ -217,6 +217,27 @@ const VIEWS = [
   { name: 'porch_d_front', car: { x: 2470, y: 853, heading: 77 }, cam: [2488, 1.8, 836], look: [2505, 2.2, 836] },
   { name: 'porch_d_swing', car: { x: 2470, y: 853, heading: 77 }, cam: [2509, 1.7, 852], look: [2507, 1.2, 844] },
   { name: 'porch_d_road', car: { x: 2470, y: 853, heading: 77 }, cam: [2470, 1.4, 853], look: [2510, 3, 838] },
+  // Roadside fill (#66): from the driver's seat up three roads (Highway 9 and
+  // Route 40 paved, River Road dirt), and low over each verge.
+  { name: 'verge_hwy', car: { road: 'hwy9', at: 0.25 }, rel: [-0.4, 1.3, -0.5], relLook: [-0.6, 0.9, -60] },
+  { name: 'verge_rt40', car: { road: 'rt40', at: 0.3 }, rel: [-0.4, 1.3, -0.5], relLook: [-0.6, 0.9, -60] },
+  { name: 'verge_river', car: { road: 'river_rd', at: 0.6 }, rel: [-0.4, 1.3, -0.5], relLook: [-0.6, 0.9, -60] },
+  { name: 'verge_hwy_side', car: { road: 'hwy9', at: 0.25 }, rel: [-6.5, 1.5, 3], relLook: [-7, 0.2, -14] },
+  { name: 'verge_river_side', car: { road: 'river_rd', at: 0.6 }, rel: [-5.5, 1.5, 3], relLook: [-6, 0.2, -14] },
+  // A ditch along Highway 9 (3/4, straight across, from the road), a run of
+  // leaning posts with wire, a tar patch, and a culvert at Pruitt Lane.
+  // Before shots of these: SHOTS_QUERY='opening=off&verge=off'.
+  { name: 'verge_ditch_close', car: { x: 1369, y: 2241, heading: 98 }, cam: [1430.3, 2, 2245.9], look: [1437.6, 0, 2242] },
+  { name: 'verge_ditch_front', car: { x: 1369, y: 2241, heading: 98 }, cam: [1437, 1.5, 2249.4], look: [1437.8, 0, 2238] },
+  { name: 'verge_ditch_road', car: { x: 1369, y: 2241, heading: 98 }, cam: [1363.3, 1.3, 2242.6], look: [1418.5, 0.6, 2244.2] },
+  { name: 'verge_posts_close', car: { x: 977.4, y: 2302.9, heading: 250 }, cam: [950.8, 1.5, 2320.4], look: [948.1, 0.7, 2324.6] },
+  { name: 'verge_posts_front', car: { x: 977.4, y: 2302.9, heading: 250 }, cam: [946, 1.3, 2318.9], look: [948.1, 0.7, 2324.6] },
+  { name: 'verge_posts_road', car: { x: 911.8, y: 2327.2, heading: 70 }, cam: [977.4, 1.3, 2302.9], look: [948.1, 0.8, 2324.6] },
+  { name: 'verge_posts_road2', car: { x: 977.4, y: 2302.9, heading: 250 }, cam: [911.8, 1.3, 2327.2], look: [948.1, 0.8, 2324.6] },
+  { name: 'verge_tar_close', car: { x: 1369, y: 2241, heading: 98 }, cam: [1379.5, 1.6, 2249.2], look: [1375, 0, 2245.1] },
+  { name: 'verge_tar_front', car: { x: 1369, y: 2241, heading: 98 }, cam: [1369.4, 2.5, 2242], look: [1375, 0, 2245.1] },
+  { name: 'verge_tar_road', car: { x: 1369, y: 2241, heading: 98 }, cam: [1342.8, 1.3, 2240], look: [1402.5, 0.3, 2246.4] },
+  { name: 'verge_culvert', car: { x: 2965, y: 1100, heading: 180 }, cam: [2990.5, 1.4, 1286.3], look: [2986.7, 0, 1288.7] },
   // Water towers (#60). Ashford's, south of Highway 9: 3/4 close, straight on
   // from the highway side, up at the catwalk, and from the highway driving
   // east. Oakham's (run with SHOTS_QUERY='opening=off&spot=brandt'): 3/4, straight on
