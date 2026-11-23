@@ -12,6 +12,7 @@ import { canopyTopAt } from './trees.js';
 import { buildSkyClouds, updateCloudUniforms } from './clouds.js';
 import { FOG_COLOR } from './world3d.js';
 import { cowLook, cowPose, PATCH_FREQ } from './cowLook.js';
+import { cowHornPose } from '../../src/world/hornHeard.js';
 import { collieGeo } from './collie3d.js';
 import { sheepGeo, horseGeo, deerGeo, coatMaterial } from './animals3d.js';
 
@@ -473,7 +474,8 @@ export function createAmbient3D(scene, opts) {
           const id = a.id ?? `n${i}`;
           look = cowLooks.get(id);
           if (!look) cowLooks.set(id, (look = cowLook(id)));
-          pose = cowPose(time, look.seed, a.moving);
+          // Heard the horn (#74): head up a few seconds, looking.
+          pose = cowHornPose(a.hornLook, amb.time, cowPose(time, look.seed, a.moving));
           if (!a.moving) pitch = 0; // the head moves, not the body
         } else if (h.poses.length > 1 && a.moving) {
           if (a.kind === 'deer' && a.running) {

@@ -193,6 +193,7 @@ export function createDamageHazards({ scene, scenery, collider, amb, world3d, ri
     // Sound the horn (also the B key).
     honk() {
       amb.events.push({ type: 'horn', x: state.car.x, y: state.car.y });
+      if (amb.hearHorn) amb.hearHorn(state.car.x, state.car.y); // locals, cows and the farm dog (#74)
       hz.honk(state.car);
     },
     spawn(kind, ahead = 45) {

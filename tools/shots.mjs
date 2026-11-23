@@ -120,6 +120,21 @@ const VIEWS = [
   { name: 'dog_run', car: { x: 4760, y: 2036, heading: 79 }, dog: [60, 8.5], cam: [4852.8, 1.2, 2028.4], look: [4850.6, 0.4, 2035.9] },
   { name: 'dog_run_side', car: { x: 4760, y: 2036, heading: 79 }, dog: [60, 8.5], cam: [4852.2, 0.7, 2039.8], look: [4850.6, 0.35, 2035.9] },
   { name: 'dog_road', car: { x: 4790, y: 2031, heading: 77 }, dog: [70, -8.5] },
+  // Horn reactions (#74). `honk: s` sounds the horn as the view is set up,
+  // then runs the animals and locals on s seconds (agent browsers draw a
+  // frame a second or so, too slow to see them react). `carDist` puts the car that far
+  // from a `person` (past the 22 m pull-up wave).
+  { name: 'horn_cows', car: { x: 4935, y: 2125, heading: 0 }, cows: [14, 3], honk: 2 },
+  { name: 'horn_cows_low', car: { x: 4935, y: 2125, heading: 0 }, cows: [5, 1], honk: 2 },
+  { name: 'horn_cows_road', car: { x: 4935, y: 2125, heading: 0 }, cows: [30, 2.2], honk: 2 },
+  { name: 'horn_local', person: ['mabel', 3, 1.6, 0], carDist: 35, lineup: ['mabel'], honk: 2 },
+  { name: 'horn_local_side', person: ['mabel', 3.4, 1.3, 60], carDist: 35, lineup: ['mabel'], honk: 2 },
+  { name: 'horn_local_road', person: ['mabel', 33, 1.4, 0], carDist: 35, lineup: ['mabel'], honk: 2 },
+  // `dogCam: [along, up, in]` puts the camera that far from the farm dog, wherever it ran
+  // (along its fence toward the far end, and in toward its yard), looking at it.
+  { name: 'horn_dog', car: { x: 4700, y: 2041, heading: 79 }, dogCam: [-4, 1.3, 2.2], honk: 2 },
+  { name: 'horn_dog_wide', car: { x: 4700, y: 2041, heading: 79 }, dogCam: [-11, 4, 9], honk: 2 },
+  { name: 'horn_dog_road', car: { x: 4700, y: 2041, heading: 79 }, rel: [0.6, 2.4, 6], relLook: [-1.8, 0.6, -60], honk: 2 },
   { name: 'traffic_sedans', car: { road: 'hwy9', at: 0.4 }, pin: [['car0', 16, 1, 1], ['car4', 24, 1, 1], ['car9', 32, 1, 1]], tcam: [[6, 2.6, -22], [0, 0.8, -8]] },
   { name: 'traffic_pairs', car: { road: 'hwy9', at: 0.4 }, pin: [['car1', 16, 1, 1], ['car6', 23, 1, 1], ['car2', 30, 1, 1], ['car8', 37, 1, 1]], tcam: [[6, 3.0, -27], [0, 0.8, -10]] },
   { name: 'traffic_kit_close', car: { road: 'hwy9', at: 0.4 }, pin: [['car6', 20, 1, 1]], tcam: [[4.6, 2.6, -4.6], [0, 1.0, 0.6]] },
@@ -428,7 +443,7 @@ for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) 
     if (v.person) {
       const l = WORLD.locals.find((q) => q.id === v.person[0]);
       const p = (amb && amb.personPos(l.id)) || l;
-      x = p.x + 9;
+      x = p.x + (v.carDist || 9);
       y = p.y;
       heading = 270;
       if (v.lineup) {
@@ -529,6 +544,7 @@ for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) 
     const { renderer, camera, world3d } = window.__three;
     if (!renderer.__orig) renderer.__orig = renderer.render.bind(renderer);
     const H = (px, py) => world3d.terrain.heightAt(px, py);
+    const FD = v.dogCam ? await import('/src/world/farmDog.js') : null;
     renderer.render = (s, c) => {
       if (v.person && window.__amb) {
         // Aim at the local (or the middle of the lineup) from the car's side,
@@ -546,6 +562,16 @@ for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) 
         c.position.set(cx, H(cx, cy) + v.person[2], cy);
         c.up.set(0, 1, 0);
         c.lookAt(p.x, H(p.x, p.y) + (v.person[1] > 5 ? 1.0 : 1.3), p.y);
+        c.updateMatrixWorld();
+      } else if (v.dogCam && FD && window.__amb && window.__amb.farmDogs.length) {
+        const { dog, st: ds, a } = window.__amb.farmDogs[0];
+        const f = FD.runPoint(dog, ds.s);
+        const [al, up, inw] = v.dogCam;
+        const cx = a.x + f.dx * al - f.dy * inw;
+        const cy = a.y + f.dy * al + f.dx * inw;
+        c.position.set(cx, H(cx, cy) + up, cy);
+        c.up.set(0, 1, 0);
+        c.lookAt(a.x, H(a.x, a.y) + 0.4, a.y);
         c.updateMatrixWorld();
       } else if (v.cows && window.__amb) {
         // Aim at the cow nearest the car, from the car's side of it.
@@ -604,6 +630,14 @@ for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) 
       }
       renderer.__orig(s, c);
     };
+    // Sound the horn, then run the world on v.honk s (#74).
+    if (v.honk && window.__dh && amb) {
+      window.__dh.honk();
+      for (let t = 0; t < v.honk; t += 0.1) {
+        amb.update(0.1, st);
+        window.__three.world3d.locals.update(st.car, 0.1, amb);
+      }
+    }
   }, v);
   await page.waitForTimeout(2500);
   await dismissCards();

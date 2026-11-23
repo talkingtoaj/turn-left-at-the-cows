@@ -18,6 +18,7 @@ import {
 import { carPaint } from './carpaint.js'; // traffic paint: real rural colors, seeded per car (#50)
 import { trafficType } from './carkit.js'; // some types have their own colors (the 4x4 #44, work vans #46)
 import { farmDogsIn, dogStart, stepDog, dogHeld, dogLook } from '../world/farmDog.js';
+import { HORN_HEAR, cowHears, dogHears } from '../world/hornHeard.js';
 
 // Level of detail: things within NEAR_R of the player get full updates.
 const NEAR_R = 600;
@@ -1611,6 +1612,7 @@ export function createAmbient(world, scenery) {
     obstacles, // additive: [{ x, y, r, player? }] hazards traffic waits behind (the caller refills it); player: true for the parked car, which traffic honks at
     farmDogs: dogs, // internal: [{ dog, st, a, hold? }] the farm dogs (#68); hold: { s, v, toward } pins one (tools/shots.mjs)
     horns: [], // additive: [{ id, x, y }] vehicles sounding their horn this frame (traffic, then hazards add theirs)
+    horn: { n: 0, x: 0, y: 0 }, // additive: the player's last horn (#74); n counts honks, so renderers spot a new one
     time: 0,
 
     // Additive: extra places traffic turns around (fallen trees across a
@@ -1622,6 +1624,21 @@ export function createAmbient(world, scenery) {
         const n = netById.get(b.roadId);
         if (n) n.blocks.push(b.at);
       }
+    },
+
+    // The player sounded the horn at (x, y) (#74, src/world/hornHeard.js):
+    // cows in earshot look up, the farm dog runs its fence barking, and
+    // locals wave (people3d.js reads amb.horn).
+    hearHorn(x, y) {
+      amb.horn.n++;
+      amb.horn.x = x;
+      amb.horn.y = y;
+      for (const a of animals) {
+        if (a.kind !== 'cow') continue;
+        const d = Math.hypot(a.x - x, a.y - y);
+        if (d < HORN_HEAR.cow) a.hornLook = cowHears(a.hornLook, d, (hashString(`${a.id}:horn`) % 1000) / 1000, time);
+      }
+      for (const d of dogs) if (!d.hold) d.st = dogHears(d.dog, d.st, x, y);
     },
 
     personPos(npcId) {
