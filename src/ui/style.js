@@ -30,7 +30,7 @@ const CSS = `
   margin-top: 6px; text-transform: uppercase; }
 .ui-pitch { margin: 12px auto 18px; max-width: 620px; text-wrap: balance; text-align: center; font-size: 18px; font-style: italic;
   color: #4a3c2c; line-height: 1.4; }
-.ui-cols { display: grid; grid-template-columns: 1.15fr 1fr; gap: 22px; align-items: start; }
+.ui-cols { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 22px; align-items: start; }
 @media (max-width: 640px) { .ui-cols { grid-template-columns: 1fr; gap: 14px; } .ui-paper { padding: 22px 18px 18px; } }
 .ui-h { margin: 0 0 8px; font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase; color: #9a3a2a;
   border-bottom: 1px dashed rgba(90,70,45,0.5); padding-bottom: 4px; }
@@ -43,6 +43,7 @@ const CSS = `
 .ui-keys { width: 100%; border-collapse: collapse; font-size: 14.5px; }
 .ui-keys td { padding: 3px 4px; border-bottom: 1px dotted rgba(90,70,45,0.35); vertical-align: middle; }
 .ui-keys td:first-child { white-space: nowrap; width: 1%; padding-right: 12px; }
+.ui-keys td.ui-mouse { white-space: normal; width: 45%; font-size: 13.5px; }
 .ui-tips { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 14.5px; cursor: pointer; }
 .ui-tips input { width: 16px; height: 16px; accent-color: #b3261e; margin: 0; }
 .ui-keys tr.ui-off td { opacity: 0.5; }

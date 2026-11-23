@@ -38,11 +38,11 @@ export const STEPS = [
   ['Read the clues.', ' Road signs, the compass, the trip meter and the clock tell you where you are.'],
 ];
 
-// [keys, what it does, optional version it only applies to (unused since the 2D drop)]
+// [keys (or plain text for a mouse action), what it does, optional version it only applies to (unused since the 2D drop)]
 export const CONTROLS = [
   [['Arrows', 'WASD'], 'Drive / walk'],
   [['F'], 'Get out of the car / back in'],
-  [[], 'Click and hold right mouse: turn your head'], // no key cell: the line is the whole row (#88, owner's words)
+  ['Click and hold right mouse', 'Turn your head'], // plain text key cell, owner's words (#88)
   [['E'], 'Talk'],
   [['M'], 'Map'],
   [['T'], 'Radio on / off (it finds a station by itself)'],
@@ -69,12 +69,9 @@ export function renderHowTo(parent, version) {
   const table = el('table', 'ui-keys', right);
   for (const [keys, what, only] of CONTROLS) {
     const tr = el('tr', only && only !== version ? 'ui-off' : null, table);
-    if (!keys.length) {
-      el('td', null, tr, what).colSpan = 2;
-      continue;
-    }
     const k = el('td', null, tr);
-    keys.forEach((key) => el('kbd', 'ui-kbd', k, key));
+    if (typeof keys === 'string') { k.textContent = keys; k.className = 'ui-mouse'; } // a mouse action, not a key
+    else keys.forEach((key) => el('kbd', 'ui-kbd', k, key));
     el('td', null, tr, what);
   }
   // Tips on or off (src/game/tips.js), remembered in this browser.
