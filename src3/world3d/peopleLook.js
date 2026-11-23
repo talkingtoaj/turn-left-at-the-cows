@@ -241,13 +241,22 @@ export const WAVE_REARM = 45; // m: and must have been this far away first
 export const PULL_UP = 6; // m/s: slower than this counts as pulling up
 
 export function newAct() {
-  return { armed: false, wave: 0, talk: 0, time: 0 };
+  return { armed: false, wave: 0, talk: 0, time: 0, waveIn: 0 };
 }
 
 // input: { carDist (m, the player's car), carSpeed (m/s), onFoot, moving, talking }
 export function actStep(a, inp, dt) {
   a.time += dt;
   if (inp.carDist > WAVE_REARM) a.armed = true;
+  // A wave owed to the horn (#74, hornHeard.js localHears): after its delay,
+  // unless already waving. It counts as the pull-up wave too.
+  if (a.waveIn > 0) {
+    a.waveIn -= dt;
+    if (a.waveIn <= 0 && a.wave <= 0 && !inp.moving && !inp.onFoot) {
+      a.wave = WAVE_S + dt;
+      a.armed = false;
+    }
+  }
   if (a.wave > 0) a.wave = Math.max(0, a.wave - dt);
   else if (a.armed && !inp.onFoot && !inp.moving && inp.carDist < WAVE_NEAR && Math.abs(inp.carSpeed) < PULL_UP) {
     a.wave = WAVE_S;

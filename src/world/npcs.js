@@ -297,7 +297,10 @@ export const NPCS = [
         lines: ["You're in it. That's most of it, out the window there."],
       },
       river_rd: {
-        lines: ["Old River Road? Goes south past the Okafor place, then through the river. I wouldn't, in a car like that."],
+        lines: [
+          "Old River Road? Goes south past the Okafor place, then through the river. I wouldn't, in a car like that.",
+          "If the collie chases you, you're past Okafor's.", // line id: T68-collie-clue
+        ],
         unlocks: ['okafor_farm', 'river_ford'],
       },
       pond_rd: {

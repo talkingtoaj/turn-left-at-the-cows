@@ -15,6 +15,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { state } from '../../src/state.js';
 import { currentMissionId } from '../../src/game/tourists.js';
 import { personLook, newAct, actStep, personPose, BONES, PERSON_SCALE } from './peopleLook.js';
+import { localHears } from '../../src/world/hornHeard.js';
 import { localToWorld } from '../../src/drive/geom.js';
 import { DECK_TOP } from './ground.js';
 import { WATER_LEVEL } from './terrain.js';
@@ -530,6 +531,7 @@ export function buildLocals(world, terrain, audit = null) {
     people.push({ id: l.id, only: l.onlyMission || null, obj: p, ...made, look, act: newAct(), x: l.x, y: l.y, yaw: sit ? sit.yaw : 0, sit: !!sit, head: 0, walk: 0, lod: false });
   });
   let clock = 0;
+  let hornN = 0; // the last horn (amb.horn.n) the locals heard (#74)
   const poseIn = { moving: false, walk: 0, headYaw: null };
   const actIn = { carDist: Infinity, carSpeed: 0, onFoot: false, moving: false, talking: false };
   return {
@@ -541,6 +543,8 @@ export function buildLocals(world, terrain, audit = null) {
       clock += dt;
       const missionId = currentMissionId(state);
       const pc = state.car || car;
+      const horn = amb && amb.horn && amb.horn.n !== hornN ? amb.horn : null;
+      if (amb && amb.horn) hornN = amb.horn.n;
       for (const p of people) {
         const pos = amb && amb.personPos ? amb.personPos(p.id) : null;
         if (pos) {
@@ -560,6 +564,10 @@ export function buildLocals(world, terrain, audit = null) {
           p.obj.geometry = near ? p.near : p.far;
         }
         const moving = !!(pos && pos.moving);
+        if (horn && p.obj.visible) {
+          const wait = localHears(p.act, Math.hypot(horn.x - p.x, horn.y - p.y), p.look.seed, { moving, seated: p.sit });
+          if (wait != null) p.act.waveIn = wait;
+        }
         const watch = !moving && d2 < 60 * 60;
         const toViewer = Math.atan2(-dx, -dy); // model faces -z
         let target;
