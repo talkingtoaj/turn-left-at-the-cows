@@ -20,13 +20,14 @@ import { sixBySixInto } from './sixbysix3d.js';
 import { KIT_BIT } from '../../src/ambient/carkit.js';
 import { DEG } from '../../src/drive/geom.js';
 import { PARKED_KINDS } from '../../src/world/parked.js';
+import { outline } from './roundShapes.js';
 
 const NEAR_M = 70; // past this, the stand-in
 
-// A side profile ([z, y] points) extruded w across x, its edges rounded by b
-// (the outline stays where the points are).
+// A side profile ([z, y] points, or a THREE.Shape in (z, y)) extruded w across
+// x, its edges rounded by b (the outline stays where the points are).
 function profile(pts, w, b, segs = 2) {
-  const s = new THREE.Shape(pts.map(([z, y]) => new THREE.Vector2(z, y)));
+  const s = pts instanceof THREE.Shape ? pts : new THREE.Shape(pts.map(([z, y]) => new THREE.Vector2(z, y)));
   const depth = Math.max(0.002, w - 2 * b);
   const g = new THREE.ExtrudeGeometry(s, {
     depth, bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelOffset: -b, bevelSegments: segs, curveSegments: 8,
@@ -114,23 +115,37 @@ function semiTractor(T, A) {
     T.geo(new THREE.CylinderGeometry(0.22, 0.22, 0.05, 14).translate(s * 0.96, 2.33, -4.95), 'satin');
     T.box(s * 0.85, 1.6, -4.95, 0.22, 0.06, 0.08, 'black');
   }
-  // Cab with a short sleeper.
-  T.geo(profile([[-4.76, 0.95], [-4.76, 2.24], [-4.46, 3.12], [-1.62, 3.2], [-1.38, 2.98], [-1.38, 0.95]], S.half * 2, 0.09, 3), 'tpaint');
-  // Windscreen in two panes with a centre post, a sun visor, roof lamps.
-  const ws = [0, 2.68, -4.61];
-  const up = new THREE.Vector3(0, 0.84, 0.29).normalize();
-  const n = [0, 0.33, -0.95];
-  for (const s of [-1, 1]) T.pic([s * 0.5 + n[0] * 0.012, ws[1] + n[1] * 0.012, ws[2] + n[2] * 0.012], [-1, 0, 0], [up.x, up.y, up.z], 0.92, 0.8, [...A.sw('tglass'), ...A.sw('tglass')]);
-  T.box(0, ws[1], ws[2] - 0.005, 0.07, 0.82, 0.03, 'black', Math.atan2(0.29, 0.84));
-  T.box(0, 3.16, -4.6, 2.2, 0.05, 0.4, 'black', 0.12);
-  for (const x of [-0.6, -0.3, 0, 0.3, 0.6]) T.box(x, 3.22, -4.35, 0.12, 0.05, 0.06, 'amber');
+  // Cab and a short sleeper in one pressed shell (#72): every corner rounded,
+  // the roof steps up over the sleeper behind the doors. The sleeper ends
+  // 0.2 m short of the trailer nose (z -1.75) so the stacks stand in the gap.
+  const shell = outline([[-4.76, 0.95, 0], [-4.76, 2.24, 0.08], [-4.417, 3.2, 0.2], [-2.98, 3.22, 0.14], [-2.72, 3.58, 0.18],
+    [-2.12, 3.6, 0.22], [-1.95, 3.38, 0.15], [-1.95, 0.95, 0]]);
+  T.geo(profile(shell, S.half * 2, 0.17, 4), 'tpaint');
+  // Marker lamps on the face of the sleeper step.
+  for (const x of [-0.75, -0.45, 0.45, 0.75]) T.box(x, 3.42, -2.86, 0.1, 0.06, 0.05, 'amber', -0.6);
+  // Windscreen in two panes with a centre post, a rubber surround, a sun
+  // visor with roof lamps on it.
+  const ws = [0, 2.66, -4.61];
+  const up = new THREE.Vector3(0, 0.84, 0.3).normalize();
+  const n = [0, 0.336, -0.942];
+  const wsAng = Math.atan2(0.3, 0.84);
+  for (const s of [-1, 1]) T.pic([s * 0.48 + n[0] * 0.012, ws[1] + n[1] * 0.012, ws[2] + n[2] * 0.012], [-1, 0, 0], [up.x, up.y, up.z], 0.88, 0.66, [...A.sw('tglass'), ...A.sw('tglass')]);
+  T.box(0, ws[1], ws[2] - 0.005, 0.07, 0.7, 0.04, 'black', wsAng);
+  for (const s of [-1, 1]) T.box(s * 0.95, ws[1], ws[2] - 0.005, 0.05, 0.72, 0.04, 'black', wsAng);
+  for (const k of [-1, 1]) T.box(0, ws[1] + k * 0.35 * up.y, ws[2] + k * 0.35 * up.z - 0.005, 1.95, 0.05, 0.04, 'black', wsAng);
+  T.box(0, 3.24, -4.56, 2.12, 0.05, 0.36, 'black', 0.12);
+  for (const x of [-0.6, -0.3, 0, 0.3, 0.6]) T.box(x, 3.29, -4.62, 0.12, 0.05, 0.06, 'amber');
   // Doors: windows, shut lines, handles, grab bars, steps, mirrors.
   for (const s of [-1, 1]) {
     const x = s * (S.half + 0.003);
     const r = [0, 0, -s];
     T.pic([s * (S.half + 0.004), 2.62, -3.68], r, [0, 1, 0], 1.12, 0.68, [...A.sw('black'), ...A.sw('black')]);
     T.pic([s * (S.half + 0.008), 2.62, -3.68], r, [0, 1, 0], 1.04, 0.6, [...A.sw('tglass'), ...A.sw('tglass')]);
-    T.pic([s * (S.half + 0.008), 2.55, -2.05], r, [0, 1, 0], 0.5, 0.32, [...A.sw('tglass'), ...A.sw('tglass')]);
+    // A rubber frame standing proud round the door window, and the sleeper window.
+    for (const y of [2.29, 2.95]) T.box(s * (S.half + 0.015), y, -3.68, 0.03, 0.04, 1.16, 'black');
+    for (const z of [-4.25, -3.11]) T.box(s * (S.half + 0.015), 2.62, z, 0.03, 0.7, 0.04, 'black');
+    T.pic([s * (S.half + 0.004), 2.62, -2.42], r, [0, 1, 0], 0.48, 0.36, [...A.sw('black'), ...A.sw('black')]);
+    T.pic([s * (S.half + 0.008), 2.62, -2.42], r, [0, 1, 0], 0.42, 0.3, [...A.sw('tglass'), ...A.sw('tglass')]);
     T.box(x, 1.95, -4.3, 0.008, 1.95, 0.012, 'gap');
     T.box(x, 1.95, -2.95, 0.008, 1.95, 0.012, 'gap');
     T.box(x, 1.0, -3.62, 0.008, 0.012, 1.35, 'gap');
@@ -147,11 +162,11 @@ function semiTractor(T, A) {
     T.rod([s * S.half, 2.85, -4.38], [s * 1.48, 2.85, -4.5], 0.025, 0.025, 'chrome');
     T.box(s * 1.49, 2.58, -4.5, 0.1, 0.56, 0.16, 'black');
     T.pic([s * 1.49, 2.58, -4.42], [s, 0, 0], [0, 1, 0], 0.08, 0.5, [...A.sw('mirror'), ...A.sw('mirror')]);
-    // Twin stacks behind the cab with heat shields and angled tips.
-    T.geo(new THREE.CylinderGeometry(0.09, 0.09, 3.0, 12).translate(s * 0.98, 2.45, -1.2), 'chrome');
-    T.geo(new THREE.CylinderGeometry(0.115, 0.115, 1.0, 12).translate(s * 0.98, 2.2, -1.2), 'steel');
-    T.geo(new THREE.CylinderGeometry(0.09, 0.09, 0.3, 12).rotateX(0.5).translate(s * 0.98, 4.02, -1.25), 'chrome');
-    T.box(s * 0.98, 1.6, -1.3, 0.06, 0.06, 0.2, 'black');
+    // Twin stacks behind the sleeper with heat shields and angled tips.
+    T.geo(new THREE.CylinderGeometry(0.09, 0.09, 3.2, 12).translate(s * 0.98, 2.55, -1.85), 'chrome');
+    T.geo(new THREE.CylinderGeometry(0.1, 0.1, 1.0, 12).translate(s * 0.98, 2.3, -1.85), 'steel');
+    T.geo(new THREE.CylinderGeometry(0.09, 0.09, 0.3, 12).rotateX(0.5).translate(s * 0.98, 4.22, -1.8), 'chrome');
+    T.box(s * 0.98, 1.6, -1.92, 0.06, 0.06, 0.1, 'black');
   }
   // Wheels: wide singles in front, duals on the tandem drive axles, quarter
   // fenders and mud flaps behind.
@@ -242,7 +257,8 @@ function semiFar(p, A) {
   const S = SEMI;
   T.box(0, 1.5, -6.05, 1.56, 1.3, 2.7, 'tpaint');
   T.box(0, 1.0, -7.45, 2.45, 0.35, 0.2, 'chrome');
-  T.box(0, 2.07, -3.07, S.half * 2, 2.25, 3.38, 'tpaint');
+  T.box(0, 2.08, -3.355, S.half * 2, 2.26, 2.81, 'tpaint');
+  T.box(0, 3.39, -2.45, S.half * 2 - 0.1, 0.36, 1.0, 'tpaint');
   T.box(0, 2.68, -4.77, 2.0, 0.75, 0.02, 'tglass');
   for (const s of [-1, 1]) T.box(s * 0.99, 1.1, -6.05, 0.5, 0.75, 2.5, 'tpaint');
   if (p.trailer === 'flatbed') {
