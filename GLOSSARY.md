@@ -32,6 +32,13 @@ _Avoid_: printed map (for a hand-drawn one), sketch
 The map the player draws for themselves on the map screen. Only ever the player's own drawing.
 _Avoid_: drawing, hand map, my map
 
+**Map wall**:
+The corkboard of every shared sketch for one mission, most votes first, with the real map pinned beside them. The player gets there by picking the better of two other drivers' sketches (a pick is a thumbs-up), or straight from the start screen's Maps link.
+_Avoid_: gallery, maps page, map board (that is the server)
+
+**Seed map**:
+A deliberately poor sketch made by `tools/seed-maps.mjs` and loaded by an admin so the map wall isn't empty. Made-up nickname, never anyone's own.
+
 ## Getting lost
 
 **Trap**:
