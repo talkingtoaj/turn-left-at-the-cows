@@ -127,6 +127,20 @@ const VIEWS = [
   { name: 'semib_close', car: { x: 1700, y: 1440, heading: 0 }, cam: [1754, 2.4, 1416.5], look: [1745, 1.8, 1427] },
   { name: 'semib_side', car: { x: 1700, y: 1440, heading: 0 }, cam: [1760, 1.9, 1428], look: [1745, 1.7, 1428] },
   { name: 'semib_site', car: { x: 1700, y: 1440, heading: 0 }, cam: [1778, 13, 1462], look: [1745, 6, 1416] },
+  // Churches (#59). St. Anne's, Ashford: front 3/4 (tower door and steps),
+  // straight on the front, the east side and letter board, and from Main
+  // Street as the player first sees it. St. Luke's, Brandt (churchb_*) needs
+  // SHOTS_QUERY='opening=off&spot=brandt': the same views, and from Route 40.
+  { name: 'church_close', car: { x: 500, y: 2385, heading: 0 }, cam: [491, 2.4, 2399], look: [470, 11, 2428] },
+  { name: 'church_front', car: { x: 500, y: 2370, heading: 0 }, cam: [470, 2.0, 2390], look: [470, 12.5, 2428] },
+  { name: 'church_door', car: { x: 500, y: 2380, heading: 0 }, cam: [474, 1.7, 2419], look: [470, 2.2, 2426] },
+  { name: 'church_side', car: { x: 520, y: 2480, heading: 0 }, cam: [494, 2.6, 2466], look: [471, 5, 2440] },
+  { name: 'church_road', car: { x: 597, y: 2484, heading: 300 }, cam: [601, 1.5, 2482], look: [470, 12, 2440] },
+  { name: 'churchb_close', car: { x: 1640, y: 1460, heading: 0 }, cam: [1623, 2.4, 1474], look: [1602, 11, 1503] },
+  { name: 'churchb_front', car: { x: 1640, y: 1450, heading: 0 }, cam: [1602, 2.0, 1465], look: [1602, 12.5, 1503] },
+  { name: 'churchb_side', car: { x: 1650, y: 1560, heading: 0 }, cam: [1626, 2.6, 1541], look: [1603, 5, 1515] },
+  { name: 'churchb_road', car: { x: 1598, y: 1601, heading: 270 }, cam: [1606, 1.5, 1598], look: [1600, 12, 1515] },
+  { name: 'churchb_board', car: { x: 1580, y: 1601, heading: 90 }, cam: [1592, 1.6, 1595], look: [1596, 1.6, 1589] },
 ];
 
 const browser = await launchChromium();
