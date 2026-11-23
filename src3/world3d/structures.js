@@ -5,11 +5,12 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { hashString, localToWorld, distToPolyline, makeRng } from '../../src/drive/geom.js';
 import {
-  GAS, CHURCH, WATER_TOWER, MILL, RADIO_MAST, SILO, anchorPoints,
+  GAS, WATER_TOWER, MILL, RADIO_MAST, SILO, anchorPoints,
 } from '../../src/drive/layout.js';
 import { box, cyl, cone, pyramid, gable, strut, disc, flatPolygon } from './shapes.js';
 import { buildKind } from './kinds.js';
 import { buildNewLandmark } from './landmarks3d.js';
+import { buildChurch } from './church3d.js';
 import { buildRuin, buildWindpumpWheels } from './ruins3d.js';
 import { buildAirfield, buildAirfieldBuilding } from './airfield3d.js';
 import { buildGasStation } from './gas3d.js';
@@ -245,40 +246,7 @@ function buildLandmark(terrain, batch, l, rng, materials) {
   const A = batch.audit;
 
   if (l.kind === 'church') {
-    const n = CHURCH.nave;
-    const t = CHURCH.tower;
-    const stone = 0xe4ded0;
-    if (A) {
-      A.rect(l.id, 'church', l.x + n.lx, l.y + n.ly, n.w, n.h, 0, base - FOUND, base);
-      A.rect(l.id, 'church', l.x + t.lx, l.y + t.ly, t.w, t.h, 0, base - FOUND, base);
-    }
-    P(box(n.w, 7 + FOUND, n.h), n.lx, n.ly, -FOUND, stone);
-    P(gable(n.w + 0.8, n.h + 0.8, 6), n.lx, n.ly, 7, 0x55585e);
-    // Tall pointed windows along the nave.
-    for (let y = n.ly - n.h / 2 + 3; y < n.ly + n.h / 2 - 1; y += 4) {
-      for (const side of [-1, 1]) P(box(0.14, 3.2, 1.1), side * n.w / 2, y, 2, 0x3b4a6b);
-    }
-    // Tower with a spire, belfry openings and a gold cross.
-    P(box(t.w, 17 + FOUND, t.h), t.lx, t.ly, -FOUND, stone);
-    P(box(t.w + 0.4, 0.5, t.h + 0.4), t.lx, t.ly, 17, 0xb9b2a2);
-    for (const [dx, dy, g] of [[0, -t.h / 2, box(1.4, 2.2, 0.14)], [0, t.h / 2, box(1.4, 2.2, 0.14)], [-t.w / 2, 0, box(0.14, 2.2, 1.4)], [t.w / 2, 0, box(0.14, 2.2, 1.4)]]) {
-      P(g, t.lx + dx, t.ly + dy, 13.5, 0x2a2a2a);
-    }
-    P(box(1.8, 2.8, 0.14), t.lx, t.ly - t.h / 2, 0, 0x5b3a2a); // door
-    P(pyramid(t.w + 0.2, 15), t.lx, t.ly, 17.5, 0x4b4e55);
-    P(box(0.25, 2.6, 0.25), t.lx, t.ly, 32.3, 0xd9c27a);
-    P(box(1.4, 0.25, 0.25), t.lx, t.ly, 33.8, 0xd9c27a);
-    P(box(0.2, 1.4, 0.2), n.lx, n.ly + n.h / 2, 12.5, 0xd9c27a);
-    P(box(0.9, 0.2, 0.2), n.lx, n.ly + n.h / 2, 13.3, 0xd9c27a);
-    // Gravestones either side of the nave.
-    for (let i = 0; i < 26; i++) {
-      const side = i % 2 ? -1 : 1;
-      const gx = side * (9 + rng() * 6);
-      const gy = -12 + rng() * 30;
-      const tilt = new THREE.Matrix4().makeRotationZ((rng() - 0.5) * 0.2);
-      batch.place(box(0.7, 0.9, 0.2), l.x, l.y, base, 0, gx, gy, 0, 0xb9b6ae, { cast: false, extra: tilt });
-      if (A) A.rect(l.id, 'gravestone', l.x + gx, l.y + gy, 0.7, 0.2, 0, base, base + 0.4);
-    }
+    buildChurch(terrain, batch, l, rng); // church3d.js (#59)
     return null;
   }
 
