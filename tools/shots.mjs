@@ -345,6 +345,27 @@ const VIEWS = [
   { name: 'shop_b_close', car: { x: 1860, y: 1603, heading: 270 }, cam: [1781, 2.0, 1590], look: [1766, 3.0, 1574] },
   { name: 'shop_b_front', car: { x: 1860, y: 1603, heading: 270 }, cam: [1765, 2.2, 1595], look: [1765, 3.6, 1574] },
   { name: 'shop_b_road', car: { x: 1860, y: 1603, heading: 270 }, cam: [1860, 1.4, 1603], look: [1765, 3, 1570] },
+  // Road bridges (#78): Highway 9 over Willow Creek (bridge_hwy_*) and Route 40
+  // over the Coldwater (bridge_rt40_*): close 3/4 of the end posts, straight
+  // down the deck, side on from the bank, and from the road as you drive up.
+  // Brandt's (bridgeb_*, SHOTS_QUERY='opening=off&spot=brandt'): Route 40
+  // over Sandy Creek and the dirt South Road bridge.
+  { name: 'bridge_hwy_close', car: { x: 2404, y: 1615.9, heading: 358.4 }, cam: [2413.3, 2.4, 1579.7], look: [2405.4, 1.4, 1567.9] },
+  { name: 'bridge_hwy_front', car: { x: 2404, y: 1615.9, heading: 358.4 }, cam: [2399.5, 1.6, 1587], look: [2400.1, 2, 1555] },
+  { name: 'bridge_hwy_side', car: { x: 2404, y: 1615.9, heading: 358.4 }, cam: [2439.6, 2, 1553.9], look: [2400.1, 1, 1555] },
+  { name: 'bridge_hwy_road', car: { x: 2404, y: 1615.9, heading: 358.4 } },
+  { name: 'bridge_rt40_close', car: { x: 4195.1, y: 1184.9, heading: 87.4 }, cam: [4231.6, 2.4, 1193.6], look: [4243.2, 1.4, 1185.5] },
+  { name: 'bridge_rt40_front', car: { x: 4195.1, y: 1184.9, heading: 87.4 }, cam: [4223.9, 1.6, 1179.9], look: [4260, 2, 1179.8] },
+  { name: 'bridge_rt40_side', car: { x: 4195.1, y: 1184.9, heading: 87.4 }, cam: [4261.8, 2, 1219.2], look: [4260, 1, 1179.8] },
+  { name: 'bridge_rt40_road', car: { x: 4195.1, y: 1184.9, heading: 87.4 } },
+  { name: 'bridgeb_sandy_close', car: { x: 2414.9, y: 1658.2, heading: 99.5 }, cam: [2448.7, 2.4, 1674.3], look: [2461.8, 1.4, 1668.9] },
+  { name: 'bridgeb_sandy_road', car: { x: 2414.9, y: 1658.2, heading: 99.5 } },
+  { name: 'bridgeb_south_close', car: { x: 2535.8, y: 2567.1, heading: 90 }, cam: [2571.8, 2.4, 2575.9], look: [2583.8, 1.4, 2568.4] },
+  { name: 'bridgeb_south_front', car: { x: 2535.8, y: 2567.1, heading: 90 }, cam: [2564.8, 1.6, 2563.4], look: [2594.8, 2, 2564.9] },
+  { name: 'bridgeb_south_road', car: { x: 2535.8, y: 2567.1, heading: 90 } },
+  // Name plates up close: Route 40's end post (Fenwick), South Road's (Brandt).
+  { name: 'bridge_rt40_plate', car: { x: 4195.1, y: 1184.9, heading: 87.4 }, cam: [4236.4, 1.3, 1184.8], look: [4239.7, 1.0, 1185.9] },
+  { name: 'bridgeb_south_plate', car: { x: 2535.8, y: 2567.1, heading: 90 }, cam: [2577.8, 1.1, 2567.7], look: [2581.1, 0.8, 2568.7] },
 ];
 
 const browser = await launchChromium();
