@@ -20,20 +20,14 @@ Made with three.js. Built for Game Off 2026 (theme: SHIFT).
 | Keys | What it does |
 |---|---|
 | Arrows or WASD | Drive or walk |
-| Space | Handbrake |
 | F | Get out of the car or back in |
-| Mouse | Look around on foot (click; Esc lets go) |
-| Shift | Jog |
-| Right mouse | Hold: turn your head in the car, squint on foot |
-| E | Talk, next, "What's that?" |
-| 1 to 4 | Ask about an underlined name |
+| Right mouse | Click and hold right mouse: turn your head |
+| E | Talk |
 | M | Map |
-| N | North-up or heading-up |
+| T | Radio on or off |
 | K | Mute |
 | C | Camera |
-| B | Horn |
-| H | Help |
-| Enter | Next mission |
+| H | Horn |
 
 Play on a computer with a keyboard. It needs a browser with WebGL.
 

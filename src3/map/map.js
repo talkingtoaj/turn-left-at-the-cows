@@ -22,6 +22,7 @@ import {
   drawStamp, seedFrom, smoothPoints, distToSegment,
   STAMP_KINDS, STAMP_NAMES,
 } from '../../src/map/draw.js';
+import { renderHelp } from '../../src/ui/help.js';
 import { CanvasGraphics, drawText, makeFakeScene, rgba } from './canvasGraphics.js';
 import {
   MAP_W as W, MAP_H as H, PAPER, STAMP_SCALE, SKETCH_PAPER, HAND, LABEL_SIZE, THIN_W, THICK_W,
@@ -80,10 +81,12 @@ function buildTabs() {
       fill: SKETCH_PAPER,
       font: HAND,
     })),
+    // The how-to-play content, last in the row (#88; H used to open it).
+    { id: 'help', text: 'Help', fill: OLD_PAPER, font: SERIF },
   ];
   const x0 = PAPER.x + 168;
   const room = NOTE_BTN.x - 8 - x0;
-  const w = extra.length ? Math.min(206, Math.floor(room / extra.length) - 8) : 0;
+  const w = Math.min(206, Math.floor(room / extra.length) - 8);
   TABS = [
     base
       ? { id: 'sketch', text: base.def.tabLabel || base.def.title, x: PAPER.x + 20, w: 140, fill: OLD_PAPER, font: SERIF }
@@ -117,6 +120,8 @@ const STYLE = `
   background: #fbf6e4; border: 1px solid #b9ab8a; border-radius: 4px; box-shadow: 3px 4px 0 rgba(0,0,0,0.18);
   font-family: ${HAND}; color: #3a3128; }
 .map-notes.map-notes-open { display: flex; }
+.map-help { position: absolute; display: none; margin: 0; box-sizing: border-box; overflow-y: auto; pointer-events: auto; user-select: text; -webkit-user-select: text; }
+.map-help.map-help-open { display: block; }
 .map-notes-head { padding: 7px 12px 5px; font-size: 17px; border-bottom: 2px solid #d9a0a0; flex: none; }
 .map-notes-head small { font-size: 11px; color: #8a7f6c; margin-left: 6px; }
 .map-notes-body { overflow-y: auto; padding: 4px 12px 10px; flex: 1; font-size: 13px; line-height: 1.4;
@@ -212,6 +217,13 @@ export function createMapOverlay(root, { onClose } = {}) {
   // Scrolling and clicking in the notebook must not draw on the sketch.
   notes.addEventListener('pointerdown', (e) => e.stopPropagation());
   notes.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
+  // The Help tab's panel: the how-to-play sheet over the paper.
+  const helpPanel = document.createElement('div');
+  helpPanel.className = 'map-help ui-paper';
+  Object.assign(helpPanel.style, { left: PAPER.x + 'px', top: PAPER.y + 'px', width: PAPER.w + 'px', height: PAPER.h + 'px' });
+  layer.appendChild(helpPanel);
+  helpPanel.addEventListener('pointerdown', (e) => e.stopPropagation());
+  helpPanel.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
   root.appendChild(el);
   const ctx = canvas.getContext('2d');
   const g = new CanvasGraphics(ctx);
@@ -476,6 +488,9 @@ export function createMapOverlay(root, { onClose } = {}) {
 
     if (tab === 'sketch') {
       drawSketch();
+    } else if (tab === 'help') {
+      // Plain paper under the DOM help panel.
+      paintSketchPaper(g, ctx);
     } else if (tab.startsWith('old:')) {
       // An earlier mission's map: look only.
       const sk = TABS.find((t) => t.id === tab).sketch;
@@ -499,7 +514,18 @@ export function createMapOverlay(root, { onClose } = {}) {
     lastTab = id;
     hoverTip = null;
     renderNotes(true);
+    renderHelpPanel();
     requestRender();
+  }
+
+  // Fills the help panel each time the tab shows (the tips box reads its saved state).
+  function renderHelpPanel() {
+    const show = tab === 'help';
+    helpPanel.classList.toggle('map-help-open', show);
+    if (!show) return;
+    helpPanel.textContent = '';
+    renderHelp(helpPanel, '3d');
+    helpPanel.scrollTop = 0;
   }
 
   function setTool(t, kind = null) {
@@ -873,6 +899,7 @@ export function createMapOverlay(root, { onClose } = {}) {
     el.classList.add('map-open');
     fit();
     renderNotes(true);
+    renderHelpPanel();
     window.addEventListener('keydown', onKey, true);
     window.addEventListener('keypress', onKey, true);
     window.addEventListener('resize', onResize);
@@ -901,5 +928,6 @@ export function createMapOverlay(root, { onClose } = {}) {
     open: openMap,
     close,
     isOpen: () => open,
+    tabs: () => TABS.map((t) => ({ id: t.id, x: t.x, w: t.w, y: PAPER.y - 15 })), // for tools/shots-controls.mjs
   };
 }

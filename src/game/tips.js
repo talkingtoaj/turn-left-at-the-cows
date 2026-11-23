@@ -9,7 +9,7 @@
 //
 // Remembered in localStorage (`tlatc.tips.v1`: { off, n: { id: times } }),
 // every access in try/catch: without storage tips still work, they just
-// start afresh each visit. Turn them off in How to play (H), or with
+// start afresh each visit. Turn them off in How to play (the map's Help tab), or with
 // ?tips=off; ?tips=reset forgets what was shown and turns them back on.
 
 export const TIPS_KEY = 'tlatc.tips.v1';
@@ -92,7 +92,7 @@ export const TIPS = [
     when: (c) => !c.busy && c.damaged },
   { id: 'repair', max: 3, text: 'Warning light on? Stop at a gas station or garage in town and press E to get the car fixed.',
     when: (c) => !c.busy && c.damaged && !c.onFoot && c.driveTime > 20 && !c.repairNear },
-  { id: 'names', max: 3, text: 'Click a name or press 1-4 to ask about it.',
+  { id: 'names', max: 3, text: 'Click a name to ask about it.',
     when: (c) => c.namesShown },
   { id: 'sketch', max: 2, text: 'Press M to sketch what you heard.',
     when: (c) => !c.busy && c.talkedTo > 0 && c.sketchEmpty && !c.onFoot && c.speed > 2 },

@@ -7,7 +7,7 @@
 // Volume knob: drag it (up or right is louder) or roll the mouse wheel over the
 // radio. Turning it up switches the radio on. For a moment after a change the
 // number shows the volume. At 0% the lamp goes dark, as if off.
-// Keys (src3/main.js): T power, comma / period volume down / up by 10%.
+// Keys (src3/main.js): T power.
 // The slot's own "RADIO" label sits along its bottom edge.
 
 import { DIAL_MIN, DIAL_MAX } from '../../src/radio/radioLogic.js';
@@ -62,7 +62,7 @@ export function createRadioDial(slot, radio) {
     document.head.appendChild(s);
   }
   const root = div('rdial', slot);
-  root.title = 'Radio: T on / off, comma and period (or the knob) for volume. It finds the station by itself.';
+  root.title = 'Radio: T on / off, the knob for volume. It finds the station by itself.';
   const top = div('rdial-top', root);
   const power = div('rdial-power', top);
   div('rdial-lamp', power);

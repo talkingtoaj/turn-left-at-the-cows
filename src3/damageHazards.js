@@ -13,7 +13,7 @@
 // just ahead, again each time you press G), ?fallen=1|2|... (start on the
 // road 45 m short of that fixed fallen tree, facing it), ?spot=x,y,heading
 // (start there).
-// Keys: B horn.
+// Keys: H horn.
 
 import { WORLD } from '../src/world/world.js';
 import { state } from '../src/state.js';
@@ -63,11 +63,11 @@ export function createDamageHazards({ scene, scenery, collider, amb, world3d, ri
     }
   }
 
-  // Horn: B. One honk per press; animals and slow vehicles ahead may react.
+  // Horn: H (was B; #88). One honk per press; animals and slow vehicles ahead may react.
   let hornCool = 0;
   let honkNow = false;
   const onHornKey = (e) => {
-    if (e.code !== 'KeyB' || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.code !== 'KeyH' || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
     const t = e.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
     honkNow = true;

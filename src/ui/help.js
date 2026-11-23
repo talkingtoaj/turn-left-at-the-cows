@@ -1,22 +1,18 @@
-// H key: the how-to-play panel as a pause overlay (same content as the
-// splash). H or Esc closes it. The caller pauses and unpauses the game.
+// The how-to-play content, shown as the Help tab on the map screen
+// (src3/map/map.js). Same content as the start screen's How to play sheet,
+// plus Darlene's note. Before #88 this was an overlay opened with H.
 
-import { injectUiStyle, el, trapKeys } from './style.js';
+import { injectUiStyle, el } from './style.js';
 import { renderIntroNote } from './introCard.js';
 import { renderHowTo, TITLE, PITCH } from './splash.js';
 
-// Opens the panel. onClose runs once when it closes. Returns { close }.
-export function openHelp({ version, onClose }) {
+// Fills `parent` (which should have the ui-paper look) with the help.
+export function renderHelp(parent, version) {
   injectUiStyle();
-  const shade = el('div', 'ui-shade ui-dim', document.body);
-  shade.id = 'help-panel';
-  const paper = el('div', 'ui-paper', shade);
-  el('div', 'ui-paused', paper, 'PAUSED');
-  el('div', 'ui-close', paper, 'H or Esc: back');
-  el('h1', 'ui-title', paper, TITLE);
-  el('p', 'ui-pitch', paper, PITCH);
-  renderHowTo(paper, version);
-  const foot = el('div', 'ui-foot', paper);
+  el('h1', 'ui-title', parent, TITLE);
+  el('p', 'ui-pitch', parent, PITCH);
+  renderHowTo(parent, version);
+  const foot = el('div', 'ui-foot', parent);
   const noteBtn = el('button', 'ui-pbtn', foot, "Darlene's note");
   noteBtn.type = 'button';
   noteBtn.setAttribute('aria-expanded', 'false');
@@ -26,29 +22,11 @@ export function openHelp({ version, onClose }) {
       noteEl.remove();
       noteEl = null;
     } else {
-      noteEl = renderIntroNote(paper);
+      noteEl = renderIntroNote(parent);
       noteEl.classList.add('ui-help-note');
-      paper.insertBefore(noteEl, foot);
+      parent.insertBefore(noteEl, foot);
       noteEl.scrollIntoView?.({ block: 'nearest' });
     }
     noteBtn.setAttribute('aria-expanded', String(!!noteEl));
   });
-  const btn = el('button', 'ui-btn', foot, 'Back to the road');
-  btn.type = 'button';
-  el('span', 'ui-note', foot, 'or press H or Esc');
-
-  let open = true;
-  const close = () => {
-    if (!open) return;
-    open = false;
-    untrap();
-    shade.remove();
-    onClose?.();
-  };
-  const untrap = trapKeys((e) => {
-    if (e.repeat) return;
-    if (e.key === 'Escape' || e.key === 'h' || e.key === 'H') close();
-  });
-  btn.addEventListener('click', close);
-  return { close, get open() { return open; } };
 }

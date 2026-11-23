@@ -4,7 +4,7 @@
 // preloadMenu) fades in behind it. Below it, the dash: a notepad with the
 // jobs and the big Continue / Play button, and the paper map of Ashford
 // County with the jobs pencilled on (./splashMap.js).
-// Also holds the shared how-to-play content (the H help panel uses it).
+// Also holds the shared how-to-play content (the map screen's Help tab uses it).
 
 import { injectUiStyle, el } from './style.js';
 import { SPLASH_CSS } from './splashStyle.js';
@@ -31,7 +31,7 @@ const SEEN_KEY = 'askalocal.seenIntro';
 // [bold start, rest]
 export const STEPS = [
   ['You have a job to do.', ' Take something to a place you have never been.'],
-  ['Ask the locals.', ' Stop, get out (F) and walk up to someone. Press E and they tell you the way. Click a name they say, or press its number, to ask about it. New names give you new things to ask.'],
+  ['Ask the locals.', ' Stop, get out (F) and walk up to someone. Press E and they tell you the way. Click a name they say to ask about it. New names give you new things to ask.'],
   ['Look around.', ' On foot, look at a tower or a hill and press E: a local beside you will tell you what it is. Listen too: planes, bells and creeks all point somewhere.'],
   ['Draw your own map.', ' Press M and sketch what you heard. Your notebook keeps every word they said.'],
   ['Printed maps can lie.', ' Roads close, bridges wash out and names change. Trust what you see.'],
@@ -41,23 +41,17 @@ export const STEPS = [
 // [keys, what it does, optional version it only applies to (unused since the 2D drop)]
 export const CONTROLS = [
   [['Arrows', 'WASD'], 'Drive / walk'],
-  [['Space'], 'Handbrake'],
   [['F'], 'Get out of the car / back in'],
-  [['Mouse'], 'Look around on foot (click; Esc lets go)'],
-  [['Shift'], 'Jog'],
-  [['Right mouse'], 'Hold: turn your head in the car, squint on foot'],
-  [['E'], 'Talk / next / "What\u2019s that?"'],
-  [['1-4'], 'Ask about an underlined name'],
+  [[], 'Click and hold right mouse: turn your head'], // no key cell: the line is the whole row (#88, owner's words)
+  [['E'], 'Talk'],
   [['M'], 'Map'],
-  [['N'], 'North-up / heading-up'],
   [['T'], 'Radio on / off (it finds a station by itself)'],
-  [[',', '.'], 'Radio volume down / up. Or drag the knob, or roll the mouse wheel over it'],
   [['K'], 'Mute'],
   [['C'], 'Camera'],
-  [['B'], 'Horn'],
-  [['H'], 'Help'],
-  [['Enter'], 'Next mission'],
+  [['H'], 'Horn'],
 ];
+// Still work, listed nowhere (owner, 2026-11-23, #88): Shift jogs, the mouse
+// looks around on foot, Enter starts the next mission.
 
 // Fills `parent` with the "how it works" list and the controls table.
 export function renderHowTo(parent, version) {
@@ -75,6 +69,10 @@ export function renderHowTo(parent, version) {
   const table = el('table', 'ui-keys', right);
   for (const [keys, what, only] of CONTROLS) {
     const tr = el('tr', only && only !== version ? 'ui-off' : null, table);
+    if (!keys.length) {
+      el('td', null, tr, what).colSpan = 2;
+      continue;
+    }
     const k = el('td', null, tr);
     keys.forEach((key) => el('kbd', 'ui-kbd', k, key));
     el('td', null, tr, what);

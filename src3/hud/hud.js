@@ -14,7 +14,6 @@ import { printedMapsFor } from '../../src/game/printedMaps.js';
 import { mapWithShifts, shiftTally, shiftCountText, realMapDef, PRESENT_YEAR } from '../../src/game/shifts.js';
 import { openMissionCard } from '../../src/ui/missionCard.js';
 import { openIntroCard, introSeen } from '../../src/ui/introCard.js';
-import { openHelp } from '../../src/ui/help.js';
 import { towedText } from '../../src/game/tow.js';
 import { mountShareStrip, wallAfterMission } from '../../src/ui/mapShare.js';
 import { rememberMyMap } from '../../src/game/myMaps.js';
@@ -24,8 +23,8 @@ import { createRadioDial } from './radioDial.js';
 
 // The HUD (a DOM/CSS port of the old 2D HUD). Shows the dash (compass, odometer,
 // clock, speed, trip timer), the talk prompt, the conversation (./talk.js), the goal line, the mission complete screen, and owns
-// the E / M / R / Enter / H / 1-9 keys. The mission card and the help panel
-// are shared DOM screens (src/ui) that take every key while open.
+// the E / M / R / Enter keys. The mission card is a shared DOM screen (src/ui)
+// that takes every key while open. Help is a tab on the map screen.
 // Core rule: never show the player's position, a minimap or coordinates.
 
 // Ignore M this long after the map closes, so the same keypress that
@@ -329,8 +328,7 @@ function buildSpeedo(parent) {
   return needle;
 }
 
-// Key hints sit above the dash and fade after about a minute. H (which also
-// opens the help panel) brings them back for another minute.
+// Key hints sit above the dash and fade after about a minute. H (the horn) brings them back for another minute.
 const HINT_FADE_MS = 60000;
 
 export function createHUD(root, { openMap, radio } = {}) {
@@ -366,7 +364,7 @@ export function createHUD(root, { openMap, radio } = {}) {
   const radioDial = radio ? createRadioDial(radioSlot, radio) : null;
   const devDmg = new URLSearchParams(window.location.search).has('damage') ? el('div', 'hud-dev-dmg', hud) : null;
   const hintBar = el('div', 'hud-hint', hud,
-    'Arrows/WASD drive · F get out / in · E talk · M map · C camera · B horn · N north/heading-up · T radio (, . volume) · K mute · H help and hints');
+    'Arrows/WASD drive · F get out / in · E talk · M map · C camera · H horn · T radio · K mute');
   let hintShownAt = performance.now();
   const showHints = () => {
     hintShownAt = performance.now();
@@ -388,7 +386,6 @@ export function createHUD(root, { openMap, radio } = {}) {
   let winTab = 0; // the win screen's open tab; kept when it is rebuilt (after M), reset by showWin
   let promptText = null;
   let card = null; // mission card while it shows
-  let help = null; // how-to-play panel while it shows
   const last = {}; // last text written per element, to skip DOM writes
   let lastScaleW = -1;
 
@@ -425,23 +422,6 @@ export function createHUD(root, { openMap, radio } = {}) {
     } else {
       openMission();
     }
-  }
-
-  // H: how-to-play as a pause overlay. Not over the map, a dialogue, the
-  // mission card or the end screens.
-  function onHelpKey() {
-    if (help || card || mapOpen || inDialogue() || zoomBox || state.won) return;
-    if (performance.now() - mapClosedAt < MAP_REOPEN_GUARD_MS) return;
-    state.inputLocked = true;
-    runtime.paused = true;
-    help = openHelp({
-      version: '3d',
-      onClose: () => {
-        help = null;
-        runtime.paused = false;
-        state.inputLocked = false;
-      },
-    });
   }
 
   function closeDialogue() {
@@ -529,7 +509,7 @@ export function createHUD(root, { openMap, radio } = {}) {
   // M works while driving, during a dialogue (it comes back as it was) and
   // on the complete screen (to finish the map).
   function onMapKey() {
-    if (!openMap || zoomBox || card || help || state.allMissionsDone) return;
+    if (!openMap || zoomBox || card || state.allMissionsDone) return;
     if (performance.now() - mapClosedAt < MAP_REOPEN_GUARD_MS) return;
     mapOpen = true;
     hud.style.display = 'none';
@@ -547,7 +527,7 @@ export function createHUD(root, { openMap, radio } = {}) {
     }
     // A breakdown's tow scene (src3/tow3d.js) has the keys while it plays.
     if (state.towing) return;
-    if (runtime.paused || card || help) return;
+    if (runtime.paused || card) return;
     if (zoomBox) {
       if (!e.repeat && (e.key === 'Escape' || e.key === 'Enter' || e.key.toLowerCase() === 'e')) closeZoom();
       return;
@@ -557,7 +537,7 @@ export function createHUD(root, { openMap, radio } = {}) {
     const k = e.key.toLowerCase();
     if (k === 'e') onTalkKey();
     else if (k === 'm') onMapKey();
-    else if (k === 'h') { showHints(); onHelpKey(); }
+    else if (k === 'h') showHints();
     else if (k === 'r' && state.won) window.location.reload();
     else if (e.key === 'Enter') onContinueKey();
   }
@@ -662,9 +642,9 @@ export function createHUD(root, { openMap, radio } = {}) {
 
   function updatePrompt() {
     let text = null;
-    const shop = !inDialogue() && !card && !help && !state.won && !talkFirst() ? state.nearRepair : null;
+    const shop = !inDialogue() && !card && !state.won && !talkFirst() ? state.nearRepair : null;
     if (shop) text = `E: get the car fixed at ${shop.name} (${shop.kind === 'farm' ? 20 : 30} min)`;
-    else if (!inDialogue() && !card && !help && !state.won && state.onFoot) {
+    else if (!inDialogue() && !card && !state.won && state.onFoot) {
       const local = state.nearLocalId && WORLD.locals.find((l) => l.id === state.nearLocalId);
       const beside = state.nearLocalAny && WORLD.locals.find((l) => l.id === state.nearLocalAny);
       const look = state.lookAt;
@@ -966,9 +946,9 @@ export function createHUD(root, { openMap, radio } = {}) {
     }
     updatePrompt();
     updateGoalLine();
-    if (inDialogue() || winShown || card || help) state.inputLocked = true;
+    if (inDialogue() || winShown || card) state.inputLocked = true;
     if (state.won && !winShown) showWin();
-    if (state.briefPending && !inDialogue() && !state.won && !card && !help) showCard();
+    if (state.briefPending && !inDialogue() && !state.won && !card) showCard();
   }
 
   return { update };

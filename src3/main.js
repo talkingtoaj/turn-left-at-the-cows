@@ -332,7 +332,7 @@ const isTyping = (e) => {
   const t = e.target;
   return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
 };
-const DRIVE_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'ShiftLeft', 'ShiftRight']);
+const DRIVE_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight']);
 window.addEventListener('keydown', (e) => {
   if (isTyping(e)) return;
   const plain = !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey;
@@ -348,13 +348,8 @@ window.addEventListener('keydown', (e) => {
     toggleFoot();
   } else if (e.code === 'KeyC' && plain && !foot.active) {
     runtime.cameraMode = runtime.cameraMode === 'top' ? 'chase' : 'top';
-  } else if (e.code === 'KeyN' && plain) {
-    state.view.northUp = !state.view.northUp;
   } else if (e.code === 'KeyT' && plain && !menu) {
     radio.toggle();
-  } else if (!menu && (e.code === 'Comma' || e.code === 'Period') && !e.ctrlKey && !e.metaKey && !e.altKey) {
-    // Radio volume: 10% a step. Held keys keep stepping. (It tunes itself.)
-    radio.nudgeVolume(e.code === 'Comma' ? -0.1 : 0.1);
   }
 });
 window.addEventListener('keyup', (e) => keys.delete(e.code));
@@ -378,7 +373,6 @@ function readInput() {
     down: keys.has('KeyS') || keys.has('ArrowDown'),
     left: keys.has('KeyA') || keys.has('ArrowLeft'),
     right: keys.has('KeyD') || keys.has('ArrowRight'),
-    brake: keys.has('Space'),
   };
 }
 
@@ -960,6 +954,7 @@ export async function preloadMenu(index = 0, { live = true, still = false, rect 
 // Debug handles (refreshed after every region load).
 function exposeDebug() {
   window.__state = state;
+  window.__map = map;
   window.__runtime = runtime;
   window.__three = { renderer, scene, camera, fps, THREE, world3d, stats, res, regionId, lastLoad, memoryNow };
   window.__amb = amb;

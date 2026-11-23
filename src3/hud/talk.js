@@ -1,7 +1,7 @@
 // Talking to a local (round 12). Walk up on foot, face them and press E:
 // they greet you and answer about the current job's goal at once. Names
-// they mention that you can ask about (src/world/topics.js) are underlined
-// with a number: click one or press 1-4 to ask. At most 4 on a page, the
+// they mention that you can ask about (src/world/topics.js) are underlined:
+// click one to ask (the 1-4 keys were cut, #88). At most 4 on a page, the
 // first ones mentioned. "Ask about..." opens your notebook's list of every
 // name you have heard, with type-to-search. "What's that?" asks about the
 // thing you are looking at. Every line goes in the notebook
@@ -133,13 +133,12 @@ export function createTalk(root) {
     // A stranger (the tourist) mumbles too, but has no names to ask about.
     d.choices = d.tourist ? [] : topicChoices(p.text, p.topicId, 4, WORLD);
     let at = 0;
-    d.choices.forEach((c, i) => {
+    d.choices.forEach((c) => {
       if (c.start > at) textEl.append(p.text.slice(at, c.start));
       const a = el('span', 'talk-name-link', textEl, p.text.slice(c.start, c.end));
       a.tabIndex = 0;
       a.setAttribute('role', 'button');
-      a.title = `Ask about ${topicLabel(c.id)} (${i + 1})`;
-      el('sup', null, a, String(i + 1));
+      a.title = `Ask about ${topicLabel(c.id)}`;
       a.addEventListener('click', (e) => {
         e.stopPropagation();
         askTopic(c.id);
@@ -191,7 +190,7 @@ export function createTalk(root) {
       hint.textContent = picking ? `${pages}1-${d.replyTexts.length}: reply   Esc: leave` : `${pages}E: ${last ? 'goodbye' : 'next'}`;
       return;
     }
-    hint.textContent = `${pages}E: ${last ? 'goodbye' : 'next'}${d.choices.length ? `   ${d.choices.length > 1 ? `1-${d.choices.length}` : '1'}: ask` : ''}   M: map`;
+    hint.textContent = `${pages}E: ${last ? 'goodbye' : 'next'}   M: map`;
   }
 
   function begin(npcId, pages, tourist = null) {
@@ -385,11 +384,6 @@ export function createTalk(root) {
         else if (!d.replies || d.page < d.pages.length - 1) {
           if (k === 'e' || k === 'E' || k === 'Enter' || k === ' ') advance();
         }
-        return true;
-      }
-      if (/^[1-4]$/.test(k)) {
-        const c = d.choices[Number(k) - 1];
-        if (c) askTopic(c.id);
         return true;
       }
       if (k === 'e' || k === 'E' || k === 'Enter' || k === ' ') {
