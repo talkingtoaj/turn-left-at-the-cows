@@ -15,6 +15,7 @@ import {
   HONK, WAIT, waitState, stepWait, turnPose, turnLength, JAM, knotGiving,
   JUNCTION, brakeCap, turnSpeed, turnRoom, turnSide, blinkLit, blinkNow, stopsAt, junctionCurve, curveAt, headedInto,
 } from './trafficRules.js';
+import { roadGap, SIGN_CLEAR } from '../world/roadside.js'; // signs stand off the road (#87)
 import { carPaint } from './carpaint.js'; // traffic paint: real rural colors, seeded per car (#50)
 import { trafficType } from './carkit.js'; // some types have their own colors (the 4x4 #44, work vans #46)
 import { farmDogsIn, dogStart, stepDog, dogHeld, dogLook } from '../world/farmDog.js';
@@ -183,14 +184,30 @@ export function createAmbient(world, scenery) {
       if (a.at < a.n.len - 6) dirs.push(-1);
       for (const dir of dirs) {
         node.stopBack.set(`${a.n.road.id}:${dir}`, backFromPaved(node, a, dir, node.pavedHalf + JUNCTION.stopBack));
-        const s = a.at - dir * backFromPaved(node, a, dir, node.pavedHalf + 1.4);
-        if (s < 0 || s > a.n.len) continue;
-        const p = roadPoint(a.n, s, {});
-        const fx = p.dx * dir;
-        const fy = p.dy * dir;
-        const off = a.n.road.width / 2 + 1.1;
-        const x = p.x - fy * off;
-        const y = p.y + fx * off;
+        const back0 = backFromPaved(node, a, dir, node.pavedHalf + 1.4);
+        // Where the minor road meets at a sharp angle, its right side can
+        // lie on the paved road: step the sign back up the arm until it
+        // stands clear of every road (#87, Old River Road at Highway 9).
+        let x = 0;
+        let y = 0;
+        let fx = 0;
+        let fy = 0;
+        let first = null;
+        for (let extra = 0; extra <= 20; extra += 0.5) {
+          const s = a.at - dir * (back0 + extra);
+          if (s < 0 || s > a.n.len) break;
+          const p = roadPoint(a.n, s, {});
+          fx = p.dx * dir;
+          fy = p.dy * dir;
+          const off = a.n.road.width / 2 + 1.1;
+          x = p.x - fy * off;
+          y = p.y + fx * off;
+          if (!first) first = { x, y, fx, fy };
+          if (roadGap(x, y, world.roads) >= SIGN_CLEAR) break;
+          // None clear: keep the first spot (tools/check-signs.mjs flags it).
+          if (extra >= 20) ({ x, y, fx, fy } = first);
+        }
+        if (!first) continue;
         const h = hashString(`${node.id}:${a.n.road.id}:${dir}`);
         const rural = !inTown(x, y);
         stopSigns.push({
