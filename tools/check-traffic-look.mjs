@@ -296,5 +296,39 @@ ok('fade falls steadily across the band', distanceFade(38) > distanceFade(40) &&
   ok('far mesh stays small (all three shapes)', tris < 2500, `${tris} tris`);
 }
 
+// The tractor (tractor3d.js, #65): built through a plain builder, it stands
+// on its tires, fits the dirt road, and stays a modest size.
+{
+  const { tractorInto, TRACTOR } = await import('../src3/world3d/tractor3d.js');
+  const geos = [];
+  const lo = [Infinity, Infinity, Infinity];
+  const hi = [-Infinity, -Infinity, -Infinity];
+  let rubberLow = Infinity;
+  const add = (g, m) => {
+    const p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const v = [p.getX(i), p.getY(i), p.getZ(i)];
+      for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], v[k]); hi[k] = Math.max(hi[k], v[k]); }
+      if (m === 'rubber') rubberLow = Math.min(rubberLow, v[1]);
+    }
+    geos.push(g.index ? g.index.count / 3 : p.count / 3);
+  };
+  tractorInto({
+    fine: false,
+    box: (x, y, z, w, h, d, m) => add(new THREE.BoxGeometry(w, h, d).translate(x, y, z), m),
+    bar: (a, b, w, th, m) => add(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...a), new THREE.Vector3(...b)]), m),
+    smooth: add,
+    geo: add,
+    pic: (c, r, u, w, h, m) => add(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...c)]), m),
+    disc: (c, n, rad, m) => add(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...c)]), m),
+    wheel: () => { throw new Error('tractor draws its own wheels'); },
+  });
+  const tris = geos.reduce((a, b) => a + b, 0);
+  ok('tractor stands on its tires', Math.abs(rubberLow) < 0.03 && lo[1] > -0.03, `lowest tire ${rubberLow.toFixed(3)}, lowest part ${lo[1].toFixed(3)}`);
+  ok('tractor fits a dirt road lane (under 2.6 m wide, 4.6 m long, 3.2 m tall)', hi[0] - lo[0] < 2.6 && hi[2] - lo[2] < 4.6 && hi[1] < 3.2, `${(hi[0] - lo[0]).toFixed(2)} x ${(hi[2] - lo[2]).toFixed(2)} x ${hi[1].toFixed(2)}`);
+  ok('tractor big rear tires, small front ones', TRACTOR.rearR > TRACTOR.frontR * 1.6);
+  ok('tractor stays modest (under 12k triangles)', tris < 12000, `${Math.round(tris)} tris`);
+}
+
 console.log(bad ? `\n${bad} FAILED` : '\nall ok');
 process.exit(bad ? 1 : 0);

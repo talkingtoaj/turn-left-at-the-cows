@@ -36,6 +36,7 @@ import { farStandIns } from './trafficfar.js';
 import { kitInto, doorZone } from './trafficKit.js';
 import { farmTruckInto, FARM } from './farmtruck3d.js';
 import { sixBySixInto, SIX } from './sixbysix3d.js';
+import { tractorInto } from './tractor3d.js';
 import { sixBySixPaint } from '../../src/ambient/sixbysix.js';
 import { dirtGlsl } from './car3d.js';
 import { fourByFourCoarse } from './fourbyfour3d.js';
@@ -74,6 +75,9 @@ const MAT = {
   strap: [0xd9541c, 0, 0.7, 0],
   flap: [0x161616, 0, 0.9, 0],
   plankDark: [0x4a3624, 0, 0.9, 0],
+  // The tractor (tractor3d.js): cream rims and roof.
+  rim: [0xd9c27a, 0, 0.45, 0],
+  cream: [0xe8e2cf, 0, 0.4, 0],
 };
 
 // Tag a geometry with colour, paint mask and roughness / metalness.
@@ -263,6 +267,7 @@ function coarseBody(into, type) {
 }
 const farmTruck = () => coarseBody(farmTruckInto, 'farmtruck');
 const sixBySix = () => coarseBody(sixBySixInto, 'sixbysix');
+const tractor = () => coarseBody(tractorInto, 'tractor');
 
 
 // Shared shader parts: paint tint (instance colour, or paint2 below
@@ -424,9 +429,10 @@ for (const name of ['sedan', 'wagon', 'pickup', 'hatch', 'van']) {
   LAMPS[name] = { half: S.half, hw: S.hw, yF: (S.belt(-S.half) + S.y0 + 0.2) / 2 + 0.02, yR: (S.belt(S.half) + S.y0 + 0.2) / 2 + 0.06 };
 }
 
-// One instanced mesh of a type, on its own (the slow farm trucks in hazards3d).
+// One instanced mesh of a type, on its own (the slow farm trucks and
+// tractors in hazards3d).
 const GEOS = { sedan: () => loftCar('sedan'), wagon: () => loftCar('wagon'), pickup: () => loftCar('pickup'), hatch: () => loftCar('hatch'), farmtruck: farmTruck, van: () => loftCar('van'),
-  fourbyfour: () => fourByFourCoarse({ loftShell, tag, box, quadZ, wheel, coarseKit }), sixbysix: sixBySix };
+  fourbyfour: () => fourByFourCoarse({ loftShell, tag, box, quadZ, wheel, coarseKit }), sixbysix: sixBySix, tractor };
 export function vehicleMesh(type, max, env = null) {
   const mesh = new THREE.InstancedMesh(GEOS[type](), makeMaterial(env), max);
   mesh.count = 0;

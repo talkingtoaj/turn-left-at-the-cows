@@ -197,6 +197,15 @@ const VIEWS = [
   { name: 'porch_d_front', car: { x: 2470, y: 853, heading: 77 }, cam: [2488, 1.8, 836], look: [2505, 2.2, 836] },
   { name: 'porch_d_swing', car: { x: 2470, y: 853, heading: 77 }, cam: [2509, 1.7, 852], look: [2507, 1.2, 844] },
   { name: 'porch_d_road', car: { x: 2470, y: 853, heading: 77 }, cam: [2470, 1.4, 853], look: [2510, 3, 838] },
+  // Tractors (#65): slow farm tractors on Ridge Road (pin ids 'hz:<paint>'):
+  // 3/4 front close, straight side, the big tire, the back, three in a row,
+  // and from the car as the player comes up behind one.
+  { name: 'tractor_close', car: { road: 'ridge_rd', at: 0.5 }, pin: [['hz:0x3f7a35', 20, 1, 1]], tcam: [[3.2, 1.9, -4.6], [0, 1.1, 0]] },
+  { name: 'tractor_side', car: { road: 'ridge_rd', at: 0.5 }, pin: [['hz:0xb8352a', 20, 1, 1]], tcam: [[6.2, 1.4, 0], [0, 1.1, 0]] },
+  { name: 'tractor_tire', car: { road: 'ridge_rd', at: 0.5 }, pin: [['hz:0x2f5f9a', 20, 1, 1]], tcam: [[3.6, 1.1, 3.0], [0.9, 0.8, 0.85]] },
+  { name: 'tractor_rear', car: { road: 'ridge_rd', at: 0.5 }, pin: [['hz:0x3f7a35', 20, 1, 1]], tcam: [[3.0, 2.2, 6.2], [0, 1.2, 0.4]] },
+  { name: 'tractor_row', car: { road: 'ridge_rd', at: 0.5 }, pin: [['hz:0x3f7a35', 18, 1, 1], ['hz:0xb8352a', 28, 1, 1], ['hz:0x2f5f9a', 38, 1, 1]], tcam: [[4.5, 3, 7], [0, 1, -12]] },
+  { name: 'tractor_road', car: { road: 'ridge_rd', at: 0.5 }, pin: [['hz:0x3f7a35', 16, 1, 1]] },
 ];
 
 const browser = await launchChromium();
@@ -332,6 +341,25 @@ for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) 
         window.__pins.push({ id, x: px + ox, y: py + oy, heading: (hd + 360) % 360 });
       }
     }
+    // Hazard tractors (#65): pin ids 'hz:<color>' are slow farm tractors
+    // (src/ambient/hazards.js), spawned if missing and held in place after
+    // every hazard tick. Hazards are cleared after a view that pinned any.
+    const dh = window.__dh;
+    if (dh && !dh.__pinWrap) {
+      const upd = dh.hz.update.bind(dh.hz);
+      dh.hz.update = (...a) => {
+        const r = upd(...a);
+        const want = (window.__pins || []).filter((p) => p.id.startsWith('hz:'));
+        const mine = () => dh.hz.vehicles.filter((q) => q.kind === 'tractor');
+        for (let k = mine().length; k < want.length; k++) if (!dh.spawn('tractor', 25)) break;
+        const tr = mine();
+        want.forEach((p, k) => tr[k] && Object.assign(tr[k], { x: p.x, y: p.y, heading: p.heading, speed: 0, color: Number(p.id.slice(3)) }));
+        return r;
+      };
+      dh.__pinWrap = true;
+    }
+    if (dh && window.__hzPinned) dh.hz.reset();
+    window.__hzPinned = (v.pin || []).some(([id]) => id.startsWith('hz:'));
     // Dirt on traffic cars for this view (#43). Cars an earlier view dirtied
     // go back to their own base dirt (0 is under it, so the next tick lifts it).
     if (window.__trafficDirt) {

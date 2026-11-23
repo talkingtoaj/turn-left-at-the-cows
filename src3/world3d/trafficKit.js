@@ -211,6 +211,7 @@ export function kitInto(type, B) {
   else if (type === 'fourbyfour') fourByFourKit(B, { rack, can, bullbar, flaps });
   else if (type === 'van') vanKit(B);
   else if (type === 'sixbysix') sixKit(B);
+  else if (type === 'tractor') return; // no kit (tractor3d.js, hazards only)
   else loftKit(type, B);
 }
 

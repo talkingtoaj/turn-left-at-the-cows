@@ -2,7 +2,7 @@
 // branches and logs, tractors and farm trucks (instanced), fixed fallen
 // trees part way across roads, and smoke from a damaged engine. Hazard animals are
 // drawn by ambient3d with the herd meshes (pass hz.animals to its update).
-// About seven draw calls in all, most of them empty most of the time.
+// About six draw calls in all, most of them empty most of the time.
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -154,34 +154,6 @@ function logGeo() {
   return mergeGeometries(parts);
 }
 
-function wheelGeo(r, w, x, z, hex = 0x1e1e1e) {
-  return colored(new THREE.CylinderGeometry(r, r, w, 10).rotateZ(Math.PI / 2).translate(x, r, z), hex);
-}
-
-// Farm tractor: paint parts are light grey so the instance colour tints them.
-function tractorGeo() {
-  const P = 0xeeeeee;
-  const paint = [
-    colored(box(1.0, 0.75, 1.9).translate(0, 0.65, -0.65), P), // bonnet
-    colored(box(1.5, 0.25, 1.2).translate(0, 1.0, 0.75), P), // rear deck under the cab
-    colored(box(1.55, 0.15, 0.9).translate(0, 1.0, 1.35), P), // mudguards
-    colored(box(1.3, 0.08, 1.25).translate(0, 2.55, 0.75), P), // cab roof
-  ];
-  const trim = [
-    colored(box(1.2, 1.3, 1.1).translate(0, 1.25, 0.75), 0x2c3a44), // cab glass
-    colored(box(1.25, 0.08, 1.15).translate(0, 1.22, 0.75), 0x2a2a2a),
-    colored(new THREE.CylinderGeometry(0.06, 0.06, 0.9, 5).translate(0.32, 1.65, -1.1), 0x2a2a2a), // exhaust
-    colored(box(0.85, 0.35, 0.08).translate(0, 0.55, -1.62), 0x333333), // grille
-    colored(box(0.2, 0.12, 0.05).translate(-0.3, 0.95, -1.62), 0xfff3c4),
-    colored(box(0.2, 0.12, 0.05).translate(0.3, 0.95, -1.62), 0xfff3c4),
-    colored(box(0.07, 0.07, 0.07).translate(0.6, 2.55, 1.35), 0xf0a020), // beacon
-    wheelGeo(0.78, 0.45, -0.95, 0.85), wheelGeo(0.78, 0.45, 0.95, 0.85),
-    wheelGeo(0.42, 0.28, -0.68, -1.15), wheelGeo(0.42, 0.28, 0.68, -1.15),
-    wheelGeo(0.4, 0.47, -0.95, 0.85, 0xc8a23a), wheelGeo(0.4, 0.47, 0.95, 0.85, 0xc8a23a), // hubs
-  ];
-  return { paint: mergeGeometries(paint), trim: mergeGeometries(trim) };
-}
-
 // A fixed fallen tree (src/world/fallenTrees.js), built in world space:
 // the same CC0 model the standing tree used, laid on its side along the
 // line it fell, a bark trunk the size of its collision circles, the root
@@ -278,14 +250,11 @@ export function createHazards3D(scene, opts) {
   const vc = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
   const branches = instanced(branchGeo(), vc, MAX_DEBRIS);
   const logs = instanced(logGeo(), vc, MAX_DEBRIS);
-  // Tractors keep their shapes, with the cars' sky reflections when there is
-  // one; slow farm trucks are the traffic's stake-side farm truck (one mesh).
-  const vm = env ? new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.6, metalness: 0.1, envMap: env, envMapIntensity: 0.8 }) : vc;
-  const tg = tractorGeo();
-  const tractorPaint = instanced(tg.paint, vm, MAX_VEHICLES);
-  const tractorTrim = instanced(tg.trim, vm, MAX_VEHICLES);
+  // Slow tractors (tractor3d.js) and farm trucks (farmtruck3d.js): one
+  // instanced mesh each, built and shaded like the traffic.
+  const tractorMesh = vehicleMesh('tractor', MAX_VEHICLES, env);
   const truckMesh = vehicleMesh('farmtruck', MAX_VEHICLES, env);
-  const meshes = [branches, logs, tractorPaint, tractorTrim, truckMesh];
+  const meshes = [branches, logs, tractorMesh, truckMesh];
   group.add(...meshes);
 
   // Engine smoke: grey, darker as the engine gets worse.
@@ -358,13 +327,12 @@ export function createHazards3D(scene, opts) {
           truckMesh.setColorAt(nk, col);
           nk++;
         } else {
-          tractorPaint.setMatrixAt(nt, m);
-          tractorTrim.setMatrixAt(nt, m);
-          tractorPaint.setColorAt(nt, col);
+          tractorMesh.setMatrixAt(nt, m);
+          tractorMesh.setColorAt(nt, col);
           nt++;
         }
       }
-      tractorPaint.count = tractorTrim.count = nt;
+      tractorMesh.count = nt;
       truckMesh.count = nk;
       for (const mesh of meshes) {
         mesh.visible = mesh.count > 0;
