@@ -182,7 +182,8 @@ export function sweepFreq(from, to, t) {
 
 // Volume knob (0..1) to gain (0..1). Squared, so each step of the knob sounds
 // about as big as the last: 70% is 6 dB down, 50% is 12 dB down.
-export const VOLUME_START = 0.7;
+// The knob starts at 75% (owner's playtest, #87).
+export const VOLUME_START = 0.75;
 export function volumeGain(volume) {
   const v = Math.min(1, Math.max(0, Number(volume) || 0));
   return v * v;

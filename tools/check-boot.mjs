@@ -50,6 +50,10 @@ try {
   await page.waitForTimeout(RUN_MS);
   const frames = (await page.evaluate(() => window.__three.renderer.info.render.frame)) - startFrame;
   if (frames < 2) errors.push(`only ${frames} frames drawn in ${RUN_MS / 1000} s`);
+  // The radio is on when you set off, at 75% (#87). A fresh browser has no saved volume.
+  const radio = await page.evaluate(() => ({ on: window.__radio.state.on, volume: window.__radio.volume }));
+  if (!radio.on) errors.push('the radio is off at the start (it should start on, #87)');
+  if (radio.volume !== 0.75) errors.push(`the radio starts at ${radio.volume * 100}% (should be 75%, #87)`);
   ok = errors.length === 0;
   console.log(`check:boot: scene up, ${frames} frames drawn`);
 } catch (e) {

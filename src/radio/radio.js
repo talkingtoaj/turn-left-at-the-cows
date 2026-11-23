@@ -68,7 +68,7 @@ import { radioAudioUrl } from './segments.js';
 // over the engine. The game's compressor can only make the engine quieter.
 // The owner tuned it (15 Nov 2026): down to 60% of that 0.46, then up by
 // half twice, so full volume is 1.35 x it (about 2.6 dB louder). It still
-// starts at 70% on the knob.
+// starts at 75% on the knob (VOLUME_START, #87).
 const LEVEL = 0.46 * 0.6 * 1.5 * 1.5 * 1.5;
 const PAUSE_DUCK = 0.15;
 const NOISE_LEVEL = 0.2;
@@ -79,7 +79,8 @@ const PARAM_EVERY = 0.1; // seconds between sound parameter updates
 const FADE_OUT = 0.25; // seconds to fade out when you get out of the car (or turn it down to 0)
 const FADE_TC = FADE_OUT / 4; // time constant for that fade (about 2% left after FADE_OUT)
 // v2: the knob's scale changed (LEVEL above), so old saved volumes start over at 70%.
-const VOLUME_KEY = 'askalocal.radioVolume2';
+// v3: the start went up to 75% (#87); a knob left at 0 had the radio start "off".
+const VOLUME_KEY = 'askalocal.radioVolume3';
 
 // The volume knob is remembered between visits. Storage can be blocked: then
 // it starts at VOLUME_START every visit.
@@ -120,6 +121,7 @@ export function createRadio(opts = {}) {
   let ctx = null;
   let nodes = null;
   let on = false;
+  let wantOn = false; // asked to switch on before the AudioContext existed: on once it does
   let volume = readVolume();
   let inCar = true;
   let quietFor = 0; // seconds since it stopped being audible (out of the car or at 0)
@@ -373,6 +375,7 @@ export function createRadio(opts = {}) {
         paramT = 0; // start the fade now
       }
     }
+    if (wantOn && !on && sharedAudioContext()) setOn(true);
     if (!on || !nodes) {
       idle(dt);
       return;
@@ -486,8 +489,12 @@ export function createRadio(opts = {}) {
   function setOn(v) {
     v = !!v;
     if (v === on) return on;
+    wantOn = false;
     if (v) {
-      if (!build()) return false;
+      if (!build()) {
+        wantOn = true; // update() switches it on once the sound is unlocked
+        return false;
+      }
       if (ctx.state === 'suspended') ctx.resume();
       on = true;
       paramT = 0;

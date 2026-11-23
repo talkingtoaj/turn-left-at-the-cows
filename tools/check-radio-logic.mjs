@@ -209,14 +209,14 @@ if (kinds.size !== 2) fail('need both talk and music items to test resume offset
   if (!(SWEEP_SECONDS >= 0.8 && SWEEP_SECONDS <= 1.2)) fail('sweep not about a second');
 }
 
-// Volume curve: 0 is silent, 1 is full, always rising, 70% to start.
+// Volume curve: 0 is silent, 1 is full, always rising, 75% to start (#87).
 {
   if (volumeGain(0) !== 0 || volumeGain(1) !== 1) fail('volume ends');
   if (volumeGain(-1) !== 0 || volumeGain(2) !== 1 || volumeGain('x') !== 0) fail('volume clamps');
   for (let v = 0.05; v <= 1; v += 0.05) if (!(volumeGain(v) > volumeGain(v - 0.05))) fail('volume not rising at ' + v);
   const db = 20 * Math.log10(volumeGain(0.5));
   if (!(db < -9 && db > -15)) fail('volume taper: 50% is ' + db.toFixed(1) + ' dB');
-  if (VOLUME_START !== 0.7) fail('volume start');
+  if (VOLUME_START !== 0.75) fail('volume start');
 }
 
 // Lightning crackle: close is loud and about half a second, far a faint tick.
