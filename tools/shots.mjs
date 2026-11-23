@@ -402,6 +402,31 @@ if (process.env.SHOTS_MISSION) {
   await dismissCards();
 }
 
+// SHOTS_EXTRA_TRIS=<n> adds one mesh of about n triangles that is drawn in
+// every view (the budget check's self-test: it must then fail).
+if (process.env.SHOTS_EXTRA_TRIS) {
+  await page.evaluate((n) => {
+    // Added to the live scene before each view (regions swap scenes). No bare
+    // 'three' import in the page: borrow the classes from a mesh in the scene.
+    let m = null;
+    window.__addExtraTris = (scene) => {
+      if (m && m.parent === scene) return;
+      if (!m) {
+        let src = null;
+        scene.traverse((o) => { if (!src && o.isMesh && !o.isInstancedMesh && !o.isSkinnedMesh && o.material && (o.material.isMeshStandardMaterial || o.material.isMeshLambertMaterial || o.material.isMeshBasicMaterial)) src = o; });
+        const g = new src.geometry.constructor();
+        const pos = new Float32Array(n * 9);
+        for (let i = 0; i < pos.length; i += 9) { pos[i + 3] = 0.01; pos[i + 7] = 0.01; } // tiny triangles at the origin
+        g.setAttribute('position', new src.geometry.attributes.position.constructor(pos, 3));
+        m = new src.constructor(g, new src.material.constructor({ color: 0xff00ff }));
+        m.frustumCulled = false;
+        m.castShadow = false;
+      }
+      scene.add(m);
+    };
+  }, Number(process.env.SHOTS_EXTRA_TRIS));
+}
+
 fs.mkdirSync(outDir, { recursive: true });
 const stats = {};
 for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) {
@@ -623,13 +648,14 @@ for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) 
         } else c.lookAt(st.car.x + fx * 6, H(st.car.x, st.car.y) + 0.6, st.car.y + fy * 6);
         c.updateMatrixWorld();
       }
+      if (window.__addExtraTris) window.__addExtraTris(s);
       renderer.__orig(s, c);
     };
   }, v);
   await page.waitForTimeout(2500);
   await dismissCards();
   const file = path.join(outDir, `${prefix}_${v.name}.png`);
-  await page.screenshot({ path: file });
+  if (!process.env.SHOTS_NO_PNG) await page.screenshot({ path: file }); // SHOTS_NO_PNG=1: numbers only
   stats[v.name] = await page.evaluate(() => {
     const el = [...document.querySelectorAll('div')].find((d) => /calls \d+/.test(d.textContent) && d.style.position === 'fixed');
     return el ? el.textContent.split('\n').filter((l) => /calls/.test(l)).join(' | ') : null;
