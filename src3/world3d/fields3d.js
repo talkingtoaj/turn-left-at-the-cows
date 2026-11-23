@@ -370,7 +370,7 @@ function cattlePaths(paint, f, trough, feeder, cx, cy) {
 
 // A rail between two posts as straight legs, bending where the ground
 // between them rises above the straight line. Returns [[ax, ay, ah, bx, by, bh]].
-function railLegs(H, px, py, h0, qx, qy, h1) {
+export function railLegs(H, px, py, h0, qx, qy, h1) {
   const knots = [[px, py, h0]];
   for (const t of [0.25, 0.5, 0.75]) {
     const kx = px + (qx - px) * t;

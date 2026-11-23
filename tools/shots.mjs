@@ -310,6 +310,41 @@ const VIEWS = [
   { name: 'shop_b_close', car: { x: 1860, y: 1603, heading: 270 }, cam: [1781, 2.0, 1590], look: [1766, 3.0, 1574] },
   { name: 'shop_b_front', car: { x: 1860, y: 1603, heading: 270 }, cam: [1765, 2.2, 1595], look: [1765, 3.6, 1574] },
   { name: 'shop_b_road', car: { x: 1860, y: 1603, heading: 270 }, cam: [1860, 1.4, 1603], look: [1765, 3, 1570] },
+  // Yards (#85): worn paths, banks, hollows and a fence on one side, per
+  // lot (src/world/yards.js): 3/4 on the path, straight on to the fence (or
+  // a bank), and from the road. Millbrook shop, Ashford gas, St. Anne's,
+  // Hartley, Dunmore store, Calder diner:
+{ name: 'yard_m_close', car: { x: 2300, y: 602.9, heading: 87 }, cam: [2368, 1.9, 595], look: [2361, 0, 600] },
+  { name: 'yard_m_front', car: { x: 2300, y: 602.9, heading: 87 }, cam: [2340, 1.5, 623.5], look: [2340, 0.7, 614.5] },
+  { name: 'yard_m_road', car: { x: 2300, y: 602.9, heading: 87 }, cam: [2300, 1.4, 602.9], look: [2361, 0.5, 600] },
+  { name: 'yard_ga_close', car: { x: 697.7, y: 2375.7, heading: 194 }, cam: [675.8, 1.9, 2467.2], look: [677.2, 0, 2458.7] },
+  { name: 'yard_ga_front', car: { x: 697.7, y: 2375.7, heading: 194 }, cam: [715, 1.5, 2469], look: [715, 0, 2455] },
+  { name: 'yard_ga_road', car: { x: 697.7, y: 2375.7, heading: 194 }, cam: [697.7, 1.4, 2375.7], look: [677.2, 0.5, 2458.7] },
+  { name: 'yard_ch_close', car: { x: 600, y: 2444.4, heading: 271 }, cam: [511.6, 1.9, 2450], look: [507.2, 0, 2442.7] },
+  { name: 'yard_ch_front', car: { x: 600, y: 2444.4, heading: 271 }, cam: [464.5, 1.5, 2473], look: [464.5, 0.7, 2464] },
+  { name: 'yard_ch_road', car: { x: 600, y: 2444.4, heading: 271 }, cam: [600, 1.4, 2444.4], look: [507.2, 0.5, 2442.7] },
+  { name: 'yard_hf_close', car: { x: 2652.6, y: 289, heading: 146 }, cam: [2756.5, 1.9, 429.6], look: [2749.6, 0, 434.8] },
+  { name: 'yard_hf_front', car: { x: 2652.6, y: 289, heading: 146 }, cam: [2745, 1.5, 408], look: [2736, 0.7, 408] },
+  { name: 'yard_hf_road', car: { x: 2652.6, y: 289, heading: 146 }, cam: [2652.6, 1.4, 289], look: [2749.6, 0.5, 434.8] },
+  { name: 'yard_ds_close', car: { x: 3368.7, y: 286.8, heading: 26 }, cam: [3385.2, 1.9, 240.4], look: [3387.4, 0, 248.7] },
+  { name: 'yard_ds_front', car: { x: 3368.7, y: 286.8, heading: 26 }, cam: [3347.5, 1.5, 256], look: [3356.5, 0.7, 256] },
+  { name: 'yard_ds_road', car: { x: 3368.7, y: 286.8, heading: 26 }, cam: [3368.7, 1.4, 286.8], look: [3387.4, 0.5, 248.7] },
+  { name: 'yard_cd_close', car: { x: 4647.5, y: 1161.1, heading: 341 }, cam: [4636.2, 1.9, 1112.5], look: [4633.9, 0, 1120.8] },
+  { name: 'yard_cd_front', car: { x: 4647.5, y: 1161.1, heading: 341 }, cam: [4675.5, 1.5, 1128], look: [4666.5, 0.7, 1128] },
+  { name: 'yard_cd_road', car: { x: 4647.5, y: 1161.1, heading: 341 }, cam: [4647.5, 1.4, 1161.1], look: [4633.9, 0.5, 1120.8] },
+  // Brandt store, gas, St. Luke's and Dagny's farm: SHOTS_QUERY='opening=off&spot=brandt'.
+  { name: 'yard_bs_close', car: { x: 1758.7, y: 1600.9, heading: 346 }, cam: [1735, 1.9, 1540.7], look: [1743.6, 0, 1540.8] },
+  { name: 'yard_bs_front', car: { x: 1758.7, y: 1600.9, heading: 346 }, cam: [1732.5, 1.5, 1564], look: [1741.5, 0.7, 1564] },
+  { name: 'yard_bs_road', car: { x: 1758.7, y: 1600.9, heading: 346 }, cam: [1758.7, 1.4, 1600.9], look: [1743.6, 0.5, 1540.8] },
+  { name: 'yard_gb_close', car: { x: 1808.3, y: 1602, heading: 152 }, cam: [1832.2, 1.9, 1632.4], look: [1823.8, 0, 1630.6] },
+  { name: 'yard_gb_front', car: { x: 1808.3, y: 1602, heading: 152 }, cam: [1811, 1.5, 1665.5], look: [1811, 0.7, 1656.5] },
+  { name: 'yard_gb_road', car: { x: 1808.3, y: 1602, heading: 152 }, cam: [1808.3, 1.4, 1602], look: [1823.8, 0.5, 1630.6] },
+  { name: 'yard_cb_close', car: { x: 1598.3, y: 1599.1, heading: 343 }, cam: [1574.7, 1.9, 1552.6], look: [1583.1, 0, 1550.8] },
+  { name: 'yard_cb_front', car: { x: 1598.3, y: 1599.1, heading: 343 }, cam: [1632, 1.5, 1509.5], look: [1623, 0.7, 1509.5] },
+  { name: 'yard_cb_road', car: { x: 1598.3, y: 1599.1, heading: 343 }, cam: [1598.3, 1.4, 1599.1], look: [1583.1, 0.5, 1550.8] },
+  { name: 'yard_dg_close', car: { x: 2478, y: 930, heading: 357 }, cam: [2473, 1.9, 879], look: [2475.9, 0, 887] },
+  { name: 'yard_dg_front', car: { x: 2478, y: 930, heading: 357 }, cam: [2474, 1.5, 902], look: [2483, 0.7, 902] },
+  { name: 'yard_dg_road', car: { x: 2478, y: 930, heading: 357 }, cam: [2478, 1.4, 930], look: [2475.9, 0.5, 887] },
 ];
 
 const browser = await launchChromium();

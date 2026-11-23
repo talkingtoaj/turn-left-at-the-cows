@@ -13,6 +13,7 @@ import { buildDressing } from './dressing.js';
 import { buildTrees } from './trees.js';
 import { buildScatter } from './scatter3d.js';
 import { buildVerge } from './verge3d.js';
+import { buildYardFences } from './yards3d.js';
 import { buildPuddles } from './puddles3d.js';
 import { mudFor } from '../../src/world/mud.js';
 import { districtsFor, KIND_LIST, RECIPES } from '../../src/world/districts.js';
@@ -132,6 +133,7 @@ function buildSky() {
 export function buildObjects(world, scenery, terrain, batch, materials = {}) {
   buildGround(world, scenery, terrain, batch);
   buildFields(world, terrain, batch, scenery);
+  buildYardFences(world, terrain, batch, scenery); // yard fences (#85)
   buildProps(world, terrain, batch);
   const wires = buildPowerLines(world, terrain, batch);
   buildMailboxes(world, terrain, batch);

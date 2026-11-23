@@ -7,6 +7,7 @@ import {
   buildingSolids, landmarkSolids, fenceSolids, TREE_HIT_R, LOCAL_HIT_R, POLE_R,
 } from './layout.js';
 import { parkedIn, parkedSolids } from '../world/parked.js';
+import { yardFenceSolids } from '../world/yards.js';
 
 const CELL = 32;
 
@@ -45,6 +46,7 @@ export class Collider {
       this.addSolids(solids);
     }
     this.addSolids(fenceSolids(world));
+    this.addSolids(yardFenceSolids(world, scenery.trees)); // yard fences (#85)
     for (const p of parkedIn(world.regionId)) this.addSolids(parkedSolids(p)); // parked semis (#47)
     for (const t of scenery.trees) this.addCircle({ x: t.x, y: t.y, r: TREE_HIT_R, kind: 'tree' });
     // Countryside fill: bales, haystacks, rocks and power poles.
