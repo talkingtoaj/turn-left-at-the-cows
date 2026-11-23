@@ -31,6 +31,7 @@ import {
 import { roughnessFor } from '../../src/world/roughness.js';
 import { measurePolyline, pointAlong, SegIndex, bbox } from '../../src/drive/geom.js';
 import { DIRT_LIFT } from './ground.js';
+import { vergeFor } from '../../src/world/verge.js';
 
 export const CARPET_ON = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('carpet') !== 'off';
 
@@ -420,6 +421,8 @@ export function buildCarpet(world, terrain, groundColor = null) {
   const GREEN = new THREE.Color(0x5f8f4a);
   const STRAW = new THREE.Color(0xb7ab68);
   const LUSH = new THREE.Color(0x4f8a3a);
+  const DITCH = new THREE.Color(0x3f6e30); // deep, rank green down a ditch (#66)
+  const V = vergeFor(world);
   const gc = new THREE.Color();
   const clumpColor = (x, y, h, tint, out) => {
     if (groundColor) {
@@ -429,6 +432,8 @@ export function buildCarpet(world, terrain, groundColor = null) {
     out.copy(gc).multiplyScalar(0.84 + 0.2 * tint);
     if (tint > 0.62) out.lerp(STRAW, (tint - 0.62) * 0.7);
     else if (tint < 0.4) out.lerp(LUSH, (0.4 - tint) * 1.2);
+    const dk = V.ditchAt(x, y);
+    if (dk > 0) out.lerp(DITCH, 0.6 * dk);
   };
   // Clover heads white to red; flower petals by kind, each clump a little
   // lighter or darker.

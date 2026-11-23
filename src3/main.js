@@ -573,6 +573,7 @@ function frame(now) {
     updateGame(state, dt);
   }
 
+  car3d.setWeather(wetness.rain, wetness.wet); // mud washes off in rain (#73)
   car3d.update(car, runtime.paused ? 0 : dt, world3d.surfaceAt, foot.active ? 0 : steer, state.damage || null, ground.offRoad ? ground : null);
   // The tow scene: the truck, and the winch lifting the car's front.
   tow.update(dt, car3d.object);

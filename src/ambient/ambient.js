@@ -41,7 +41,10 @@ const fwdY = (h) => -Math.cos(h * DEG);
 export function createAmbient(world, scenery) {
   const rng = makeRng((world.seed ^ 0x5a17b3) >>> 0);
   const R = (a, b) => a + rng() * (b - a);
-  const trees = (scenery && scenery.trees) || [];
+  // Birds keep to the older trees: the rows and dead trees (#69, t.more)
+  // come last in the list, so indices stay the same, and leaving them out
+  // keeps this sim's random stream (shared with the traffic) as it was.
+  const trees = ((scenery && scenery.trees) || []).filter((t) => !t.more);
 
   // ---------- Road index (surface lookup) ----------
   const roadIndex = new SegIndex(32);
