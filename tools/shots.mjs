@@ -366,6 +366,23 @@ const VIEWS = [
   // Name plates up close: Route 40's end post (Fenwick), South Road's (Brandt).
   { name: 'bridge_rt40_plate', car: { x: 4195.1, y: 1184.9, heading: 87.4 }, cam: [4236.4, 1.3, 1184.8], look: [4239.7, 1.0, 1185.9] },
   { name: 'bridgeb_south_plate', car: { x: 2535.8, y: 2567.1, heading: 90 }, cam: [2577.8, 1.1, 2567.7], look: [2581.1, 0.8, 2568.7] },
+  // Diner, store and cabin (#77): close 3/4, straight on, and from the road
+  // as the player first sees them. Fenwick: Calder diner, Dunmore store, the
+  // cabin on Pond Road. Brandt's (kindb_*, SHOTS_QUERY='opening=off&spot=brandt'):
+  // the Brandt diner and the Oakham store.
+  { name: 'kind_diner_close', car: { x: 4630, y: 1161, heading: 88 }, cam: [4663, 2.6, 1151], look: [4650, 2, 1133] },
+  { name: 'kind_diner_front', car: { x: 4630, y: 1161, heading: 88 }, cam: [4650, 1.7, 1159], look: [4650, 2.6, 1132] },
+  { name: 'kind_diner_road', car: { x: 4630, y: 1161, heading: 88 }, cam: [4624, 1.5, 1162], look: [4650, 2.2, 1132] },
+  { name: 'kind_store_close', car: { x: 3360, y: 286, heading: 96 }, cam: [3393, 2.6, 279], look: [3380, 2, 261] },
+  { name: 'kind_store_front', car: { x: 3360, y: 286, heading: 96 }, cam: [3380, 1.7, 286], look: [3380, 2.8, 259] },
+  { name: 'kind_store_road', car: { x: 3360, y: 286, heading: 96 }, cam: [3354, 1.5, 287], look: [3380, 2.2, 261] },
+  { name: 'kind_cabin_close', car: { x: 5845, y: 416, heading: 80 }, cam: [5885, 2.2, 406], look: [5900, 1.3, 396] },
+  { name: 'kind_cabin_front', car: { x: 5845, y: 416, heading: 80 }, cam: [5885, 1.6, 398], look: [5905, 1.8, 398] },
+  { name: 'kind_cabin_road', car: { x: 5845, y: 416, heading: 80 }, cam: [5856, 1.5, 419], look: [5902, 1.5, 398] },
+  { name: 'kindb_diner_close', car: { x: 1600, y: 1599, heading: 90 }, cam: [1635, 2.6, 1621], look: [1622, 2, 1639] },
+  { name: 'kindb_diner_road', car: { x: 1600, y: 1599, heading: 90 }, cam: [1598, 1.5, 1600], look: [1622, 2.2, 1636] },
+  { name: 'kindb_store_close', car: { x: 3902, y: 2300, heading: 180 }, cam: [3919, 2.6, 2331], look: [3935, 2, 2318] },
+  { name: 'kindb_store_road', car: { x: 3902, y: 2300, heading: 180 }, cam: [3903, 1.5, 2294], look: [3934, 2.2, 2318] },
 ];
 
 const browser = await launchChromium();
