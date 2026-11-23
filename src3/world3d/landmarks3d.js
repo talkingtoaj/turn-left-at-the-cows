@@ -4,12 +4,13 @@
 import * as THREE from 'three';
 import { localToWorld } from '../../src/drive/geom.js';
 import {
-  GRAIN, LOOKOUT, CAMP, coveredParts, quarryBoulders,
+  LOOKOUT, CAMP, coveredParts, quarryBoulders,
 } from '../../src/drive/layout.js';
-import { box, cyl, cone, pyramid, gable, strut, disc, flatPolygon } from './shapes.js';
+import { box, cyl, pyramid, gable, strut, disc, flatPolygon } from './shapes.js';
 import { objMatrix } from './batch.js';
 import { DECK_TOP } from './ground.js';
 import { WATER_LEVEL, quarryPit, quarryWob } from './terrain.js';
+import { buildCalderSilos } from './elevator3d.js';
 
 const FOUND = 1.5;
 // Footprints (what the car hits) come from src/drive/layout.js: GRAIN, LOOKOUT,
@@ -17,7 +18,7 @@ const FOUND = 1.5;
 
 export function buildNewLandmark(world, terrain, batch, l, rng) {
   switch (l.kind) {
-    case 'grain_silos': return silos(terrain, batch, l);
+    case 'grain_silos': return buildCalderSilos(terrain, batch, l); // elevator3d.js (#67)
     case 'lookout_tower': return lookout(terrain, batch, l, rng);
     case 'covered_bridge': return coveredBridge(world, batch, l, rng);
     case 'quarry': return quarry(terrain, batch, l, rng);
@@ -37,48 +38,6 @@ function lowestUnder(terrain, x, y, r) {
     m = Math.min(m, terrain.heightAt(x + Math.cos(a) * r, y + Math.sin(a) * r));
   }
   return m;
-}
-
-// ---------- grain silos ----------
-
-function silos(terrain, batch, l) {
-  const base = lowestUnder(terrain, l.x, l.y, 20);
-  const a = l.angle || 0;
-  const P = placer(batch, l.x, l.y, base, a);
-  const steel = 0xc4c8c6;
-  const band = 0x9aa09e;
-  const H = GRAIN.binH;
-  if (batch.audit) batch.audit.rect(l.id, 'silo_pad', l.x, l.y, 36, 22, a, base - FOUND, base + 0.3);
-  P(box(36, 0.3 + FOUND, 22), 0, 0, -FOUND, 0xa9a69c, { cast: false });
-  for (const b of GRAIN.bins) {
-    P(cyl(b.r, H + FOUND, 20), b.lx, b.ly, -FOUND, steel);
-    for (let y = 1.2; y < H; y += 1.6) P(cyl(b.r + 0.05, 0.14, 20), b.lx, b.ly, y, band, { cast: false });
-    P(cone(b.r + 0.3, b.r * 0.7, 20), b.lx, b.ly, H, 0xb3b8b6);
-    P(cyl(0.6, 0.8, 8), b.lx, b.ly, H + b.r * 0.7 - 0.2, 0x8a908e);
-    P(box(0.5, H, 0.12), b.lx, b.ly + b.r + 0.06, 0, 0x6d716f, { cast: false }); // ladder
-  }
-  // Elevator leg: a tall box with a red head house, the tallest thing in Calder.
-  const g = GRAIN.leg;
-  const LH = GRAIN.legH;
-  P(box(g.w, LH + FOUND, g.h), g.lx, g.ly, -FOUND, 0xb9bdb9);
-  P(box(g.w + 2.6, 4, g.h + 2.2), g.lx, g.ly, LH, 0xa8352b);
-  P(gable(g.w + 3.2, g.h + 2.8, 1.6), g.lx, g.ly, LH + 4, 0x5a5f66);
-  P(box(g.w + 2.7, 0.8, 0.12), g.lx, g.ly - g.h / 2 - 1.12, LH + 2.6, 0x2c3a46, { cast: false });
-  // Spouts from the head house down to each bin roof.
-  const head = new THREE.Vector3(g.lx, LH + 1, g.ly + 1.2);
-  const m0 = objMatrix(l.x, l.y, base, a);
-  for (const b of GRAIN.bins) {
-    batch.add(strut(head, new THREE.Vector3(b.lx, H + b.r * 0.7 + 0.3, b.ly), 0.28, 6), m0, 0x8d928f);
-  }
-  // Catwalk across the bin tops.
-  P(box(22, 0.3, 1.2), 0, GRAIN.bins[0].ly, H + 2.2, 0x6d716f);
-  // Scale house / office.
-  const o = GRAIN.office;
-  P(box(o.w, 3 + FOUND, o.h), o.lx, o.ly, -FOUND, 0xf1ede4);
-  P(gable(o.w + 0.6, o.h + 0.6, 1.4), o.lx, o.ly, 3, 0x7a3b3b);
-  P(box(1.4, 0.9, 0.12), o.lx - 1, o.ly - o.h / 2, 1.1, 0x2c3a46, { cast: false });
-  P(box(0.9, 2.0, 0.12), o.lx + 1.6, o.ly - o.h / 2, 0, 0x5b3a2a, { cast: false });
-  return true;
 }
 
 // ---------- fire lookout ----------

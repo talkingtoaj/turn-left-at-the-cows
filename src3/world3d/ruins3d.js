@@ -5,13 +5,13 @@
 //   rusty_truck     an early-50s pickup rusting in a field corner
 //   railway         the old branch line's bank, sleepers, a stretch of rails,
 //                   and Gilmore Halt's platform, shelter and faded sign
-//   grain_elevator  Ashford's old wooden co-op elevator
 //   windpump        a farm windpump; the wheels turn (one instanced mesh)
+// The grain elevators are in elevator3d.js (#67).
 // Footprints (what the car hits) come from src/drive/layout.js.
 
 import * as THREE from 'three';
 import { localToWorld, makeRng, hashString, DEG, nearestOnPolyline } from '../../src/drive/geom.js';
-import { FARM_RUIN, TRUCK, PARKED_CAR, RAILWAY, ELEVATOR, WINDPUMP, railFrame } from '../../src/drive/layout.js';
+import { FARM_RUIN, TRUCK, PARKED_CAR, RAILWAY, WINDPUMP, railFrame } from '../../src/drive/layout.js';
 import { box, cyl, gable, strut } from './shapes.js';
 import { objMatrix } from './batch.js';
 import { rowPrism, Tris } from './fields3d.js';
@@ -35,7 +35,6 @@ export function buildRuin(world, terrain, batch, l) {
     case 'rusty_truck': return rustyTruck(terrain, batch, l);
     case 'parked_car': return parkedCar(terrain, batch, l);
     case 'railway': return railway(terrain, batch, l);
-    case 'grain_elevator': return elevator(terrain, batch, l);
     case 'windpump': return windpumpTower(terrain, batch, l.x, l.y, l.id, false);
     default: return false;
   }
@@ -52,7 +51,7 @@ function nearestRoad(world, x, y) {
 
 // Level base for a rect footprint: floor at the high side, walls reaching
 // FOUND below, a stone course down past the low side where the ground falls.
-function stand(terrain, batch, x, y, w, h, angle, plinth = 0x8a847a) {
+export function stand(terrain, batch, x, y, w, h, angle, plinth = 0x8a847a) {
   const { min, max } = terrain.groundRange({ rect: { x, y, w, h, angle } });
   let bottom = max - FOUND;
   if (max - min > 0.12) {
@@ -96,7 +95,7 @@ function weeds(terrain, batch, rng, x, y, r, n, size = 0.6) {
 // A painted sign (public/look/signs/<name>.webp) as a w x h quad facing +z
 // in `matrix`'s frame. Signs are not merged into the batches (they need
 // their own image): buildSigns (structures.js) makes one mesh per image.
-function sign(batch, name, matrix, w, h) {
+export function sign(batch, name, matrix, w, h) {
   if (!batch.signs) batch.signs = [];
   batch.signs.push({ name, matrix: matrix.clone(), w, h });
 }
@@ -458,62 +457,6 @@ function pointAt(pts, s) {
     acc += L;
   }
   return { x: pts[0][0], y: pts[0][1], dx: 1, dy: 0 };
-}
-
-// ---------- Ashford's old grain elevator ----------
-
-function elevator(terrain, batch, l) {
-  const a = l.angle || 0;
-  const E = ELEVATOR;
-  const A = batch.audit;
-  const clad = 0xb2b0ab; // galvanised tin cladding, rust streaks
-  const head = 0x84827e; // the head house, darker
-  const tin = RUSTY_TIN[4]; // rusty tin roofs
-  const m = E.main;
-  const mc = localToWorld(l.x, l.y, a, m.lx, m.ly);
-  const st = stand(terrain, batch, mc.x, mc.y, m.w, m.h, a);
-  if (A) A.rect(l.id, 'elevator', mc.x, mc.y, m.w, m.h, a, st.bottom, st.base);
-  const P = (geo, lx, ly, up, color, opts) => batch.place(geo, mc.x, mc.y, st.base, a, lx, ly, up, color, opts);
-  P(box(m.w + 0.4, 0.9 + FOUND, m.h + 0.4), 0, 0, st.bottom - st.base, 0xa9a69c); // concrete footing
-  P(box(m.w, E.H, m.h), 0, 0, 0.9, clad);
-  // Slight batter: a narrower top storey.
-  P(gable(m.w + 0.6, m.h + 0.6, 2.2), 0, 0, E.H + 0.9, tin);
-  // Head house (cupola) on the ridge, with its own little roof.
-  P(box(3.2, 4.2, m.h * 0.75), 0, 0, E.H + 1.6, head);
-  P(gable(3.8, m.h * 0.75 + 0.5, 1.4), 0, 0, E.H + 5.8, RUSTY_TIN[5]);
-  // The faded name, painted on a white board band near the top of every
-  // side (an AI image, public/look/signs), and a few dark doors.
-  const bandUp = 0.9 + E.H - 2.3;
-  for (let k = 0; k < 4; k++) {
-    const turn = new THREE.Matrix4().makeRotationY((k * Math.PI) / 2);
-    const half = (k % 2 ? m.w : m.h) / 2;
-    const len = k % 2 ? m.h : m.w;
-    const fm = objMatrix(mc.x, mc.y, st.base, a).multiply(turn);
-    batch.add(box(len - 0.2, 1.9, 0.06), fm.clone().multiply(new THREE.Matrix4().makeTranslation(0, bandUp - 0.95, -half - 0.03)), head, { cast: false });
-    sign(batch, 'coop', fm.clone().multiply(new THREE.Matrix4().makeTranslation(0, bandUp, -half - 0.09)).multiply(new THREE.Matrix4().makeRotationY(Math.PI)), len - 0.5, (len - 0.5) / 5.1);
-  }
-  P(box(1.4, 2.4, 0.1), 2.6, -m.h / 2, 0.9, GREY.door, { cast: false });
-  P(box(0.9, 0.9, 0.1), 0, -m.h / 2, E.H - 7, DARK, { cast: false });
-  // Ladder up one corner and the loading spout toward where the rails were.
-  P(box(0.5, E.H - 1, 0.1), -m.w / 2 + 0.6, -m.h / 2 - 0.08, 1.2, 0x4b4f52, { cast: false });
-  const m0 = objMatrix(mc.x, mc.y, st.base, a);
-  batch.add(strut(new THREE.Vector3(m.w / 2, E.H - 4, 0), new THREE.Vector3(m.w / 2 + 4.5, 4.5, 0), 0.22, 6), m0, RUST[1]);
-  // Driveway shed in front: open ends, tin roof.
-  const n = E.annex;
-  const nc = localToWorld(l.x, l.y, a, n.lx, n.ly);
-  const ns = stand(terrain, batch, nc.x, nc.y, n.w, n.h, a);
-  if (A) A.rect(l.id, 'elevator_shed', nc.x, nc.y, n.w, n.h, a, ns.bottom, ns.base);
-  const NP = (geo, lx, ly, up, color, opts) => batch.place(geo, nc.x, nc.y, ns.base, a, lx, ly, up, color, opts);
-  for (const s of [-1, 1]) NP(box(0.25, 5 + FOUND, n.h), s * (n.w / 2 - 0.12), 0, ns.bottom - ns.base, clad);
-  NP(gable(n.w + 0.6, n.h + 0.4, 1.6), 0, 0, 5, tin);
-  NP(box(n.w - 0.5, 1.2, 0.12), 0, n.h / 2, 3.8, clad);
-  // A scale-house shack beside it.
-  const sh = localToWorld(l.x, l.y, a, -7.5, 6);
-  const ss = stand(terrain, batch, sh.x, sh.y, 3.2, 3, a);
-  batch.place(box(3.2, 2.6 + FOUND, 3), sh.x, sh.y, ss.bottom, a, 0, 0, 0, 0xd8cfb8);
-  batch.place(gable(3.6, 3.4, 1), sh.x, sh.y, ss.base + 2.6 - (ss.base - ss.bottom) + FOUND, a, 0, 0, 0, tin);
-  if (A) A.rect(l.id, 'scale_house', sh.x, sh.y, 3.2, 3, a, ss.bottom, ss.base);
-  return true;
 }
 
 // ---------- windpumps ----------
