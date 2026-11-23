@@ -201,6 +201,11 @@ const VIEWS = [
   { name: 'board_m3_front', mission: 'm3_airfield', car: { x: 1580, y: 1601, heading: 90 }, cam: [1596, 1.9, 1595.5], look: [1596, 2.0, 1589] },
   { name: 'board_m3_back', mission: 'm3_airfield', car: { x: 1580, y: 1601, heading: 90 }, cam: [1596, 1.9, 1582.5], look: [1596, 2.0, 1589] },
   { name: 'board_road', mission: 'm3_airfield', car: { x: 1560, y: 1601, heading: 90 }, cam: [1562, 1.4, 1601], look: [1596, 1.8, 1590] },
+  // St. Anne's board in Fenwick (default region): missions 1 and 2 carry the Luke 15 series.
+  { name: 'fen_board_m1_front', mission: 'm1_parcel', car: { x: 515, y: 2448, heading: 270 }, cam: [498.5, 1.9, 2441], look: [492, 2.0, 2441] },
+  { name: 'fen_board_m1_back', mission: 'm1_parcel', car: { x: 515, y: 2448, heading: 270 }, cam: [485.5, 1.9, 2441], look: [492, 2.0, 2441] },
+  { name: 'fen_board_m2_front', mission: 'm2_cabin', car: { x: 515, y: 2448, heading: 270 }, cam: [498.5, 1.9, 2441], look: [492, 2.0, 2441] },
+  { name: 'fen_board_m2_back', mission: 'm2_cabin', car: { x: 515, y: 2448, heading: 270 }, cam: [485.5, 1.9, 2441], look: [492, 2.0, 2441] },
   // Farmhouse porch (#63): Pruitt (front door east, porch wraps to the south)
   // and Dolan (front door west, porch wraps to the south). 3/4 close,
   // straight on, the swing end up close, and from the lane as you drive up.

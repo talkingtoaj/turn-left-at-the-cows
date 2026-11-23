@@ -7,6 +7,7 @@
 
 import { boardFaces } from '../src/world/churchBoard.js';
 import { PROPS_BRANDT } from '../src/world/addons/props_brandt.js';
+import { PROPS_FENWICK } from '../src/world/addons/props_fenwick.js';
 import { MISSION_LIST } from '../src/game/missionList.js';
 
 let fails = 0;
@@ -39,6 +40,17 @@ else {
   const nameOnly = { front: ["ST. LUKE'S", '', ''], back: ["ST. LUKE'S", '', ''] };
   for (const id of ['m9_nowhere', null, undefined]) {
     if (!same(boardFaces(board, id), nameOnly)) fail(`mission ${id}: want name only`);
+  }
+}
+// St. Anne's (Fenwick, missions 1 and 2) carries the same series fronts as St. Luke's.
+const fen = PROPS_FENWICK.dressing.find((p) => p.id === 'fen_church_board');
+if (!fen) fail('no fen_church_board in props_fenwick.js');
+else if (board) {
+  for (const id of ['m1_parcel', 'm2_cabin']) {
+    const f = boardFaces(fen, id);
+    if (f.front[0] !== "ST. ANNE'S") fail(`fenwick ${id}: name not on top`);
+    if (!same(f.front.slice(1), boardFaces(board, id).front.slice(1))) fail(`fenwick ${id}: front differs from St. Luke's series`);
+    if (same(f.front, f.back)) fail(`fenwick ${id}: front and back are the same`);
   }
 }
 // A board with no missions list shows its name only.

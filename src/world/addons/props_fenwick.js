@@ -16,8 +16,26 @@ export const PROPS_FENWICK = {
     { id: 'fen_wall_ad', kind: 'wall_ad', building: 'a_gas', x: 715, y: 2435, lines: ["EARL'S", 'GAS  BAIT  COLD POP'] },
     // Corn stand on the west side of Pruitt Lane, 11 m south of the EGGS board (bd_eggs) at the gate.
     { id: 'fen_corn_stand', kind: 'corn_stand', x: 2959, y: 1121, heading: 90, r: 2.4, lines: ['FRESH CORN', '6 FOR $1  PAY IN THE BOX'] },
-    // St. Anne's letter board, facing east towards town.
-    { id: 'fen_church_board', kind: 'church_board', x: 492, y: 2441, heading: 90, r: 1.8, lines: ['BEAN SUPPER SAT 6 PM', 'ALL WELCOME', 'BRING A PIE'] },
+    // St. Anne's letter board, facing east towards town. Missions 1 and 2 play
+    // here, so its front carries the start of the Luke 15 series that St.
+    // Luke's finishes in mission 3 (#59, owner approved 2026-11-23).
+    {
+      id: 'fen_church_board', kind: 'church_board', x: 492, y: 2441, heading: 90, r: 1.8, lines: ["ST. ANNE'S", '', ''],
+      missions: {
+        m1_parcel: {
+          front: ['HE LEAVES THE 99', 'TO FIND THE ONE'], // line id: T59-board-m1-front
+          back: ['BEAN SUPPER SAT 6 PM', 'BRING A PIE'],
+        },
+        m2_cabin: {
+          front: ['HE CAME TO FIND', 'THE LOST - LUKE 19'], // line id: T59-board-m2-front
+          back: ['BEAN SUPPER SAT 6 PM', 'ALL WELCOME'],
+        },
+        m3_airfield: {
+          front: ['BEAN SUPPER SAT 6 PM', 'ALL WELCOME'],
+          back: ['BEAN SUPPER SAT 6 PM', 'BRING A PIE'],
+        },
+      },
+    },
     // Rusted car in the weeds on the west side of Creek Road.
     { id: 'fen_junk_car', kind: 'junk_car', x: 606.6, y: 1949, heading: 20, r: 2.2 },
   ],
