@@ -17,6 +17,7 @@ export const GAS = {
     { lx: -5, ly: -3.5, w: 4, h: 1.4 },
     { lx: 5, ly: -3.5, w: 4, h: 1.4 },
   ],
+  sign: { lx: -14, ly: -12, w: 2.2, h: 0.4 }, // price sign by the road (two posts)
 };
 
 export const CHURCH = {
@@ -175,7 +176,7 @@ export function buildingSolids(b) {
   const a = b.angle || 0;
   if (b.kind === 'gas') {
     return {
-      rects: [partRect(b.x, b.y, a, GAS.shop), ...GAS.islands.map((p) => partRect(b.x, b.y, a, p))],
+      rects: [partRect(b.x, b.y, a, GAS.shop), ...GAS.islands.map((p) => partRect(b.x, b.y, a, p)), partRect(b.x, b.y, a, GAS.sign)],
       circles: [],
     };
   }

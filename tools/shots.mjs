@@ -127,6 +127,21 @@ const VIEWS = [
   { name: 'semib_close', car: { x: 1700, y: 1440, heading: 0 }, cam: [1754, 2.4, 1416.5], look: [1745, 1.8, 1427] },
   { name: 'semib_side', car: { x: 1700, y: 1440, heading: 0 }, cam: [1760, 1.9, 1428], look: [1745, 1.7, 1428] },
   { name: 'semib_site', car: { x: 1700, y: 1440, heading: 0 }, cam: [1778, 13, 1462], look: [1745, 6, 1416] },
+  // Gas stations (#58): Ashford (a_gas) and Brandt (br_gas, needs
+  // SHOTS_QUERY='opening=off&spot=brandt'). Close 3/4, straight on, the shop
+  // door, a pump island, from above, and from the road as you first see it.
+  { name: 'gas_a_close', car: { x: 698, y: 2378, heading: 90 }, cam: [731, 2, 2420], look: [714, 1.5, 2433] },
+  { name: 'gas_a_front', car: { x: 698, y: 2378, heading: 90 }, cam: [715, 2.2, 2408], look: [715, 2.5, 2435] },
+  { name: 'gas_a_shop', car: { x: 698, y: 2378, heading: 90 }, cam: [714, 1.7, 2427], look: [711, 1.6, 2436] },
+  { name: 'gas_a_pump', car: { x: 698, y: 2378, heading: 90 }, cam: [712.5, 1.6, 2427.5], look: [710, 1, 2431.5] },
+  { name: 'gas_a_wide', car: { x: 698, y: 2378, heading: 90 }, cam: [745, 25, 2395], look: [712, 0, 2435] },
+  { name: 'gas_a_road', car: { x: 698, y: 2378, heading: 90 }, cam: [690, 1.4, 2378], look: [715, 2, 2435] },
+  { name: 'gas_b_close', car: { x: 1788, y: 1585, heading: 90 }, cam: [1821, 2, 1627], look: [1804, 1.5, 1640] },
+  { name: 'gas_b_front', car: { x: 1788, y: 1585, heading: 90 }, cam: [1805, 2.2, 1615], look: [1805, 2.5, 1642] },
+  { name: 'gas_b_shop', car: { x: 1788, y: 1585, heading: 90 }, cam: [1804, 1.7, 1634], look: [1801, 1.6, 1643] },
+  { name: 'gas_b_pump', car: { x: 1788, y: 1585, heading: 90 }, cam: [1802.5, 1.6, 1634.5], look: [1800, 1, 1638.5] },
+  { name: 'gas_b_wide', car: { x: 1788, y: 1585, heading: 90 }, cam: [1835, 25, 1602], look: [1802, 0, 1642] },
+  { name: 'gas_b_road', car: { x: 1788, y: 1585, heading: 90 }, cam: [1780, 1.4, 1585], look: [1805, 2, 1642] },
 ];
 
 const browser = await launchChromium();

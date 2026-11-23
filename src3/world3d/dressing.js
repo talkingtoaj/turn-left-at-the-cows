@@ -20,6 +20,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { box, cyl, cone, strut } from './shapes.js';
 import { objMatrix } from './batch.js';
 import { FaceAtlas } from './signtext.js';
+import { roundPump } from './gas3d.js';
 
 const DEG = Math.PI / 180;
 const NEAR = 150; // metres: things only move inside this
@@ -238,15 +239,9 @@ const BUILDERS = {
     c.base = f.base;
     c.audit('round_pumps', 'rect', { w: 4, h: 1.8 }, f);
     P(box(4, 0.16 + f.drop, 1.8), 0, 0, -f.drop, 0x9a9890);
-    [[-1.1, 0xb3261e], [1.1, 0xd8d0b0]].forEach(([lx, body]) => {
-      P(cyl(0.34, 0.2, 8), lx, 0, 0.16, 0x4a4a46);
-      P(cyl(0.26, 1.15, 8, 0.22), lx, 0, 0.36, body);
-      P(box(0.42, 0.3, 0.06), lx, -0.2, 0.9, 0xf2f2f2, { cast: false });
-      P(cyl(0.3, 0.1, 8), lx, 0, 1.5, 0x2a2a2a);
-      P(new THREE.SphereGeometry(0.3, 10, 8), lx, 0, 1.78, 0xf2e6a0);
-      P(cyl(0.12, 0.1, 6), lx, 0, 2.04, 0xb3261e);
-      P(cyl(0.03, 0.9, 4), lx + 0.28, 0, 0.35, 0x1e1e1e, { cast: false });
-    });
+    // The round-top pump is shared with the gas stations (gas3d.js), with a glass globe.
+    roundPump(P, -1.1, 0, 0.16, { body: 0xb3261e, globe: true, side: -1 });
+    roundPump(P, 1.1, 0, 0.16, { body: 0xd8d0b0, panel: 0xf2ecd8, top: 0xb3261e, globe: true, side: 1 });
     return null;
   },
 
