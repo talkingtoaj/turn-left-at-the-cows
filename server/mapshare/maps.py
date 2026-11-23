@@ -176,6 +176,31 @@ def clean_sketch(sk) -> dict:
     return {"strokes": strokes, "stamps": stamps, "labels": labels}
 
 
+SEED_KEY_RE = re.compile(r"^[a-z0-9_]{1,20}-[0-9]{1,3}$")
+CREATED_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+MAX_SEED_VOTES = 20
+MAX_SEEDS = 300
+
+
+def clean_seed(item) -> tuple[str, dict, int, str]:
+    """One seed map from tools/seed-maps.mjs: (map id, fields, votes, created)."""
+    if not isinstance(item, dict):
+        raise BadRequest("bad_body", "expected a JSON object")
+    key = item.get("key")
+    if not isinstance(key, str) or not SEED_KEY_RE.match(key):
+        raise BadRequest("bad_body", "bad seed key")
+    fields = clean_upload({**item, "gameVersion": "seed"})
+    if not key.startswith(fields["mission"] + "-"):
+        raise BadRequest("bad_body", "seed key must start with its mission")
+    votes = item.get("votes", 0)
+    if isinstance(votes, bool) or not isinstance(votes, int) or not 0 <= votes <= MAX_SEED_VOTES:
+        raise BadRequest("bad_body", "bad votes")
+    created = item.get("created")
+    if not isinstance(created, str) or not CREATED_RE.match(created):
+        created = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return "seed-" + key, fields, votes, created
+
+
 def check_id(v, what: str, rx=ID_RE) -> str:
     if not isinstance(v, str) or not rx.match(v):
         raise BadRequest("bad_id", f"bad {what}")
@@ -324,6 +349,37 @@ class MapStore:
             self._forget_list(rec["mission"])
             return rec
         raise Busy()
+
+    def create_seed(self, fields: dict, map_id: str, votes: int, created: str) -> dict | None:
+        """Admin: store one seed map (a deliberately poor map the wall starts
+        with) under a fixed id. Returns None when that id is already there,
+        so loading the same seed file twice adds nothing. Its votes come from
+        made-up voters ("seed0", "seed1", ...), which can never match a real
+        player's hash, so later votes still count one per player."""
+        check_id(map_id, "map id", MAP_ID_RE)
+        rec = {
+            "v": FORMAT_VERSION,
+            "id": map_id,
+            **{k: v for k, v in fields.items() if k != "sketch"},
+            "created": created,
+            "votes": votes,
+            "reports": 0,
+            "hidden": False,
+            "reviewed": False,
+            "seeded": True,
+            "owner": "seed",
+            "voters": [f"seed{k}" for k in range(votes)],
+            "reporters": [],
+            "sketch": fields["sketch"],
+        }
+        name = self._name(rec["mission"], map_id)
+        try:
+            gen = self.storage.write(name, _dumps(rec), if_generation_match=0)
+        except Conflict:
+            return None
+        self._remember(name, gen, rec)
+        self._forget_list(rec["mission"])
+        return rec
 
     def _forget_list(self, mission: str) -> None:
         with self._lock:
