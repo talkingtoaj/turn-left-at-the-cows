@@ -41,13 +41,14 @@
     "check:elevator": "node tools/check-elevator.mjs",
     "check:board": "node tools/check-board.mjs",
     "check:dog": "node tools/check-dog.mjs",
+    "check:houses": "node tools/check-houses.mjs",
     "check:verge": "node tools/check-verge.mjs",
     "check:tree-rows": "node tools/check-tree-rows.mjs",
     "check:barns": "node tools/check-barns.mjs",
     "check:bridges": "node tools/check-bridges.mjs",
     "check:budget": "node tools/check-budget.mjs",
     "check:map-wall": "node tools/check-map-wall.mjs",
-    "check:all": "npm run -s check:assets && npm run -s check:world && npm run -s check:units && npm run -s check:signs && npm run -s check:radio && npm run -s check:radio-logic && npm run -s check:radiosubs && npm run -s check:clock && npm run -s check:tourists && npm run -s check:shifts && npm run -s check:traffic && npm run -s check:traffic-sound && npm run -s check:cows && npm run -s check:people && npm run -s check:car && npm run -s check:mud && npm run -s check:carpet && npm run -s check:traffic-look && npm run -s check:opening && npm run -s check:parked && npm run -s check:poles && npm run -s check:porch && npm run -s check:tower && npm run -s check:elevator && npm run -s check:board && npm run -s check:verge && npm run -s check:tree-rows && npm run -s check:dog && npm run -s check:bridges && npm run -s check:barns && npm run -s check:map-wall"
+    "check:all": "npm run -s check:assets && npm run -s check:world && npm run -s check:units && npm run -s check:signs && npm run -s check:radio && npm run -s check:radio-logic && npm run -s check:radiosubs && npm run -s check:clock && npm run -s check:tourists && npm run -s check:shifts && npm run -s check:traffic && npm run -s check:traffic-sound && npm run -s check:cows && npm run -s check:people && npm run -s check:car && npm run -s check:mud && npm run -s check:carpet && npm run -s check:traffic-look && npm run -s check:opening && npm run -s check:parked && npm run -s check:poles && npm run -s check:porch && npm run -s check:tower && npm run -s check:elevator && npm run -s check:board && npm run -s check:verge && npm run -s check:tree-rows && npm run -s check:dog && npm run -s check:bridges && npm run -s check:barns && npm run -s check:map-wall && npm run -s check:houses"
   },
   "dependencies": {
     "three": "^0.186.1"

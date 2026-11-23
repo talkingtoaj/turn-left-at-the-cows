@@ -52,6 +52,24 @@ const VIEWS = [
   { name: 'ford', car: { x: 4380, y: 2100, heading: 80 } },
   { name: 'paved_low', car: { road: 'rt40', at: 0.5 }, rel: [-3.2, 0.9, 5] },
   { name: 'dirtroad_ridge_low', car: { road: 'ridge_rd', at: 0.5 }, rel: [2.8, 0.8, 7.5] },
+  // Houses (#76): Millbrook m_h1 (one floor, faces south), Calder c_h1 (two
+  // floors, faces north), Dutch Ridge d_h3: close 3/4, straight on, and from
+  // the road as the player first sees each. house_street: Calder's houses from above.
+  { name: 'house_m1_close', car: { x: 2165, y: 701.5, heading: 90 }, cam: [2213, 2.2, 690], look: [2200, 2.4, 676] },
+  { name: 'house_m1_front', car: { x: 2165, y: 701.5, heading: 90 }, cam: [2203.5, 1.7, 697], look: [2200, 2.8, 676] },
+  { name: 'house_m1_road', car: { x: 2165, y: 701.5, heading: 90 }, cam: [2165, 1.3, 701.5], look: [2200, 3, 676] },
+  { name: 'house_c1_close', car: { x: 4640, y: 1165, heading: 270 }, cam: [4588, 2.4, 1176], look: [4600, 3.2, 1192] },
+  { name: 'house_c1_front', car: { x: 4640, y: 1165, heading: 270 }, cam: [4600, 1.8, 1170], look: [4600, 3.6, 1192] },
+  { name: 'house_c1_road', car: { x: 4640, y: 1165, heading: 270 }, cam: [4640, 1.3, 1165], look: [4600, 3.5, 1192] },
+  { name: 'house_d3_close', car: { x: 3395, y: 290.5, heading: 96 }, cam: [3436, 2.4, 316], look: [3425, 3, 331] },
+  { name: 'house_d3_road', car: { x: 3395, y: 290.5, heading: 96 }, cam: [3395, 1.3, 290.5], look: [3425, 3.5, 331] },
+  { name: 'house_street', car: { x: 4640, y: 1165, heading: 270 }, cam: [4690, 22, 1150], look: [4680, 0, 1215] },
+  // Dutch Ridge d_h2: side gable, one floor, a shed hood over the stoop.
+  { name: 'house_d2_close', car: { x: 3395, y: 290.5, heading: 96 }, cam: [3301, 2.2, 307], look: [3290, 2.4, 320] },
+  // Calder c_h6: front gable, a porch with its own gable.
+  { name: 'house_c6_close', car: { x: 4600, y: 1164, heading: 270 }, cam: [4572, 2.2, 1153], look: [4560, 2.6, 1140] },
+  { name: 'house_c6_front', car: { x: 4600, y: 1164, heading: 270 }, cam: [4560, 1.7, 1157], look: [4560, 3.0, 1138] },
+  { name: 'house_c6_road', car: { x: 4600, y: 1164, heading: 270 }, cam: [4600, 1.3, 1164], look: [4560, 3, 1140] },
   // The player's car up close (roof rack, parcels, mud flaps, dings): relLook
   // aims at a point on the car (local right, up, back) instead of ahead of it.
   { name: 'car_rear_high', car: { road: 'hwy9', at: 0.4 }, rel: [2.6, 2.7, 5.2], relLook: [0, 0.9, 0.3] },
