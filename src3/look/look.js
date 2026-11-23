@@ -180,8 +180,11 @@ export async function createLook(renderer, params) {
   // white, while the sky dome tone maps the same colour to a soft grey: far
   // hills showed as a pale band under the sky. Tone map the fog colour too,
   // so fully fogged land is exactly the sky's horizon colour.
+  const FOG_MIX = 'gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );';
+  // A three.js update that rewords this line would bring the pale band back silently.
+  if (!THREE.ShaderChunk.fog_fragment.includes(FOG_MIX)) console.warn('[look] fog_fragment changed: fog colour patch (#54) not applied');
   THREE.ShaderChunk.fog_fragment = THREE.ShaderChunk.fog_fragment.replace(
-    'gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );',
+    FOG_MIX,
     `vec3 fogOut = fogColor;
 	#if defined( TONE_MAPPING )
 		fogOut = toneMapping( fogOut );
