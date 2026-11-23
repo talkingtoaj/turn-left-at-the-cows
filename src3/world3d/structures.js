@@ -12,6 +12,7 @@ import { buildKind } from './kinds.js';
 import { buildNewLandmark } from './landmarks3d.js';
 import { buildRuin, buildWindpumpWheels } from './ruins3d.js';
 import { buildAirfield, buildAirfieldBuilding } from './airfield3d.js';
+import { buildGasStation } from './gas3d.js';
 import { Batcher } from './batch.js';
 import { state } from '../../src/state.js';
 import { currentMissionId } from '../../src/game/tourists.js';
@@ -159,25 +160,7 @@ function buildBuilding(world, terrain, batch, b) {
   if (buildAirfieldBuilding(world, terrain, batch, b, base)) return;
 
   if (b.kind === 'gas') {
-    const s = GAS.shop;
-    const c = GAS.canopy;
-    // Shop: white walls, red band, flat roof, big front window facing the pumps.
-    P(box(s.w, 4 + FOUND, s.h), s.lx, s.ly, -FOUND, 0xeceae3);
-    P(box(s.w + 0.3, 0.6, s.h + 0.3), s.lx, s.ly, 3.4, 0xc0392b);
-    P(box(s.w + 0.1, 0.15, s.h + 0.1), s.lx, s.ly, 4.0, 0x6f6c66);
-    P(box(s.w * 0.6, 1.6, 0.12), s.lx - 1, s.ly - s.h / 2, 0.9, WINDOW);
-    P(box(1.1, 2.1, 0.14), s.lx + 3.5, s.ly - s.h / 2, 0, 0x7f8c8d);
-    // Canopy on two pillars standing on the pump islands.
-    P(box(c.w + 0.5, 0.8, c.h + 0.5), c.lx, c.ly, 4.6, 0xc0392b);
-    P(box(c.w, 0.05, c.h), c.lx, c.ly, 4.57, 0xeceae3, { cast: false });
-    for (const isl of GAS.islands) {
-      P(box(isl.w, 0.2, isl.h), isl.lx, isl.ly, 0, 0x9a9890);
-      P(box(0.4, 4.6, 0.4), isl.lx, isl.ly, 0, 0xd8d8d0);
-      for (const dx of [-1.2, 1.2]) {
-        P(box(0.7, 1.5, 0.5), isl.lx + dx, isl.ly, 0.2, 0xb3261e);
-        P(box(0.72, 0.25, 0.52), isl.lx + dx, isl.ly, 1.7, 0xf2f2f2);
-      }
-    }
+    buildGasStation(b, base, batch, P); // gas3d.js (#58)
     return;
   }
 
