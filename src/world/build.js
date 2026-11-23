@@ -3,7 +3,7 @@
 // bridge positions, sign positions). Pure data in, pure data out.
 
 import { smoothPolyline, polylineLength } from './spline.js';
-import { nearestOnPolyline, headingOf, polylineCrossings, DEG } from '../drive/geom.js';
+import { nearestOnPolyline, headingOf, polylineCrossings, localToWorld, DEG } from '../drive/geom.js';
 import { TOPICS } from './topics.js';
 import { generateFill, fieldDefaults } from './fill.js';
 import { airfieldOf, seededWindFrom } from './airfield.js';
@@ -170,6 +170,16 @@ export function defaultSignFacing(world, x, y) {
   return Math.round(onRight ? headingOf(best.dx, best.dy) : headingOf(-best.dx, -best.dy));
 }
 
+// A perched local's spot: `across` m right of the bridge's middle line and
+// `along` m from its centre (+ toward the end the bridge heading points away
+// from). They sit facing the middle of the bridge, legs over the edge.
+export function perchOn(l, b) {
+  const { across, along } = l.perch;
+  const p = localToWorld(b.x, b.y, b.angle, across, along);
+  const heading = along > 0 ? b.angle : (b.angle + 180) % 360;
+  return { ...l, x: p.x, y: p.y, sit: { bridgeId: b.id, across, along, heading } };
+}
+
 export function buildWorld(source) {
   const src = clone(source);
   const w = { ...src };
@@ -194,6 +204,9 @@ export function buildWorld(source) {
     const b = bridges.get(l.bridgeId);
     return { ...l, x: b.x, y: b.y, angle: b.angle };
   });
+  // A local perched on a bridge sits there: place them from the bridge, facing
+  // its middle (Dot on the washed-out Creek Road bridge, #64).
+  if (src.locals) w.locals = src.locals.map((l) => (l.perch && bridges.has(l.perch.bridgeId) ? perchOn(l, bridges.get(l.perch.bridgeId)) : l));
 
   w.signs = src.signs.map((s) => placeSign(s, roads));
   w.mailboxes = src.mailboxes.map((m) => placeMailbox(m, roads, buildings));

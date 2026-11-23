@@ -15,6 +15,9 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { state } from '../../src/state.js';
 import { currentMissionId } from '../../src/game/tourists.js';
 import { personLook, newAct, actStep, personPose, BONES } from './peopleLook.js';
+import { localToWorld } from '../../src/drive/geom.js';
+import { DECK_TOP } from './ground.js';
+import { WATER_LEVEL } from './terrain.js';
 
 const B = Object.fromEntries(BONES.map((b, i) => [b, i]));
 const PARENT = { pelvis: 'root', spine: 'pelvis', head: 'spine', uaL: 'spine', faL: 'uaL', uaR: 'spine', faR: 'uaR', thL: 'pelvis', shL: 'thL', thR: 'pelvis', shR: 'thR' };
@@ -431,6 +434,60 @@ function makePerson(L) {
   return { mesh, bones, near, far, J };
 }
 
+// Where a perched local (l.sit, from build.js perchOn) sits: her hips on the
+// deck top, facing the bridge's middle; the bucket beside her on the deck; the
+// rod tip in the sitting pose; and a bobber on the water out in front.
+function seatOf(l, world, look, made) {
+  const b = world.bridges.find((q) => q.id === l.sit.bridgeId);
+  const yaw = -(l.sit.heading * Math.PI) / 180;
+  const J = made.J;
+  const thighR = (look.woman ? 0.075 : 0.072) * look.build;
+  const y = DECK_TOP - J.y.hip + thighR * 0.8;
+  const toMid = Math.sign(l.sit.along) || 1; // the bridge's middle is toward -along
+  const bk = localToWorld(b.x, b.y, b.angle, l.sit.across - 0.7, l.sit.along + toMid * 0.45);
+  // Pose the bones as she sits, then read the rod tip off the right forearm.
+  const pose = personPose(look, newAct(), 0, { moving: false, walk: 0, headYaw: null });
+  const { mesh, bones } = made;
+  mesh.position.set(l.x, y, l.y);
+  mesh.rotation.y = yaw;
+  for (let i = 1; i < BONES.length; i++) bones[i].rotation.set(...pose.rot[BONES[i]]);
+  bones[B.pelvis].position.y = J.at.pelvis[1] - pose.drop;
+  mesh.updateMatrixWorld(true);
+  const tip = rodTip(J).applyMatrix4(mesh.skeleton.boneInverses[B.faR]).applyMatrix4(bones[B.faR].matrixWorld);
+  // The bobber floats a couple of metres past the tip, straight out in front.
+  const fx = -Math.sin(yaw); // the model faces -z
+  const fy = -Math.cos(yaw);
+  const reach = Math.hypot(tip.x - l.x, tip.z - l.y) + 1.6;
+  const bob = new THREE.Vector3(l.x + fx * reach, WATER_LEVEL, l.y + fy * reach);
+  return { y, yaw, bucket: { x: bk.x, y: bk.y, h: DECK_TOP }, tip, bob };
+}
+
+// The rod tip in the rest pose (model space), as buildPersonGeometry puts it.
+function rodTip(J) {
+  const a = 0.62;
+  const k = 1.1 + 1.3;
+  return new THREE.Vector3(J.sx, J.y.wr - 0.05 - Math.cos(a) * k, -0.01 - Math.sin(a) * k);
+}
+
+// A thin line from the rod tip to a red and white bobber with a ring of
+// ripple round it, in the space of a mesh at (ox, oh, oy).
+function fishingLine(tip, bob, ox, oh, oy) {
+  const t = new THREE.Vector3(tip.x - ox, tip.y - oh, tip.z - oy);
+  const top = new THREE.Vector3(bob.x - ox, bob.y - oh + 0.06, bob.z - oy);
+  const len = t.distanceTo(top);
+  const line = new THREE.CylinderGeometry(0.004, 0.004, len, 3, 1, true);
+  line.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), top.clone().sub(t).normalize()));
+  line.translate((t.x + top.x) / 2, (t.y + top.y) / 2, (t.z + top.z) / 2);
+  const w = new THREE.Vector3(bob.x - ox, bob.y - oh, bob.z - oy);
+  return [
+    colored(line, 0xd8d8d0),
+    colored(sphere(8, 4, 0, Math.PI / 2).scale(0.045, 0.05, 0.045).translate(w.x, w.y + 0.01, w.z), 0xd23a2a),
+    colored(sphere(8, 3, Math.PI / 2, Math.PI / 2).scale(0.045, 0.03, 0.045).translate(w.x, w.y + 0.01, w.z), 0xf2f0ea),
+    colored(new THREE.TorusGeometry(0.2, 0.008, 3, 18).rotateX(Math.PI / 2).translate(w.x, w.y + 0.005, w.z), 0x9fb8c8),
+    colored(new THREE.TorusGeometry(0.36, 0.006, 3, 22).rotateX(Math.PI / 2).translate(w.x, w.y + 0.004, w.z), 0x8eaabb),
+  ];
+}
+
 // Each local is one skinned mesh that turns to face the car, walks with
 // its ambient wander, waves when the car pulls up and talks with its hands.
 export function buildLocals(world, terrain, audit = null) {
@@ -441,24 +498,33 @@ export function buildLocals(world, terrain, audit = null) {
     const look = personLook(l);
     const made = makePerson(look);
     const p = made.mesh;
-    p.position.set(l.x, terrain.heightAt(l.x, l.y), l.y);
+    const sit = l.sit ? seatOf(l, world, look, made) : null;
+    if (sit) {
+      p.position.set(l.x, sit.y, l.y);
+      p.rotation.y = sit.yaw;
+    } else p.position.set(l.x, terrain.heightAt(l.x, l.y), l.y);
     if (look.carry === 'rod') {
-      // The bucket stands on the ground beside her, at that spot's own height,
-      // and does not turn with her.
-      const bx = l.x + 0.7;
-      const by = l.y + 0.5;
-      const bucket = new THREE.Mesh(mergeGeometries([
+      // The bucket stands beside her (on the ground, or on the deck she sits
+      // on) and does not turn with her.
+      const at = sit ? sit.bucket : { x: l.x + 0.7, y: l.y + 0.5, h: null };
+      const bh = at.h ?? terrain.heightAt(at.x, at.y) - 0.04;
+      const parts = [
         colored(cylinder(0.2, 0.16, 0.36, 12).translate(0, 0.18, 0), 0x8a8f96),
         colored(new THREE.TorusGeometry(0.2, 0.012, 4, 14).rotateX(Math.PI / 2).translate(0, 0.36, 0), 0x6a6e74),
         colored(new THREE.TorusGeometry(0.17, 0.006, 3, 10, Math.PI).translate(0, 0.36, 0), 0x55595e),
-      ]), bucketMat);
-      bucket.position.set(bx, terrain.heightAt(bx, by) - 0.04, by);
+      ];
+      // Sitting, her line runs from the rod tip to a bobber on the water. Same
+      // mesh as the bucket: no extra draw call.
+      if (sit) parts.push(...fishingLine(sit.tip, sit.bob, at.x, bh, at.y));
+      const bucket = new THREE.Mesh(mergeGeometries(parts), bucketMat);
+      bucket.position.set(at.x, bh, at.y);
       bucket.castShadow = true;
       group.add(bucket);
     }
-    if (audit) audit.circle(l.id, 'local', l.x, l.y, 0.12, terrain.heightAt(l.x, l.y), terrain.heightAt(l.x, l.y));
+    // A sitter is over the water on a deck, not standing on the ground.
+    if (audit && !sit) audit.circle(l.id, 'local', l.x, l.y, 0.12, terrain.heightAt(l.x, l.y), terrain.heightAt(l.x, l.y));
     group.add(p);
-    people.push({ id: l.id, only: l.onlyMission || null, obj: p, ...made, look, act: newAct(), x: l.x, y: l.y, yaw: 0, head: 0, walk: 0, lod: false });
+    people.push({ id: l.id, only: l.onlyMission || null, obj: p, ...made, look, act: newAct(), x: l.x, y: l.y, yaw: sit ? sit.yaw : 0, sit: !!sit, head: 0, walk: 0, lod: false });
   });
   let clock = 0;
   const poseIn = { moving: false, walk: 0, headYaw: null };
@@ -484,7 +550,7 @@ export function buildLocals(world, terrain, audit = null) {
         // Past 350 m a person is a pixel or two in the haze.
         p.obj.visible = d2 < 350 * 350 && (!p.only || p.only === missionId);
         if (d2 > 250 * 250) continue;
-        p.obj.position.set(p.x, terrain.heightAt(p.x, p.y), p.y);
+        if (!p.sit) p.obj.position.set(p.x, terrain.heightAt(p.x, p.y), p.y);
         const near = p.lod ? d2 < LOD_OUT * LOD_OUT : d2 < LOD_IN * LOD_IN;
         if (near !== p.lod) {
           p.lod = near;
@@ -494,7 +560,8 @@ export function buildLocals(world, terrain, audit = null) {
         const watch = !moving && d2 < 60 * 60;
         const toViewer = Math.atan2(-dx, -dy); // model faces -z
         let target;
-        if (moving) target = -(pos.heading * Math.PI) / 180;
+        if (p.sit) target = p.yaw; // sitting: only the head turns to look
+        else if (moving) target = -(pos.heading * Math.PI) / 180;
         else if (watch) target = toViewer;
         else target = pos ? -(pos.heading * Math.PI) / 180 : p.yaw;
         let d = target - p.yaw;

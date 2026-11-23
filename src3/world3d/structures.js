@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { hashString, localToWorld, distToPolyline, makeRng } from '../../src/drive/geom.js';
 import {
-  GAS, WATER_TOWER, MILL, RADIO_MAST, SILO, anchorPoints,
+  GAS, MILL, RADIO_MAST, SILO, anchorPoints,
 } from '../../src/drive/layout.js';
 import { box, cyl, cone, pyramid, gable, strut, disc, flatPolygon } from './shapes.js';
 import { buildKind } from './kinds.js';
@@ -15,6 +15,7 @@ import { buildRuin, buildWindpumpWheels } from './ruins3d.js';
 import { buildAirfield, buildAirfieldBuilding } from './airfield3d.js';
 import { buildGasStation } from './gas3d.js';
 import { buildFarmhouse } from './farmhouse3d.js';
+import { buildWaterTower } from './watertower3d.js';
 import { Batcher } from './batch.js';
 import { state } from '../../src/state.js';
 import { currentMissionId } from '../../src/game/tourists.js';
@@ -118,6 +119,10 @@ export function buildStructures(world, terrain, batch, materials, extras = {}) {
     }
     if (buildRuin(world, terrain, batch, l)) continue;
     if (buildNewLandmark(world, terrain, batch, l, rng)) continue;
+    if (l.kind === 'water_tower') {
+      buildWaterTower(world, terrain, batch, l); // watertower3d.js (#60)
+      continue;
+    }
     const d = buildLandmark(terrain, batch, l, rng, materials);
     if (d) dynamic.push(d);
   }
@@ -248,39 +253,6 @@ function buildLandmark(terrain, batch, l, rng, materials) {
 
   if (l.kind === 'church') {
     buildChurch(terrain, batch, l, rng); // church3d.js (#59)
-    return null;
-  }
-
-  if (l.kind === 'water_tower') {
-    const H = 20;
-    const R = WATER_TOWER.tankR;
-    // The legs run up to the rim of the tank's rounded bottom (it starts at H + 1.6),
-    // so the tank sits on them instead of floating above their tips.
-    const top = 0.66;
-    const legTop = H + 1.5;
-    const legs = WATER_TOWER.legs.map(([x, y]) => [new THREE.Vector3(x, -FOUND, y), new THREE.Vector3(x * top, legTop, y * top)]);
-    const steel = 0x5d6468;
-    if (A) for (const [x, y] of WATER_TOWER.legs) A.circle(l.id, 'tower_leg', l.x + x, l.y + y, WATER_TOWER.legR * 0.7, base - FOUND);
-    for (const [a, b] of legs) batch.add(strut(a, b, WATER_TOWER.legR * 0.7, 6), mAt(l.x, base, l.y), steel);
-    // Horizontal rings and X bracing between legs.
-    const at = (leg, f) => new THREE.Vector3().lerpVectors(leg[0], leg[1], f);
-    for (let i = 0; i < 4; i++) {
-      const A = legs[i];
-      const B = legs[(i + 1) % 4];
-      for (const f of [0.38, 0.72]) batch.add(strut(at(A, f), at(B, f), 0.12), mAt(l.x, base, l.y), steel);
-      batch.add(strut(at(A, 0.1), at(B, 0.38), 0.07), mAt(l.x, base, l.y), steel);
-      batch.add(strut(at(B, 0.1), at(A, 0.38), 0.07), mAt(l.x, base, l.y), steel);
-      batch.add(strut(at(A, 0.38), at(B, 0.72), 0.07), mAt(l.x, base, l.y), steel);
-      batch.add(strut(at(B, 0.38), at(A, 0.72), 0.07), mAt(l.x, base, l.y), steel);
-    }
-    // Tank: rounded bottom, drum, cone roof, a catwalk ring.
-    const bottom = new THREE.ConeGeometry(R, 2.2, 16).rotateX(Math.PI).translate(0, -1.1, 0);
-    P(bottom, 0, 0, H + 1.6, 0x7f9aa6);
-    P(cyl(R, 7, 16), 0, 0, H + 1.6, 0x93aebb);
-    P(cyl(R + 0.05, 0.6, 16), 0, 0, H + 5.2, 0xb7cdd6);
-    P(cone(R + 0.4, 2.6, 16), 0, 0, H + 8.6, 0x6c8693);
-    P(cyl(R + 0.9, 0.15, 16), 0, 0, H + 1.9, 0x4b4f52);
-    P(cyl(0.3, 0.8, 6), 0, 0, H + 11, 0x4b4f52);
     return null;
   }
 

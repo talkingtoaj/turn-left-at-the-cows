@@ -504,6 +504,11 @@ function buildBridge(world, b, creek, batch, rng) {
   const deck = 0x8a6a45;
   const stub = (L - creekW) / 2 + 1.5;
   const plankW = 0.8;
+  // Where a local sits on the broken end (Dot, #64) the planks stay whole
+  // under her and her bucket.
+  const seats = (world.locals || []).filter((l) => l.sit && l.sit.bridgeId === b.id).map((l) => l.sit);
+  const seated = (dir, x0, x1, y0) =>
+    seats.some((s) => Math.sign(s.along) === dir && x1 > s.across - 1.3 && x0 < s.across + 0.7 && Math.abs(y0 + plankW / 2 - s.along) < 1.6);
   for (const dir of [-1, 1]) {
     const outer = dir * (L / 2);
     const inner = dir * (L / 2 - stub);
@@ -515,8 +520,9 @@ function buildBridge(world, b, creek, batch, rng) {
       if (nearEdge) {
         // Split into short splintered pieces, some missing.
         for (let x = -W / 2; x < W / 2 - 0.01; x += 1.6) {
-          if (rng() < 0.35) continue;
-          const len = 1.6 * (0.5 + rng() * 0.5);
+          const whole = seated(dir, x, x + 1.6, y);
+          if (rng() < 0.35 && !whole) continue;
+          const len = whole ? 1.6 : 1.6 * (0.5 + rng() * 0.5);
           P(box(len, 0.12, plankW * 0.9), x + len / 2, y + plankW / 2, DECK_TOP - 0.12, rng() < 0.5 ? 0x3a2c20 : deck);
         }
       } else {
@@ -537,9 +543,17 @@ function buildBridge(world, b, creek, batch, rng) {
     for (let t = 0.4; t < railB; t += 2) P(box(0.18, 0.95, 0.18), W / 2 - 0.3, outer - dir * t, DECK_TOP, 0x4a3420);
     // Striped barrier across the stub, back from the edge.
     const by = inner + dir * 3;
+    const bw = (W - 1.2) / 6;
     for (let i = 0; i < 6; i++) {
-      const x0 = -W / 2 + 0.6 + (i + 0.5) * ((W - 1.2) / 6);
-      P(box((W - 1.2) / 6, 0.35, 0.12), x0, by, DECK_TOP + 0.8, i % 2 ? 0xffffff : 0xc0392b);
+      const x0 = -W / 2 + 0.6 + (i + 0.5) * bw;
+      const color = i % 2 ? 0xffffff : 0xc0392b;
+      // The board in line with someone sitting out past it is down on the
+      // deck, so you see her from the road (#64).
+      if (seats.some((s) => Math.sign(s.along) === dir && Math.abs(s.across - x0) < bw / 2)) {
+        batch.place(box(bw, 0.12, 0.35), b.x, b.y, 0, a + 8 * dir, x0, by + dir * 0.7, DECK_TOP, color, { cast: false });
+        continue;
+      }
+      P(box(bw, 0.35, 0.12), x0, by, DECK_TOP + 0.8, color);
     }
     for (const x of [-W / 2 + 0.8, W / 2 - 0.8]) P(box(0.12, 1.0, 0.12), x, by, DECK_TOP, 0x555555);
   }

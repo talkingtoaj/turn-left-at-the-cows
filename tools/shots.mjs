@@ -130,6 +130,12 @@ const VIEWS = [
   { name: 'people_foreman', person: ['marisol', 3, 1.6, 0] },
   { name: 'people_waitress', person: ['bev', 3, 1.6, 20] },
   { name: 'people_fisher', person: ['dot', 4.5, 1.7, 40] },
+  // Dot fishing off the broken end of the Creek Road bridge (#64): close 3/4
+  // from the south stub, straight on from the north stub across the gap, and
+  // from Creek Road as the player drives up.
+  { name: 'dot_close', car: { x: 644.39, y: 1396.5, heading: 10 }, cam: [652.18, 2.2, 1373.31], look: [646.33, 0.5, 1370.19] },
+  { name: 'dot_front', car: { x: 644.39, y: 1396.5, heading: 10 }, cam: [647.9, 2.2, 1363.1], look: [646.33, 1.3, 1370.19] },
+  { name: 'dot_road', car: { x: 644.39, y: 1396.5, heading: 10 }, rel: [0.6, 2.4, 6], relLook: [-1.8, 0.6, -26] },
   // Mid-conversation: hands moving (talk: that local's id).
   { name: 'people_talk', person: ['mabel', 2.6, 1.6, 25], talk: 'mabel' },
   { name: 'people_lineup', person: ['mabel', 7, 1.5, 0], lineup: ['mabel', 'hartley', 'marisol', 'bev', 'earl', 'gus'] },
@@ -206,6 +212,17 @@ const VIEWS = [
   { name: 'porch_d_front', car: { x: 2470, y: 853, heading: 77 }, cam: [2488, 1.8, 836], look: [2505, 2.2, 836] },
   { name: 'porch_d_swing', car: { x: 2470, y: 853, heading: 77 }, cam: [2509, 1.7, 852], look: [2507, 1.2, 844] },
   { name: 'porch_d_road', car: { x: 2470, y: 853, heading: 77 }, cam: [2470, 1.4, 853], look: [2510, 3, 838] },
+  // Water towers (#60). Ashford's, south of Highway 9: 3/4 close, straight on
+  // from the highway side, up at the catwalk, and from the highway driving
+  // east. Oakham's (run with SHOTS_QUERY='opening=off&spot=brandt'): 3/4, straight on
+  // from Oakham Road's side, and from Oakham Road driving south.
+  { name: 'tower_close', car: { x: 1450, y: 2251.5, heading: 90 }, cam: [1497, 7, 2268], look: [1530, 15, 2300] },
+  { name: 'tower_front', car: { x: 1450, y: 2251.5, heading: 90 }, cam: [1530, 14, 2256], look: [1530, 20, 2300] },
+  { name: 'tower_catwalk', car: { x: 1450, y: 2251.5, heading: 90 }, cam: [1513, 24, 2283], look: [1530, 21, 2300] },
+  { name: 'tower_road', car: { x: 1361, y: 2241.5, heading: 96 }, cam: [1361, 1.4, 2241.5], look: [1530, 18, 2300] },
+  { name: 'oak_close', car: { x: 3907, y: 2250, heading: 180 }, cam: [3958, 7, 2228], look: [3990, 15, 2262] },
+  { name: 'oak_front', car: { x: 3907, y: 2250, heading: 180 }, cam: [3940, 12, 2262], look: [3990, 20, 2262] },
+  { name: 'oak_road', car: { x: 3920, y: 2140, heading: 180 }, cam: [3920, 1.4, 2140], look: [3990, 18, 2262] },
 ];
 
 const browser = await launchChromium();
