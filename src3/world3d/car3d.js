@@ -13,16 +13,23 @@
 // round them), a squashed tyre and dropped corner when a tyre is flat.
 // With the new look: clearcoat paint, tinted glass and chrome reflecting
 // the sky (opts.env), lamps that glow (brighter tail lights when braking),
-// and dust that builds up on the lower body on dirt and grass.
+// and mud that builds up on dirt and grass and washes off in rain (#73,
+// src/game/mud.js): a thin film low down at first, then a ragged band up the
+// doors, fans thrown up behind each wheel, the back end, bumpers, flaps and
+// tires. It darkens and shines a little when the ground is wet.
 //
 //   const car = buildCar({ env })   // env: a PMREM texture, or null (?look=old: plain colours)
 //   car.update(car, dt, surfaceAt, steer, damage)
+//   car.setWeather(rain, wet)       // every frame, from src/game/wetness.js
+//   car.mud                         // 0 clean .. 1 caked (for locals to notice later)
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { DEG } from '../../src/drive/geom.js';
 import { SPECS, SEDAN_DINGS, loftBody, sectionAt, wearDings } from './carbody.js';
 import { carAtlas } from './caratlas.js';
+import { stepMud } from '../../src/game/mud.js';
+import { patchMud } from './carMud.js';
 
 const S = SPECS.sedan;
 const HALF_L = S.half;
@@ -395,8 +402,9 @@ function wheelGeo(A) {
 
 // ---------- materials ----------
 
-// Dust on the lower body (GLSL lines): amount 0..1, p the car-space position.
-// The traffic shader (traffic3d.js) uses the same lines.
+// Dust on the lower body of traffic cars (GLSL lines, used by traffic3d.js):
+// amount 0..1, p the car-space position. The player's car has its own mud
+// (carMud.js).
 export function dirtGlsl(amount, p) {
   return `  float dn = 0.8 + 0.1 * sin( ${p}.x * 9.0 + ${p}.z * 3.1 ) * sin( ${p}.z * 6.3 + ${p}.y * 11.0 ) + 0.1 * sin( ${p}.z * 21.0 + ${p}.x * 5.0 );
   float dk = clamp( ${amount} * smoothstep( 0.8, 0.28, ${p}.y ) * dn, 0.0, 0.8 );
@@ -405,6 +413,7 @@ export function dirtGlsl(amount, p) {
 
 function makeMaterials(env, A) {
   const dirt = { value: 0 };
+  const mudWet = { value: 0 };
   const brake = { value: 0 };
   const brakeChunk = `
 #ifdef USE_EMISSIVEMAP
@@ -424,18 +433,13 @@ function makeMaterials(env, A) {
     const glass = new THREE.MeshLambertMaterial({ color: 0x24323d });
     const trim = new THREE.MeshLambertMaterial({ map: A.map, emissiveMap: A.emissive, emissive: 0xffffff, emissiveIntensity: 0.4 });
     patchBrake(trim);
-    return { paint, glass, trim, dirt, brake };
+    return { paint, glass, trim, dirt, mudWet, brake };
   }
   const paint = new THREE.MeshPhysicalMaterial({
     vertexColors: true, roughness: 0.4, metalness: 0, clearcoat: 0.5, clearcoatRoughness: 0.18, envMap: env, envMapIntensity: 0.55,
   });
-  paint.onBeforeCompile = (sh) => {
-    sh.uniforms.uDirt = dirt;
-    sh.vertexShader = `varying vec3 vCarP;\n${sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vCarP = position;')}`;
-    sh.fragmentShader = `uniform float uDirt;\nvarying vec3 vCarP;\n${sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
-${dirtGlsl('uDirt', 'vCarP')}`)}`;
-  };
-  paint.customProgramCacheKey = () => 'carPaintDirt';
+  paint.onBeforeCompile = (sh) => patchMud(sh, { dirt, mudWet });
+  paint.customProgramCacheKey = () => 'carPaintMud';
   const glass = new THREE.MeshStandardMaterial({
     color: 0x0a1014, roughness: 0.03, metalness: 0.35, envMap: env, envMapIntensity: 1.8, transparent: true, opacity: 0.8,
   });
@@ -444,8 +448,13 @@ ${dirtGlsl('uDirt', 'vCarP')}`)}`;
     emissiveMap: A.emissive, emissive: 0xffffff, emissiveIntensity: 0.9,
   });
   patchBrake(trim);
-  trim.customProgramCacheKey = () => 'carTrimBrake';
-  return { paint, glass, trim, dirt, brake };
+  const brakeCompile = trim.onBeforeCompile;
+  trim.onBeforeCompile = (sh) => {
+    brakeCompile(sh);
+    patchMud(sh, { dirt, mudWet }, { trim: true });
+  };
+  trim.customProgramCacheKey = () => 'carTrimBrakeMud';
+  return { paint, glass, trim, dirt, mudWet, brake };
 }
 
 // ---------- the car ----------
@@ -591,10 +600,19 @@ export function buildCar(opts = {}) {
   const [wfx, wfz] = [WHEELS[1][0], WHEELS[0][1]];
   const wrz = WHEELS[2][1];
   const wheelbase = wrz - wfz;
+  const weather = { rain: 0, wet: 0 };
   return {
     object: group,
     meshes: { paint, glass, trim, wheels: wheelMesh },
-    dirt: M.dirt, // uniform { value 0..0.75 } (dev: set it for a dusty car)
+    dirt: M.dirt, // uniform { value 0..1 }: the mud (dev and shots: set it for a muddy car)
+    get mud() {
+      return M.dirt.value;
+    },
+    setWeather(rain, wet) {
+      weather.rain = rain;
+      weather.wet = wet;
+      M.mudWet.value = wet;
+    },
     showDamage,
     // A small upward kick to the body (m/s), e.g. driving through a shrub.
     kick(v) {
@@ -685,9 +703,9 @@ export function buildCar(opts = {}) {
         lastSpeed = car.speed;
         brakeT = decel > 2.5 && Math.abs(car.speed) > 0.5 ? 0.35 : Math.max(0, brakeT - dt);
         M.brake.value += ((brakeT > 0 ? 1 : 0) - M.brake.value) * Math.min(1, dt * 12);
-        // Dust builds up slowly on dirt and grass (a fresh car is clean).
+        // Mud builds on dirt and grass and washes off in rain (a fresh car is clean).
         const surf = damage && damage.lastSurface;
-        if ((surf === 'dirt' || surf === 'grass') && Math.abs(car.speed) > 4) M.dirt.value = Math.min(0.75, M.dirt.value + dt * 0.0045);
+        M.dirt.value = stepMud(M.dirt.value, dt, { surface: surf, speed: car.speed, rain: weather.rain, wet: weather.wet });
       }
     },
   };

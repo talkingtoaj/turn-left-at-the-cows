@@ -256,6 +256,19 @@ const VIEWS = [
   { name: 'elev_b_front', car: { x: 1700, y: 1440, heading: 0 }, cam: [1745, 4, 1452], look: [1745, 14, 1405] },
   { name: 'elev_b_sign', car: { x: 1700, y: 1440, heading: 0 }, cam: [1752, 19, 1378], look: [1745, 19.5, 1405] },
   { name: 'elev_b_road', car: { x: 1700, y: 1560, heading: 0 }, cam: [1700, 1.4, 1560], look: [1745, 14, 1405] },
+  // Mud on the player's car (#73), on Ridge Road (dirt): chase view, side,
+  // and 3/4 rear up close. mud: the car's mud amount 0..1. mudRain: then that
+  // many seconds of full rain parked (src/game/mud.js); run the washed_* views
+  // with SHOTS_QUERY='opening=off&rain=on'.
+  { name: 'mud_chase', car: { road: 'ridge_rd', at: 0.5 }, mud: 0 },
+  { name: 'mud_side', car: { road: 'ridge_rd', at: 0.5 }, mud: 0, rel: [-4.6, 1.3, -0.6], relLook: [0, 0.7, 0.2] },
+  { name: 'mud_rear', car: { road: 'ridge_rd', at: 0.5 }, mud: 0, rel: [2.8, 1.6, 5], relLook: [0, 0.7, 0.4] },
+  { name: 'muddy_chase', car: { road: 'ridge_rd', at: 0.5 }, mud: 0.9 },
+  { name: 'muddy_side', car: { road: 'ridge_rd', at: 0.5 }, mud: 0.9, rel: [-4.6, 1.3, -0.6], relLook: [0, 0.7, 0.2] },
+  { name: 'muddy_rear', car: { road: 'ridge_rd', at: 0.5 }, mud: 0.9, rel: [2.8, 1.6, 5], relLook: [0, 0.7, 0.4] },
+  { name: 'washed_chase', car: { road: 'ridge_rd', at: 0.5 }, mud: 0.9, mudRain: 60 },
+  { name: 'washed_side', car: { road: 'ridge_rd', at: 0.5 }, mud: 0.9, mudRain: 60, rel: [-4.6, 1.3, -0.6], relLook: [0, 0.7, 0.2] },
+  { name: 'washed_rear', car: { road: 'ridge_rd', at: 0.5 }, mud: 0.9, mudRain: 60, rel: [2.8, 1.6, 5], relLook: [0, 0.7, 0.4] },
 ];
 
 const browser = await launchChromium();
@@ -423,6 +436,15 @@ for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) 
     if (window.__trafficKit) {
       for (const id of window.__kitted || []) window.__trafficKit(id, null);
       window.__kitted = (v.kit || []).map(([id, parts]) => (window.__trafficKit(id, parts), id));
+    }
+    // Mud on the player's car (#73): set it, then wash it in mudRain s of rain.
+    if (window.__car3d && v.mud !== undefined) {
+      let m = v.mud;
+      if (v.mudRain) {
+        const { stepMud } = await import('/src/game/mud.js').catch(() => ({}));
+        for (let t = 0; stepMud && t < v.mudRain; t += 0.5) m = stepMud(m, 0.5, { surface: 'dirt', speed: 0, rain: 1, wet: 1 });
+      }
+      window.__car3d.dirt.value = m;
     }
     const { renderer, camera, world3d } = window.__three;
     if (!renderer.__orig) renderer.__orig = renderer.render.bind(renderer);
