@@ -23,6 +23,8 @@ All files were trimmed, made mono 44.1 kHz, normalised and encoded as 64 kbps mp
 | animals/dog1.mp3 | 277058 | Single Dog Bark | kwahmah_02 | https://freesound.org/people/kwahmah_02/sounds/277058/ |
 | animals/dog2.mp3 | 625497 | Animal Dog Bark 08.wav | abhisheky948 | https://freesound.org/people/abhisheky948/sounds/625497/ |
 | animals/dog3.mp3 | 625496 | Animal Dog Bark 21.wav | abhisheky948 | https://freesound.org/people/abhisheky948/sounds/625496/ |
+| animals/collie1.mp3 | 868311 | Dogs - Australian Shepherd Barking (first bark, 0.04 to 0.36 s; Okafor's collie, #68) | TheKingOfGeeks360 | https://freesound.org/people/TheKingOfGeeks360/sounds/868311/ |
+| animals/collie2.mp3 | 868311 | Dogs - Australian Shepherd Barking (all three barks, 1 s; Okafor's collie, #68) | TheKingOfGeeks360 | https://freesound.org/people/TheKingOfGeeks360/sounds/868311/ |
 | animals/horse1.mp3 | 347036 | horse's whinny | Kubuzz | https://freesound.org/people/Kubuzz/sounds/347036/ |
 | animals/horse2.mp3 | 269571 | horse neigh shortened.wav | shadoWisp | https://freesound.org/people/shadoWisp/sounds/269571/ |
 | bell/bell.mp3 | 633208 | Old Church Bell (no noise) | igroglaz | https://freesound.org/people/igroglaz/sounds/633208/ |
@@ -100,3 +102,5 @@ Round 13 (sound layers, ticket 26): 10 new files, all Freesound CC0 (each checke
 | car/creak3.mp3 | 508278 | Old_Truck_Metal_Squeaks-Creaks-Rattle-Impact_Small_Squeaks_C (8 to 9.5 s) | dilsun | https://freesound.org/people/dilsun/sounds/508278/ |
 | car/ignition.mp3 | 138099 | Car Start (0.1 to 1.9 s) | snakebarney | https://freesound.org/people/snakebarney/sounds/138099/ |
 | car/window_wind.mp3 | 506910 | Ambiance_Wind_Forest_Calm_Loop_Stereo.wav (2 to 16 s) | Nox_Sound | https://freesound.org/people/Nox_Sound/sounds/506910/ |
+
+Farm dog (#68): two files cut from one Freesound CC0 clip (checked as CC0 through the API by `tools/sounds/fs_get.py`), an Australian Shepherd, a herding dog like a collie: `animals/collie1.mp3` one bark and `animals/collie2.mp3` three quick barks. Made mono 44.1 kHz, 120 Hz highpass, short fades, 64 kbps by hand with ffmpeg. No ElevenLabs calls: 0 credits.

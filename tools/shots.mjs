@@ -98,6 +98,17 @@ const VIEWS = [
   { name: 'parked6x6_okafor_yard', car: { x: 4935, y: 2125, heading: 0 }, cam: [4972, 4.5, 2026], look: [4955, 1.5, 1996] },
   // Okafor's yard from the car as the player drives up (no 6x6 parked there since #71).
   { name: 'parked6x6_okafor_road', car: { x: 4935, y: 2125, heading: 0 } },
+  // Okafor's collie and its fence (#68). `dog: [s, v, toward]` holds the dog
+  // s m along its run, galloping at v m/s (0: standing, facing toward [x, y];
+  // 'rest': lying down).
+  { name: 'dog_aerial', car: { x: 4870, y: 2020, heading: 0 }, cam: [4880, 90, 2080], look: [4905, 0, 2010] },
+  { name: 'dog_close', car: { x: 4760, y: 2036, heading: 79 }, dog: [118, 0, [4899.4, 2005.8]], cam: [4900.7, 0.8, 2003.4], look: [4898.6, 0.4, 2003.7] },
+  { name: 'dog_lying', car: { x: 4760, y: 2036, heading: 79 }, dog: [118, 'rest'], cam: [4901.0, 0.9, 2002.9], look: [4898.6, 0.3, 2003.7] },
+  { name: 'dog_yard', car: { x: 4760, y: 2036, heading: 79 }, dog: [118, 0, [4893, 1999]], cam: [4897.7, 1.5, 1997.4], look: [4899.6, 0.4, 2004.4] },
+  { name: 'dog_straight', car: { x: 4760, y: 2036, heading: 79 }, dog: [118, 0, [4889, 1993]], cam: [4888.3, 1.6, 1994.2], look: [4900, 0.7, 2005] },
+  { name: 'dog_run', car: { x: 4760, y: 2036, heading: 79 }, dog: [60, 8.5], cam: [4852.8, 1.2, 2028.4], look: [4850.6, 0.4, 2035.9] },
+  { name: 'dog_run_side', car: { x: 4760, y: 2036, heading: 79 }, dog: [60, 8.5], cam: [4852.2, 0.7, 2039.8], look: [4850.6, 0.35, 2035.9] },
+  { name: 'dog_road', car: { x: 4790, y: 2031, heading: 77 }, dog: [70, -8.5] },
   { name: 'traffic_sedans', car: { road: 'hwy9', at: 0.4 }, pin: [['car0', 16, 1, 1], ['car4', 24, 1, 1], ['car9', 32, 1, 1]], tcam: [[6, 2.6, -22], [0, 0.8, -8]] },
   { name: 'traffic_pairs', car: { road: 'hwy9', at: 0.4 }, pin: [['car1', 16, 1, 1], ['car6', 23, 1, 1], ['car2', 30, 1, 1], ['car8', 37, 1, 1]], tcam: [[6, 3.0, -27], [0, 0.8, -10]] },
   { name: 'traffic_kit_close', car: { road: 'hwy9', at: 0.4 }, pin: [['car6', 20, 1, 1]], tcam: [[4.6, 2.6, -4.6], [0, 1.0, 0.6]] },
@@ -437,6 +448,10 @@ for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) 
     if (window.__trafficKit) {
       for (const id of window.__kitted || []) window.__trafficKit(id, null);
       window.__kitted = (v.kit || []).map(([id, parts]) => (window.__trafficKit(id, parts), id));
+    }
+    // The farm dog held running or standing for this view (#68), else free.
+    for (const d of (window.__amb && window.__amb.farmDogs) || []) {
+      d.hold = v.dog ? { s: v.dog[0], v: v.dog[1], rest: v.dog[1] === 'rest', toward: v.dog[2] ? { x: v.dog[2][0], y: v.dog[2][1] } : null } : null;
     }
     const { renderer, camera, world3d } = window.__three;
     if (!renderer.__orig) renderer.__orig = renderer.render.bind(renderer);

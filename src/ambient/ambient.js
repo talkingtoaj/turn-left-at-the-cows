@@ -17,6 +17,7 @@ import {
 } from './trafficRules.js';
 import { carPaint } from './carpaint.js'; // traffic paint: real rural colors, seeded per car (#50)
 import { trafficType } from './carkit.js'; // some types have their own colors (the 4x4 #44, work vans #46)
+import { farmDogsIn, dogStart, stepDog, dogHeld, dogLook } from '../world/farmDog.js';
 
 // Level of detail: things within NEAR_R of the player get full updates.
 const NEAR_R = 600;
@@ -1564,6 +1565,14 @@ export function createAmbient(world, scenery) {
   const bellLm = world.landmarks.find((l) => l.id === (world.ambient && world.ambient.bellTower)) ||
     world.landmarks.find((l) => l.kind === 'church');
   let lastHour = null;
+  // Farm dogs (#68, src/world/farmDog.js): each runs its own fence after you,
+  // barking. Drawn with the animals (kind 'dog'); its farm has no other bark.
+  const dogs = farmDogsIn(world).map((dog) => {
+    const st = dogStart(dog);
+    const a = { id: dog.id, kind: 'dog', ...dogLook(dog, st) };
+    animals.push(a);
+    return { dog, st, a };
+  });
   const farms = [];
   {
     const groups = new Map();
@@ -1573,6 +1582,7 @@ export function createAmbient(world, scenery) {
       groups.get(b.farm).push(b);
     }
     for (const [id, bs] of groups) {
+      if (dogs.some((d) => d.dog.farm === id)) continue;
       const house = bs.find((b) => b.kind === 'farmhouse') || bs[0];
       farms.push({ id, x: house.x + 6, y: house.y + 8, timer: R(3, 10) });
     }
@@ -1596,6 +1606,7 @@ export function createAmbient(world, scenery) {
     junctions: nodes.map((k) => ({ id: k.id, x: k.x, y: k.y, r: k.r })), // additive: junction centres (cars' `junction` names the one they are in)
     stopSigns, // additive: [{ id, x, y, heading, leanX, leanY }] STOP signs at minor-to-paved junctions (SPEC 9q)
     obstacles, // additive: [{ x, y, r, player? }] hazards traffic waits behind (the caller refills it); player: true for the parked car, which traffic honks at
+    farmDogs: dogs, // internal: [{ dog, st, a, hold? }] the farm dogs (#68); hold: { s, v, toward } pins one (tools/shots.mjs)
     horns: [], // additive: [{ id, x, y }] vehicles sounding their horn this frame (traffic, then hazards add theirs)
     time: 0,
 
@@ -1743,6 +1754,12 @@ export function createAmbient(world, scenery) {
         lastHour = hour;
       }
 
+      // The farm dogs chase you along their fences.
+      for (const d of dogs) {
+        d.st = d.hold ? dogHeld(d.dog, d.st, d.hold, dt) : stepDog(d.dog, d.st, { x: px, y: py }, dt);
+        Object.assign(d.a, dogLook(d.dog, d.st));
+        if (d.st.barks) events.push({ type: 'dog_bark', x: d.a.x, y: d.a.y, count: 1, voice: 'collie' });
+      }
       // Dogs bark at farms when the player is near.
       for (const fm of farms) {
         const d = Math.hypot(fm.x - px, fm.y - py);
