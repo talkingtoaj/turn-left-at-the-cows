@@ -7,6 +7,7 @@ import {
 import { box, cyl, flat, disc, flatPolygon } from './shapes.js';
 import { objMatrix } from './batch.js';
 import { WATER_LEVEL } from './terrain.js';
+import { buildIntactBridge } from './bridge3d.js';
 
 const ID = new THREE.Matrix4();
 const NO_SHADOW = { cast: false, material: 'ground' };
@@ -442,6 +443,7 @@ export function buildGround(world, scenery, terrain, batch) {
     }
     if (coveredDrawn.has(b.id)) continue; // drawn with the landmarks (landmarks3d.js)
     if (b.kind === 'ford') buildFord(world, b, batch, rng);
+    else if (b.intact) buildIntactBridge(world, b, batch, rng, H); // railings, end posts, trusses (#78)
     else buildBridge(world, b, creek, batch, rng);
   }
 }
@@ -463,42 +465,13 @@ function buildFord(world, b, batch, rng) {
   }
 }
 
+// Washed-out bridge (the intact ones are in bridge3d.js).
 function buildBridge(world, b, creek, batch, rng) {
-  const road = world.roads.find((r) => r.id === b.roadId);
-  const paved = road && road.type === 'paved';
   const W = b.width;
   const L = b.length;
   const a = b.angle;
   const creekW = b.waterWidth || (creek ? creek.width : 14);
   const P = (geo, lx, ly, up, color, opts) => batch.place(geo, b.x, b.y, 0, a, lx, ly, up, color, opts);
-
-  if (b.intact) {
-    // Concrete deck, asphalt, dashes, railings and two piers in the water.
-    const deck = 0x9b9a94;
-    P(box(W, 0.9, L), 0, 0, DECK_TOP - 0.9, deck);
-    // Short ramps so the deck meets the road.
-    for (const dir of [-1, 1]) {
-      const ramp = box(W - 0.4, 0.3, 3).rotateX(dir * 0.1);
-      P(ramp, 0, dir * (L / 2 + 1.2), -0.15, deck, { cast: false });
-    }
-    if (paved) {
-      P(box(W - 2, 0.02, L), 0, 0, DECK_TOP, 0x66676a, { cast: false });
-      for (let y = -L / 2 + 2; y < L / 2 - 3; y += 9) P(box(0.25, 0.02, 3), 0, y + 1.5, DECK_TOP + 0.01, 0xe6d690, { cast: false });
-    }
-    const rail = paved ? 0xd6d5cc : 0x6a4c2e;
-    const postC = paved ? 0x77766f : 0x4a3420;
-    for (const side of [-1, 1]) {
-      const x = side * (W / 2 - 0.3);
-      P(box(0.5, 0.35, L), x, 0, DECK_TOP, rail); // kerb
-      P(box(0.2, 0.18, L), x, 0, DECK_TOP + 1.0, rail); // top rail
-      P(box(0.12, 0.12, L), x, 0, DECK_TOP + 0.6, rail);
-      for (let y = -L / 2 + 0.5; y <= L / 2 - 0.5; y += 2.5) P(box(0.22, 1.05, 0.22), x, y, DECK_TOP, postC);
-    }
-    for (const y of [-5, 5]) {
-      P(box(W * 0.7, 3, 1.4), 0, y, -2.5, 0x8a8984);
-    }
-    return;
-  }
 
   // Washed out: wooden stub on each bank, ragged ends, gap over the water.
   const deck = 0x8a6a45;

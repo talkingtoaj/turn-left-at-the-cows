@@ -19,6 +19,7 @@ import { buildHouse } from './house3d.js';
 import { buildWaterTower } from './watertower3d.js';
 import { buildGrainElevator, buildFarmSilo } from './elevator3d.js';
 import { buildShop } from './shops3d.js';
+import { buildBarn } from './barn3d.js';
 import { buildDogYards } from './dog3d.js';
 import { Batcher } from './batch.js';
 import { state } from '../../src/state.js';
@@ -159,30 +160,7 @@ function buildBuilding(world, terrain, batch, b) {
   }
 
   if (b.kind === 'barn') {
-    const wallH = 6;
-    P(box(b.w, wallH + FOUND, b.h), 0, 0, -FOUND, 0xa8352b);
-    P(gable(b.w + 0.8, b.h + 0.8, 4.5), 0, 0, wallH, 0x5a5f66);
-    // White corner trim and big doors with an X on the long south side.
-    for (const [lx, ly] of [[-b.w / 2, -b.h / 2], [b.w / 2, -b.h / 2], [b.w / 2, b.h / 2], [-b.w / 2, b.h / 2]]) {
-      P(box(0.35, wallH, 0.35), lx, ly, 0, 0xf0ece2);
-    }
-    for (const side of [-1, 1]) {
-      const ly = side * (b.h / 2);
-      P(box(5, 4.4, 0.14), 0, ly, 0, 0x8c2a22);
-      P(box(5.2, 0.25, 0.18), 0, ly, 4.4, 0xf0ece2);
-      const diag = new THREE.Matrix4().makeRotationZ(Math.atan2(4.4, 5));
-      batch.place(box(6.6, 0.22, 0.18), b.x, b.y, base, a, 0, ly, 2.1, 0xf0ece2, { extra: diag });
-      const diag2 = new THREE.Matrix4().makeRotationZ(-Math.atan2(4.4, 5));
-      batch.place(box(6.6, 0.22, 0.18), b.x, b.y, base, a, 0, ly, 2.1, 0xf0ece2, { extra: diag2 });
-      P(box(1.4, 1.4, 0.14), 0, ly, 7.0 - 0.9, 0xf0ece2);
-    }
-    // Hay loft opening in the gable ends.
-    for (const side of [-1, 1]) P(box(0.14, 1.6, 2), side * b.w / 2, 0, 6.4, 0x3a2a20);
-    // Cupola on the ridge.
-    P(box(2.4, 2.2, 2.4), 0, 0, wallH + 3.6, 0xf0ece2);
-    P(pyramid(3.0, 1.6), 0, 0, wallH + 5.8, 0x5a5f66);
-    // Silo with a domed top.
-    buildFarmSilo(batch, b, base, b.w / 2 + SILO.dx, SILO.ly, SILO.r, 14); // elevator3d.js (#67)
+    buildBarn(batch, b, base, sideDistances(world, b)); // barn3d.js (#79)
     return;
   }
 
