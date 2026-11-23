@@ -83,7 +83,10 @@ export const NPCS = [
     },
   },
   {
-    id: 'dot', name: 'Dot', role: 'fishing by the creek', x: 628, y: 1395,
+    // Sits on the broken end of the washed-out bridge, fishing (#64): x, y come
+    // from the bridge (build.js perchOn); these are only a fallback.
+    id: 'dot', name: 'Dot', role: 'fishing by the creek', x: 646, y: 1370,
+    perch: { bridgeId: 'b_old', across: -2.7, along: 5.75 }, stay: true,
     greeting: ["Shh. You'll scare the fish. ...Well? What is it?"],
     topics: {
       hartley_farm: {

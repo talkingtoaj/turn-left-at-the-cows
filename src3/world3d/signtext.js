@@ -13,7 +13,7 @@ import { signMilesText } from '../../src/units.js';
 export const SIGN_PX_PER_M = 120; // texels per metre on road signs
 export const PLATE_PX_PER_M = 260; // mailbox name plates are small, so denser
 const ATLAS_W = 2048;
-const PAD = 10; // edge colour padding so mip levels do not bleed into neighbours
+export const PAD = 10; // edge colour padding so mip levels do not bleed into neighbours
 const FONT = 'bold {px}px "Helvetica Neue", Arial, "DejaVu Sans", sans-serif';
 
 // World data keeps distances in km (they came first). Players see miles:
@@ -97,7 +97,8 @@ export class FaceAtlas {
     tex.anisotropy = 8;
     tex.generateMipmaps = true;
     tex.minFilter = THREE.LinearMipmapLinearFilter;
-    const mat = new THREE.MeshLambertMaterial({ map: tex, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    // alphaTest: faces may leave their cell see-through (the water tower's letters).
+    const mat = new THREE.MeshLambertMaterial({ map: tex, alphaTest: 0.5, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
 
     const geos = [];
     for (const q of this.quads) {

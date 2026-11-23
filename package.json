@@ -36,8 +36,10 @@
     "check:parked": "node tools/check-parked.mjs",
     "check:poles": "node tools/check-poles.mjs",
     "check:porch": "node tools/check-porch.mjs",
+    "check:tower": "node tools/check-tower.mjs",
+    "check:board": "node tools/check-board.mjs",
     "check:verge": "node tools/check-verge.mjs",
-    "check:all": "npm run -s check:assets && npm run -s check:world && npm run -s check:units && npm run -s check:signs && npm run -s check:radio && npm run -s check:radio-logic && npm run -s check:radiosubs && npm run -s check:clock && npm run -s check:tourists && npm run -s check:shifts && npm run -s check:traffic && npm run -s check:traffic-sound && npm run -s check:cows && npm run -s check:people && npm run -s check:car && npm run -s check:carpet && npm run -s check:traffic-look && npm run -s check:opening && npm run -s check:parked && npm run -s check:poles && npm run -s check:porch && npm run -s check:verge"
+    "check:all": "npm run -s check:assets && npm run -s check:world && npm run -s check:units && npm run -s check:signs && npm run -s check:radio && npm run -s check:radio-logic && npm run -s check:radiosubs && npm run -s check:clock && npm run -s check:tourists && npm run -s check:shifts && npm run -s check:traffic && npm run -s check:traffic-sound && npm run -s check:cows && npm run -s check:people && npm run -s check:car && npm run -s check:carpet && npm run -s check:traffic-look && npm run -s check:opening && npm run -s check:parked && npm run -s check:poles && npm run -s check:porch && npm run -s check:tower && npm run -s check:board && npm run -s check:verge"
   },
   "dependencies": {
     "three": "^0.186.1"

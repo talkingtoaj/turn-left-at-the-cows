@@ -172,6 +172,70 @@ for (const [, L] of allLooks) {
   if (pn.rot.uaR[2] > 1) fail('arm still up after the wave');
 }
 
+// ---------- sitting on the broken bridge (Dot, #64) ----------
+{
+  const { WALK } = await import('../src/game/onfoot.js');
+  const { Collider } = await import('../src/drive/collider.js');
+  const w = regionWorld(REGION_IDS[0]);
+  const sitters = REGION_IDS.flatMap((rid) => regionWorld(rid).locals.filter((l) => l.perch));
+  const dot = w.locals.find((l) => l.id === 'dot');
+  if (!dot || !dot.sit) fail('dot: not sitting');
+  for (const l of sitters) {
+    const rw = REGION_IDS.map((rid) => regionWorld(rid)).find((q) => q.locals.includes(l)) || w;
+    const b = rw.bridges.find((q) => q.id === l.perch.bridgeId);
+    if (!b || !l.sit) { fail(`${l.id}: perched on a missing bridge ${l.perch.bridgeId}`); continue; }
+    if (!l.stay) fail(`${l.id}: sits but would wander off (stay)`);
+    if (b.intact) fail(`${l.id}: sits on the end of a bridge that is whole`);
+    // On the stub, hips just back from the broken edge, so the legs hang over.
+    const stub = (b.length - b.waterWidth) / 2 + 1.5;
+    const edge = b.length / 2 - stub;
+    const back = Math.abs(l.sit.along) - edge;
+    if (!(back > 0.1 && back < 0.6)) fail(`${l.id}: hips ${back.toFixed(2)} m back from the edge, want 0.1 to 0.6`);
+    if (!(Math.abs(l.sit.across) < b.width / 2 - 1)) fail(`${l.id}: off the side of the deck (across ${l.sit.across})`);
+    // You can still talk to her: somewhere you can stand on foot (the
+    // world's collider: water, rails, people) well inside talk range.
+    const col = new Collider(rw, { trees: [] });
+    let bank = Infinity;
+    for (let dx = -WALK.talkR; dx <= WALK.talkR; dx += 0.1) {
+      for (let dy = -WALK.talkR; dy <= WALK.talkR; dy += 0.1) {
+        if (col.circleHit(l.x + dx, l.y + dy, WALK.r) === null) bank = Math.min(bank, Math.hypot(dx, dy));
+      }
+    }
+    if (!(bank < WALK.talkR - 0.5)) fail(`${l.id}: nearest place to stand ${bank.toFixed(1)} m away, talk range ${WALK.talkR} m`);
+    // Faces the middle of the bridge (the gap).
+    const toMid = l.sit.along > 0 ? b.angle : (b.angle + 180) % 360;
+    if (Math.abs(((l.sit.heading - toMid + 540) % 360) - 180) > 1) fail(`${l.id}: faces ${l.sit.heading}, not the gap`);
+  }
+  // Pose ticked over 8 s: thighs out level, shins hanging and swinging, the
+  // rod held still (no cast), no wave with the rod hand.
+  const L = personLook(dot);
+  if (!L.seated) fail('dot: look not seated');
+  const a = newAct();
+  let shMin = Infinity, shMax = -Infinity, rodMin = Infinity, rodMax = -Infinity, apart = 0;
+  for (let i = 0; i <= 480; i++) {
+    const t = i / 60;
+    a.wave = i > 240 && i < 300 ? WAVE_S / 2 : 0;
+    const p = personPose(L, a, t, { moving: false, walk: 0, headYaw: 0.3 });
+    for (const b of BONES) if (!p.rot[b].every(Number.isFinite)) fail(`seated: ${b} not finite at ${t}`);
+    if (!(p.rot.thL[0] > 1.3 && p.rot.thR[0] > 1.3)) fail(`seated: thighs at ${p.rot.thL[0]} at ${t}`);
+    if (!(p.rot.shL[0] < -1.1 && p.rot.shL[0] > -1.7)) fail(`seated: shin at ${p.rot.shL[0]} at ${t}`);
+    shMin = Math.min(shMin, p.rot.shL[0]);
+    shMax = Math.max(shMax, p.rot.shL[0]);
+    rodMin = Math.min(rodMin, p.rot.uaR[0] + p.rot.faR[0]);
+    rodMax = Math.max(rodMax, p.rot.uaR[0] + p.rot.faR[0]);
+    apart = Math.max(apart, Math.abs(p.rot.shL[0] - p.rot.shR[0]));
+    if (p.rot.uaR[2] > 1) fail(`seated: rod arm waved at ${t}`);
+  }
+  if (shMax - shMin < 0.2) fail(`seated: legs do not swing (${(shMax - shMin).toFixed(2)})`);
+  if (apart < 0.15) fail('seated: both legs swing together');
+  if (rodMax - rodMin > 0.01) fail(`seated: the rod moves ${(rodMax - rodMin).toFixed(2)} (her line is fixed to it)`);
+  // A standing fisher still casts.
+  const S = { ...L, seated: false };
+  let castMax = 0;
+  for (let i = 0; i <= 660; i++) castMax = Math.max(castMax, personPose(S, newAct(), i / 60, { moving: false, walk: 0, headYaw: 0 }).rot.uaR[0]);
+  if (castMax < 1.2) fail('standing fisher no longer casts');
+}
+
 // ---------- geometry ----------
 let geoNote = 'skipped';
 try {

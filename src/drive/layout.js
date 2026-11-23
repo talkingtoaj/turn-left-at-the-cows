@@ -29,6 +29,7 @@ export const WATER_TOWER = {
   legs: [[-6, -6], [6, -6], [6, 6], [-6, 6]], // splayed, so feet show past the tank
   legR: 0.7,
   tankR: 6.5,
+  riserR: 0.8, // the pipe up the middle (#60)
 };
 
 // Burned mill: what is left of the walls, as local rects.
@@ -278,6 +279,7 @@ export function landmarkSolids(l, world = null) {
     rects.push(partRect(l.x, l.y, 0, CHURCH.nave), partRect(l.x, l.y, 0, CHURCH.tower));
   } else if (l.kind === 'water_tower') {
     for (const [lx, ly] of WATER_TOWER.legs) circles.push({ x: l.x + lx, y: l.y + ly, r: WATER_TOWER.legR });
+    circles.push({ x: l.x, y: l.y, r: WATER_TOWER.riserR });
   } else if (l.kind === 'mill_ruin') {
     for (const w of MILL.walls) rects.push(partRect(l.x, l.y, 0, w));
     rects.push(partRect(l.x, l.y, 0, MILL.chimney), partRect(l.x, l.y, 0, MILL.wheel));
