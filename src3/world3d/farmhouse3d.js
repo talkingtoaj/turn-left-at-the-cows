@@ -38,6 +38,8 @@ const CHAIR = 0x7a5a3a; // boards
 const MAT = 0x6e3b2c;
 const POT = 0xa0553a;
 const LEAF = 0x4d7a3a;
+// Kit colours other models remap (house3d.js).
+export const KIT = { TRIM, SHUTTER, DOOR, DOOR_DARK, GLASS };
 
 // Porch sizes (metres).
 const FL = 0.55; // deck height
@@ -74,7 +76,7 @@ function boxes(list) {
 
 // Diagonal lattice, len along x, h tall (bottom at y = 0), facing +z.
 // Strips run at 45 degrees both ways and are cut to the panel's ends.
-function latticeGeo(len, h) {
+export function latticeGeo(len, h) {
   return kit(`lat:${len.toFixed(2)}:${h.toFixed(2)}`, () => {
     const list = [];
     const step = 0.26;
@@ -95,7 +97,7 @@ function latticeGeo(len, h) {
 }
 
 // A run of railing len long between posts, deck top at y = 0.
-function railGeo(len) {
+export function railGeo(len) {
   return kit(`rail:${len.toFixed(2)}`, () => {
     const list = [
       [len, 0.06, 0.09, 0, 0.84, 0],
@@ -109,7 +111,7 @@ function railGeo(len) {
 }
 
 // A turned post H tall: square plinth, round shaft with collars, square cap.
-function postGeo(H) {
+export function postGeo(H) {
   return kit(`post:${H.toFixed(2)}`, () => mergeGeometries([
     box(0.26, 0.24, 0.26).toNonIndexed(),
     cyl(0.1, 0.06, 8).translate(0, 0.24, 0).toNonIndexed(),
@@ -127,7 +129,7 @@ function stripAll(g) {
 }
 
 // A curved bracket under the beam, out along +x from the post's face, top at y = 0.
-function bracketGeo() {
+export function bracketGeo() {
   return kit('bracket', () => {
     const s = new THREE.Shape();
     s.moveTo(0, 0);
@@ -142,7 +144,7 @@ function bracketGeo() {
 
 // Window, sill at y = 0, glass face on the wall (z = 0), facing +z:
 // casing, head with a cap, sill and apron, two sashes, shutters.
-function windowGeo(w, h, shutters) {
+export function windowGeo(w, h, shutters) {
   return kit(`win:${w}:${h}:${shutters}`, () => {
     const parts = [
       [box(w, h, 0.03).translate(0, 0, 0.0), GLASS],
@@ -177,7 +179,7 @@ function windowGeo(w, h, shutters) {
 }
 
 // Front door with a screen door in front of it, bottom at y = 0, facing +z.
-function doorGeo() {
+export function doorGeo() {
   return kit('door', () => {
     const w = 0.95;
     const h = 2.05;
