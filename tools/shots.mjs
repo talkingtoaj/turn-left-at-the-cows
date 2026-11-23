@@ -53,6 +53,21 @@ const VIEWS = [
   { name: 'junction_wide', car: { x: 2965, y: 1100, heading: 180 }, cam: [3005, 14, 1265], look: [2978, 0, 1300] },
   // A wire fence by Hartley Farm, low along the posts (weeds at its foot).
   { name: 'fence_low', car: { x: 2610, y: 490, heading: 0 }, cam: [2617, 1.4, 556], look: [2628, 0.4, 578] },
+  // Power poles (#61): Highway 9 pole with a transformer can, 3/4 close,
+  // straight on to the crossarm (glass insulators), and from the road.
+  { name: 'poles_close', car: { x: 1794.5, y: 2200.9, heading: 258 }, cam: [1762, 6.5, 2214], look: [1754.45, 7.2, 2219] },
+  { name: 'poles_front', car: { x: 1794.5, y: 2200.9, heading: 258 }, cam: [1742.7, 7, 2221.5], look: [1754.45, 7.4, 2219] },
+  { name: 'poles_top', car: { x: 1794.5, y: 2200.9, heading: 258 }, cam: [1757.8, 7.4, 2215.6], look: [1754.45, 7.2, 2219] },
+  { name: 'poles_road', car: { x: 1794.5, y: 2200.9, heading: 258 }, rel: [0.6, 2.2, 5.5] },
+  // Field gates (#61): the wooden gate in the rail fence south of Route 40,
+  // 3/4, straight on and from the road; broken boards along the same fence;
+  // the metal gate in Hartley's wire fence.
+  { name: 'gate_close', car: { x: 3080, y: 1293.2, heading: 90 }, cam: [3120, 1.6, 1302], look: [3115.3, 0.9, 1307.5] },
+  { name: 'gate_front', car: { x: 3080, y: 1293.2, heading: 90 }, cam: [3115.3, 1.4, 1300.5], look: [3115.3, 0.9, 1307.5] },
+  { name: 'gate_road', car: { x: 3080, y: 1293.2, heading: 90 }, cam: [3080, 1.3, 1294], look: [3115, 0.8, 1307.5] },
+  { name: 'fence_broken', car: { x: 3080, y: 1293.2, heading: 90 }, cam: [3064, 1.6, 1302], look: [3058, 0.7, 1309] },
+  { name: 'gate_wire', car: { x: 2610, y: 490, heading: 0 }, cam: [2754, 1.6, 464], look: [2760, 0.9, 459.5] },
+  { name: 'gate_wire_front', car: { x: 2610, y: 490, heading: 0 }, cam: [2753.5, 1.4, 459.5], look: [2760, 0.9, 459.5] },
   // Wildflowers and clover (#41): a damp bottom by Pond Road, a dry meadow by Farm Road.
   { name: 'flowers_damp', car: { x: 4912, y: 674, heading: 0 }, cam: [4907, 1.7, 677], look: [4885, 0, 668] },
   { name: 'flowers_dry', car: { x: 2598, y: 493, heading: 0 }, cam: [2603, 1.7, 497], look: [2628, 0, 490] },

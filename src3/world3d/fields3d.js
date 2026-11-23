@@ -9,6 +9,8 @@ import { CELL } from './terrain.js';
 import { objMatrix } from './batch.js';
 import { isCowMailbox, cowMailboxParts } from './dressing.js';
 import { FaceAtlas, drawPlateFace, PLATE_PX_PER_M } from './signtext.js';
+import { pickGate } from './fencePlan.js';
+import { addGate, addBrokenRail, postCap, GALV, IRON, GATE_WOOD } from './fences3d.js';
 
 const I = new THREE.Matrix4();
 
@@ -391,37 +393,65 @@ function fences(world, batch, H) {
   for (const f of fenceRuns(world)) {
     const style = f.style !== undefined ? f.style : f.field.fence !== undefined ? f.field.fence : 'wire';
     if (!style || style === 'none') continue;
-    const posts = new Tris();
-    const rails = new Tris();
     const rail = style === 'rail';
-    for (const run of f.runs) {
-      const pts = rail ? run.filter((_, i) => i % 2 === 0 || i === run.length - 1) : run;
+    const T = { posts: new Tris(), rails: new Tris(), metal: new Tris(), iron: new Tris(), gate: new Tris() };
+    const posts = T.posts;
+    const rails = T.rails;
+    const runs = f.runs.map((run) => (rail ? run.filter((_, i) => i % 2 === 0 || i === run.length - 1) : run));
+    // One gate per field, on the stretch nearest a road (#61).
+    const gate = pickGate(runs, world.roads);
+    runs.forEach((pts, r) => {
+      const g = gate && gate.run === r ? gate : null;
       const hs = pts.map((p) => H(p.x, p.y));
       for (let i = 0; i < pts.length; i++) {
         const p = pts[i];
         const h0 = hs[i];
-        posts.beam([p.x, h0 - 0.25, p.y], [p.x, h0 + (rail ? 1.35 : 1.15), p.y], rail ? 0.18 : 0.14, rail ? 0.18 : 0.14);
-        if (batch.audit) batch.audit.circle(f.field.id, 'fence_post', p.x, p.y, rail ? 0.09 : 0.07, h0 - 0.25);
+        // Inside the gate: its posts and leaf are drawn by addGate.
+        if (g && i >= g.i0 && i <= g.i1) {
+          if (i === g.i0) {
+            const bot = addGate(T, p, pts[g.i1], H, rail);
+            if (batch.audit) {
+              for (const q of [p, pts[g.i1]]) batch.audit.circle(f.field.id, 'fence_post', q.x, q.y, 0.11, H(q.x, q.y) - 0.3);
+              const q = pts[g.i1];
+              batch.audit.span({ id: f.field.id, kind: 'fence_rail', a: [p.x, p.y, bot], b: [q.x, q.y, bot], clear: 0.05 });
+            }
+          }
+          if (i < g.i1) continue;
+        } else {
+          const top = h0 + (rail ? 1.35 : 1.15);
+          posts.beam([p.x, h0 - 0.25, p.y], [p.x, top, p.y], rail ? 0.18 : 0.14, rail ? 0.18 : 0.14);
+          if (rail) postCap(posts, p.x, top, p.y, 0.18, 0.05);
+          if (batch.audit) batch.audit.circle(f.field.id, 'fence_post', p.x, p.y, rail ? 0.09 : 0.07, h0 - 0.25);
+        }
         const q = pts[i + 1];
         if (!q) continue;
         const h1 = hs[i + 1];
+        const ups = rail ? [0.45, 0.85, 1.22] : [0.55, 1.0];
+        // Rail boards: now and then one is broken (fencePlan.js).
+        const broken = ups.map((up, k) => rail && addBrokenRail(rails, f.field.id, r, i, k, p, h0, q, h1, up, H));
         for (const [ax, ay, ah, bx, by, bh] of railLegs(H, p.x, p.y, h0, q.x, q.y, h1)) {
-          if (batch.audit) {
+          if (batch.audit && !broken[0]) {
             const low = rail ? 0.45 - 0.07 : 0.55 - 0.035;
             batch.audit.span({ id: f.field.id, kind: 'fence_rail', a: [ax, ay, ah + low], b: [bx, by, bh + low], clear: 0.2 });
           }
-          for (const up of rail ? [0.45, 0.85, 1.22] : [0.55, 1.0]) {
+          ups.forEach((up, k) => {
+            if (broken[k]) return;
             if (rail) rails.beam([ax, ah + up, ay], [bx, bh + up, by], 0.14, 0.05);
             else rails.beam([ax, ah + up, ay], [bx, bh + up, by], 0.07, 0.07);
-          }
+          });
         }
       }
-    }
+    });
     const wood = f.field.kind === 'crop' ? 0x5a4630 : 0x6a5238;
-    const gp = posts.geometry();
-    if (gp) batch.add(gp, I, rail ? 0x5a4630 : wood, { cast: rail });
-    const gr = rails.geometry();
-    if (gr) batch.add(gr, I, rail ? 0x8a6c4a : wood, { cast: rail });
+    const add = (t, color) => {
+      const g = t.geometry();
+      if (g) batch.add(g, I, color, { cast: rail });
+    };
+    add(posts, rail ? 0x5a4630 : wood);
+    add(rails, rail ? 0x8a6c4a : wood);
+    add(T.gate, GATE_WOOD);
+    add(T.metal, GALV);
+    add(T.iron, IRON);
   }
 }
 
@@ -560,79 +590,8 @@ export function buildStones(terrain, batch) {
   }
 }
 
-// ---------- power lines ----------
-
-const POLE_H = 8.6;
-const ARM_UP = 7.9;
-const ARM_HALF = 1.1;
-const MAX_SPAN = 95;
-
-// Wooden poles with a crossarm (batched), and sagging wires between
-// consecutive poles as one LineSegments (a single draw call).
-export function buildPowerLines(world, terrain, batch) {
-  const H = (x, y) => terrain.heightAt(x, y);
-  const pole = cyl(0.15, POLE_H, 6, 0.12);
-  const arm = box(ARM_HALF * 2 + 0.2, 0.12, 0.12);
-  const ins = cyl(0.06, 0.22, 5);
-  const verts = [];
-  for (const line of world.powerLines || []) {
-    const ps = line.poles || [];
-    const attach = [];
-    for (let i = 0; i < ps.length; i++) {
-      const p = ps[i];
-      const a = ps[i - 1] || p;
-      const b = ps[i + 1] || p;
-      let dx = b.x - a.x;
-      let dy = b.y - a.y;
-      if (!dx && !dy) dy = 1;
-      // Heading of the line here; the crossarm runs along local x, square to it.
-      const ang = Math.atan2(dx, -dy) / DEG;
-      const base = H(p.x, p.y);
-      // A shared pole (a branch line's end, src/world/fill.js) is already
-      // drawn by the line it belongs to; only its wires are added here.
-      if (!p.shared) {
-        batch.add(pole, objMatrix(p.x, p.y, base - 0.3, ang), 0x5b4632);
-        if (batch.audit) batch.audit.circle(line.id || 'power', 'power_pole', p.x, p.y, 0.15, base - 0.3);
-        batch.place(arm, p.x, p.y, base, ang, 0, 0, ARM_UP - 0.12, 0x4d3b2a);
-      }
-      const pts = [];
-      for (const lx of [-ARM_HALF, 0, ARM_HALF]) {
-        // The pole stands 0.3 m into the ground, so its top is POLE_H - 0.3
-        // up; the middle wire sits on an insulator there, not in the air.
-        const up = lx === 0 ? POLE_H - 0.3 : ARM_UP;
-        if (!p.shared) batch.place(ins, p.x, p.y, base, ang, lx, 0, up, 0x9aa3ab, { cast: false });
-        const r = ang * DEG;
-        pts.push([p.x + Math.cos(r) * lx, base + up + 0.2, p.y + Math.sin(r) * lx]);
-      }
-      attach.push(pts);
-    }
-    for (let i = 1; i < ps.length; i++) {
-      const span = Math.hypot(ps[i].x - ps[i - 1].x, ps[i].y - ps[i - 1].y);
-      if (span > MAX_SPAN) continue;
-      const sag = 0.025 * span;
-      const N = 10;
-      for (let k = 0; k < 3; k++) {
-        // Wires keep their side across a span even if the arm turns.
-        const a = attach[i - 1][k];
-        const b = attach[i][k];
-        let prev = a;
-        for (let j = 1; j <= N; j++) {
-          const t = j / N;
-          const cur = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t - 4 * sag * t * (1 - t), a[2] + (b[2] - a[2]) * t];
-          verts.push(...prev, ...cur);
-          prev = cur;
-        }
-      }
-    }
-  }
-  if (!verts.length) return null;
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-  g.computeBoundingSphere();
-  const lines = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0x2b2b2b }));
-  lines.matrixAutoUpdate = false;
-  return lines;
-}
+// Power lines live in poles3d.js (#61).
+export { buildPowerLines } from './poles3d.js';
 
 // ---------- mailboxes ----------
 
