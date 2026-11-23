@@ -24,7 +24,7 @@ import { PAPER, THICK_W, THIN_W, trueMapDef } from '../src3/map/sketchRender.js'
 
 // The prototype's names (prototype/map-gallery), seen by the owner.
 export const SEED_NAMES = ['Gravel Gus', 'lost_in_fenwick', 'MapMom', 'NorthIsUp', 'Tilly', 'Barnstormer', 'kit',
-  'Dusty Rhodes', 'Corn Dog', 'Sunday Driver', 'okie', 'Pencil Pete'];
+  'Dusty Rhodes', 'Corn Dog', 'Sunday Driver', 'Pencil Pete'];
 
 const PAPER_W = 960;
 const PAPER_H = 640;
