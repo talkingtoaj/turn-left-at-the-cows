@@ -30,7 +30,8 @@ export function paintPrintedMap(ctx, def, world = WORLD) {
 export const sketchBase = (sketch) => (sketch && sketch.base ? findPrintedMap(sketch.base) : null);
 
 // Like sketchPaper's renderSketchCanvas, but a sketch drawn on a printed map
-// (mission 1, on Darlene's map) shows that map under the marks.
+// (mission 1 drew on Darlene's map before #87; saved maps may still) shows
+// that map under the marks.
 export function renderSketchCanvas(sketch, cssWidth, opts = {}) {
   const base = sketchBase(sketch);
   if (!base) return renderPlainSketch(sketch, cssWidth, opts);

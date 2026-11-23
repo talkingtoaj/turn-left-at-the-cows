@@ -29,7 +29,7 @@ Any map handed to the player, printed or drawn by someone else, such as Darlene'
 _Avoid_: printed map (for a hand-drawn one), sketch
 
 **Sketch**:
-The map the player draws for themselves on the map screen. Only ever the player's own drawing.
+The map the player draws for themselves on the map screen. Only ever the player's own drawing, except that mission 1's starts with a few marks in the same pencil (Ashford, the gas station, the start street and a piece of Highway 9).
 _Avoid_: drawing, hand map, my map
 
 **Map wall**:

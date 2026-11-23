@@ -13,6 +13,8 @@
 //   loadTurnstile()                 -> Promise<window.turnstile>
 // Failed calls throw an Error with .code and a short .message for players.
 
+import { playerMarks } from '../game/startSketch.js';
+
 const BASE = '/api/maps';
 const PLAYER_KEY = 'askalocal.player.v1';
 export const GAME_VERSION = '1';
@@ -144,8 +146,9 @@ export function compactSketch(sketch, maxBytes = 190000) {
   return out;
 }
 
+// Mission 1's pre-drawn marks (#87, pre: true) don't count: nothing of yours to share.
 export function sketchIsEmpty(sketch) {
-  return !sketch || !((sketch.strokes || []).length || (sketch.stamps || []).length || (sketch.labels || []).length);
+  return playerMarks(sketch) === 0;
 }
 
 // Cloudflare Turnstile, loaded only when the share form opens.

@@ -59,6 +59,7 @@ import { lookablesFor, pickLookable, compassWord } from '../src/game/lookables.j
 import { createThunder } from '../src/game/thunder.js';
 import { createLightning3D } from './world3d/lightning3d.js';
 import { createTips, TIP_CONTEXT, setTipsEnabled, resetTips, bridgeOutStep } from '../src/game/tips.js';
+import { playerMarks } from '../src/game/startSketch.js';
 import { createTipsView } from './hud/tips.js';
 import { warningLights } from '../src/game/damage.js';
 
@@ -701,7 +702,7 @@ function updateTips(dt) {
   c.repairNear = !!state.nearRepair;
   c.namesShown = !!state.namesShown;
   c.talkedTo = state.talkedTo.size;
-  c.sketchEmpty = !state.sketch.strokes.length && !state.sketch.stamps.length && !state.sketch.labels.length;
+  c.sketchEmpty = playerMarks(state.sketch) === 0; // mission 1's pre-drawn marks don't count (#87)
   const m = currentMission(state);
   c.planeClue = !!(planes && m && (m.goalTopic === 'kestrel_field' || state.knownTopics.has('planes')));
   c.planeD = Infinity;

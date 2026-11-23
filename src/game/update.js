@@ -52,9 +52,17 @@ export function startMission(state, index) {
   state.tows = 0;
   state.tourists = {};
   state.shiftsSeen = new Set();
-  // Mission 1 draws on Darlene's map (SPEC 9p); the others on a blank sketch.
+  // Every mission draws on the player's own sketch (#87); mission 1's comes
+  // with a few marks already on it. sketchOn (a printed map to draw on) is
+  // still honoured but no mission uses it.
   if (m.sketchOn) state.sketch.base = m.sketchOn;
   else delete state.sketch.base;
+  if (m.startSketch && !state.sketch.strokes.length && !state.sketch.stamps.length && !state.sketch.labels.length) {
+    const pre = m.startSketch();
+    state.sketch.strokes.push(...pre.strokes);
+    state.sketch.stamps.push(...pre.stamps);
+    state.sketch.labels.push(...pre.labels);
+  }
   for (const t of m.startTopics) state.knownTopics.add(t);
   const giver = m.giverNpcId ? getNpc(m.giverNpcId) : null;
   for (const text of m.brief) {

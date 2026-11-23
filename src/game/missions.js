@@ -17,8 +17,11 @@
 //   arrival: { name, line } who you delivered to and the one line they say on the win screen
 //   printedMaps: ids into WORLD.printedMaps the player has during this mission
 //   sketchOn: optional printed map id the player draws on instead of a blank
-//     sketch (SPEC 9p: mission 1 draws on Darlene's map). Its tab replaces
-//     "My sketch"; the sketch remembers it as sketch.base.
+//     sketch. Its tab replaces "My sketch"; the sketch remembers it as
+//     sketch.base. No mission uses it now: mission 1 drew on Darlene's map
+//     until the owner's playtest (#87, 23 Nov 2026).
+//   startSketch: optional () => { strokes, stamps, labels } already drawn on
+//     the player's own sketch when the mission starts (src/game/startSketch.js).
 //   approach: optional first leg in another region, driven before the
 //     mission's own region: { region, start: { x, y, heading }, exit(x, y) }.
 //     exit says when the car has left that region (the load screen then
@@ -29,6 +32,7 @@
 
 import { regionWorld } from '../world/world.js';
 import { MISSION_LIST } from './missionList.js';
+import { ashfordStartSketch } from './startSketch.js';
 
 // Lookups into one region's built world. Each mission's details are made on
 // first use (see MISSIONS below), so only the regions actually played get built.
@@ -68,10 +72,11 @@ const DETAILS = {
     finalLabel: 'Final map: Hartley Farm',
     // Arrival line (win screen). Line id: arrival-m1
     arrival: { name: 'Mrs Hartley', line: "Oh, you found us. Just leave it by the door, dear. The coffee's on, I'll bring you a cup out if you like." },
-    // Darlene's 1987 county map, full of gaps (see county1987 in src/world/data.js).
-    // You draw on it: no blank sketch this mission (SPEC 9p).
+    // Darlene's 1987 county map, full of gaps (see county1987 in src/world/data.js),
+    // in its own tab. You draw on your own sketch, which starts with Ashford,
+    // the gas station, Main Street and a piece of Highway 9 (#87, SPEC 9p).
     printedMaps: ['county1987'],
-    sketchOn: 'county1987',
+    startSketch: () => ashfordStartSketch(W),
   }),
   m2_cabin: ({ place, bridge, town }) => ({
     giverNpcId: 'hartley',

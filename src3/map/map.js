@@ -1,9 +1,12 @@
 // Map overlay for the three.js version: a DOM layer with one Canvas2D canvas.
 // It is a port of the old 2D map screen (removed Nov 2026) and works the same:
-//  - "My sketch": the player draws their own map from what locals said. In a
-//    mission with sketchOn (mission 1) they draw on that printed map instead,
-//    and its tab takes the sketch tab's place (SPEC 9p).
-//  - "Old county map": the printed 1987 map built from WORLD, with its lies.
+//  - "My sketch": the player draws their own map from what locals said. It
+//    opens first. Mission 1's comes with a few marks already drawn (#87,
+//    src/game/startSketch.js). A mission with sketchOn would draw on that
+//    printed map instead (its tab taking the sketch tab's place); none does
+//    now, but sketches saved that way still show their map.
+//  - A tab per printed map the mission gives ("Darlene's map" in mission 1),
+//    built from WORLD with its lies.
 // Everything is laid out on a 960x640 logical surface that is scaled to fit
 // the window. Sketch data lives in state.sketch in the same format (and the
 // same 960x640 paper coordinates) as the Phaser version.
@@ -60,7 +63,7 @@ let TABS = [];
 // The printed map the sketch is drawn on ({ def, world }), or null (blank sheet).
 const sketchBase = (sketch) => (sketch && sketch.base ? findPrintedMap(sketch.base) : null);
 function buildTabs() {
-  // Mission 1 draws on Darlene's map (SPEC 9p): its tab is the sketch tab.
+  // A sketch drawn on a printed map (sketchOn; none since #87): that map's tab is the sketch tab.
   const base = sketchBase(state.sketch);
   const extra = [
     ...printedMapsFor(state).filter((def) => !base || def !== base.def).map((def) => ({
@@ -850,12 +853,14 @@ export function createMapOverlay(root, { onClose } = {}) {
     open = true;
     openedAt = performance.now();
     buildTabs();
-    tab = TABS.some((t) => t.id === lastTab) ? lastTab : 'sketch';
-    // A fresh sketch page (new mission) gets a fresh undo stack.
+    // A fresh sketch page (new mission) gets a fresh undo stack and opens on
+    // the player's own sketch, so drawing is clearly expected (#87).
     if (state.sketchEpoch !== historyEpoch) {
       history.length = 0;
       historyEpoch = state.sketchEpoch;
+      lastTab = 'sketch';
     }
+    tab = TABS.some((t) => t.id === lastTab) ? lastTab : 'sketch';
     tool = 'pencil';
     stampKind = null;
     ink = INKS[0];
