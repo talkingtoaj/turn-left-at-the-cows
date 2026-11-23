@@ -16,10 +16,10 @@ const RAIL = 0x8a6c4a;
 
 export function buildYardFences(world, terrain, batch, scenery) {
   const H = (x, y) => terrain.heightAt(x, y);
-  const posts = new Tris();
-  const rails = new Tris();
   const A = batch.audit;
   for (const f of yardFenceRuns(world, scenery ? scenery.trees : [])) {
+    const posts = new Tris();
+    const rails = new Tris();
     f.runs.forEach((pts, r) => {
       const hs = pts.map((p) => H(p.x, p.y));
       for (let i = 0; i < pts.length; i++) {
@@ -42,9 +42,9 @@ export function buildYardFences(world, terrain, batch, scenery) {
         }
       }
     });
-  }
-  for (const [t, color] of [[posts, POST], [rails, RAIL]]) {
-    const g = t.geometry();
-    if (g) batch.add(g, I, color, { cast: true });
+    for (const [t, color] of [[posts, POST], [rails, RAIL]]) {
+      const g = t.geometry();
+      if (g) batch.add(g, I, color, { cast: true });
+    }
   }
 }
