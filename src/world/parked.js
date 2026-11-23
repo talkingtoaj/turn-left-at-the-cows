@@ -30,10 +30,10 @@ export const PARKED = {
   fenwick: [
     // Waiting by the scale house at the Calder grain silos, on the pad.
     { id: 'calder_semi', kind: 'semi', x: 4954, y: 1119.2, heading: 90, lift: 0.3, trailer: 'grain', color: 0x7a1f1a },
-    // The surplus 6x6 (#45) at home: beside the Hartley barn and the Okafor
-    // barn (kit: the parts shown, carkit.js KIT_PARTS names).
+    // The surplus 6x6 (#45) at home beside the Hartley barn (kit: the parts
+    // shown, carkit.js KIT_PARTS names). Only this one is parked (#71, SPEC
+    // 9r): more would read as several of the one farmer's truck.
     { id: 'hartley_6x6', kind: 'sixbysix', x: 2700, y: 434, heading: 90, color: sixBySixPaint('hartley_6x6').color, kit: ['hay', 'bedCans'], dirt: 0.5 },
-    { id: 'okafor_6x6', kind: 'sixbysix', x: 4950, y: 2003, heading: 270, color: sixBySixPaint('okafor_6x6').color, kit: ['flaps'], dirt: 0.4 },
   ],
   brandt: [
     // Pulled up to the driveway shed of the Brandt co-op elevator, a load

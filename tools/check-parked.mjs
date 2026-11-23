@@ -3,6 +3,7 @@
 // - every kind has a footprint; ids are unique
 // - each sits clear of roads (with a margin), water, the map edge and every
 //   other solid thing (buildings, landmarks, trees, props, fences)
+// - only one surplus 6x6 is parked, at Hartley's (#71, SPEC 9r)
 // - the collider blocks the car and a walker at the vehicle, and only there
 // - the hiss: none while far, a first one a few seconds after you come
 //   close, then spaced out; louder and brighter close up; stepping with
@@ -23,6 +24,8 @@ const bad = (m) => problems.push(m);
 const ROAD_PAD = 3; // m between a parked vehicle and a road's edge
 
 const ids = new Set();
+const sixes = Object.values(PARKED).flat().filter((p) => p.kind === 'sixbysix').map((p) => p.id);
+if (sixes.join() !== 'hartley_6x6') bad(`parked 6x6s: ${sixes.join(', ') || 'none'}, want only hartley_6x6`);
 for (const id of Object.keys(PARKED)) if (!REGION_IDS.includes(id)) bad(`PARKED has unknown region ${id}`);
 for (const id of REGION_IDS) {
   const W = setRegion(id);
