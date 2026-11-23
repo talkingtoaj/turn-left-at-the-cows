@@ -201,6 +201,11 @@ const VIEWS = [
   { name: 'board_m3_front', mission: 'm3_airfield', car: { x: 1580, y: 1601, heading: 90 }, cam: [1596, 1.9, 1595.5], look: [1596, 2.0, 1589] },
   { name: 'board_m3_back', mission: 'm3_airfield', car: { x: 1580, y: 1601, heading: 90 }, cam: [1596, 1.9, 1582.5], look: [1596, 2.0, 1589] },
   { name: 'board_road', mission: 'm3_airfield', car: { x: 1560, y: 1601, heading: 90 }, cam: [1562, 1.4, 1601], look: [1596, 1.8, 1590] },
+  // St. Anne's board in Fenwick (default region): missions 1 and 2 carry the Luke 15 series.
+  { name: 'fen_board_m1_front', mission: 'm1_parcel', car: { x: 515, y: 2448, heading: 270 }, cam: [498.5, 1.9, 2441], look: [492, 2.0, 2441] },
+  { name: 'fen_board_m1_back', mission: 'm1_parcel', car: { x: 515, y: 2448, heading: 270 }, cam: [485.5, 1.9, 2441], look: [492, 2.0, 2441] },
+  { name: 'fen_board_m2_front', mission: 'm2_cabin', car: { x: 515, y: 2448, heading: 270 }, cam: [498.5, 1.9, 2441], look: [492, 2.0, 2441] },
+  { name: 'fen_board_m2_back', mission: 'm2_cabin', car: { x: 515, y: 2448, heading: 270 }, cam: [485.5, 1.9, 2441], look: [492, 2.0, 2441] },
   // Farmhouse porch (#63): Pruitt (front door east, porch wraps to the south)
   // and Dolan (front door west, porch wraps to the south). 3/4 close,
   // straight on, the swing end up close, and from the lane as you drive up.
@@ -237,6 +242,48 @@ const VIEWS = [
   { name: 'rows_river_road', car: { x: 3306.4, y: 2243.3, heading: 106 } },
   { name: 'dead_open', car: { x: 2700, y: 660, heading: 0 }, cam: [2692, 2, 652], look: [2670, 6, 638] },
   { name: 'snag_open', car: { x: 2190, y: 1440, heading: 0 }, cam: [2178, 1.8, 1428], look: [2167, 2.2, 1418] },
+  // Tractors (#65): slow farm tractors on Ridge Road (pin ids 'hz:<paint>'):
+  // 3/4 front close, straight side, the big tire, the back, three in a row,
+  // and from the car as the player comes up behind one.
+  { name: 'tractor_close', car: { road: 'ridge_rd', at: 0.5 }, pin: [['hz:0x3f7a35', 20, 1, 1]], tcam: [[3.2, 1.9, -4.6], [0, 1.1, 0]] },
+  { name: 'tractor_side', car: { road: 'ridge_rd', at: 0.5 }, pin: [['hz:0xb8352a', 20, 1, 1]], tcam: [[6.2, 1.4, 0], [0, 1.1, 0]] },
+  { name: 'tractor_tire', car: { road: 'ridge_rd', at: 0.5 }, pin: [['hz:0x2f5f9a', 20, 1, 1]], tcam: [[3.6, 1.1, 3.0], [0.9, 0.8, 0.85]] },
+  { name: 'tractor_rear', car: { road: 'ridge_rd', at: 0.5 }, pin: [['hz:0x3f7a35', 20, 1, 1]], tcam: [[3.0, 2.2, 6.2], [0, 1.2, 0.4]] },
+  { name: 'tractor_row', car: { road: 'ridge_rd', at: 0.5 }, pin: [['hz:0x3f7a35', 18, 1, 1], ['hz:0xb8352a', 28, 1, 1], ['hz:0x2f5f9a', 38, 1, 1]], tcam: [[4.5, 3, 7], [0, 1, -12]] },
+  { name: 'tractor_road', car: { road: 'ridge_rd', at: 0.5 }, pin: [['hz:0x3f7a35', 16, 1, 1]] },
+  // Grain elevators and silos (#67). Calder silos: 3/4, straight on, the
+  // catwalk, and from Route 40. Ashford's old elevator: 3/4, straight on and
+  // from Ashford Street. Hartley's farm silo: 3/4, straight on, from the yard.
+  // Brandt's co-op elevator (elev_b_*, SHOTS_QUERY='opening=off&spot=brandt'):
+  // 3/4, straight on, the sign band, and from Station Road.
+  { name: 'silo_close', car: { x: 4925, y: 1140, heading: 90 }, cam: [4985, 3, 1140], look: [4962, 14, 1112] },
+  { name: 'silo_front', car: { x: 4925, y: 1140, heading: 90 }, cam: [4960, 6, 1165], look: [4960, 16, 1110] },
+  { name: 'silo_top', car: { x: 4925, y: 1140, heading: 90 }, cam: [4978, 30, 1128], look: [4960, 25, 1106] },
+  { name: 'silo_road', car: { x: 4900, y: 1178, heading: 90 }, cam: [4900, 1.4, 1178], look: [4960, 15, 1110] },
+  { name: 'elev_a_close', car: { x: 600, y: 2540, heading: 180 }, cam: [632, 3, 2622], look: [660, 13, 2592] },
+  { name: 'elev_a_front', car: { x: 600, y: 2540, heading: 180 }, cam: [618, 5, 2592], look: [660, 13, 2592] },
+  { name: 'elev_a_road', car: { x: 600, y: 2530, heading: 180 }, cam: [600, 1.4, 2530], look: [660, 13, 2592] },
+  { name: 'barnsilo_close', car: { x: 2610, y: 490, heading: 0 }, cam: [2742, 3, 442], look: [2722, 8, 417] },
+  { name: 'barnsilo_front', car: { x: 2610, y: 490, heading: 0 }, cam: [2722, 4, 448], look: [2722, 8, 417] },
+  { name: 'barnsilo_road', car: { x: 2610, y: 490, heading: 0 }, cam: [2610, 1.4, 490], look: [2722, 8, 417] },
+  { name: 'elev_b_close', car: { x: 1700, y: 1440, heading: 0 }, cam: [1772, 3, 1432], look: [1745, 14, 1405] },
+  { name: 'elev_b_front', car: { x: 1700, y: 1440, heading: 0 }, cam: [1745, 4, 1452], look: [1745, 14, 1405] },
+  { name: 'elev_b_sign', car: { x: 1700, y: 1440, heading: 0 }, cam: [1752, 19, 1378], look: [1745, 19.5, 1405] },
+  { name: 'elev_b_road', car: { x: 1700, y: 1560, heading: 0 }, cam: [1700, 1.4, 1560], look: [1745, 14, 1405] },
+  // Main street shops (#70): Millbrook (m_h3, front west onto Church Street)
+  // and Calder's feed store (c_feed, front north onto Route 40); Brandt's
+  // store (br_store, front south onto the highway) needs
+  // SHOTS_QUERY='opening=off&spot=brandt'. Close 3/4, straight on, and from
+  // the road driving into town.
+  { name: 'shop_m_close', car: { x: 2302, y: 680, heading: 0 }, cam: [2318, 2.0, 586], look: [2333, 3.0, 601] },
+  { name: 'shop_m_front', car: { x: 2302, y: 680, heading: 0 }, cam: [2311, 2.2, 600], look: [2332, 3.6, 600] },
+  { name: 'shop_m_road', car: { x: 2302, y: 680, heading: 0 }, cam: [2302, 1.4, 680], look: [2336, 3, 600] },
+  { name: 'shop_c_close', car: { x: 4740, y: 1166, heading: 90 }, cam: [4819, 2.0, 1182], look: [4835, 3.0, 1197] },
+  { name: 'shop_c_front', car: { x: 4740, y: 1166, heading: 90 }, cam: [4835, 2.2, 1176], look: [4835, 3.6, 1196] },
+  { name: 'shop_c_road', car: { x: 4740, y: 1166, heading: 90 }, cam: [4740, 1.4, 1166], look: [4835, 3, 1200] },
+  { name: 'shop_b_close', car: { x: 1860, y: 1603, heading: 270 }, cam: [1781, 2.0, 1590], look: [1766, 3.0, 1574] },
+  { name: 'shop_b_front', car: { x: 1860, y: 1603, heading: 270 }, cam: [1765, 2.2, 1595], look: [1765, 3.6, 1574] },
+  { name: 'shop_b_road', car: { x: 1860, y: 1603, heading: 270 }, cam: [1860, 1.4, 1603], look: [1765, 3, 1570] },
 ];
 
 const browser = await launchChromium();
@@ -374,6 +421,25 @@ for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) 
         window.__pins.push({ id, x: px + ox, y: py + oy, heading: (hd + 360) % 360 });
       }
     }
+    // Hazard tractors (#65): pin ids 'hz:<color>' are slow farm tractors
+    // (src/ambient/hazards.js), spawned if missing and held in place after
+    // every hazard tick. Hazards are cleared after a view that pinned any.
+    const dh = window.__dh;
+    if (dh && !dh.__pinWrap) {
+      const upd = dh.hz.update.bind(dh.hz);
+      dh.hz.update = (...a) => {
+        const r = upd(...a);
+        const want = (window.__pins || []).filter((p) => p.id.startsWith('hz:'));
+        const mine = () => dh.hz.vehicles.filter((q) => q.kind === 'tractor');
+        for (let k = mine().length; k < want.length; k++) if (!dh.spawn('tractor', 25)) break;
+        const tr = mine();
+        want.forEach((p, k) => tr[k] && Object.assign(tr[k], { x: p.x, y: p.y, heading: p.heading, speed: 0, color: Number(p.id.slice(3)) }));
+        return r;
+      };
+      dh.__pinWrap = true;
+    }
+    if (dh && window.__hzPinned) dh.hz.reset();
+    window.__hzPinned = (v.pin || []).some(([id]) => id.startsWith('hz:'));
     // Dirt on traffic cars for this view (#43). Cars an earlier view dirtied
     // go back to their own base dirt (0 is under it, so the next tick lifts it).
     if (window.__trafficDirt) {
