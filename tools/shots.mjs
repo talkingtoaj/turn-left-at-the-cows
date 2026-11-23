@@ -381,6 +381,41 @@ const VIEWS = [
   { name: 'shop_b_close', car: { x: 1860, y: 1603, heading: 270 }, cam: [1781, 2.0, 1590], look: [1766, 3.0, 1574] },
   { name: 'shop_b_front', car: { x: 1860, y: 1603, heading: 270 }, cam: [1765, 2.2, 1595], look: [1765, 3.6, 1574] },
   { name: 'shop_b_road', car: { x: 1860, y: 1603, heading: 270 }, cam: [1860, 1.4, 1603], look: [1765, 3, 1570] },
+  // Yards (#85): worn paths, banks, hollows and a fence on one side, per
+  // lot (src/world/yards.js): 3/4 on the path, straight on to the fence (or
+  // a bank), and from the road. Millbrook shop, Ashford gas, St. Anne's,
+  // Hartley, Dunmore store, Calder diner:
+  { name: 'yard_m_close', car: { x: 2300, y: 602.9, heading: 87 }, cam: [2368, 1.9, 595], look: [2361, 0, 600] },
+  { name: 'yard_m_front', car: { x: 2300, y: 602.9, heading: 87 }, cam: [2340, 1.5, 623.5], look: [2340, 0.7, 614.5] },
+  { name: 'yard_m_road', car: { x: 2300, y: 602.9, heading: 87 }, cam: [2300, 1.4, 602.9], look: [2361, 0.5, 600] },
+  { name: 'yard_ga_close', car: { x: 697.7, y: 2375.7, heading: 194 }, cam: [675.8, 1.9, 2467.2], look: [677.2, 0, 2458.7] },
+  { name: 'yard_ga_front', car: { x: 697.7, y: 2375.7, heading: 194 }, cam: [715, 1.5, 2469], look: [715, 0, 2455] },
+  { name: 'yard_ga_road', car: { x: 697.7, y: 2375.7, heading: 194 }, cam: [697.7, 1.4, 2375.7], look: [677.2, 0.5, 2458.7] },
+  { name: 'yard_ch_close', car: { x: 600, y: 2444.4, heading: 271 }, cam: [511.6, 1.9, 2450], look: [507.2, 0, 2442.7] },
+  { name: 'yard_ch_front', car: { x: 600, y: 2444.4, heading: 271 }, cam: [464.5, 1.5, 2473], look: [464.5, 0.7, 2464] },
+  { name: 'yard_ch_road', car: { x: 600, y: 2444.4, heading: 271 }, cam: [600, 1.4, 2444.4], look: [507.2, 0.5, 2442.7] },
+  { name: 'yard_hf_close', car: { x: 2652.6, y: 289, heading: 146 }, cam: [2756.5, 1.9, 429.6], look: [2749.6, 0, 434.8] },
+  { name: 'yard_hf_front', car: { x: 2652.6, y: 289, heading: 146 }, cam: [2745, 1.5, 408], look: [2736, 0.7, 408] },
+  { name: 'yard_hf_road', car: { x: 2652.6, y: 289, heading: 146 }, cam: [2652.6, 1.4, 289], look: [2749.6, 0.5, 434.8] },
+  { name: 'yard_ds_close', car: { x: 3368.7, y: 286.8, heading: 26 }, cam: [3385.2, 1.9, 240.4], look: [3387.4, 0, 248.7] },
+  { name: 'yard_ds_front', car: { x: 3368.7, y: 286.8, heading: 26 }, cam: [3347.5, 1.5, 256], look: [3356.5, 0.7, 256] },
+  { name: 'yard_ds_road', car: { x: 3368.7, y: 286.8, heading: 26 }, cam: [3368.7, 1.4, 286.8], look: [3387.4, 0.5, 248.7] },
+  { name: 'yard_cd_close', car: { x: 4647.5, y: 1161.1, heading: 341 }, cam: [4636.2, 1.9, 1112.5], look: [4633.9, 0, 1120.8] },
+  { name: 'yard_cd_front', car: { x: 4647.5, y: 1161.1, heading: 341 }, cam: [4675.5, 1.5, 1128], look: [4666.5, 0.7, 1128] },
+  { name: 'yard_cd_road', car: { x: 4647.5, y: 1161.1, heading: 341 }, cam: [4647.5, 1.4, 1161.1], look: [4633.9, 0.5, 1120.8] },
+  // Brandt store, gas, St. Luke's and Dagny's farm: SHOTS_QUERY='opening=off&spot=brandt'.
+  { name: 'yard_bs_close', car: { x: 1758.7, y: 1600.9, heading: 346 }, cam: [1735, 1.9, 1540.7], look: [1743.6, 0, 1540.8] },
+  { name: 'yard_bs_front', car: { x: 1758.7, y: 1600.9, heading: 346 }, cam: [1732.5, 1.5, 1564], look: [1741.5, 0.7, 1564] },
+  { name: 'yard_bs_road', car: { x: 1758.7, y: 1600.9, heading: 346 }, cam: [1758.7, 1.4, 1600.9], look: [1743.6, 0.5, 1540.8] },
+  { name: 'yard_gb_close', car: { x: 1808.3, y: 1602, heading: 152 }, cam: [1832.2, 1.9, 1632.4], look: [1823.8, 0, 1630.6] },
+  { name: 'yard_gb_front', car: { x: 1808.3, y: 1602, heading: 152 }, cam: [1811, 1.5, 1665.5], look: [1811, 0.7, 1656.5] },
+  { name: 'yard_gb_road', car: { x: 1808.3, y: 1602, heading: 152 }, cam: [1808.3, 1.4, 1602], look: [1823.8, 0.5, 1630.6] },
+  { name: 'yard_cb_close', car: { x: 1598.3, y: 1599.1, heading: 343 }, cam: [1574.7, 1.9, 1552.6], look: [1583.1, 0, 1550.8] },
+  { name: 'yard_cb_front', car: { x: 1598.3, y: 1599.1, heading: 343 }, cam: [1632, 1.5, 1509.5], look: [1623, 0.7, 1509.5] },
+  { name: 'yard_cb_road', car: { x: 1598.3, y: 1599.1, heading: 343 }, cam: [1598.3, 1.4, 1599.1], look: [1583.1, 0.5, 1550.8] },
+  { name: 'yard_dg_close', car: { x: 2478, y: 930, heading: 357 }, cam: [2473, 1.9, 879], look: [2475.9, 0, 887] },
+  { name: 'yard_dg_front', car: { x: 2478, y: 930, heading: 357 }, cam: [2474, 1.5, 902], look: [2483, 0.7, 902] },
+  { name: 'yard_dg_road', car: { x: 2478, y: 930, heading: 357 }, cam: [2478, 1.4, 930], look: [2475.9, 0.5, 887] },
   // Road bridges (#78): Highway 9 over Willow Creek (bridge_hwy_*) and Route 40
   // over the Coldwater (bridge_rt40_*): close 3/4 of the end posts, straight
   // down the deck, side on from the bank, and from the road as you drive up.
@@ -402,6 +437,29 @@ const VIEWS = [
   // Name plates up close: Route 40's end post (Fenwick), South Road's (Brandt).
   { name: 'bridge_rt40_plate', car: { x: 4195.1, y: 1184.9, heading: 87.4 }, cam: [4236.4, 1.3, 1184.8], look: [4239.7, 1.0, 1185.9] },
   { name: 'bridgeb_south_plate', car: { x: 2535.8, y: 2567.1, heading: 90 }, cam: [2577.8, 1.1, 2567.7], look: [2581.1, 0.8, 2568.7] },
+  // Other landmarks (#75): the mill ruin, covered bridge, fire lookout, quarry
+  // and campground. Close 3/4, straight on, and from the road as the player
+  // first sees it; a few extra close views of the parts with the most detail.
+  { name: 'lm_mill_close', car: { x: 1500, y: 1525, heading: 20 }, cam: [1546, 3, 1514], look: [1530, 2.5, 1500] },
+  { name: 'lm_mill_front', car: { x: 1500, y: 1525, heading: 20 }, cam: [1530, 2.5, 1523], look: [1530, 2.5, 1500] },
+  { name: 'lm_mill_wheel', car: { x: 1500, y: 1525, heading: 20 }, cam: [1517, 2, 1484], look: [1524.5, 1.5, 1491.6] },
+  { name: 'lm_mill_road', car: { x: 1500, y: 1525, heading: 20 }, cam: [1500, 1.4, 1525], look: [1530, 3, 1500] },
+  { name: 'lm_covered_close', car: { x: 4142.6, y: 465.4, heading: 106.1 }, cam: [4171.1, 3, 482], look: [4183, 3, 477] },
+  { name: 'lm_covered_front', car: { x: 4142.6, y: 465.4, heading: 106.1 }, cam: [4169.5, 2.5, 473.2], look: [4181, 4, 476.5] },
+  { name: 'lm_covered_side', car: { x: 4142.6, y: 465.4, heading: 106.1 }, cam: [4194.1, 3, 503.2], look: [4200.2, 2, 482] },
+  { name: 'lm_covered_road', car: { x: 4142.6, y: 465.4, heading: 106.1 } },
+  { name: 'lm_lookout_close', car: { x: 5150, y: 330, heading: 45 }, cam: [5263, 3, 238], look: [5250, 7, 225] },
+  { name: 'lm_lookout_cab', car: { x: 5150, y: 330, heading: 45 }, cam: [5259, 26, 236], look: [5250, 24.5, 225] },
+  { name: 'lm_lookout_front', car: { x: 5150, y: 330, heading: 45 }, cam: [5250, 4, 252], look: [5250, 12, 225] },
+  { name: 'lm_lookout_road', car: { x: 5150, y: 330, heading: 45 }, cam: [5150, 1.4, 330], look: [5250, 15, 225] },
+  { name: 'lm_quarry_close', car: { x: 3558.6, y: 783.1, heading: 95 }, cam: [3719, 2.5, 742], look: [3711.4, 1.2, 733.5] },
+  { name: 'lm_quarry_crane', car: { x: 3558.6, y: 783.1, heading: 95 }, cam: [3757, 5, 776], look: [3777, 9, 761] },
+  { name: 'lm_quarry_front', car: { x: 3558.6, y: 783.1, heading: 95 }, cam: [3605, 6, 779], look: [3690, -8, 770] },
+  { name: 'lm_quarry_road', car: { x: 3558.6, y: 783.1, heading: 95 } },
+  { name: 'lm_camp_close', car: { x: 5476.7, y: 494.4, heading: 281 }, cam: [5481, 2.5, 466], look: [5474, 1, 456] },
+  { name: 'lm_camp_hut', car: { x: 5476.7, y: 494.4, heading: 281 }, cam: [5450, 2.2, 443], look: [5442, 1.5, 436] },
+  { name: 'lm_camp_front', car: { x: 5476.7, y: 494.4, heading: 281 }, cam: [5472, 4, 482], look: [5472, 1, 450] },
+  { name: 'lm_camp_road', car: { x: 5476.7, y: 494.4, heading: 281 }, cam: [5476.7, 1.4, 494.4], look: [5470, 1, 450] },
   // Diner, store and cabin (#77): close 3/4, straight on, and from the road
   // as the player first sees them. Fenwick: Calder diner, Dunmore store, the
   // cabin on Pond Road. Brandt's (kindb_*, SHOTS_QUERY='opening=off&spot=brandt'):

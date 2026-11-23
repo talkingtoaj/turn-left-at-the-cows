@@ -41,7 +41,7 @@ const _up = new THREE.Vector3(0, 1, 0);
 // A box from point A to point B ([x, y, z] each). w and d are its size
 // across the line: for a line in a y-z plane w runs along x; for a line in
 // the x-y plane d runs along z.
-function beam(A, B, w, d) {
+export function beam(A, B, w, d) {
   const a = new THREE.Vector3(...A);
   const b = new THREE.Vector3(...B);
   const dir = b.clone().sub(a);
