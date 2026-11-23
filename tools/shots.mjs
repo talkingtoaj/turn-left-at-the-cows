@@ -214,6 +214,25 @@ const VIEWS = [
   { name: 'oak_close', car: { x: 3907, y: 2250, heading: 180 }, cam: [3958, 7, 2228], look: [3990, 15, 2262] },
   { name: 'oak_front', car: { x: 3907, y: 2250, heading: 180 }, cam: [3940, 12, 2262], look: [3990, 20, 2262] },
   { name: 'oak_road', car: { x: 3920, y: 2140, heading: 180 }, cam: [3920, 1.4, 2140], look: [3990, 18, 2262] },
+  // Grain elevators and silos (#67). Calder silos: 3/4, straight on, the
+  // catwalk, and from Route 40. Ashford's old elevator: 3/4, straight on and
+  // from Ashford Street. Hartley's farm silo: 3/4, straight on, from the yard.
+  // Brandt's co-op elevator (elev_b_*, SHOTS_QUERY='opening=off&spot=brandt'):
+  // 3/4, straight on, the sign band, and from Station Road.
+  { name: 'silo_close', car: { x: 4925, y: 1140, heading: 90 }, cam: [4985, 3, 1140], look: [4962, 14, 1112] },
+  { name: 'silo_front', car: { x: 4925, y: 1140, heading: 90 }, cam: [4960, 6, 1165], look: [4960, 16, 1110] },
+  { name: 'silo_top', car: { x: 4925, y: 1140, heading: 90 }, cam: [4978, 30, 1128], look: [4960, 25, 1106] },
+  { name: 'silo_road', car: { x: 4900, y: 1178, heading: 90 }, cam: [4900, 1.4, 1178], look: [4960, 15, 1110] },
+  { name: 'elev_a_close', car: { x: 600, y: 2540, heading: 180 }, cam: [632, 3, 2622], look: [660, 13, 2592] },
+  { name: 'elev_a_front', car: { x: 600, y: 2540, heading: 180 }, cam: [618, 5, 2592], look: [660, 13, 2592] },
+  { name: 'elev_a_road', car: { x: 600, y: 2530, heading: 180 }, cam: [600, 1.4, 2530], look: [660, 13, 2592] },
+  { name: 'barnsilo_close', car: { x: 2610, y: 490, heading: 0 }, cam: [2742, 3, 442], look: [2722, 8, 417] },
+  { name: 'barnsilo_front', car: { x: 2610, y: 490, heading: 0 }, cam: [2722, 4, 448], look: [2722, 8, 417] },
+  { name: 'barnsilo_road', car: { x: 2610, y: 490, heading: 0 }, cam: [2610, 1.4, 490], look: [2722, 8, 417] },
+  { name: 'elev_b_close', car: { x: 1700, y: 1440, heading: 0 }, cam: [1772, 3, 1432], look: [1745, 14, 1405] },
+  { name: 'elev_b_front', car: { x: 1700, y: 1440, heading: 0 }, cam: [1745, 4, 1452], look: [1745, 14, 1405] },
+  { name: 'elev_b_sign', car: { x: 1700, y: 1440, heading: 0 }, cam: [1752, 19, 1378], look: [1745, 19.5, 1405] },
+  { name: 'elev_b_road', car: { x: 1700, y: 1560, heading: 0 }, cam: [1700, 1.4, 1560], look: [1745, 14, 1405] },
 ];
 
 const browser = await launchChromium();

@@ -16,6 +16,7 @@ import { buildAirfield, buildAirfieldBuilding } from './airfield3d.js';
 import { buildGasStation } from './gas3d.js';
 import { buildFarmhouse } from './farmhouse3d.js';
 import { buildWaterTower } from './watertower3d.js';
+import { buildGrainElevator, buildFarmSilo } from './elevator3d.js';
 import { Batcher } from './batch.js';
 import { state } from '../../src/state.js';
 import { currentMissionId } from '../../src/game/tourists.js';
@@ -117,6 +118,10 @@ export function buildStructures(world, terrain, batch, materials, extras = {}) {
         continue;
       }
     }
+    if (l.kind === 'grain_elevator') {
+      buildGrainElevator(world, terrain, batch, l); // elevator3d.js (#67)
+      continue;
+    }
     if (buildRuin(world, terrain, batch, l)) continue;
     if (buildNewLandmark(world, terrain, batch, l, rng)) continue;
     if (l.kind === 'water_tower') {
@@ -215,11 +220,7 @@ function buildBuilding(world, terrain, batch, b) {
     P(box(2.4, 2.2, 2.4), 0, 0, wallH + 3.6, 0xf0ece2);
     P(pyramid(3.0, 1.6), 0, 0, wallH + 5.8, 0x5a5f66);
     // Silo with a domed top.
-    const sp = { lx: b.w / 2 + SILO.dx, ly: SILO.ly };
-    P(cyl(SILO.r, 14 + FOUND, 14), sp.lx, sp.ly, -FOUND, 0xbfc1bc);
-    for (let y = 2; y < 14; y += 3) P(cyl(SILO.r + 0.08, 0.2, 14), sp.lx, sp.ly, y, 0x8f918e);
-    const dome = new THREE.SphereGeometry(SILO.r, 14, 6, 0, Math.PI * 2, 0, Math.PI / 2);
-    P(dome, sp.lx, sp.ly, 14, 0x9ea3a6);
+    buildFarmSilo(batch, b, base, b.w / 2 + SILO.dx, SILO.ly, SILO.r, 14); // elevator3d.js (#67)
     return;
   }
 
