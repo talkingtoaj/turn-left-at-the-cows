@@ -16,7 +16,7 @@ import { openMissionCard } from '../../src/ui/missionCard.js';
 import { openIntroCard, introSeen } from '../../src/ui/introCard.js';
 import { openHelp } from '../../src/ui/help.js';
 import { towedText } from '../../src/game/tow.js';
-import { mountShareStrip } from '../../src/ui/mapShare.js';
+import { mountShareStrip, wallAfterMission } from '../../src/ui/mapShare.js';
 import { rememberMyMap } from '../../src/game/myMaps.js';
 import { touristTicks, touristFor, touristHelped } from '../../src/game/tourists.js';
 import { submitFinish, getRecords, recordRows } from '../../src/net/records.js';
@@ -481,11 +481,24 @@ export function createHUD(root, { openMap, radio } = {}) {
     talk.note(n.text, n.fresh ? 'noted in your notebook' : 'already in your notebook');
   }
 
-  // Enter on the complete screen: final snapshot, then the next mission (or
-  // the all done screen after the last one).
-  function onContinueKey() {
-    if (!state.won || !winShown || state.allMissionsDone) return;
+  // Enter on the complete screen: the map wall (src/ui/mapShare.js: pick one
+  // of two maps, then the wall, when the map board answers), then the final
+  // snapshot and the next mission (or the all done screen after the last one).
+  let leavingWin = false;
+  async function onContinueKey() {
+    if (!state.won || !winShown || state.allMissionsDone || leavingWin) return;
     closeZoom();
+    const m = currentMission(state);
+    if (m) {
+      leavingWin = true;
+      try {
+        await wallAfterMission({ missionId: m.id, missionTitle: m.title, shareKey: `${m.id}:${state.sketchEpoch}` });
+      } catch (e) {
+        console.warn('map wall:', e);
+      }
+      leavingWin = false;
+      if (!state.won || !winShown || state.allMissionsDone) return;
+    }
     const next = finishMission(state);
     winShade.textContent = '';
     if (!next) {

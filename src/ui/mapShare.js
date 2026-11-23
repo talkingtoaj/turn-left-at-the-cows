@@ -1,20 +1,31 @@
-// Shared maps: share your hand-drawn map after a mission, look through other
-// drivers' maps for the same mission, put one beside yours, thumbs-up it or
-// report it. Talks to the server through src/net/mapsApi.js; when there is
-// no server (local dev, offline) the strip says so in one line and the game
-// carries on as before.
+// Shared maps: share your hand-drawn map after a mission, then the map
+// wall: pick the better of two other drivers' maps (a thumbs-up), then see
+// every map for that mission pinned to a corkboard beside the real map.
+// Talks to the server through src/net/mapsApi.js; when there is no server
+// (local dev, offline) the strip says so in one line and the game carries
+// on as before.
 //
 //   mountShareStrip(parent, ctx)   the row on the mission-complete screen
 //     ctx: { missionId, missionTitle, region, seed, shareKey,
 //            getSketch(), stats: { timeMs, km, tows } }
-//   openMapsBrowser({ missionId, missionTitle, mySketch }) the maps page (also
-//     opened from the start screen's notepad)
+//   wallAfterMission({ missionId, missionTitle, shareKey }) -> Promise
+//     the pick, then the wall, as the player leaves the win screen (once per
+//     win screen; resolves when it closes, or at once with no map board)
+//   openMapWall({ missionId, missionTitle, pick, onClose }) the wall, with
+//     the pick first when pick is true (the start screen's Maps link: false)
 //
-// Plain DOM, no game code: the start screen loads it on demand.
+// Plain DOM. The start screen loads it on demand. Pair picking, pin order and
+// the note flag are in ./mapWallPick.js (checked by tools/check-map-wall.mjs).
 
 import { el } from './style.js';
 import { MAP_SHARE_CSS } from './mapShareStyle.js';
 import { renderSketchCanvas } from '../../src3/map/sketchPaper.js';
+import { renderPrintedMapCanvas, trueMapDef } from '../../src3/map/sketchRender.js';
+import { regionWorld } from '../world/world.js';
+import { MISSIONS } from '../game/missions.js';
+import {
+  pickPair, wallOrder, pinSize, pinTilt, newestId, uniqueMaps, noteSeen, markNoteSeen, PIN_PX,
+} from './mapWallPick.js';
 import { timerText } from '../hud/format.js';
 import { milesText } from '../units.js';
 import {
@@ -22,7 +33,6 @@ import {
 } from '../net/mapsApi.js';
 import { markShared } from '../game/myMaps.js';
 
-const PAGE = 12;
 const shared = new Map(); // shareKey -> the map as shared (this page load)
 
 const THUMB = `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M2 21h3V9H2v12zm19.6-9.4c0-1.2-1-2.1-2.1-2.1h-5.3l.8-3.9v-.3c0-.5-.2-.9-.5-1.2L13.3 3 7.6 8.7c-.4.4-.6.9-.6 1.4V19c0 1.1.9 2 2 2h8.6c.8 0 1.5-.5 1.8-1.2l2.9-6.6c.1-.3.2-.6.2-.8v-.8z"/></svg>`;
@@ -65,7 +75,8 @@ function holdKeys(root, onEscape) {
       onEscape();
     } else if (e.key === 'Tab') {
       // Keep Tab inside the sheet.
-      const f = [...root.querySelectorAll('button, input, [tabindex="0"]')].filter((n) => !n.disabled && n.offsetParent);
+      const box = typeof root === 'function' ? root() : root;
+      const f = [...box.querySelectorAll('button, input, [tabindex="0"]')].filter((n) => !n.disabled && n.offsetParent);
       if (!f.length) return;
       const i = f.indexOf(document.activeElement);
       if (e.shiftKey && i <= 0) {
@@ -95,7 +106,9 @@ function sheet(label) {
   const close = button(panel, '×', 'ms-close');
   close.setAttribute('aria-label', 'Close');
   let onEsc = null;
+  let onClosed = null;
   let release = null;
+  let trap = () => shade;
   const api = {
     shade,
     panel,
@@ -103,15 +116,23 @@ function sheet(label) {
     onEscape(fn) {
       onEsc = fn;
     },
+    onClosed(fn) {
+      onClosed = fn;
+    },
+    // Tab stays inside what this returns (an overlay on the sheet, say).
+    trapIn(fn) {
+      trap = fn;
+    },
     close() {
       if (api.closed) return;
       api.closed = true;
       release();
       shade.remove();
       if (back && back.isConnected) back.focus?.({ preventScroll: true });
+      onClosed?.();
     },
   };
-  release = holdKeys(shade, () => (onEsc ? onEsc() : api.close()));
+  release = holdKeys(() => trap(), () => (onEsc ? onEsc() : api.close()));
   close.addEventListener('click', () => api.close());
   shade.addEventListener('pointerdown', (e) => {
     if (e.target === shade) api.close();
@@ -150,8 +171,8 @@ export function mountShareStrip(parent, ctx) {
       b.addEventListener('click', () => openShareForm({ ...ctx, onShared }, config));
     }
     const see = button(strip, 'See other drivers’ maps');
-    see.addEventListener('click', () => openMapsBrowser({
-      missionId: ctx.missionId, missionTitle: ctx.missionTitle, mySketch: ctx.getSketch(),
+    see.addEventListener('click', () => openMapWall({
+      missionId: ctx.missionId, missionTitle: ctx.missionTitle, pick: true, shareKey: ctx.shareKey,
     }));
   });
   return strip;
@@ -260,7 +281,7 @@ export function openShareForm(ctx, config) {
       done.addEventListener('click', () => s.close());
       see.addEventListener('click', () => {
         s.close();
-        openMapsBrowser({ missionId: ctx.missionId, missionTitle: ctx.missionTitle, mySketch: sketch });
+        openMapWall({ missionId: ctx.missionId, missionTitle: ctx.missionTitle, pick: true, shareKey: ctx.shareKey });
       });
       see.focus();
     } catch (e) {
@@ -280,193 +301,388 @@ export function openShareForm(ctx, config) {
   return s;
 }
 
-// ------------------------------------------------------------ the maps page
+// ------------------------------------------------------------ the map wall
 
-export function openMapsBrowser({ missionId, missionTitle, mySketch = null }) {
-  const s = sheet('Other drivers’ maps');
-  let sort = 'votes';
-  let view = 'grid';
-  const head = el('div', 'ms-head', s.panel);
-  el('h2', null, head, 'Other drivers’ maps');
-  el('span', 'ms-sub', head, missionTitle);
-  const sorts = el('div', 'ms-sorts', head);
-  sorts.setAttribute('role', 'group');
-  sorts.setAttribute('aria-label', 'Sort');
-  const byVotes = button(sorts, 'Most votes');
-  const byNew = button(sorts, 'Newest');
-  const body = el('div', null, s.panel);
-  let maps = [];
-  let total = 0;
-  let gridScroll = 0;
+const WALL_PAGE = 24; // the server's most per page
+const WALL_FIRST = 96; // pins loaded at first; "More maps" loads the rest
+const REVEAL_MS = 1100; // names and trips show this long after a pick
+const judged = new Set(); // win screens (shareKey) whose pick has been offered
 
-  const markSort = () => {
-    byVotes.classList.toggle('ms-on', sort === 'votes');
-    byNew.classList.toggle('ms-on', sort === 'new');
-    byVotes.setAttribute('aria-pressed', String(sort === 'votes'));
-    byNew.setAttribute('aria-pressed', String(sort === 'new'));
+const reducedMotion = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+// The mission, its region and the real map's definition.
+function missionInfo(missionId) {
+  const mission = MISSIONS.find((m) => m.id === missionId);
+  if (!mission) return null;
+  const world = regionWorld(mission.region);
+  return { mission, world, def: trueMapDef(mission, world), place: mission.goal.name };
+}
+
+// The real map is slow to draw: draw it once per width and copy it.
+const realCache = new Map();
+function realCanvas(info, cssWidth) {
+  const key = `${info.mission.id}:${cssWidth}:${window.devicePixelRatio || 1}`;
+  let c = realCache.get(key);
+  if (!c) {
+    c = renderPrintedMapCanvas(info.def, cssWidth, info.world);
+    realCache.set(key, c);
+  }
+  const out = document.createElement('canvas');
+  out.width = c.width;
+  out.height = c.height;
+  out.getContext('2d').drawImage(c, 0, 0);
+  return out;
+}
+
+// After a mission, as the player leaves the win screen: the pick, then the
+// wall. Not when the player already went in from this win screen's strip.
+export async function wallAfterMission({ missionId, missionTitle, shareKey }) {
+  if (shareKey && judged.has(shareKey)) return;
+  const config = await available();
+  if (!config) return;
+  await new Promise((resolve) => openMapWall({ missionId, missionTitle, pick: true, shareKey, onClose: resolve }));
+}
+
+// Thumbs-up and Report for one map (the big view on the wall).
+function mapActions(acts, missionId, m, onChange) {
+  const thumb = button(acts, '');
+  const note = el('span', 'ms-note', acts);
+  note.setAttribute('role', 'status');
+  const paintThumb = () => {
+    thumb.innerHTML = `${THUMB}<span>${m.voted ? 'Thumbs-up given' : 'Thumbs-up'} (${m.votes})</span>`;
+    thumb.classList.toggle('ms-on', !!m.voted);
+    thumb.classList.toggle('ms-main', !m.voted && !m.mine);
+    thumb.setAttribute('aria-pressed', String(!!m.voted));
   };
-  byVotes.addEventListener('click', () => setSort('votes'));
-  byNew.addEventListener('click', () => setSort('new'));
-  function setSort(v) {
-    sort = v;
-    markSort();
-    load(true);
+  paintThumb();
+  if (m.mine) {
+    thumb.disabled = true;
+    note.textContent = 'This one is yours.';
+    return thumb;
   }
-  s.onEscape(() => (view === 'compare' ? showGrid() : s.close()));
-
-  async function load(fresh) {
-    if (fresh) {
-      maps = [];
-      body.textContent = '';
-      el('p', 'ms-msg', body, 'Fetching maps…');
-    }
-    const config = await available();
-    if (s.closed) return;
-    if (!config) {
-      body.textContent = '';
-      el('p', 'ms-msg', body, 'Sharing maps isn’t available right now. Try again later.');
-      return;
-    }
+  thumb.addEventListener('click', async () => {
+    thumb.disabled = true;
     try {
-      const r = await listMaps(missionId, { sort, offset: maps.length, limit: PAGE });
-      maps = maps.concat(r.maps);
-      total = r.total;
+      const r = await vote(missionId, m.id, !m.voted);
+      m.voted = r.voted;
+      m.votes = r.votes;
+      paintThumb();
+      note.textContent = '';
+      onChange();
     } catch (e) {
-      body.textContent = '';
-      el('p', 'ms-msg', body, e.message);
-      return;
+      note.textContent = e.message;
     }
-    await fontsReady();
-    if (!s.closed) showGrid();
-  }
+    thumb.disabled = false;
+  });
 
-  function showGrid() {
-    view = 'grid';
-    sorts.hidden = false;
-    body.textContent = '';
-    if (!maps.length) {
-      el('p', 'ms-empty', body, 'No one has shared a map for this job yet. Finish it and be the first.');
-      return;
-    }
-    const grid = el('div', 'ms-grid', body);
-    maps.forEach((m, i) => card(grid, m, i));
-    if (maps.length < total) {
-      const more = el('div', 'ms-more', body);
-      const b = button(more, 'More maps');
-      b.addEventListener('click', () => {
-        b.disabled = true;
-        load(false);
-      });
-    }
-    s.panel.scrollTop = gridScroll;
-  }
-
-  function card(grid, m, i) {
-    const c = el('button', 'ms-card', grid);
-    c.type = 'button';
-    c.style.setProperty('--tilt', `${((i * 37) % 7 - 3) * 0.35}deg`);
-    c.setAttribute('aria-label', `${m.nickname}'s map, ${m.votes} thumbs-up. Open to compare with yours.`);
-    c.appendChild(renderSketchCanvas(m.sketch, 230, { hint: false }));
-    const name = el('span', 'ms-name', c, m.nickname);
-    if (m.mine) el('span', 'ms-badge', name, 'Yours');
-    el('span', 'ms-votes', name, `▲ ${m.votes}`);
-    el('span', 'ms-trip', c, tripText(m));
-    c.addEventListener('click', () => {
-      gridScroll = s.panel.scrollTop;
-      showCompare(m);
+  const rep = button(acts, m.reported ? 'Reported' : 'Report', 'ms-quiet');
+  rep.disabled = !!m.reported;
+  rep.addEventListener('click', () => {
+    rep.hidden = true;
+    note.textContent = 'Report this map as rude or not a map? ';
+    const yes = button(note, 'Report it', 'ms-quiet');
+    const no = button(note, 'Cancel', 'ms-quiet');
+    no.addEventListener('click', () => {
+      note.textContent = '';
+      rep.hidden = false;
+      rep.focus();
     });
-  }
-
-  function showCompare(m) {
-    view = 'compare';
-    sorts.hidden = true;
-    body.textContent = '';
-    const backBtn = button(body, '← All maps', 'ms-back');
-    backBtn.addEventListener('click', showGrid);
-    const cmp = el('div', 'ms-compare', body);
-
-    const mine = el('div', 'ms-sheet', cmp);
-    el('h3', null, mine, 'Your map');
-    const pad1 = el('div', 'ms-pad', mine);
-    if (mySketch && !sketchIsEmpty(mySketch)) pad1.appendChild(renderSketchCanvas(mySketch, 520, { hint: false }));
-    else el('div', 'ms-none', pad1, 'Finish this job (and draw your map) to see yours here.');
-
-    const theirs = el('div', 'ms-sheet', cmp);
-    const h2 = el('h3', null, theirs);
-    el('b', null, h2, m.nickname);
-    h2.append(m.mine ? ' (yours, as shared)' : '’s map');
-    const pad2 = el('div', 'ms-pad', theirs);
-    pad2.appendChild(renderSketchCanvas(m.sketch, 520, { hint: false }));
-    el('div', 'ms-trip', theirs, tripText(m));
-
-    const acts = el('div', 'ms-actions', theirs);
-    const thumb = button(acts, '');
-    const note = el('span', 'ms-note', acts);
-    note.setAttribute('role', 'status');
-    const paintThumb = () => {
-      thumb.innerHTML = `${THUMB}<span>${m.voted ? 'Thumbs-up given' : 'Thumbs-up'} (${m.votes})</span>`;
-      thumb.classList.toggle('ms-on', !!m.voted);
-      thumb.setAttribute('aria-pressed', String(!!m.voted));
-    };
-    paintThumb();
-    if (m.mine) {
-      thumb.disabled = true;
-      note.textContent = 'This one is yours.';
-    }
-    thumb.addEventListener('click', async () => {
-      thumb.disabled = true;
+    yes.addEventListener('click', async () => {
+      yes.disabled = true;
+      no.disabled = true;
       try {
-        const r = await vote(missionId, m.id, !m.voted);
-        m.voted = r.voted;
-        m.votes = r.votes;
-        paintThumb();
-        note.textContent = '';
+        const r = await report(missionId, m.id);
+        m.reported = true;
+        if (r.hidden) m.hidden = true;
+        note.textContent = 'Thanks. We’ll take a look.';
+        rep.textContent = 'Reported';
+        rep.disabled = true;
+        rep.hidden = false;
+        onChange();
       } catch (e) {
         note.textContent = e.message;
       }
-      thumb.disabled = false;
     });
+    yes.focus();
+  });
+  return thumb;
+}
 
-    if (!m.mine) {
-      const rep = button(acts, m.reported ? 'Reported' : 'Report', 'ms-quiet');
-      rep.disabled = !!m.reported;
-      rep.addEventListener('click', () => {
-        rep.hidden = true;
-        note.textContent = 'Report this map as rude or not a map? ';
-        const yes = button(note, 'Report it', 'ms-quiet');
-        const no = button(note, 'Cancel', 'ms-quiet');
-        no.addEventListener('click', () => {
-          note.textContent = '';
-          rep.hidden = false;
-          rep.focus();
-        });
-        yes.addEventListener('click', async () => {
-          yes.disabled = true;
-          no.disabled = true;
-          try {
-            const r = await report(missionId, m.id);
-            m.reported = true;
-            note.textContent = 'Thanks. We’ll take a look.';
-            if (r.hidden) {
-              maps = maps.filter((x) => x.id !== m.id);
-              total = Math.max(0, total - 1);
-            }
-            rep.textContent = 'Reported';
-            rep.disabled = true;
-            rep.hidden = false;
-          } catch (e) {
-            note.textContent = e.message;
-          }
-        });
-        yes.focus();
-      });
+export function openMapWall({ missionId, missionTitle, pick = false, shareKey = null, onClose = null }) {
+  if (shareKey) judged.add(shareKey);
+  const info = missionInfo(missionId);
+  const place = info ? info.place : missionTitle;
+  const s = sheet('The map wall'); // T82-wall-title
+  s.panel.classList.add('mw-panel');
+  s.onClosed(onClose);
+  const head = el('div', 'ms-head', s.panel);
+  const body = el('div', 'mw-body', s.panel);
+  let maps = [];
+  let total = 0;
+  let byVotes = 0; // maps loaded from the votes order (for More maps)
+  let lastPair = null;
+  let overlay = null; // the note or a map seen big: { root, close }
+  let highlight = null;
+  s.onEscape(() => (overlay ? overlay.close() : s.close()));
+  s.trapIn(() => (overlay ? overlay.root : s.shade));
+
+  function drawHead(title, onWall) {
+    head.textContent = '';
+    el('h2', null, head, title);
+    el('span', 'ms-sub', head, missionTitle);
+    if (onWall) el('span', 'ms-sub mw-sub', head, 'pinned up by drivers who got there'); // T82-wall-sub
+    const help = button(head, '?', 'mw-help');
+    help.setAttribute('aria-label', 'The map wall'); // T82-note-title
+    help.addEventListener('click', () => showNote(onWall));
+    if (onWall && pickPair(maps)) {
+      const again = button(head, 'Judge another pair', 'ms-main mw-again'); // T82-wall-again
+      again.addEventListener('click', () => showPick());
     }
-    backBtn.focus({ preventScroll: true });
-    s.panel.scrollTop = 0;
   }
 
-  markSort();
-  byVotes.focus({ preventScroll: true });
-  load(true);
+  function message(text) {
+    body.textContent = '';
+    el('p', 'ms-msg', body, text);
+  }
+
+  async function loadVotes(upTo) {
+    while (byVotes < upTo) {
+      const r = await listMaps(missionId, { sort: 'votes', offset: byVotes, limit: WALL_PAGE });
+      maps = uniqueMaps(maps.concat(r.maps));
+      byVotes += r.maps.length;
+      total = r.total;
+      if (!r.maps.length || byVotes >= total) break;
+    }
+  }
+
+  async function load() {
+    message('Fetching maps…');
+    const config = await available();
+    if (s.closed) return false;
+    if (!config) {
+      message('Sharing maps isn’t available right now. Try again later.');
+      return false;
+    }
+    try {
+      // The newest too, so new maps get judged before they have votes.
+      const [, fresh] = await Promise.all([
+        loadVotes(WALL_FIRST),
+        listMaps(missionId, { sort: 'new', offset: 0, limit: WALL_PAGE }),
+      ]);
+      maps = uniqueMaps(maps.concat(fresh.maps));
+    } catch (e) {
+      message(e.message);
+      return false;
+    }
+    await fontsReady();
+    return !s.closed;
+  }
+
+  // ---- pick one of two
+  function showPick() {
+    const pair = pickPair(maps, { last: lastPair });
+    if (!pair) {
+      showWall();
+      return;
+    }
+    lastPair = pair;
+    drawHead('Which map gets you there?', false); // T82-pick-title
+    body.textContent = '';
+    const wrap = el('div', 'mw-pick', body);
+    const q = el('p', 'mw-q', wrap, `You’re lost on the way to ${place}. Which map would you rather have?`); // T82-pick-q
+    q.tabIndex = -1; // focus lands here, not on a map (that would look like a hint)
+    const row = el('div', 'mw-pair', wrap);
+    const cards = pair.map((m) => {
+      const c = el('button', 'mw-card', row);
+      c.type = 'button';
+      c.appendChild(renderSketchCanvas(m.sketch, 560, { hint: false }));
+      const n = el('div', 'mw-n', c);
+      el('span', null, n, '?');
+      return { c, m, n };
+    });
+    const nav = el('div', 'mw-nav', wrap);
+    const skip = button(nav, 'Skip this pair', 'ms-quiet'); // T82-pick-skip
+    const toWall = button(nav, 'Just show me the wall', 'ms-quiet'); // T82-pick-wall
+    const status = el('p', 'ms-status mw-status', wrap);
+    status.setAttribute('role', 'status');
+    skip.addEventListener('click', () => showPick());
+    toWall.addEventListener('click', () => showWall());
+    const all = [...cards.map((k) => k.c), skip, toWall];
+    for (const { c, m } of cards) {
+      c.addEventListener('click', async () => {
+        all.forEach((b) => (b.disabled = true));
+        status.textContent = '';
+        try {
+          const r = await vote(missionId, m.id, true); // a pick is a thumbs-up
+          m.voted = r.voted;
+          m.votes = r.votes;
+        } catch (e) {
+          status.textContent = e.message;
+          all.forEach((b) => (b.disabled = false));
+          return;
+        }
+        if (s.closed) return;
+        for (const k of cards) {
+          k.c.classList.add(k.m === m ? 'mw-win' : 'mw-lose');
+          k.n.textContent = '';
+          el('span', null, k.n, k.m.nickname);
+          el('b', null, k.n, `▲ ${k.m.votes} · ${tripText(k.m)}`);
+        }
+        setTimeout(() => {
+          if (!s.closed) showWall({ pick: m.id });
+        }, REVEAL_MS);
+      });
+    }
+    q.focus({ preventScroll: true });
+    s.panel.scrollTop = 0;
+    if (!noteSeen()) showNote(false);
+  }
+
+  // ---- the wall
+  function showWall({ pick: picked = null, keepScroll = false } = {}) {
+    if (picked) highlight = picked;
+    const scroll = s.panel.scrollTop;
+    drawHead('The map wall', true); // T82-wall-title
+    body.textContent = '';
+    const cork = el('div', 'mw-cork', body);
+    if (info) {
+      const real = el('div', 'mw-pin mw-real mw-big', cork);
+      real.style.setProperty('--t', '-1.5deg');
+      real.appendChild(realCanvas(info, PIN_PX.real - 14));
+      const rn = el('div', 'mw-n', real);
+      el('span', null, rn, 'The real map'); // T82-wall-real
+    }
+    const order = wallOrder(maps);
+    const newest = order.length > 1 ? newestId(order) : null;
+    let lit = null;
+    order.forEach((m, k) => {
+      const size = pinSize(k);
+      const p = el('button', `mw-pin mw-${size}`, cork);
+      p.type = 'button';
+      p.style.setProperty('--t', `${pinTilt(k)}deg`);
+      p.appendChild(renderSketchCanvas(m.sketch, PIN_PX[size] - 14, { hint: false }));
+      const n = el('div', 'mw-n', p);
+      el('span', null, n, m.mine ? 'Yours' : m.nickname); // T82-wall-yours
+      el('b', null, n, `▲ ${m.votes}`);
+      if (m.id === highlight) {
+        p.classList.add('mw-hl');
+        if (picked) p.classList.add('mw-pop');
+        el('span', 'mw-sticky', p, 'your pick'); // T82-wall-pick
+        lit = p;
+      } else if (m.id === newest) {
+        el('span', 'mw-sticky', p, 'new!'); // T82-wall-new
+      }
+      p.addEventListener('click', () => showMap(m));
+    });
+    if (!order.length) el('p', 'ms-empty', body, 'No one has shared a map for this job yet. Finish it and be the first.');
+    if (byVotes < total) {
+      const more = el('div', 'ms-more', body);
+      const b = button(more, 'More maps');
+      b.addEventListener('click', async () => {
+        b.disabled = true;
+        try {
+          await loadVotes(byVotes + WALL_FIRST);
+        } catch (e) {
+          b.disabled = false;
+          return;
+        }
+        if (!s.closed && !overlay) showWall({ keepScroll: true });
+      });
+    }
+    if (keepScroll) s.panel.scrollTop = scroll;
+    else if (lit && picked) {
+      requestAnimationFrame(() => lit.scrollIntoView({ block: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' }));
+    } else s.panel.scrollTop = 0;
+    if (lit && picked) lit.focus({ preventScroll: true });
+    else head.querySelector('.mw-again, .mw-help')?.focus({ preventScroll: true });
+  }
+
+  // A map seen big, beside the real map.
+  function showMap(m) {
+    const back = document.activeElement;
+    const l = el('div', 'mw-light', s.shade);
+    l.setAttribute('role', 'dialog');
+    l.setAttribute('aria-modal', 'true');
+    l.setAttribute('aria-label', m.mine ? `${m.nickname} (yours, as shared)` : `${m.nickname}’s map`);
+    const box = el('div', 'mw-box', l);
+    const x = button(box, '×', 'ms-close');
+    x.setAttribute('aria-label', 'Close');
+    const theirs = el('div', 'ms-sheet', box);
+    const h = el('h3', 'mw-who', theirs);
+    el('b', null, h, m.nickname);
+    h.append(m.mine ? ' (yours, as shared)' : '’s map');
+    const pad = el('div', 'ms-pad', theirs);
+    pad.appendChild(renderSketchCanvas(m.sketch, 560, { hint: false }));
+    el('div', 'ms-trip', theirs, tripText(m));
+    let changed = false;
+    const thumb = mapActions(el('div', 'ms-actions', theirs), missionId, m, () => (changed = true));
+    if (info) {
+      const realBox = el('div', 'ms-sheet', box);
+      el('h3', null, realBox, 'The real map'); // T82-wall-real
+      el('div', 'ms-pad mw-realpad', realBox).appendChild(realCanvas(info, 560));
+    }
+    const close = () => {
+      l.remove();
+      overlay = null;
+      if (changed) showWall({ keepScroll: true });
+      else if (back && back.isConnected) back.focus({ preventScroll: true });
+    };
+    overlay = { root: l, close };
+    x.addEventListener('click', close);
+    l.addEventListener('pointerdown', (e) => {
+      if (e.target === l) close();
+    });
+    (thumb.disabled ? x : thumb).focus({ preventScroll: true });
+  }
+
+  // The first-time note, pinned over the pick (and back with "?").
+  function showNote(onWall) {
+    if (overlay) overlay.close();
+    markNoteSeen();
+    const back = document.activeElement;
+    const t = el('div', 'mw-tut', s.shade);
+    t.setAttribute('role', 'dialog');
+    t.setAttribute('aria-modal', 'true');
+    t.setAttribute('aria-label', 'The map wall'); // T82-note-title
+    const n = el('div', 'mw-note', t);
+    el('h3', null, n, 'The map wall'); // T82-note-title
+    const demo = el('div', 'mw-demo', n);
+    demo.setAttribute('aria-hidden', 'true');
+    const two = pickPair(maps) || wallOrder(maps).slice(0, 2);
+    for (const cls of ['a', 'b']) {
+      const m = two[cls === 'a' ? 0 : 1];
+      const mini = el('div', 'mw-mini mw-mini-' + cls, demo);
+      if (m) mini.appendChild(renderSketchCanvas(m.sketch, 104, { hint: false }));
+      else if (info) mini.appendChild(realCanvas(info, 104));
+    }
+    el('span', 'mw-plus', demo, '▲ +1');
+    el('span', 'mw-hand', demo, '👆');
+    el('p', null, n, `Every driver who finds ${place} pins up the map they drew on the way.`); // T82-note-1
+    el('p', null, n, 'Some have the bridge in the wrong place.'); // T82-note-2
+    el('p', null, n, 'We’ll show you two. Pick the one you’d want in your glove box.'); // T82-note-3
+    el('p', null, n, 'Each pick moves a map up the wall, so the next lost driver sees the best ones first.'); // T82-note-4
+    el('p', null, n, 'Yours is up there too. Other drivers get to judge it.'); // T82-note-5
+    const go = button(n, 'Show me two maps', 'ms-main'); // T82-note-go
+    const close = () => {
+      t.remove();
+      overlay = null;
+      if (back && back.isConnected) back.focus({ preventScroll: true });
+    };
+    overlay = { root: t, close };
+    go.addEventListener('click', () => {
+      close();
+      if (onWall) showPick();
+    });
+    t.addEventListener('pointerdown', (e) => {
+      if (e.target === t) close();
+    });
+    go.focus({ preventScroll: true });
+  }
+
+  load().then((ok) => {
+    if (!ok) return;
+    if (pick && pickPair(maps)) showPick();
+    else showWall();
+  });
   return s;
 }
