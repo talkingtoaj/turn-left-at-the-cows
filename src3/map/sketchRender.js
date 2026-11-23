@@ -187,18 +187,19 @@ export function renderPrintedMapCanvas(def, cssWidth, world = WORLD) {
 
 // A truthful map definition (no lies) covering a mission's area: where it
 // starts (the giver, or the world start), its waypoints and its goal, plus
-// a margin. Never marks the player or the goal.
-export function trueMapDef(mission) {
+// a margin. Never marks the player or the goal. world: the mission's region
+// (default the current one; the start screen's map wall passes it).
+export function trueMapDef(mission, world = WORLD) {
   const pts = [];
-  const giver = mission.giverNpcId && WORLD.locals.find((l) => l.id === mission.giverNpcId);
-  pts.push(giver ? [giver.x, giver.y] : [WORLD.start.x, WORLD.start.y]);
+  const giver = mission.giverNpcId && world.locals.find((l) => l.id === mission.giverNpcId);
+  pts.push(giver ? [giver.x, giver.y] : [world.start.x, world.start.y]);
   for (const wp of mission.waypoints) pts.push([wp.x, wp.y]);
   pts.push([mission.goal.x, mission.goal.y]);
   const M = 350;
   const x0 = Math.max(0, Math.min(...pts.map((p) => p[0])) - M);
   const y0 = Math.max(0, Math.min(...pts.map((p) => p[1])) - M);
-  const x1 = Math.min(WORLD.size.w, Math.max(...pts.map((p) => p[0])) + M);
-  const y1 = Math.min(WORLD.size.h, Math.max(...pts.map((p) => p[1])) + M);
+  const x1 = Math.min(world.size.w, Math.max(...pts.map((p) => p[0])) + M);
+  const y1 = Math.min(world.size.h, Math.max(...pts.map((p) => p[1])) + M);
   return {
     id: 'truth_' + mission.id,
     title: 'The real map',
