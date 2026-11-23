@@ -7,10 +7,10 @@
 //
 // Attributes: position, normal, uv (atlas), color (white; the paint is
 // tinted per car), carPart: x the paint mask (0 trim, 1 paint, 2 paint that
-// can carry a lower second tone: pickups), y the kit bit + 1 (0 not a kit
+// can carry a lower second tone: pickups, 3 van paint: stripe or lower tone), y the kit bit + 1 (0 not a kit
 // piece; trafficKit.js).
 //
-//   const geo = fineGeometry('sedan')   // 'sedan' | 'wagon' | 'pickup' | 'hatch' | 'farmtruck'
+//   const geo = fineGeometry('sedan')   // 'sedan' | 'wagon' | 'pickup' | 'hatch' | 'farmtruck' | 'van'
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -19,6 +19,9 @@ import { carAtlas } from './caratlas.js';
 import { trimBuilder } from './car3d.js';
 import { kitInto } from './trafficKit.js';
 import { KIT_BIT } from '../../src/ambient/carkit.js';
+import { fourByFourFine } from './fourbyfour3d.js';
+import { farmTruckInto } from './farmtruck3d.js';
+import { sixBySixInto } from './sixbysix3d.js';
 
 // Bumper and trim look per type (the coarse bodies in traffic3d.js read it too).
 export const FINE_STYLE = {
@@ -26,6 +29,7 @@ export const FINE_STYLE = {
   wagon: { bumper: 'chrome', grille: true },
   pickup: { bumper: 'chrome', grille: true },
   hatch: { bumper: 'satin', grille: false },
+  van: { bumper: 'chrome', grille: true, tallTail: true },
 };
 
 // An indexed loft part: smooth normals, then flat triangles with one uv.
@@ -61,16 +65,19 @@ function trimPart(T, A, paintMask) {
   return finish(g, null, (i) => (Math.abs(uv[i * 2] - pu) < 1e-6 && Math.abs(uv[i * 2 + 1] - pv) < 1e-6 ? paintMask : 0));
 }
 
-// Tyre (tread and sidewall) and hubcaps for a wheel of radius r, axis x.
-function wheelInto(T, A, r, x, y, z, side) {
+// Tyre (tread and sidewall) and hubcaps for a wheel of radius r, axis x
+// (or z), w wide (the car tyre is 0.204). Also used by the parked semis (parked3d.js).
+export function wheelInto(T, A, r, x, y, z, side, w = 0.204, axis = 'x') {
   const k = r / 0.315;
+  const s = w / 0.204;
   const prof = [[0.19, -0.098], [0.27, -0.102], [0.3, -0.095], [0.315, -0.07], [0.317, 0], [0.315, 0.07], [0.3, 0.095], [0.27, 0.102], [0.19, 0.098]]
-    .map(([rr, yy]) => new THREE.Vector2(rr * k, yy));
-  T.geo(new THREE.LatheGeometry(prof, 16).rotateZ(Math.PI / 2).translate(x, y, z), null, A.rect('tread', 1));
+    .map(([rr, yy]) => new THREE.Vector2(rr * k, yy * s));
+  const turn = (g) => (axis === 'z' ? g.rotateY(Math.PI / 2) : g).translate(x, y, z);
+  T.geo(turn(new THREE.LatheGeometry(prof, 16).rotateZ(Math.PI / 2)), null, A.rect('tread', 1));
   // Hubcap on the outer face, a dark hub on the inner face.
-  const cap = new THREE.CircleGeometry(0.2 * k, 14).rotateY(side * Math.PI / 2).translate(x + side * 0.094, y, z);
-  T.geo(cap, null, A.rect('hubcap', 2));
-  T.geo(new THREE.CircleGeometry(0.2 * k, 8).rotateY(-side * Math.PI / 2).translate(x - side * 0.094, y, z), 'rubber');
+  const cap = new THREE.CircleGeometry(0.2 * k, 14).rotateY(side * Math.PI / 2).translate(side * 0.094 * s, 0, 0);
+  T.geo(turn(cap), null, A.rect('hubcap', 2));
+  T.geo(turn(new THREE.CircleGeometry(0.2 * k, 8).rotateY(-side * Math.PI / 2).translate(-side * 0.094 * s, 0, 0)), 'rubber');
 }
 
 // Strips that follow the body surface (as car3d.js surfaceStrips, for any spec).
@@ -136,7 +143,7 @@ function stripsFor(S, T, A) {
     }
     if (S.bed) across(S.zC + 0.1, 1, 6, 0.006, 'gap', side); // cab to bed
     alongZ(a0, a1, 2, 0.0, 0.25, 'satin', side, 0.014); // rub strip
-    alongZ(S.zA + 0.03, Math.min(S.zC, S.zR1 + 0.3) - 0.03, 7, 0.82, 1.0, 'chrome', side, 0.006); // drip rail
+    alongZ(S.zA + 0.03, Math.min(S.zC, S.zR1 + 0.3, h) - 0.03, 7, 0.82, 1.0, 'chrome', side, 0.006); // drip rail
     const handles = [mid - 0.24];
     if (rear !== null) handles.push(rear - 0.14);
     for (const z of handles) {
@@ -182,7 +189,7 @@ function endParts(name, S, T, A) {
   const r = A.rect('tail', 1);
   for (const x of [-1, 1]) {
     const flip = x > 0 ? r : [r[2], r[1], r[0], r[3]];
-    if (S.bed) {
+    if (S.bed || st.tallTail) {
       T.box(x * (hw - 0.12), ty + 0.04, rz - 0.004, 0.2, 0.36, 0.02, 'black');
       T.pic([x * (hw - 0.12), ty + 0.04, rz + 0.008], [1, 0, 0], [0, 1, 0], 0.18, 0.34, flip);
     } else {
@@ -225,11 +232,10 @@ function endParts(name, S, T, A) {
   }
 }
 
-function loftFine(name) {
-  const A = carAtlas();
-  const S = { ...SPECS[name], trunk: name === 'sedan', bed: name === 'pickup' };
+// The fine lofted shell of a spec: paint and glass parts, and a trim
+// builder holding the loft's trim (more trim goes on it before trimPart).
+function fineShell(S, A, paintMask) {
   const body = loftBody(S, { step: 0.09 });
-  const paintMask = name === 'pickup' ? 2 : 1;
   const parts = [loftPart(body.paint, A.sw('tpaint'), paintMask), loftPart(body.glass, A.sw('tglass'), 0)];
   const T = trimBuilder(A);
   for (const t of body.trim) {
@@ -237,56 +243,59 @@ function loftFine(name) {
     const p = t.tri;
     T.tri([p[0], p[1], p[2]], [p[3], p[4], p[5]], [p[6], p[7], p[8]], u, u, u);
   }
+  return { parts, T };
+}
+
+function loftFine(name) {
+  const A = carAtlas();
+  const S = { ...SPECS[name], trunk: name === 'sedan', bed: name === 'pickup' };
+  const paintMask = name === 'pickup' ? 2 : name === 'van' ? 3 : 1;
+  const { parts, T } = fineShell(S, A, paintMask);
   stripsFor(S, T, A);
   endParts(name, S, T, A);
   parts.push(trimPart(T, A, paintMask), ...fineKit(name, A));
   return mergeGeometries(parts);
 }
 
-// Old flatbed farm truck with stake sides (the coarse one in traffic3d.js,
-// with lamps, grille, plates and tyres from the atlas).
-function farmTruckFine() {
+// A body drawn through a builder (farmtruck3d.js, sixbysix3d.js; see
+// roundShapes.js) on the atlas: flat parts in one trim builder, rounded
+// panels keep their smooth normals.
+const FINE_ALIAS = { paint: 'tpaint', glass: 'tglass', wood: 'plank', woodDark: 'plankDark', hub: 'steel', tail: 'red', flap: 'rubber' };
+// kitMask: which kit pieces to keep (-1 all, for the traffic shader to fold;
+// a parked copy passes the few it shows). fine: false for a far stand-in.
+export function fineVehicle(into, type, { fine = true, kitMask = -1 } = {}) {
   const A = carAtlas();
   const T = trimBuilder(A);
-  const b = (w, h, d, x, y, z, sw) => T.box(x, y, z, w, h, d, sw);
-  b(1.9, 0.2, 5.3, 0, 0.62, 0.1, 'black');
-  b(1.75, 0.62, 1.35, 0, 1.08, -1.95, 'tpaint');
-  b(2.0, 0.2, 0.5, 0, 0.92, -1.6, 'tpaint');
-  b(2.0, 1.25, 1.45, 0, 1.38, -0.6, 'tpaint');
-  b(1.86, 0.5, 0.04, 0, 1.72, -1.34, 'tglass');
-  b(2.02, 0.42, 0.9, 0, 1.72, -0.58, 'tglass');
-  b(2.04, 0.06, 1.5, 0, 2.02, -0.6, 'tpaint');
-  b(1.82, 0.1, 0.12, 0, 0.6, -2.68, 'chrome');
-  // Grille in a chrome surround, headlamps, plates, tail lamps.
-  b(1.0, 0.46, 0.02, 0, 1.08, -2.63, 'chrome');
-  T.pic([0, 1.08, -2.645], [-1, 0, 0], [0, 1, 0], 0.92, 0.4, A.rect('grille', 1));
-  T.pic([0, 0.6, -2.745], [-1, 0, 0], [0, 1, 0], 0.32, 0.16, A.rect('plate', 2));
-  T.pic([0, 0.92, 2.83], [1, 0, 0], [0, 1, 0], 0.32, 0.16, A.rect('plate', 2));
-  const r = A.rect('tail', 1);
-  for (const x of [-1, 1]) {
-    b(0.24, 0.18, 0.03, x * 0.68, 1.12, -2.63, 'chrome');
-    T.pic([x * 0.68, 1.12, -2.65], [-1, 0, 0], [0, 1, 0], 0.2, 0.14, A.rect('head', 1));
-    T.pic([x * 0.85, 0.95, 2.82], [1, 0, 0], [0, 1, 0], 0.2, 0.12, x > 0 ? r : [r[2], r[1], r[0], r[3]]);
-    // Mirror on an arm, door line and handle.
-    b(0.04, 0.04, 0.3, x * 1.06, 1.75, -1.2, 'black');
-    b(0.06, 0.26, 0.14, x * 1.12, 1.75, -1.25, 'black');
-    b(0.006, 1.0, 0.012, x * 1.002, 1.35, -0.02, 'gap');
-    b(0.006, 1.0, 0.012, x * 1.002, 1.35, -1.12, 'gap');
-    b(0.03, 0.03, 0.14, x * 1.01, 1.45, -0.18, 'chrome');
-    for (const z of [-0.3, 0.6, 1.5, 2.4]) b(0.08, 0.75, 0.08, x * 1.03, 1.25, z, 'plankDark');
-    for (const y of [1.05, 1.3, 1.55]) b(0.04, 0.1, 3.0, x * 1.05, y, 1.05, 'plank');
-  }
-  b(2.15, 0.12, 3.2, 0, 0.82, 1.2, 'plank');
-  for (const y of [1.05, 1.3, 1.55]) b(2.1, 0.1, 0.04, 0, y, 2.6, 'plank');
-  for (const x of [-0.86, 0.86]) wheelInto(T, A, 0.45, x, 0.45, -1.95, Math.sign(x));
-  for (const x of [-1.02, 1.02]) wheelInto(T, A, 0.45, x, 0.45, 1.55, Math.sign(x));
-  for (const x of [-0.78, 0.78]) T.geo(new THREE.CylinderGeometry(0.45, 0.45, 0.2, 12).rotateZ(Math.PI / 2).translate(x, 0.45, 1.55), 'rubber');
-  return mergeGeometries([trimPart(T, A, 1), ...fineKit('farmtruck', A)]);
+  const smooth = [];
+  const sw = (m) => FINE_ALIAS[m] || m;
+  into({
+    fine,
+    box: (x, y, z, w, h, d, m, rx = 0, ry = 0, rz = 0) => T.box(x, y, z, w, h, d, sw(m), rx, ry, rz),
+    bar: (a, b, w, th, m, up) => T.rod(a, b, w, th, sw(m), up),
+    smooth(g, m) {
+      const n = g.index ? g.toNonIndexed() : g;
+      smooth.push(finish(n, () => A.sw(sw(m)), () => (m === 'paint' ? 1 : 0)));
+    },
+    geo: (g, m) => T.geo(g, sw(m)),
+    pic(c, r, u, w, h, name, flip = false) {
+      const q = A.rect(name, 1);
+      T.pic(c, r, u, w, h, flip ? [q[2], q[1], q[0], q[3]] : q);
+    },
+    disc(c, n, rad, name) {
+      const g = new THREE.CircleGeometry(rad, 14);
+      g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(...n)));
+      T.geo(g.translate(...c), null, A.rect(name, 1));
+    },
+    wheel: (r, w, x, y, z, side, axis = 'x') => wheelInto(T, A, r, x, y, z, side, w, axis),
+  });
+  const kit = fineKit(type, A).filter((g) => kitMask === -1 || (kitMask >> (g.attributes.carPart.array[1] - 1)) & 1);
+  return mergeGeometries([trimPart(T, A, 1), ...smooth, ...kit]);
 }
+const fineBody = (into, type) => fineVehicle(into, type);
 
 // Kit pieces (trafficKit.js) on the atlas, one part per kit bit (carPart.y is
 // the bit + 1; the shader folds away the parts a car's kit leaves out).
-const KIT_SW = { rack: 'black' };
+const KIT_SW = { rack: 'black', glass: 'tglass', tail: 'red' };
 function fineKit(type, A) {
   const Ts = new Map();
   let cur = null;
@@ -296,7 +305,7 @@ function fineKit(type, A) {
   const B = {
     fine: true,
     part(name) {
-      const bit = KIT_BIT[name] + 1;
+      const bit = name ? KIT_BIT[name] + 1 : 0; // null: on every car of the type
       if (!Ts.has(bit)) Ts.set(bit, trimBuilder(A));
       cur = Ts.get(bit);
     },
@@ -337,5 +346,8 @@ function fineKit(type, A) {
 }
 
 export function fineGeometry(name) {
-  return name === 'farmtruck' ? farmTruckFine() : loftFine(name);
+  if (name === 'fourbyfour') return fourByFourFine({ fineShell, trimPart, stripsFor, wheelInto, fineKit });
+  if (name === 'farmtruck') return fineBody(farmTruckInto, 'farmtruck');
+  if (name === 'sixbysix') return fineBody(sixBySixInto, 'sixbysix');
+  return loftFine(name);
 }

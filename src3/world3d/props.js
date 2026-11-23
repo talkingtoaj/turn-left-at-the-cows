@@ -1,11 +1,9 @@
-// Road signs (posts and boards; the words are painted by signtext.js) and locals.
+// Road signs (posts and boards; the words are painted by signtext.js). Locals
+// are built in people3d.js and re-exported from here.
 
 import * as THREE from 'three';
 import { distToSegment, localToWorld } from '../../src/drive/geom.js';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { box, cyl } from './shapes.js';
-import { state } from '../../src/state.js';
-import { currentMissionId } from '../../src/game/tourists.js';
+import { box } from './shapes.js';
 import { objMatrix } from './batch.js';
 import { FaceAtlas, signStyle, signSize, signLineText, drawSignFace, SIGN_PX_PER_M, handStyle, drawHandFace, HAND_PX_PER_M } from './signtext.js';
 
@@ -107,119 +105,5 @@ export function buildSigns(world, terrain, batch) {
   }
 }
 
-const PEOPLE = [
-  { shirt: 0x2f5f9f, hat: 0xb3261e, legs: 0x3a3f4a },
-  { shirt: 0xb84a3a, hat: 0xe0c050, legs: 0x4a5a6a },
-  { shirt: 0x5d8a3a, hat: 0x3b3b3b, legs: 0x3a3f4a },
-];
-
-// One shared material; part colours live in vertex colours.
-const personMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
-const _m = new THREE.Matrix4();
-const _c = new THREE.Color();
-
-// Bake parts into one geometry: each part is [geometry, colour, x, y, z, rotX].
-function mergeParts(parts) {
-  const geos = parts.map(([geo, color, x, y, z, rx = 0]) => {
-    const g = geo.index ? geo.toNonIndexed() : geo.clone();
-    g.deleteAttribute('uv');
-    g.applyMatrix4(_m.makeRotationX(rx).setPosition(x, y, z));
-    _c.set(color);
-    const n = g.attributes.position.count;
-    const col = new Float32Array(n * 3);
-    for (let i = 0; i < n; i++) col.set([_c.r, _c.g, _c.b], i * 3);
-    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    return g;
-  });
-  return mergeGeometries(geos);
-}
-
-// Each local is its own small group (body plus two swinging legs, three draw
-// calls) so it can turn to face the car.
-export function buildLocals(world, terrain, audit = null) {
-  const group = new THREE.Group();
-  const people = [];
-  const legGeos = new Map();
-  world.locals.forEach((l, i) => {
-    const look = l.look || PEOPLE[i % PEOPLE.length];
-    const p = new THREE.Group();
-    const add = (geo, x, y, z) => {
-      const m = new THREE.Mesh(geo, personMat);
-      m.position.set(x, y, z);
-      m.castShadow = true;
-      p.add(m);
-      return m;
-    };
-    // Legs hang from the hip so they can swing when walking.
-    if (!legGeos.has(look.legs)) legGeos.set(look.legs, mergeParts([[box(0.2, 0.85, 0.22).translate(0, -0.85, 0), look.legs, 0, 0, 0]]));
-    add(legGeos.get(look.legs), -0.13, 0.85, 0);
-    add(legGeos.get(look.legs), 0.13, 0.85, 0);
-    const body = [
-      [box(0.56, 0.68, 0.3), look.shirt, 0, 0.85, 0],
-      [box(0.14, 0.62, 0.16), look.shirt, -0.36, 0.9, 0],
-      [box(0.14, 0.62, 0.16), look.shirt, 0.36, 0.9, 0],
-      [new THREE.IcosahedronGeometry(0.17, 0), 0xe2b58f, 0, 1.7, 0],
-      [cyl(0.2, 0.12, 8), look.hat, 0, 1.8, 0],
-      [cyl(0.13, 0.14, 8), look.hat, 0, 1.9, 0],
-    ];
-    if (/fish/i.test(l.role || '')) {
-      body.push([cyl(0.025, 3.2, 4), 0x3a2a1a, 0.4, 1.0, -0.2, -0.9]);
-    } else {
-      body.push([box(0.4, 0.06, 0.5), 0x2a2a2a, 0, 1.79, -0.12]); // cap peak
-    }
-    // Something in the hand or round the neck (tourists, issue 28).
-    if (l.carry === 'briefcase') body.push([box(0.12, 0.3, 0.42), 0x4a2f1c, 0.5, 0.5, 0.04]);
-    if (l.carry === 'binoculars') body.push([box(0.3, 0.1, 0.12), 0x1c1c1c, 0, 1.35, 0.2]);
-    add(mergeParts(body), 0, 0, 0);
-    p.position.set(l.x, terrain.heightAt(l.x, l.y), l.y);
-    if (/fish/i.test(l.role || '')) {
-      // The bucket stands on the ground beside her, at that spot's own height
-      // (on the sloping bank, her height buried it), and does not turn with her.
-      const bx = l.x + 0.7;
-      const by = l.y + 0.5;
-      const bucket = new THREE.Mesh(mergeParts([[cyl(0.22, 0.4, 8, 0.26), 0x8a8f96, 0, 0, 0]]), personMat);
-      bucket.position.set(bx, terrain.heightAt(bx, by) - 0.04, by);
-      bucket.castShadow = true;
-      group.add(bucket);
-    }
-    if (audit) audit.circle(l.id, 'local', l.x, l.y, 0.12, terrain.heightAt(l.x, l.y), terrain.heightAt(l.x, l.y));
-    group.add(p);
-    people.push({ id: l.id, only: l.onlyMission || null, obj: p, x: l.x, y: l.y, yaw: 0, legs: p.children.slice(0, 2), walk: 0 });
-  });
-  return {
-    object: group,
-    // Follow the ambient wander (amb.personPos), walk with swinging legs, and
-    // turn towards the car when it is close and they are standing.
-    update(car, dt, amb) {
-      const missionId = currentMissionId(state);
-      for (const p of people) {
-        const pos = amb && amb.personPos ? amb.personPos(p.id) : null;
-        if (pos) {
-          p.x = pos.x;
-          p.y = pos.y;
-        }
-        const dx = car.x - p.x;
-        const dy = car.y - p.y;
-        const far = dx * dx + dy * dy > 250 * 250;
-        // Past 350 m a person is a pixel or two in the haze.
-        p.obj.visible = dx * dx + dy * dy < 350 * 350 && (!p.only || p.only === missionId);
-        if (far) continue;
-        p.obj.position.set(p.x, terrain.heightAt(p.x, p.y), p.y);
-        const moving = pos && pos.moving;
-        let target;
-        if (moving) target = -(pos.heading * Math.PI) / 180;
-        else if (dx * dx + dy * dy < 60 * 60) target = Math.atan2(-dx, -dy); // model faces -z
-        else target = pos ? -(pos.heading * Math.PI) / 180 : p.yaw;
-        let d = target - p.yaw;
-        d = Math.atan2(Math.sin(d), Math.cos(d));
-        p.yaw += d * Math.min(1, dt * (moving ? 6 : 3));
-        p.obj.rotation.y = p.yaw;
-        p.walk = moving ? p.walk + dt * 7 : p.walk * Math.max(0, 1 - dt * 8);
-        const swing = moving ? Math.sin(p.walk) * 0.5 : 0;
-        p.legs[0].rotation.x = swing;
-        p.legs[1].rotation.x = -swing;
-      }
-    },
-  };
-}
-
+// Locals live in people3d.js (#56).
+export { buildLocals } from './people3d.js';

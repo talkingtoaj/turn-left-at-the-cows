@@ -38,7 +38,7 @@ function pl(points) {
 // Body types. zA windscreen base, zR0 / zR1 roof front and back, zC rear
 // glass base. windows: side glass [z0, z1] ranges; pillars between are
 // blacked out (bPillar) or painted.
-function makeSpec(o) {
+export function makeSpec(o) {
   const L = o.L;
   const h = L / 2;
   const s = {
@@ -81,6 +81,17 @@ export const SPECS = {
     windows: [[-0.58, 0.48]], bPillar: [0.48, 0.48],
     wheels: [[-1.52], [1.45]], archR: 0.47,
   }),
+  // Panel van (#46): short hood, raked windscreen, a tall box behind the cab
+  // with no side glass, rounded roof edges (edge), flat rear doors. The roof
+  // runs to the very back (zR1, zC past the end), and the glasshouse trim
+  // stops behind the cab doors (greenEnd).
+  van: makeSpec({
+    L: 4.9, zA: -1.5, zR0: -0.82, zR1: 2.55, zC: 2.65, greenEnd: 0.45,
+    hw: 0.97, ghw: 0.88, roofY: 2.0, y0: 0.38, wheelY: 0.36, wheelR: 0.36, archR: 0.46, round: 0.36, roundIn: 0.07, edge: 0.17,
+    belt: [[-2.45, 0.98], [-1.5, 1.12], [2.45, 1.13]],
+    windows: [[-0.86, 0.22]], bPillar: [0.22, 0.36],
+    wheels: [[-1.58], [1.36]],
+  }),
 };
 
 // Section at z: 11 points (right side, x >= 0) and the window factor g.
@@ -92,7 +103,9 @@ export function sectionAt(S, z) {
   const g = clamp(S.top(z), 0, 1);
   const top = lerp(belt, S.roofY, g);
   const y0 = S.y0 + 0.07 * e2;
-  const gT = S.ghw;
+  // A rounded roof edge (S.edge, the van) narrows the roof at the ends too.
+  const gT = S.ghw - (S.edge ? S.roundIn * e2 : 0);
+  const ed = S.edge ? 0.05 + (S.edge - 0.05) * g : 0.05;
   const pts = [
     [hw - 0.05, y0],
     [hw, y0 + 0.06],
@@ -101,8 +114,8 @@ export function sectionAt(S, z) {
     [hw - 0.018, belt - 0.035],
     [hw - 0.055, belt],
     [hw - 0.09, belt + 0.012],
-    [lerp(hw - 0.11, gT, g), Math.max(belt + 0.014, top - 0.05)],
-    [lerp(hw - 0.13, gT - 0.05, g), top + 0.012 * (1 - g)],
+    [lerp(hw - 0.11, gT, g), Math.max(belt + 0.014, top - ed)],
+    [lerp(hw - 0.13, gT - 0.05 - (ed - 0.05) * 0.35, g), top + 0.012 * (1 - g) - (ed - 0.05) * 0.35],
     [lerp(hw * 0.5, gT * 0.55, g), top + 0.02],
     [0, top + 0.026],
   ];
@@ -123,7 +136,7 @@ export function sectionAt(S, z) {
 // Which material a quad of segment j between stations gets.
 // 'paint' | 'glass' | trim swatch name.
 function classify(S, j, zm) {
-  const inGreen = zm > S.zA && zm < S.zC;
+  const inGreen = zm > S.zA && zm < (S.greenEnd ?? S.zC);
   if (j <= 4) return 'paint';
   if (j === 5) return inGreen ? 'chrome' : 'paint';
   const inWin = S.windows.some(([a, b]) => zm > a + 0.035 && zm < b - 0.035);

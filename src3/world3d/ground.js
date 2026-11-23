@@ -13,6 +13,8 @@ const NO_SHADOW = { cast: false, material: 'ground' };
 
 // Deck top height of bridges above the road (0).
 export const DECK_TOP = 0.3;
+// Top of a ford's gravel causeway, just above the creek's water surface.
+export const FORD_TOP = WATER_LEVEL + 0.08;
 
 // Ribbon along a polyline, draped on the ground. Pieces where skip(x, y) is
 // true are left out. Samples every `step` metres, and more often where the
@@ -447,7 +449,7 @@ export function buildGround(world, scenery, terrain, batch) {
 // Ford: a gravel causeway just under the water, marker posts each side.
 function buildFord(world, b, batch, rng) {
   const P = (geo, lx, ly, up, color, opts) => batch.place(geo, b.x, b.y, 0, b.angle, lx, ly, up, color, opts);
-  P(box(b.width, 0.2, b.length), 0, 0, WATER_LEVEL - 0.12, 0x9c9480, { cast: false });
+  P(box(b.width, 0.2, b.length), 0, 0, FORD_TOP - 0.2, 0x9c9480, { cast: false });
   for (let i = 0; i < 26; i++) {
     const lx = (rng() - 0.5) * b.width;
     const ly = (rng() - 0.5) * b.length;

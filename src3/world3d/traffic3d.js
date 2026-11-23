@@ -1,5 +1,5 @@
-// Traffic cars in 3D: five late-1980s types (sedan, estate, pickup, small
-// hatch, farm truck), each one instanced mesh with its paint, glass, chrome
+// Traffic cars in 3D: six late-1980s types (sedan, estate, pickup, small
+// hatch, farm truck, panel van), each one instanced mesh with its paint, glass, chrome
 // and lamps in one geometry. The instance colour only tints the paint (a
 // per-vertex paint mask), and a per-vertex roughness / metalness lets the
 // glass and chrome shine under the sky reflection (opts.env). Cars far off
@@ -33,7 +33,12 @@ import { carAtlas } from './caratlas.js';
 import { fineGeometry, FINE_STYLE } from './trafficfine.js';
 import { createFineLod, FINE_MAX } from './trafficlod.js';
 import { kitInto, doorZone } from './trafficKit.js';
+import { farmTruckInto, FARM } from './farmtruck3d.js';
+import { sixBySixInto, SIX } from './sixbysix3d.js';
+import { sixBySixPaint } from '../../src/ambient/sixbysix.js';
 import { dirtGlsl } from './car3d.js';
+import { fourByFourCoarse } from './fourbyfour3d.js';
+import { FOURBYFOUR_LAMPS } from './fourbyfour.js';
 import { TRAFFIC_TYPES, trafficType, carKit, dirtStep, KIT_BIT, DEFAULT_KIT } from '../../src/ambient/carkit.js';
 
 export { TRAFFIC_TYPES, trafficType };
@@ -108,7 +113,7 @@ function coarseKit(type) {
   kitInto(type, {
     fine: false,
     part(name) {
-      bit = KIT_BIT[name] + 1;
+      bit = name ? KIT_BIT[name] + 1 : 0; // null: on every car of the type
     },
     box(x, y, z, w, h, d, m, ry = 0) {
       add(new THREE.BoxGeometry(w, h, d).rotateY(ry).translate(x, y, z), m);
@@ -146,9 +151,8 @@ function fromArrays(pos, idx) {
   return g;
 }
 
-// A lofted car (carbody.js) with bumpers, lamps, plates, mirrors and wheels.
-function loftCar(name) {
-  const S = SPECS[name];
+// The lofted shell of a spec (carbody.js): paint, glass and the loft's trim.
+function loftShell(S) {
   const b = loftBody(S, { step: 0.26 });
   const parts = [tag(fromArrays(b.paint.pos, b.paint.idx), 'paint'), tag(fromArrays(b.glass.pos, b.glass.idx), 'glass')];
   const tri = [];
@@ -163,6 +167,13 @@ function loftCar(name) {
     tri.push(tag(g, sw === 'chrome' ? 'chrome' : 'black'));
   }
   parts.push(...tri);
+  return parts;
+}
+
+// A lofted car with bumpers, lamps, plates, mirrors and wheels.
+function loftCar(name) {
+  const S = SPECS[name];
+  const parts = loftShell(S);
   const h = S.half;
   const hw = S.hw;
   const bumper = FINE_STYLE[name]?.bumper ?? 'chrome'; // same as the fine body, so the switch doesn't show
@@ -174,7 +185,7 @@ function loftCar(name) {
   const ty = (S.belt(h) + S.y0 + 0.2) / 2 + 0.06;
   for (const x of [-1, 1]) {
     parts.push(quadZ(0.34, 0.15, x * (hw - 0.3), ly, -h - 0.012, 'head'));
-    parts.push(quadZ(0.4, 0.17, x * (hw - 0.32), ty, h + 0.012, 'tail'));
+    if (name !== 'van') parts.push(quadZ(0.4, 0.17, x * (hw - 0.32), ty, h + 0.012, 'tail')); // the van's are tall (vanKit.js)
     parts.push(box(0.12, 0.09, 0.06, x * (hw + 0.07), S.belt(S.zA + 0.15) + 0.08, S.zA + 0.15, 'black'));
   }
   if (name !== 'pickup' && name !== 'hatch') parts.push(quadZ(0.56, 0.13, 0, ly, -h - 0.01, 'chrome'));
@@ -191,44 +202,67 @@ function loftCar(name) {
   const wr = S.wheelR;
   for (const [z] of S.wheels) for (const x of [-1, 1]) parts.push(...wheel(wr, 0.2, x * (hw - 0.1), wr, z));
   parts.push(...coarseKit(name));
-  // Pickup paint can take a lower second tone (TWO_TONE_Y in the shader).
-  if (name === 'pickup') {
+  // Pickup paint can take a lower second tone (TWO_TONE_Y in the shader),
+  // van paint a stripe or a lower tone (mask 3, VAN_* in the shader).
+  if (name === 'pickup' || name === 'van') {
     for (const g of parts) {
       const cp = g.attributes.carPart.array;
-      if (cp[0] === 1) for (let i = 0; i < cp.length; i += 2) cp[i] = 2;
+      if (cp[0] === 1) for (let i = 0; i < cp.length; i += 2) cp[i] = name === 'van' ? 3 : 2;
     }
   }
   return mergeGeometries(parts);
 }
 
-// Old flatbed farm truck with stake sides.
-function farmTruck() {
-  const parts = [
-    box(1.9, 0.2, 5.3, 0, 0.62, 0.1, 'black'), // chassis
-    box(1.75, 0.62, 1.35, 0, 1.08, -1.95, 'paint'), // bonnet
-    box(2.0, 0.2, 0.5, 0, 0.92, -1.6, 'paint'), // front wings
-    box(2.0, 1.25, 1.45, 0, 1.38, -0.6, 'paint'), // cab
-    box(1.86, 0.5, 0.04, 0, 1.72, -1.34, 'glass'), // windscreen
-    box(2.02, 0.42, 0.9, 0, 1.72, -0.58, 'glass'), // side windows
-    box(2.04, 0.06, 1.5, 0, 2.02, -0.6, 'paint'), // roof
-    box(1.82, 0.1, 0.12, 0, 0.6, -2.68, 'chrome'), // bumper
-    quadZ(0.95, 0.42, 0, 1.08, -2.63, 'chrome'), // grille
-    box(2.15, 0.12, 3.2, 0, 0.82, 1.2, 'wood'), // flatbed
-  ];
-  for (const x of [-1, 1]) {
-    parts.push(quadZ(0.2, 0.14, x * 0.68, 1.12, -2.635, 'head'));
-    parts.push(quadZ(0.16, 0.12, x * 0.85, 0.95, 2.81, 'tail'));
-    parts.push(box(0.12, 0.1, 0.06, x * 1.1, 1.75, -1.2, 'black'));
-    // Stake sides: posts and three rails.
-    for (const z of [-0.3, 0.6, 1.5, 2.4]) parts.push(box(0.08, 0.75, 0.08, x * 1.03, 1.25, z, 'woodDark'));
-    for (const y of [1.05, 1.3, 1.55]) parts.push(box(0.04, 0.1, 3.0, x * 1.05, y, 1.05, 'wood'));
-  }
-  for (const y of [1.05, 1.3, 1.55]) parts.push(box(2.1, 0.1, 0.04, 0, y, 2.6, 'wood'));
-  parts.push(...wheel(0.45, 0.26, -0.86, 0.45, -1.95), ...wheel(0.45, 0.26, 0.86, 0.45, -1.95));
-  for (const x of [-0.78, -1.02, 0.78, 1.02]) parts.push(...wheel(0.45, 0.22, x, 0.45, 1.55));
-  parts.push(...coarseKit('farmtruck'));
+// A body drawn through a builder (farmtruck3d.js, sixbysix3d.js; see
+// roundShapes.js), coarse: pictures are plain quads, wheels plain cylinders.
+const COARSE_ALIAS = { gap: 'black', exhaust: 'black', mirror: 'chrome', red: 'tail' };
+const PIC_MAT = { grille: 'black', head: 'head', tail: 'tail', plate: 'plate', indicator: 'amber' };
+function coarseBody(into, type) {
+  const parts = [];
+  const mt = (m) => COARSE_ALIAS[m] || m;
+  into({
+    fine: false,
+    box(x, y, z, w, h, d, m, rx = 0, ry = 0, rz = 0) {
+      const g = new THREE.BoxGeometry(w, h, d);
+      if (rx || ry || rz) g.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(rx, ry, rz)));
+      parts.push(tag(g.translate(x, y, z), mt(m)));
+    },
+    bar(a, b, w, th, m, up = [0, 1, 0]) {
+      const va = new THREE.Vector3(...a);
+      const vb = new THREE.Vector3(...b);
+      const mm = new THREE.Matrix4().lookAt(va, vb, new THREE.Vector3(...up));
+      mm.setPosition(va.clone().add(vb).multiplyScalar(0.5));
+      parts.push(tag(new THREE.BoxGeometry(w, th, va.distanceTo(vb)).applyMatrix4(mm), mt(m)));
+    },
+    smooth(g, m) {
+      parts.push(tag(g, mt(m)));
+    },
+    geo(g, m) {
+      parts.push(tag(g, mt(m)));
+    },
+    pic(c, r, u, w, h, name) {
+      const p = (sx, sy) => [0, 1, 2].map((k) => c[k] + (r[k] * sx * w) / 2 + (u[k] * sy * h) / 2);
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute([...p(-1, -1), ...p(1, -1), ...p(1, 1), ...p(-1, -1), ...p(1, 1), ...p(-1, 1)], 3));
+      parts.push(tag(g, PIC_MAT[name]));
+    },
+    disc(c, n, rad, name) {
+      const g = new THREE.CircleGeometry(rad, 10);
+      g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(...n)));
+      parts.push(tag(g.translate(...c), PIC_MAT[name]));
+    },
+    wheel(r, w, x, y, z, side, axis = 'x') {
+      for (const g of wheel(r, w, 0, 0, 0)) {
+        if (axis === 'z') g.rotateY(Math.PI / 2);
+        parts.push(g.translate(x, y, z));
+      }
+    },
+  });
+  parts.push(...coarseKit(type));
   return mergeGeometries(parts);
 }
+const farmTruck = () => coarseBody(farmTruckInto, 'farmtruck');
+const sixBySix = () => coarseBody(sixBySixInto, 'sixbysix');
 
 // Far stand-in: body, glass band and dark wheels in a few boxes.
 function farGeo() {
@@ -246,6 +280,10 @@ function farGeo() {
 // and fine body (lodFade: 0 coarse .. 1 fine). Interleaved gradient noise
 // splits the pixels, so the two bodies never both cover one.
 const TWO_TONE_Y = 0.66; // m: the pickup's lower tone, just under the rub strip
+// The van's business paint (#46), in its second tone: a band round the body
+// under the belt (kit part 'stripe'), and a lower tone ('lowerTone').
+const VAN_STRIPE = [0.8, 0.95];
+const VAN_TONE_Y = 0.62;
 const VERT_HEAD = `attribute vec2 carPart;
 attribute vec4 paint2;
 attribute vec4 carInst;
@@ -285,7 +323,13 @@ const KIT_FOLD = 'if ( carPart.y > 0.5 && mod( floor( carInst.y / exp2( carPart.
 // then the player car's dust (dirtGlsl), lighter on trim. kitWear is how
 // much rust or dust covers the pixel (it roughens the finish below).
 const COLOR_CHUNK = `
-  vec3 tint = ( vTone > 0.5 && vLocalP.y < ${TWO_TONE_Y.toFixed(3)} ) ? vTint2 : vTint1;
+  vec3 tint = ( vTone > 0.5 && vTone < 1.5 && vLocalP.y < ${TWO_TONE_Y.toFixed(3)} ) ? vTint2 : vTint1;
+  if ( vTone > 1.5 ) {
+    float vs = floor( vTone - 1.5 );
+    bool band = mod( vs, 2.0 ) > 0.5 && vLocalP.y > ${VAN_STRIPE[0].toFixed(3)} && vLocalP.y < ${VAN_STRIPE[1].toFixed(3)};
+    bool low = vs > 1.5 && vLocalP.y < ${VAN_TONE_Y.toFixed(3)};
+    if ( band || low ) tint = vTint2;
+  }
   if ( vPaint > 0.5 && vDoor.w > 0.5 && vLocalP.z > vDoorZone.x && vLocalP.z < vDoorZone.y && vLocalP.y < vDoorZone.z && vLocalP.x > vDoorZone.w ) tint = vDoor.rgb;
   diffuseColor.rgb *= tint;
   float rk = 0.0;
@@ -310,6 +354,8 @@ function patchShader(sh, fine, extraVert = (s) => s, extraFrag = (s) => s) {
   vTint1 = mix( vec3( 1.0 ), instanceColor.rgb, pm );
   vTint2 = mix( vec3( 1.0 ), paint2.rgb, pm );
   vTone = step( 1.5, carPart.x );
+  // Van paint: 2, + 1 with a stripe, + 2 with a lower tone.
+  if ( carPart.x > 2.5 ) vTone = 2.0 + mod( floor( carInst.y / ${2 ** KIT_BIT.stripe}.0 ), 2.0 ) + 2.0 * mod( floor( carInst.y / ${2 ** KIT_BIT.lowerTone}.0 ), 2.0 );
   vPaint = pm;`)
     .replace('#include <begin_vertex>', `#include <begin_vertex>
   vLocalP = position;
@@ -382,14 +428,15 @@ function addInstanceAttrs(mesh, max, kit = 0, wear = [0, 0]) {
 
 // Where the blinkers sit on each type: half length, half width, front and
 // back lamp heights (the same spots as the head and tail lamps in loftCar).
-const LAMPS = { farmtruck: { half: 2.66, hw: 1.0, yF: 1.12, yR: 0.95 } };
-for (const name of ['sedan', 'wagon', 'pickup', 'hatch']) {
+const LAMPS = { farmtruck: { half: FARM.half, hw: 0.68, yF: 0.9, yR: 0.89 }, sixbysix: { half: SIX.half, hw: 0.98, yF: 1.22, yR: 1.02 }, fourbyfour: FOURBYFOUR_LAMPS };
+for (const name of ['sedan', 'wagon', 'pickup', 'hatch', 'van']) {
   const S = SPECS[name];
   LAMPS[name] = { half: S.half, hw: S.hw, yF: (S.belt(-S.half) + S.y0 + 0.2) / 2 + 0.02, yR: (S.belt(S.half) + S.y0 + 0.2) / 2 + 0.06 };
 }
 
 // One instanced mesh of a type, on its own (the slow farm trucks in hazards3d).
-const GEOS = { sedan: () => loftCar('sedan'), wagon: () => loftCar('wagon'), pickup: () => loftCar('pickup'), hatch: () => loftCar('hatch'), farmtruck: farmTruck };
+const GEOS = { sedan: () => loftCar('sedan'), wagon: () => loftCar('wagon'), pickup: () => loftCar('pickup'), hatch: () => loftCar('hatch'), farmtruck: farmTruck, van: () => loftCar('van'),
+  fourbyfour: () => fourByFourCoarse({ loftShell, tag, box, quadZ, wheel, coarseKit }), sixbysix: sixBySix };
 export function vehicleMesh(type, max, env = null) {
   const mesh = new THREE.InstancedMesh(GEOS[type](), makeMaterial(env), max);
   mesh.count = 0;
@@ -403,6 +450,7 @@ export function vehicleMesh(type, max, env = null) {
 }
 
 const DIRT_HOOKS = new Set();
+const KIT_HOOKS = new Set();
 export function createTraffic3D(parent, opts = {}) {
   const mat = makeMaterial(opts.env || null);
   const make = (geo, material = mat, max = MAX) => {
@@ -423,6 +471,9 @@ export function createTraffic3D(parent, opts = {}) {
     pickup: make(loftCar('pickup')),
     hatch: make(loftCar('hatch')),
     farmtruck: make(farmTruck()),
+    van: make(loftCar('van')),
+    fourbyfour: make(GEOS.fourbyfour()),
+    sixbysix: make(sixBySix()),
   };
   const far = make(farGeo());
   far.castShadow = false;
@@ -455,13 +506,13 @@ export function createTraffic3D(parent, opts = {}) {
   const looks = new Map();
   const lookOf = (c, type) => {
     let L = looks.get(c.id);
-    if (!L) {
+    if (!L || L.kit.type !== type) { // (car5 is the 6x6 on some missions)
       const kit = carKit(c.id);
       // Door color, linear, packed into one number (8 bits a channel).
       const dc = new THREE.Color(kit.door ?? 0xffffff);
       const b8 = (v) => Math.round(Math.max(0, Math.min(1, v)) * 255);
       const door = kit.door == null ? -1 : b8(dc.r) * 65536 + b8(dc.g) * 256 + b8(dc.b);
-      L = { kit, door, zone: doorZone(type), dirt: kit.dirtBase };
+      L = { kit, door, zone: doorZone(type), dirt: kit.dirtBase, paint: type === 'sixbysix' ? sixBySixPaint(c.id).color : null };
       looks.set(c.id, L);
     }
     return L;
@@ -472,11 +523,11 @@ export function createTraffic3D(parent, opts = {}) {
     const n = counts.get(mesh) || 0;
     if (n >= mesh.instanceMatrix.count) return false;
     mesh.setMatrixAt(n, m);
-    mesh.setColorAt(n, col.setHex(c.color));
-    if (type === 'pickup' && c.color2 != null) col2.setHex(c.color2);
+    const L = lookOf(c, type);
+    mesh.setColorAt(n, col.setHex(L.paint ?? c.color));
+    if ((type === 'pickup' || type === 'van') && c.color2 != null) col2.setHex(c.color2);
     else col2.copy(col);
     const at = mesh.geometry.attributes;
-    const L = lookOf(c, type);
     at.paint2.setXYZW(n, col2.r, col2.g, col2.b, L.door);
     at.carInst.setXYZW(n, fade, L.kit.mask, L.dirt, L.kit.rust);
     at.doorZone.setXYZW(n, ...L.zone);
@@ -490,6 +541,13 @@ export function createTraffic3D(parent, opts = {}) {
     lookOf({ id }, trafficType(id)).dirt = v;
   });
   if (typeof window !== 'undefined') window.__trafficDirt = (id, v) => DIRT_HOOKS.forEach((f) => f(id, v));
+  // Shots: give a car another kit (a list of part names), or null for its own.
+  KIT_HOOKS.add((id, parts) => {
+    const L = lookOf({ id }, trafficType(id));
+    if (L.ownKit == null) L.ownKit = L.kit;
+    L.kit = parts ? { ...L.ownKit, mask: parts.reduce((m, p) => m | (1 << KIT_BIT[p]), 0) } : L.ownKit;
+  });
+  if (typeof window !== 'undefined') window.__trafficKit = (id, parts) => KIT_HOOKS.forEach((f) => f(id, parts));
   return {
     meshes,
     far,

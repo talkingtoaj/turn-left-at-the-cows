@@ -36,6 +36,9 @@ const VIEWS = [
   { name: 'dirtroad_low', car: { road: 'creek_rd', at: 0.3 }, rel: [-3.2, 0.9, 5] },
   // Paved roads: chase view and low beside the car (edge and centre lines).
   { name: 'paved', car: { road: 'hwy9', at: 0.4 } },
+  // The car on the river ford (Old River Road): low from the side, and a chase view.
+  { name: 'ford_side', car: { x: 4380, y: 2100, heading: 80 }, rel: [-6, 2.6, 0], relLook: [0, 0.2, 0] },
+  { name: 'ford', car: { x: 4380, y: 2100, heading: 80 } },
   { name: 'paved_low', car: { road: 'rt40', at: 0.5 }, rel: [-3.2, 0.9, 5] },
   { name: 'dirtroad_ridge_low', car: { road: 'ridge_rd', at: 0.5 }, rel: [2.8, 0.8, 7.5] },
   // The player's car up close (roof rack, parcels, mud flaps, dings): relLook
@@ -66,16 +69,64 @@ const VIEWS = [
   // Kits and dirt (#42, #43): the farm truck, three sedans side by side,
   // the two wagons and two pickups (no two of a type alike).
   { name: 'traffic_farmtruck', car: { road: 'hwy9', at: 0.4 }, pin: [['car5', 20, 1, 1]], tcam: [[4.8, 2.2, -6.0], [0, 1.0, 0.4]] },
+  // Farm truck reshape (#55) and the surplus 6x6 (#45; car5 is the 6x6 with
+  // SHOTS_QUERY=opening=off&sixbysix=on): side, rear, low front, and in a row.
+  { name: 'traffic_farmtruck_side', car: { road: 'hwy9', at: 0.4 }, pin: [['car5', 20, 1, 1]], tcam: [[5.6, 1.4, -0.2], [0, 1.0, 0.2]] },
+  { name: 'traffic_farmtruck_rear', car: { road: 'hwy9', at: 0.4 }, pin: [['car5', 20, 1, 1]], tcam: [[-3.4, 2.4, 7.2], [0, 1.0, 0.6]] },
+  { name: 'traffic_farmtruck_front', car: { road: 'hwy9', at: 0.4 }, pin: [['car5', 20, 1, 1]], tcam: [[2.4, 1.0, -5.4], [0, 0.9, -1.4]] },
+  { name: 'traffic_6x6_row', car: { road: 'hwy9', at: 0.4 }, pin: [['car2', 22, 1, 1], ['car5', 32, 1, 1], ['car3', 30, -1, -1], ['car1', 44, 1, 1]], tcam: [[6.5, 3.2, -24], [0, 0.9, -8]] },
+  // The parked surplus 6x6 (#45) in its farm yards: 3/4 front close, and the yard.
+  { name: 'parked6x6_hartley', car: { x: 2610, y: 490, heading: 0 }, cam: [2710, 2.0, 443], look: [2700, 1.3, 434] },
+  { name: 'parked6x6_hartley_yard', car: { x: 2610, y: 490, heading: 0 }, cam: [2684, 4.5, 458], look: [2705, 1.5, 428] },
+  { name: 'parked6x6_okafor', car: { x: 4935, y: 2125, heading: 0 }, cam: [4940, 2.0, 2012], look: [4950, 1.3, 2003] },
+  { name: 'parked6x6_okafor_yard', car: { x: 4935, y: 2125, heading: 0 }, cam: [4972, 4.5, 2026], look: [4955, 1.5, 1996] },
   { name: 'traffic_sedans', car: { road: 'hwy9', at: 0.4 }, pin: [['car0', 16, 1, 1], ['car4', 24, 1, 1], ['car9', 32, 1, 1]], tcam: [[6, 2.6, -22], [0, 0.8, -8]] },
   { name: 'traffic_pairs', car: { road: 'hwy9', at: 0.4 }, pin: [['car1', 16, 1, 1], ['car6', 23, 1, 1], ['car2', 30, 1, 1], ['car8', 37, 1, 1]], tcam: [[6, 3.0, -27], [0, 0.8, -10]] },
   { name: 'traffic_kit_close', car: { road: 'hwy9', at: 0.4 }, pin: [['car6', 20, 1, 1]], tcam: [[4.6, 2.6, -4.6], [0, 1.0, 0.6]] },
   // The same three sedans, the near one after a long dirt road (#43).
   { name: 'traffic_sedans_dirty', car: { road: 'hwy9', at: 0.4 }, pin: [['car0', 16, 1, 1], ['car4', 24, 1, 1], ['car9', 32, 1, 1]], dirt: [['car0', 0.8], ['car4', 0.45]], tcam: [[6, 2.6, -22], [0, 0.8, -8]] },
+  // The boxy old 4x4 (#44, car4): front three-quarter, side, rear (spare on
+  // the door), and in a row with other traffic seen from the player's car.
+  { name: 'traffic_4x4', car: { road: 'hwy9', at: 0.4 }, pin: [['car4', 20, 1, 1]], tcam: [[4.4, 1.7, -5.6], [0, 1.0, 0]] },
+  { name: 'traffic_4x4_side', car: { road: 'hwy9', at: 0.4 }, pin: [['car4', 20, 1, 1]], tcam: [[5.6, 1.3, -0.2], [0, 1.0, 0]] },
+  { name: 'traffic_4x4_rear', car: { road: 'hwy9', at: 0.4 }, pin: [['car4', 20, 1, 1]], tcam: [[3.4, 1.9, 6.0], [0, 1.0, 0]] },
+  { name: 'traffic_4x4_row', car: { road: 'hwy9', at: 0.4 }, pin: [['car4', 26, -1, -1], ['car2', 34, 1, 1], ['car1', 44, -1, -1], ['car6', 54, 1, 1]], rel: [0.6, 2.2, 5.5] },
+  // Panel van (#46): car6, front 3/4, right side (sliding door), rear doors.
+  { name: 'traffic_van', car: { road: 'hwy9', at: 0.4 }, pin: [['car6', 20, 1, 1]], tcam: [[4.4, 1.8, -5.4], [0, 1.0, 0.3]] },
+  { name: 'traffic_van_side', car: { road: 'hwy9', at: 0.4 }, pin: [['car6', 20, 1, 1]], tcam: [[5.8, 1.5, 0.4], [0, 1.0, 0.4]] },
+  // The van's other looks: a stripe and a ladder; a lower tone, flaps and nothing on the roof.
+  { name: 'traffic_van_stripe', car: { road: 'hwy9', at: 0.4 }, pin: [['car6', 20, 1, 1]], kit: [['car6', ['stripe', 'ladder']]], tcam: [[4.4, 1.8, -5.4], [0, 1.0, 0.3]] },
+  { name: 'traffic_van_plain', car: { road: 'hwy9', at: 0.4 }, pin: [['car6', 20, 1, 1]], kit: [['car6', ['lowerTone', 'flaps']]], tcam: [[5.8, 1.5, 0.4], [0, 1.0, 0.4]] },
+  { name: 'traffic_van_rear', car: { road: 'hwy9', at: 0.4 }, pin: [['car6', 20, 1, 1]], tcam: [[-3.4, 2.0, 6.4], [0, 1.1, 0.6]] },
   { name: 'traffic_row', car: { road: 'hwy9', at: 0.4 }, pin: [['car1', 30, -1, -1], ['car2', 38, 1, 1], ['car3', 46, -1, -1], ['car5', 54, 1, 1], ['car6', 62, -1, -1], ['car8', 70, 1, 1]], rel: [0.6, 2.2, 5.5] },
   // One car each side of the 40 m switch, same camera: no pop between them.
   { name: 'traffic_switch_in', car: { road: 'hwy9', at: 0.4 }, pin: [['car0', 37, -1, -1]], rel: [1.2, 2.4, -3], relLook: [-2.4, 0.6, -40] },
   { name: 'traffic_switch_mid', car: { road: 'hwy9', at: 0.4 }, pin: [['car0', 40, -1, -1]], rel: [1.2, 2.4, -3], relLook: [-2.4, 0.6, -40] },
+  // Locals (#56). `person: [id, dist, up, side]` puts the car 9 m from that
+  // local and the camera `dist` m from them at `up` m, on the car's side
+  // (side 0) or turned `side` degrees round them. `lineup` stands those
+  // locals in a row 1.3 m apart where the first one stands, facing the car.
+  { name: 'people_close', person: ['mabel', 3, 1.6, 0] },
+  { name: 'people_side', person: ['mabel', 3.4, 1.3, 90] },
+  { name: 'people_farmer', person: ['hartley', 3, 1.6, 0] },
+  { name: 'people_foreman', person: ['marisol', 3, 1.6, 0] },
+  { name: 'people_waitress', person: ['bev', 3, 1.6, 20] },
+  { name: 'people_fisher', person: ['dot', 4.5, 1.7, 40] },
+  // Mid-conversation: hands moving (talk: that local's id).
+  { name: 'people_talk', person: ['mabel', 2.6, 1.6, 25], talk: 'mabel' },
+  { name: 'people_lineup', person: ['mabel', 7, 1.5, 0], lineup: ['mabel', 'hartley', 'marisol', 'bev', 'earl', 'gus'] },
+  { name: 'people_wide', person: ['mabel', 16, 3.5, 0], lineup: ['mabel', 'hartley', 'frank'] },
   { name: 'traffic_switch_out', car: { road: 'hwy9', at: 0.4 }, pin: [['car0', 43, -1, -1]], rel: [1.2, 2.4, -3], relLook: [-2.4, 0.6, -40] },
+  // Parked semis (#47). Calder grain silos (mission 1 region): close 3/4,
+  // side, rear and the site. The Brandt co-op elevator ones (semib_*) need
+  // SHOTS_QUERY='opening=off&spot=brandt' (Brandt region).
+  { name: 'semi_close', car: { x: 4925, y: 1140, heading: 90 }, cam: [4968, 2.4, 1127.5], look: [4956, 1.8, 1119] },
+  { name: 'semi_side', car: { x: 4925, y: 1140, heading: 90 }, cam: [4953, 1.9, 1134], look: [4953, 1.7, 1119] },
+  { name: 'semi_rear', car: { x: 4925, y: 1140, heading: 90 }, cam: [4939, 2.2, 1127], look: [4952, 1.6, 1119] },
+  { name: 'semi_site', car: { x: 4925, y: 1140, heading: 90 }, cam: [4992, 11, 1152], look: [4958, 5, 1112] },
+  { name: 'semib_close', car: { x: 1700, y: 1440, heading: 0 }, cam: [1754, 2.4, 1416.5], look: [1745, 1.8, 1427] },
+  { name: 'semib_side', car: { x: 1700, y: 1440, heading: 0 }, cam: [1760, 1.9, 1428], look: [1745, 1.7, 1428] },
+  { name: 'semib_site', car: { x: 1700, y: 1440, heading: 0 }, cam: [1778, 13, 1462], look: [1745, 6, 1416] },
 ];
 
 const browser = await launchChromium();
@@ -104,6 +155,13 @@ async function dismissCards() {
   }
 }
 await dismissCards();
+// SHOTS_MISSION=<mission id> plays that mission first (its region), e.g.
+// SHOTS_MISSION=m3_airfield for the Brandt views.
+if (process.env.SHOTS_MISSION) {
+  await page.evaluate((id) => window.__playMission(id), process.env.SHOTS_MISSION);
+  await page.waitForTimeout(3000);
+  await dismissCards();
+}
 
 fs.mkdirSync(outDir, { recursive: true });
 const stats = {};
@@ -111,8 +169,8 @@ for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) 
   await page.evaluate(async (v) => {
     const { WORLD } = await import('/src/world/world.js');
     const st = window.__state;
-    let { x, y, heading } = v.car;
-    if (v.car.road) {
+    let { x, y, heading } = v.car || {};
+    if (v.car && v.car.road) {
       const r = WORLD.roads.find((q) => q.id === v.car.road);
       const i = Math.floor(r.points.length * v.car.at);
       const [ax, ay] = r.points[i];
@@ -144,6 +202,36 @@ for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) 
       amb.__pinWrap = true;
     }
     window.__pins = [];
+    // Locals for this view (#56): the car 9 m from the one named, others lined up.
+    window.__lineup = null;
+    st.talkingTo = v.talk || null;
+    if (v.person) {
+      const l = WORLD.locals.find((q) => q.id === v.person[0]);
+      const p = (amb && amb.personPos(l.id)) || l;
+      x = p.x + 9;
+      y = p.y;
+      heading = 270;
+      if (v.lineup) {
+        // A row across the line to the car, centred where that local stands,
+        // everyone facing the car (east).
+        window.__lineup = v.lineup.map((id, k) => ({ id, x: p.x, y: p.y + (k - (v.lineup.length - 1) / 2) * 1.3, heading: 90 }));
+      }
+      st.car.x = x;
+      st.car.y = y;
+      st.car.heading = heading;
+    }
+    if (amb && !amb.__lineWrap) {
+      const up2 = amb.update.bind(amb);
+      amb.update = (...a) => {
+        const r = up2(...a);
+        for (const q of window.__lineup || []) {
+          const p = amb.personPos(q.id);
+          if (p) Object.assign(p, { x: q.x, y: q.y, heading: q.heading, moving: false });
+        }
+        return r;
+      };
+      amb.__lineWrap = true;
+    }
     if (v.pin && v.car.road) {
       const r = WORLD.roads.find((q) => q.id === v.car.road);
       const i0 = Math.floor(r.points.length * v.car.at);
@@ -180,11 +268,34 @@ for (const v of VIEWS.filter((w) => !only || only.split(',').includes(w.name))) 
       for (const id of window.__dirtied || []) window.__trafficDirt(id, 0);
       window.__dirtied = (v.dirt || []).map(([id, d]) => (window.__trafficDirt(id, d), id));
     }
+    // Another kit on a traffic car for this view (#46: the van's variants);
+    // cars an earlier view changed get their own kit back.
+    if (window.__trafficKit) {
+      for (const id of window.__kitted || []) window.__trafficKit(id, null);
+      window.__kitted = (v.kit || []).map(([id, parts]) => (window.__trafficKit(id, parts), id));
+    }
     const { renderer, camera, world3d } = window.__three;
     if (!renderer.__orig) renderer.__orig = renderer.render.bind(renderer);
     const H = (px, py) => world3d.terrain.heightAt(px, py);
     renderer.render = (s, c) => {
-      if (v.cows && window.__amb) {
+      if (v.person && window.__amb) {
+        // Aim at the local (or the middle of the lineup) from the car's side,
+        // turned v.person[3] degrees round them.
+        const row = window.__lineup;
+        const p = row ? { x: (row[0].x + row[row.length - 1].x) / 2, y: (row[0].y + row[row.length - 1].y) / 2 } : window.__amb.personPos(v.person[0]);
+        const L = Math.hypot(st.car.x - p.x, st.car.y - p.y) || 1;
+        const ux = (st.car.x - p.x) / L;
+        const uy = (st.car.y - p.y) / L;
+        const t = (v.person[3] * Math.PI) / 180;
+        const ax = ux * Math.cos(t) - uy * Math.sin(t);
+        const ay = ux * Math.sin(t) + uy * Math.cos(t);
+        const cx = p.x + ax * v.person[1];
+        const cy = p.y + ay * v.person[1];
+        c.position.set(cx, H(cx, cy) + v.person[2], cy);
+        c.up.set(0, 1, 0);
+        c.lookAt(p.x, H(p.x, p.y) + (v.person[1] > 5 ? 1.0 : 1.3), p.y);
+        c.updateMatrixWorld();
+      } else if (v.cows && window.__amb) {
         // Aim at the cow nearest the car, from the car's side of it.
         let best = null;
         for (const a of window.__amb.animals) {

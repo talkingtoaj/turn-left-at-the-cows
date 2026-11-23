@@ -199,6 +199,7 @@ export function createTalk(root) {
     if (!npc) return;
     if (!pages.length) pages = [{ text: '...', topicId: null }];
     d = { npcId, title: `${npc.name}, ${npc.role}`, pages, page: 0, choices: [] };
+    state.talkingTo = npcId; // they talk with their hands (people3d.js)
     if (tourist) {
       d.tourist = true;
       d.title = tourist.name;
@@ -242,6 +243,7 @@ export function createTalk(root) {
   function close() {
     if (!d) return;
     d = null;
+    state.talkingTo = null;
     closeAsk();
     speak(null);
     box.style.display = 'none';

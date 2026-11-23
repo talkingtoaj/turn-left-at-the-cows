@@ -131,6 +131,9 @@ RECIPES = [
     # pitches both up with speed and adds the pass-by pitch drop.
     ('traffic/diesel', f'{FS}/565597.ogg', 3, 10, 'loop', 'highpass=f=35,lowpass=f=4000', -18),
     ('traffic/petrol', f'{FS}/522225.ogg', 4, 10, 'loop', 'highpass=f=60,lowpass=f=3500,' + SOFT, -20),
+    # #48: air-brake hiss near a parked semi. The release burst only; the
+    # engine idle under its tail is cut by the highpass and the fade.
+    ('traffic/airbrake', f'{FS}/504865.ogg', 0, 2.2, 'oneshot', 'highpass=f=350,afade=t=out:st=0.9:d=1.3', -3),
 ]
 
 

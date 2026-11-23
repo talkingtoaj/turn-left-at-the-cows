@@ -13,10 +13,17 @@
 // mat: rack, steel, alu, jerry, jerryRed, tarp, carton, strap, hay,
 // plankDark, black, flap.
 //
+// B.part(null) starts pieces every car of the type has (no kit bit): the
+// van's rear doors, sliding door line and roof vent (vanKit.js).
+//
 // doorZone(type) is where the front right door is, for a door in another
 // color: [z0, z1, top y, inner x] in car space (x right, z back).
 
 import { SPECS, sectionAt } from './carbody.js';
+import { FOURBYFOUR, fourByFourKit } from './fourbyfour.js';
+import { vanKit } from './vanKit.js';
+import { FARM } from './farmtruck3d.js';
+import { SIX } from './sixbysix3d.js';
 
 const lampY = (S) => (S.belt(-S.half) + S.y0 + 0.2) / 2 + 0.02;
 
@@ -151,36 +158,66 @@ function loftKit(type, B) {
   }
 }
 
+// A bale of hay on a bed whose floor is at y.
+function bale(B, x, y, z) {
+  B.box(x, y + 0.225, z, 0.6, 0.45, 0.9, 'hay');
+  if (B.fine) for (const dz of [-0.22, 0.22]) B.box(x, y + 0.225, z + dz, 0.61, 0.46, 0.014, 'plankDark');
+}
+// Mud flaps on brackets behind the rear wheels.
+function truckFlaps(B, x, w, z, top) {
+  for (const s of [-1, 1]) {
+    B.box(s * x, top - 0.36, z, w, 0.62, 0.02, 'flap');
+    B.box(s * x, top - 0.02, z - 0.02, 0.04, 0.1, 0.04, 'black');
+  }
+}
+
+// The farm truck (farmtruck3d.js): its bed floor is FARM.deck.
 function farmKit(B) {
-  const bale = (x, y, z) => {
-    B.box(x, y, z, 0.6, 0.45, 0.9, 'hay');
-    if (B.fine) for (const dz of [-0.22, 0.22]) B.box(x, y, z + dz, 0.61, 0.46, 0.014, 'plankDark');
-  };
+  const D = FARM.deck;
   B.part('hay');
-  bale(0.35, 1.12, 1.6);
+  bale(B, 0.35, D, 1.6);
   B.part('hay2');
-  bale(-0.35, 1.12, 1.1);
+  bale(B, -0.35, D, 1.1);
   B.part('hay3');
-  bale(0, 1.575, 1.35);
+  bale(B, 0, D + 0.45, 1.35);
   B.part('rearSpare');
-  B.tyre(0.45, 0.22, -0.5, 1.36, 0.32, 'z');
-  B.box(-0.5, 1.36, 0.19, 0.14, 0.14, 0.05, 'black');
+  B.tyre(0.45, 0.22, -0.5, D + 0.47, 0.32, 'z');
+  B.box(-0.5, D + 0.47, 0.19, 0.14, 0.14, 0.05, 'black');
   B.part('bedCans');
-  for (const [z, m] of [[0.42, 'jerry'], [0.64, 'jerry']]) can(B, 0.78, 0.88, z, m, false);
+  for (const [z, m] of [[0.42, 'jerry'], [0.64, 'jerry']]) can(B, 0.78, D, z, m, false);
   B.part('bullbar');
-  bullbar(B, 0.72, 0.5, 1.36, -2.72, -2.86, 'steel');
+  bullbar(B, 0.72, 0.76, 1.32, -2.87, -2.98, 'steel');
   B.part('flaps');
-  for (const s of [-1, 1]) B.box(s * 0.9, 0.3, 2.05, 0.34, 0.42, 0.02, 'flap');
+  truckFlaps(B, 0.88, 0.44, FARM.rear + 0.5, 0.92);
+}
+
+// The surplus 6x6 (sixbysix3d.js): hay in the bed, cans on a shelf behind
+// the cab, flaps behind the last axle.
+function sixKit(B) {
+  const D = SIX.deck;
+  B.part('hay');
+  bale(B, 0.4, D, 1.5);
+  B.part('hay2');
+  bale(B, -0.4, D, 2.7);
+  B.part('bedCans');
+  B.box(0.66, 1.08, -0.13, 0.5, 0.04, 0.3, 'black');
+  for (const [x, m] of [[0.55, 'jerry'], [0.77, 'jerryRed']]) can(B, x, 1.1, -0.13, m, false);
+  B.part('flaps');
+  truckFlaps(B, SIX.track, 0.46, SIX.axles[2] + SIX.wheelR + 0.08, 1.12);
 }
 
 export function kitInto(type, B) {
   if (type === 'farmtruck') farmKit(B);
+  else if (type === 'fourbyfour') fourByFourKit(B, { rack, can, bullbar, flaps });
+  else if (type === 'van') vanKit(B);
+  else if (type === 'sixbysix') sixKit(B);
   else loftKit(type, B);
 }
 
 export function doorZone(type) {
-  if (type === 'farmtruck') return [-1.12, -0.02, 1.5, 0.95];
-  const S = SPECS[type];
+  if (type === 'farmtruck') return FARM.door;
+  if (type === 'sixbysix') return SIX.door;
+  const S = type === 'fourbyfour' ? FOURBYFOUR : SPECS[type];
   const front = S.windows[0][0] - 0.08;
   const mid = (S.bPillar[0] + S.bPillar[1]) / 2 + (S.bPillar[0] === S.bPillar[1] ? 0.03 : 0);
   return [front, mid, S.belt(mid) + 0.02, S.hw - 0.3];

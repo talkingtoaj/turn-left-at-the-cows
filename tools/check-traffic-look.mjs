@@ -9,10 +9,12 @@
 //   for every part that fits;
 // - dirt (dirtStep, #43): builds on dirt roads over ticks, fades on paved.
 //   node tools/check-traffic-look.mjs
-import { carPaint, PALETTE } from '../src/ambient/carpaint.js';
+import { carPaint, PALETTE, VAN_PALETTE, TYPE_PALETTE } from '../src/ambient/carpaint.js';
 import { createFineLod, distanceFade, FINE_NEAR, FINE_FAR, FINE_MAX, GATE_RATE } from '../src3/world3d/trafficlod.js';
-import { carKit, dirtStep, trafficType, KIT_FITS, KIT_NEEDS, KIT_PARTS, TRAFFIC_TYPES, DIRT_MAX } from '../src/ambient/carkit.js';
+import { carKit, dirtStep, trafficType, KIT_FITS, KIT_NEEDS, KIT_PARTS, SHADER_PARTS, TRAFFIC_TYPES, DIRT_MAX } from '../src/ambient/carkit.js';
 import { kitInto } from '../src3/world3d/trafficKit.js';
+import { setSixBySixDay, sixBySixRoll, sixBySixPaint, SIX_ODDS } from '../src/ambient/sixbysix.js';
+import { engineOf } from '../src/audio/trafficSound.js';
 
 let bad = 0;
 const ok = (name, cond, info = '') => {
@@ -63,6 +65,23 @@ const satOf = (list) => list.reduce((s, p) => s + hsv(p.color)[1], 0) / list.len
 const old = paints.filter((p) => p.age > 0.85);
 const young = paints.filter((p) => p.age < 0.4);
 ok('older cars are duller', satOf(old) < satOf(young), `sat ${satOf(old).toFixed(3)} vs ${satOf(young).toFixed(3)}`);
+
+// Types with their own colors (the 4x4, #44): no toy colors there either,
+// even after the shade shift and sun fade; the type picks the palette, and
+// the other types' paint is the same as without a type.
+{
+  ok('no toy colors in the type palettes', Object.values(TYPE_PALETTE).every((list) => list.every(([c]) => !toy(c))));
+  const four = ids.map((id) => carPaint(id, 'fourbyfour'));
+  const fourToys = four.map((p) => p.color).filter(toy);
+  ok('4x4 paint: no toy colors', fourToys.length === 0, fourToys.slice(0, 5).map((c) => `${c.toString(16)} ${toy(c)}`).join(', '));
+  const near = (c, list) => list.some(([b]) => Math.abs(((c >> 16) & 255) - ((b >> 16) & 255)) + Math.abs(((c >> 8) & 255) - ((b >> 8) & 255)) + Math.abs((c & 255) - (b & 255)) < 100);
+  // (shade shift and sun fade move a color a little off its base)
+  ok('4x4 paint comes from its own palette', four.every((p) => near(p.color, TYPE_PALETTE.fourbyfour)));
+  ok('4x4s include working colors (olive, sand, orange)', [0x4f5a36, 0xbfae88, 0x93552a].every((b) => four.some((p) => near(p.color, [[b, 1]]))));
+  ok('other types: same paint with or without the type', ids.slice(0, 200).filter((id) => !['fourbyfour', 'van'].includes(trafficType(id))).every((id) => JSON.stringify(carPaint(id, trafficType(id))) === JSON.stringify(carPaint(id))));
+  ok('a 4x4 drives in traffic (one of the ten)', Array.from({ length: 10 }, (_, i) => trafficType(`car${i}`)).includes('fourbyfour'));
+  ok('kits use the 4x4 paint for the odd door test', Array.from({ length: 60 }, (_, i) => `car${i}`).filter((id) => trafficType(id) === 'fourbyfour').every((id) => carKit(id).door !== carPaint(id, 'fourbyfour').color));
+}
 
 // Fine body fade.
 ok('fully fine inside FINE_NEAR', distanceFade(FINE_NEAR - 1) === 1 && distanceFade(5) === 1);
@@ -116,7 +135,8 @@ ok('fade falls steadily across the band', distanceFade(38) > distanceFade(40) &&
   const unfit = a.flatMap((k) => k.parts.filter((p) => !(p in KIT_FITS[k.type]) || (KIT_NEEDS[p] && !k.parts.includes(KIT_NEEDS[p]))).map((p) => `${k.type}:${p}`));
   ok('every part fits its type (and has what it needs)', unfit.length === 0, unfit.slice(0, 5).join(' '));
   ok('no roof racks on pickups or farm trucks', a.every((k) => !['pickup', 'farmtruck'].includes(k.type) || !k.parts.includes('rack')));
-  ok('no ladders or toolboxes off pickups', a.every((k) => k.type === 'pickup' || !k.parts.some((p) => p === 'ladder' || p === 'toolbox')));
+  ok('ladders only on pickups and vans, toolboxes only on pickups', a.every((k) => (k.type === 'pickup' || (k.type === 'van' && !k.parts.includes('toolbox'))) || !k.parts.some((p) => p === 'ladder' || p === 'toolbox')));
+  ok('business paint (stripe, lower tone) only on vans', a.every((k) => k.type === 'van' || !k.parts.some((p) => p === 'stripe' || p === 'lowerTone')));
   const farm = a.filter((k) => k.type === 'farmtruck');
   ok('farm trucks carry hay and rust', farm.every((k) => k.parts.includes('hay') && k.rust >= 0.45), farm.map((k) => k.rust.toFixed(2)).join(' '));
   for (const t of TRAFFIC_TYPES) {
@@ -125,20 +145,46 @@ ok('fade falls steadily across the band', distanceFade(38) > distanceFade(40) &&
   }
   const ten = a.slice(0, 10);
   ok('the ten traffic cars: some bare, some kitted', ten.some((k) => k.parts.length === 0 || k.parts.length === 1) && ten.some((k) => k.parts.length >= 3));
-  ok('odd doors only with the door part, and not the body color', a.every((k, i) => (k.door != null) === k.parts.includes('door') && k.door !== carPaint(kitIds[i]).color));
+  ok('odd doors only with the door part, and not the body color', a.every((k, i) => (k.door != null) === k.parts.includes('door') && k.door !== carPaint(kitIds[i], k.type).color));
   ok('rust between 0 and 1, older cars rustier', a.every((k) => k.rust >= 0 && k.rust <= 1)
-    && a.filter((k, i) => carPaint(kitIds[i]).age < 0.4 && k.type !== 'farmtruck').every((k) => k.rust < 0.3));
-  // Every fitting part has pieces to show (door is drawn by the shader).
+    && a.filter((k, i) => carPaint(kitIds[i], k.type).age < 0.4 && k.type !== 'farmtruck').every((k) => k.rust < 0.3));
+  // Every fitting part has pieces to show (door, stripe and lower tone are
+  // drawn by the shader; null is pieces every car of the type has).
   for (const t of TRAFFIC_TYPES) {
     const seen = new Set();
     let cur = null;
     const B = { fine: true, part(n) { cur = n; }, box() { seen.add(cur); }, rod() { seen.add(cur); }, tyre() { seen.add(cur); } };
     kitInto(t, B);
-    const missing = Object.keys(KIT_FITS[t]).filter((p) => p !== 'door' && !seen.has(p));
-    const extra = [...seen].filter((p) => !(p in KIT_FITS[t]));
+    const missing = Object.keys(KIT_FITS[t]).filter((p) => !SHADER_PARTS.includes(p) && !seen.has(p));
+    const extra = [...seen].filter((p) => p !== null && !(p in KIT_FITS[t]));
     ok(`${t}: pieces for every fitting part, none for others`, !missing.length && !extra.length, `missing ${missing} extra ${extra}`);
   }
   ok('kit bits fit in a float mask', KIT_PARTS.length <= 23);
+  // The van's own pieces (rear doors, sliding door, vent) are always there,
+  // on the coarse body too (so the 40 m switch doesn't pop).
+  for (const fine of [true, false]) {
+    const seen = new Map();
+    let cur;
+    const count = () => seen.set(cur, (seen.get(cur) || 0) + 1);
+    kitInto('van', { fine, part(n) { cur = n; }, box: count, rod: count, tyre: count });
+    ok(`van (${fine ? 'fine' : 'coarse'}): rear doors, sliding door and rack pieces`, seen.get(null) >= 6 && seen.get('rack') >= 10 && seen.get('ladder') >= 6, JSON.stringify([...seen]));
+  }
+}
+// Vans (#46): one slot in the ten, work van colors, and a business accent
+// that stands off the body color.
+{
+  const vans = Array.from({ length: 600 }, (_, i) => `car${i}`).filter((id) => trafficType(id) === 'van');
+  ok('one van among the ten traffic cars', Array.from({ length: 10 }, (_, i) => trafficType(`car${i}`)).filter((t) => t === 'van').length === 1);
+  ok('no toy colors in the van palette', VAN_PALETTE.every(([c]) => !toy(c)));
+  const vp = vans.map((id) => carPaint(id, 'van'));
+  const light = vp.filter((p) => hsv(p.color)[2] > 0.6).length / vp.length;
+  ok('vans mostly white, cream, tan and other light colors', light > 0.6, `${(light * 100).toFixed(0)}%`);
+  const dist = (x, y) => [16, 8, 0].reduce((s, k) => s + Math.abs(((x >> k) & 255) - ((y >> k) & 255)), 0);
+  ok('every van has an accent that stands off its body', vp.every((p) => p.color2 != null && dist(p.color, p.color2) > 120), `min ${Math.min(...vp.map((p) => dist(p.color, p.color2)))}`);
+  ok('van paint is seeded', vans.every((id, i) => JSON.stringify(carPaint(id, 'van')) === JSON.stringify(vp[i])));
+  const kits = vans.map(carKit);
+  ok('some vans carry business paint, some are plain', kits.some((k) => k.parts.includes('stripe') || k.parts.includes('lowerTone')) && kits.some((k) => !k.parts.includes('stripe') && !k.parts.includes('lowerTone')));
+  ok('some vans carry a ladder or rack, some none', kits.some((k) => k.parts.includes('ladder') || k.parts.includes('rack')) && kits.some((k) => !k.parts.includes('ladder') && !k.parts.includes('rack')));
 }
 // Dirt (#43): builds on dirt roads over ticks, fades on paved to the car's
 // base, never past DIRT_MAX or under the base.
@@ -158,7 +204,38 @@ ok('fade falls steadily across the band', distanceFade(38) > distanceFade(40) &&
   for (let k = 0; k < 2000; k++) e = dirtStep(e, base, false, 14, 1);
   ok('fades back to its base, not under', e === base);
   const avg = (t) => { const l = Array.from({ length: 60 }, (_, i) => carKit(`car${i}`)).filter((k) => k.type === t); return l.reduce((s, k) => s + k.dirtBase, 0) / l.length; };
-  ok('farm trucks dirtiest, then pickups, then cars', avg('farmtruck') > avg('pickup') && avg('pickup') > avg('sedan') && avg('pickup') > avg('wagon'));
+  ok('farm trucks dirtiest, then pickups, then cars', avg('farmtruck') > avg('pickup') && avg('pickup') > avg('sedan') && avg('pickup') > avg('wagon') && avg('pickup') > avg('van'));
+}
+
+// The surplus 6x6 (#45): car5 drives it on some missions only, seeded by
+// the day key; the ?sixbysix flag forces it; nothing else changes type.
+{
+  const keys = Array.from({ length: 400 }, (_, i) => `12345:m${i}`);
+  const share = keys.filter(sixBySixRoll).length / keys.length;
+  ok('the 6x6 drives on some missions, not most', share > SIX_ODDS - 0.08 && share < SIX_ODDS + 0.08, share.toFixed(2));
+  ok('same day key, same answer', keys.every((k) => sixBySixRoll(k) === sixBySixRoll(k)));
+  const on = keys.find(sixBySixRoll);
+  const off = keys.find((k) => !sixBySixRoll(k));
+  const others = Array.from({ length: 10 }, (_, i) => `car${i}`).filter((id) => id !== 'car5');
+  const before = others.map(trafficType);
+  // Over several region builds, car5 follows each day; the rest never change.
+  const seen = [];
+  for (const [k, f] of [[on, null], [off, null], [on, 'off'], [off, 'on'], [off, null]]) {
+    setSixBySixDay(k, f);
+    seen.push(trafficType('car5'));
+    if (others.map(trafficType).join() !== before.join()) seen.push('OTHER CHANGED');
+  }
+  ok('car5 is the 6x6 on its days and with ?sixbysix=on, else the farm truck', seen.join() === 'sixbysix,farmtruck,farmtruck,sixbysix,farmtruck', seen.join());
+  setSixBySixDay(off, 'on');
+  const k = carKit('car5');
+  ok('the 6x6 kit fits it', k.type === 'sixbysix' && k.parts.every((p) => p in KIT_FITS.sixbysix) && k.rust <= 0.3 && k.dirtBase >= 0.4, k.parts.join(' '));
+  ok('the 6x6 kit is seeded', JSON.stringify(carKit('car5')) === JSON.stringify(k));
+  setSixBySixDay(off, 'off');
+  ok('back to the farm truck kit', carKit('car5').type === 'farmtruck' && carKit('car5').parts.includes('hay'));
+  const p = Array.from({ length: 30 }, (_, i) => sixBySixPaint(`car${i}`));
+  const [h, s, v] = hsv(p[0].color);
+  ok('6x6 paint: dull army colors (olive, green, tan), faded', p.every((q) => { const [hh, ss, vv] = hsv(q.color); return hh >= 35 && hh <= 110 && ss < 0.6 && vv < 0.6 && q.age >= 0.75; }), `${h.toFixed(0)} ${s.toFixed(2)} ${v.toFixed(2)}`);
+  ok('6x6 has a diesel', engineOf('sixbysix') === 'diesel');
 }
 
 console.log(bad ? `\n${bad} FAILED` : '\nall ok');

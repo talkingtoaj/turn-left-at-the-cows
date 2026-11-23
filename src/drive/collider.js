@@ -6,6 +6,7 @@ import {
 import {
   buildingSolids, landmarkSolids, fenceSolids, TREE_HIT_R, LOCAL_HIT_R, POLE_R,
 } from './layout.js';
+import { parkedIn, parkedSolids } from '../world/parked.js';
 
 const CELL = 32;
 
@@ -44,6 +45,7 @@ export class Collider {
       this.addSolids(solids);
     }
     this.addSolids(fenceSolids(world));
+    for (const p of parkedIn(world.regionId)) this.addSolids(parkedSolids(p)); // parked semis (#47)
     for (const t of scenery.trees) this.addCircle({ x: t.x, y: t.y, r: TREE_HIT_R, kind: 'tree' });
     // Countryside fill: bales, haystacks, rocks and power poles.
     for (const p of world.props || []) this.addCircle({ x: p.x, y: p.y, r: p.r, kind: p.kind });
@@ -55,7 +57,7 @@ export class Collider {
 
     this.intactBridges = world.bridges
       .filter((b) => b.intact)
-      .map((b) => ({ x: b.x, y: b.y, w: b.width, h: b.length, angle: b.angle, roadId: b.roadId }));
+      .map((b) => ({ x: b.x, y: b.y, w: b.width, h: b.length, angle: b.angle, roadId: b.roadId, kind: b.kind }));
     // Roads and water in spatial indexes (each segment knows its road/creek).
     this.roadIndex = new SegIndex(32);
     for (const r of world.roads) this.roadIndex.addPolyline(r.points, r.width / 2 + 0.5, r);
