@@ -13,6 +13,8 @@ import { buildingSolids, quarryOpening, QUARRY } from '../../src/drive/layout.js
 import { RoadBumps } from './roadbumps.js';
 import { makeNoise, smoothstep } from '../../src/world/noise.js';
 import { roughnessFor } from '../../src/world/roughness.js';
+import { yardPlan } from '../../src/world/yards.js';
+import { YardGround, SUB as YARD_SUB } from './yardGround.js';
 
 export const CELL = 4; // metres between height samples
 export const CHUNK = 250; // metres per ground mesh chunk
@@ -108,6 +110,8 @@ export class Terrain {
     this.bumpGrid = new Float32Array(this.cols * this.rows); // big bump height (m) in each sample
     this.openGrid = new Uint8Array(this.cols * this.rows); // open countryside share 0..255 (districts tint)
     this.build();
+    // Paths, banks and hollows by buildings (#85): finer cells cut into the grid.
+    this.yard = new YardGround(this, yardPlan(world), CELL);
     this.bumps = new RoadBumps(world);
   }
 
@@ -234,8 +238,8 @@ export class Terrain {
     const h01 = this.h[(j + 1) * c + i];
     const h11 = this.h[(j + 1) * c + i + 1];
     // Cells split along the 00-11 diagonal (see buildMeshes).
-    if (fx >= fy) return h00 + (h10 - h00) * fx + (h11 - h10) * fy;
-    return h00 + (h11 - h01) * fx + (h01 - h00) * fy;
+    const g = fx >= fy ? h00 + (h10 - h00) * fx + (h11 - h10) * fy : h00 + (h11 - h01) * fx + (h01 - h00) * fy;
+    return this.yard ? g + this.yard.at(i, j, fx, fy) : g; // yard cells (yardGround.js)
   }
 
   // Lowest and highest ground under a footprint: { rect: { x, y, w, h, angle } }
@@ -293,11 +297,13 @@ export class Terrain {
         const j1 = Math.min(this.rows - 1, j0 + per);
         const w = i1 - i0 + 1;
         const hgt = j1 - j0 + 1;
-        const pos = new Float32Array(w * hgt * 3);
-        const colors = new Float32Array(w * hgt * 3);
-        const uvs = new Float32Array(w * hgt * 2);
-        const rough = new Float32Array(w * hgt * 2);
-        const mudA = mudFn ? new Float32Array(w * hgt) : null;
+        const yardCells = this.yard ? this.yard.cellsIn(i0, j0, i1, j1) : [];
+        const nv = w * hgt + yardCells.length * (YARD_SUB + 1) ** 2;
+        const pos = new Float32Array(nv * 3);
+        const colors = new Float32Array(nv * 3);
+        const uvs = new Float32Array(nv * 2);
+        const rough = new Float32Array(nv * 2);
+        const mudA = mudFn ? new Float32Array(nv) : null;
         for (let j = 0; j < hgt; j++) {
           for (let i = 0; i < w; i++) {
             const gi = i0 + i;
@@ -322,6 +328,7 @@ export class Terrain {
         const idx = [];
         for (let j = 0; j < hgt - 1; j++) {
           for (let i = 0; i < w - 1; i++) {
+            if (yardCells.length && this.yard.has(i0 + i, j0 + j)) continue; // drawn finer below
             const a = j * w + i; // (i, j)
             const b = a + 1; // (i+1, j)
             const c = a + w; // (i, j+1)
@@ -330,6 +337,7 @@ export class Terrain {
             idx.push(a, d, b, a, c, d);
           }
         }
+        if (yardCells.length) this.yard.fill(this, yardCells, { pos, colors, uvs, rough, mud: mudA, idx }, w * hgt, colorFn, mudFn, col);
         const g = new THREE.BufferGeometry();
         g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
         g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
@@ -340,6 +348,7 @@ export class Terrain {
         if (mudA) g.setAttribute('lookMud', new THREE.BufferAttribute(mudA, 1));
         g.setIndex(idx);
         g.computeVertexNormals();
+        if (yardCells.length) this.yard.normals(this, yardCells, g, i0, j0, w, w * hgt); // no seam round yard cells
         g.computeBoundingSphere();
         const m = new THREE.Mesh(g, typeof material === 'function' ? material(ci, cj) : material);
         m.receiveShadow = true;
