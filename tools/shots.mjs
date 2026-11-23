@@ -130,6 +130,12 @@ const VIEWS = [
   { name: 'people_foreman', person: ['marisol', 3, 1.6, 0] },
   { name: 'people_waitress', person: ['bev', 3, 1.6, 20] },
   { name: 'people_fisher', person: ['dot', 4.5, 1.7, 40] },
+  // Dot fishing off the broken end of the Creek Road bridge (#64): close 3/4
+  // from the south stub, straight on from the north stub across the gap, and
+  // from Creek Road as the player drives up.
+  { name: 'dot_close', car: { x: 644.39, y: 1396.5, heading: 10 }, cam: [652.18, 2.2, 1373.31], look: [646.33, 0.5, 1370.19] },
+  { name: 'dot_front', car: { x: 644.39, y: 1396.5, heading: 10 }, cam: [647.9, 2.2, 1363.1], look: [646.33, 1.3, 1370.19] },
+  { name: 'dot_road', car: { x: 644.39, y: 1396.5, heading: 10 }, rel: [0.6, 2.4, 6], relLook: [-1.8, 0.6, -26] },
   // Mid-conversation: hands moving (talk: that local's id).
   { name: 'people_talk', person: ['mabel', 2.6, 1.6, 25], talk: 'mabel' },
   { name: 'people_lineup', person: ['mabel', 7, 1.5, 0], lineup: ['mabel', 'hartley', 'marisol', 'bev', 'earl', 'gus'] },
