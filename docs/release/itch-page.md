@@ -92,7 +92,7 @@ I used AI for this game. Claude wrote the code and the first drafts of the text.
 
 ## Credits and license
 
-Code is public domain (CC0). Art, sound, music, writing and the radio audio are all rights reserved. Skies are from Poly Haven, textures from ambientCG, trees and rocks from Quaternius, and sound effects from many Freesound artists, all CC0. Full list in the repo: `public/look/SOURCES.md` and `public/sounds/SOURCES.md`.
+The source is public on GitHub to read, but all rights are reserved: code, art, sound, music, writing and the radio audio. Skies are from Poly Haven, textures from ambientCG, trees and rocks from Quaternius, and sound effects from many Freesound artists, all CC0. Full list in the repo: `public/look/SOURCES.md` and `public/sounds/SOURCES.md`.
 
 ## Screenshots (placeholders)
 

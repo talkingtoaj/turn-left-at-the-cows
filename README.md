@@ -52,8 +52,8 @@ The first version of the game was a prototype made on 15 and 16 Oct 2026, before
 
 ## License
 
-- Code: public domain (CC0 1.0). See `LICENSE`.
-- Art, sound, music, writing and the radio audio: all rights reserved. See `ASSETS-LICENSE`. Most of these files are not in this repo (the list is in `assets.txt`): the game you clone runs without them, with a silent radio, no voices and plain signs. The full game is on the web. The owner gets them with `npm run assets`.
+- Source available, all rights reserved. You can read the code here, but you may not copy, change, share or reuse it without permission. See `LICENSE`.
+- Art, sound, music, writing and the radio audio: all rights reserved too. See `ASSETS-LICENSE`. Most of these files are not in this repo (the list is in `assets.txt`): the game you clone runs without them, with a silent radio, no voices and plain signs. The full game is on the web. The owner gets them with `npm run assets`.
 - Third-party CC0 assets keep their own terms. They are listed in `public/look/SOURCES.md` and `public/sounds/SOURCES.md`.
 
 ## Credits
