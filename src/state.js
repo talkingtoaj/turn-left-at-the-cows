@@ -27,7 +27,8 @@ export const state = {
   talkingTo: null, // id of the local in a conversation with you, or null
   nearLocalAny: null, // id of a local within 3 m on foot, facing them or not
   nearCar: false, // on foot and close enough to the car to get back in (F)
-  lookAt: null, // { topicId, d, dir } the named thing in the middle of your view, on foot
+  talkPoint: null, // where the local you talk to points on this page (src/game/pointing.js), or null
+  lookAt: null, // { topicId, d, dir, bearing } the named thing in the middle of your view, on foot
   namesShown: false, // a conversation shows underlined names (for the tips)
   won: false, // set by updateGame when the car reaches the current mission's goal
 
