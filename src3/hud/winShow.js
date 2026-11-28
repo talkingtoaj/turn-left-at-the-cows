@@ -9,7 +9,8 @@ import { WORLD } from '../../src/world/world.js';
 import { printFrame } from '../../src/map/oldMap.js';
 import { PAPER } from '../map/sketchPaper.js';
 import { renderShiftLayers, SHIFT_CROP } from '../map/sketchRender.js';
-import { sharedAudioContext, isMuted } from '../../src/audio/context.js';
+import { isMuted } from '../../src/audio/context.js';
+import { scratchStart, scratchMove, scratchStop } from '../map/mapSound.js';
 import { winTimeline, TIMES } from './winShowTimeline.js';
 
 const PAPER_COLOR = '#eee2c0';
@@ -17,34 +18,19 @@ const ROAD_REVEAL = 20; // how wide a strip of the 1992 sheet each pencil stroke
 const RING_R = 17; // matches the ring size in sketchRender
 const WEDGE_R = 260; // a ring's wedge reveal reaches this far from the ring centre (sheet units)
 
-// A quiet pencil scratch: a short burst of filtered noise. Its own sound
-// (the map lane's scratch had not landed when this was built).
+// The pencil scratch is the map's (#92, src3/map/mapSound.js): one looping
+// sound whose loudness follows how fast the pencil moves. It goes quiet by
+// itself when we stop moving it. Muted or no audio yet: nothing plays.
+const PENCIL_SPEED = 0.5; // map px per ms, a steady hand
 function makeScratch() {
-  let buf = null;
-  return (gain = 0.05) => {
-    const ctx = sharedAudioContext();
-    if (!ctx || isMuted() || ctx.state !== 'running') return;
-    try {
-      if (!buf) {
-        buf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
-        const d = buf.getChannelData(0);
-        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-      }
-      const src = ctx.createBufferSource();
-      src.buffer = buf;
-      const bp = ctx.createBiquadFilter();
-      bp.type = 'bandpass';
-      bp.frequency.value = 2600 + Math.random() * 1400;
-      bp.Q.value = 0.9;
-      const g = ctx.createGain();
-      const t0 = ctx.currentTime;
-      g.gain.setValueAtTime(0, t0);
-      g.gain.linearRampToValueAtTime(gain, t0 + 0.015);
-      g.gain.linearRampToValueAtTime(0, t0 + 0.09);
-      src.connect(bp).connect(g).connect(ctx.destination);
-      src.start(t0, Math.random() * 0.8, 0.1);
-    } catch (e) { /* silent */ }
+  let on = false;
+  const stop = () => { if (on) { scratchStop(); on = false; } };
+  const move = () => {
+    if (isMuted()) { stop(); return; }
+    if (!on) on = scratchStart(); // false until the sound has loaded
+    if (on) scratchMove(PENCIL_SPEED);
   };
+  return { move, stop };
 }
 
 function drawPencil(ctx, x, y, k) {
@@ -160,7 +146,6 @@ export function createShiftShow(opts) {
     sd.layers.delete(key);
   };
 
-  let scratchAt = 0;
   const scratch = makeScratch();
   let tip = null; // { ctx, x, y }
 
@@ -195,7 +180,7 @@ export function createShiftShow(opts) {
     const st = tl.at(sec);
     tip = null;
     const [ls, rs] = sides;
-    const buzz = (gain, gap) => { if (!quiet && sec - scratchAt > gap) { scratchAt = sec; scratch(gain); } };
+    const buzz = () => { if (!quiet) scratch.move(); };
     // Finished pieces go into the settled sheets first.
     shifts.forEach((_, i) => {
       if (st.rings[i] >= 1) { bake(ls, i, 'ring'); bake(rs, i, 'ring'); }
@@ -212,7 +197,7 @@ export function createShiftShow(opts) {
       if (st.trace > 0) {
         const head = maskedSheet(st.trace);
         c.drawImage(tmp, 0, 0);
-        if (head) { tip = { ctx: c, x: head[0], y: head[1] }; buzz(0.05, 0.08); }
+        if (head) { tip = { ctx: c, x: head[0], y: head[1] }; buzz(); }
       }
     } else {
       // the rest of the sheet (water, names) fades in as the pencil lifts
@@ -230,7 +215,7 @@ export function createShiftShow(opts) {
         const t1 = drawWedge(rs, i, st.rings[i]);
         drawWedge(ls, i, st.rings[i]);
         tip = t1;
-        buzz(0.06, 0.07);
+        buzz();
       }
       for (const part of ['label', 'tick']) {
         const p = part === 'label' ? st.labels[i] : st.ticks[i];
@@ -251,6 +236,7 @@ export function createShiftShow(opts) {
   // Finished frame at once: the same pieces, all in place.
   function finish() {
     show.playing = false;
+    scratch.stop();
     if (show._raf) cancelAnimationFrame(show._raf);
     const total = shifts.length;
     for (let i = 0; i < total; i++) {
@@ -282,7 +268,7 @@ export function createShiftShow(opts) {
     };
     const frame1 = () => {
       if (!show.playing) return;
-      if (!left.isConnected) { show.detach && show.detach(); show.playing = false; return; }
+      if (!left.isConnected) { show.detach && show.detach(); scratch.stop(); show.playing = false; return; }
       const sec = (performance.now() - t0) / 1000;
       if (sec >= tl.end) { finish(); return; }
       render(sec);

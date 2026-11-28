@@ -632,7 +632,7 @@ function frame(now) {
   // 20 fps a capped clock fell behind and left silence after each clip.
   radio.update(Math.min(rawMs, 10000) / 1000, { region: regionId, x: ear.x, y: ear.y, paused: runtime.paused, inCar: !foot.active });
   audio.update(dt, state, amb, {
-    paused: runtime.paused, rain: wetness, planes: planes ? planes.sound : duster ? [duster.sound] : null, tow: tow.sound,
+    paused: runtime.paused, rain: wetness, planes: [...(planes ? planes.sound : []), ...(duster ? [duster.sound] : [])], tow: tow.sound,
     listener: ear, onFoot: foot.active, vehicles: dh.hz.vehicles,
   });
 

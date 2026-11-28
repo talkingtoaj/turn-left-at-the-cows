@@ -2,7 +2,7 @@
 // (the road crew is the first). They show only when the frame rate has room,
 // and they never pop in or out where the player can see it happen.
 //
-// Engine-free: src3/main.js feeds it numbers once a frame, tools/check-showpieces.mjs
+// Engine-free: src3/main.js feeds it numbers once a frame, tools/check-roadcrew.mjs
 // calls it over many frames with changing input.
 //
 //   showpiecesMode(params)            'on' | 'off' | 'auto'   (?showpieces=on|off)

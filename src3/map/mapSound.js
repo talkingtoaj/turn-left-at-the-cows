@@ -40,11 +40,12 @@ export function playUnfold(rate = 1) {
 
 let scratching = null; // { src, gain, lastMove, timer }
 
+// Returns true when the sound started (false while the file is still loading).
 export function scratchStart() {
   scratchStop();
   const ctx = ready();
   const buf = ctx && buffers.get('map/scratch');
-  if (!buf) return;
+  if (!buf) return false;
   const src = ctx.createBufferSource();
   const gain = ctx.createGain();
   src.buffer = buf;
@@ -59,6 +60,7 @@ export function scratchStart() {
       scratching.gain.gain.setTargetAtTime(0, ctx.currentTime, 0.03);
     }
   }, 60);
+  return true;
 }
 
 // speed: map px per ms
