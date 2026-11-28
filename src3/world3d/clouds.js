@@ -1,25 +1,34 @@
-// Cloud shadows: soft dark ellipses darken every lit material (ground, roads,
-// buildings, trees) via a small shader patch, plus cloud puffs in the sky.
+// Cloud shadows (#96): big soft shadows slide over every lit material (ground,
+// roads, grass, buildings, trees) as scrolling noise in world space, done in
+// a small shader patch: no extra draw call, no shadow map. The weather sets
+// how dark and how wide they are (cloudShadowMath.js); the wind slides them.
+// ?cloudshadows=off turns them off. Plus cloud puffs in the sky.
 
 import * as THREE from 'three';
+import { cloudShadowParams, thresholdFor, advanceOffset } from './cloudShadowMath.js';
 
 export const MAX_CLOUDS = 10;
-const DARK = 0.3;
 
 export const cloudUniforms = {
-  uClouds: { value: Array.from({ length: MAX_CLOUDS }, () => new THREE.Vector4(0, 0, 0, 0)) },
-  uCloudRot: { value: Array.from({ length: MAX_CLOUDS }, () => new THREE.Vector2(1, 0)) },
-  uCloudDark: { value: DARK },
+  uCloudOff: { value: new THREE.Vector2(0, 0) }, // metres the pattern has slid
+  uCloudAmt: { value: 0 }, // how dark a shadow is; 0 skips the whole thing
+  uCloudThr: { value: 0.6 }, // noise level above which the land is shaded
 };
 
-// Cloud cover, 0..1 (the weather sets it; 1 = every ambient cloud). Each
-// cloud has its own threshold, so as cover falls clouds shrink away one by
-// one instead of all at once.
-export const cloudCover = { value: 1 };
-const coverOf = (i) => {
-  const h = Math.sin(i * 12.9898 + 4.1) * 43758.5453;
-  return h - Math.floor(h);
-};
+let enabled = true;
+export function setCloudShadowsEnabled(on) { enabled = !!on; }
+
+// Called when the weather changes (src3/look/look.js).
+export function setCloudWeather(cover, grey, rain) {
+  const p = cloudShadowParams(cover, grey, rain);
+  cloudUniforms.uCloudAmt.value = p.amt;
+  cloudUniforms.uCloudThr.value = thresholdFor(p.frac);
+}
+
+// Every frame: slide the pattern with the wind.
+export function tickCloudShadows(wind, dt) {
+  advanceOffset(cloudUniforms.uCloudOff.value, wind ? wind.dir : 290, wind ? wind.speed : 3, dt);
+}
 
 const VERT_HEAD = 'varying vec2 vCloudXZ;\n';
 const VERT_BODY = `
@@ -32,25 +41,32 @@ const VERT_BODY = `
 `;
 const FRAG_HEAD = `
 varying vec2 vCloudXZ;
-uniform vec4 uClouds[${MAX_CLOUDS}];
-uniform vec2 uCloudRot[${MAX_CLOUDS}];
-uniform float uCloudDark;
+uniform vec2 uCloudOff;
+uniform float uCloudAmt;
+uniform float uCloudThr;
+float cloudHash( vec2 i ) { return fract( sin( dot( i, vec2( 127.1, 311.7 ) ) ) * 43758.5453 ); }
+float cloudNoise( vec2 p ) {
+  vec2 i = floor( p );
+  vec2 f = fract( p );
+  f = f * f * ( 3.0 - 2.0 * f );
+  return mix( mix( cloudHash( i ), cloudHash( i + vec2( 1.0, 0.0 ) ), f.x ),
+              mix( cloudHash( i + vec2( 0.0, 1.0 ) ), cloudHash( i + vec2( 1.0, 1.0 ) ), f.x ), f.y );
+}
+// 0 in sun, 1 in the middle of a shadow. Shapes about 260, 110 and 45 m across.
 float cloudShade( vec2 p ) {
-  float s = 0.0;
-  for ( int i = 0; i < ${MAX_CLOUDS}; i ++ ) {
-    vec2 d = p - uClouds[ i ].xy;
-    vec2 c = uCloudRot[ i ];
-    vec2 r = vec2( d.x * c.x + d.y * c.y, - d.x * c.y + d.y * c.x ) * uClouds[ i ].zw;
-    float q = dot( r, r );
-    s = max( s, 1.0 - smoothstep( 0.45, 1.0, q ) );
-  }
-  return 1.0 - uCloudDark * s;
+  vec2 q = p - uCloudOff;
+  float n = 0.62 * cloudNoise( q / 260.0 ) + 0.28 * cloudNoise( q / 110.0 + 31.7 ) + 0.10 * cloudNoise( q / 45.0 + 9.3 );
+  n = ( n - 0.5 ) * 2.2 + 0.5;
+  return smoothstep( uCloudThr - 0.1, uCloudThr + 0.1, n );
 }
 `;
+const FRAG_BODY = `
+if ( uCloudAmt > 0.0 ) gl_FragColor.rgb *= 1.0 - uCloudAmt * cloudShade( vCloudXZ ) * vec3( 1.0, 0.92, 0.82 );
+#include <fog_fragment>`;
 
-// Patch one Lambert/Phong material in place (once).
+// Patch one lit material in place (once).
 export function addCloudShadows(mat) {
-  if (!mat || mat.userData.clouds) return;
+  if (!enabled || !mat || mat.userData.clouds) return;
   if (!(mat.isMeshLambertMaterial || mat.isMeshPhongMaterial)) return;
   if (mat.fog === false) return;
   mat.userData.clouds = true;
@@ -59,10 +75,10 @@ export function addCloudShadows(mat) {
     if (prev) prev(shader, r);
     Object.assign(shader.uniforms, cloudUniforms);
     shader.vertexShader = VERT_HEAD + shader.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>\n${VERT_BODY}`);
-    shader.fragmentShader = FRAG_HEAD + shader.fragmentShader.replace('#include <fog_fragment>', 'gl_FragColor.rgb *= cloudShade( vCloudXZ );\n#include <fog_fragment>');
+    shader.fragmentShader = FRAG_HEAD + shader.fragmentShader.replace('#include <fog_fragment>', FRAG_BODY);
   };
   const key = mat.customProgramCacheKey.bind(mat);
-  mat.customProgramCacheKey = () => `${key()}|clouds`;
+  mat.customProgramCacheKey = () => `${key()}|clouds2`;
   mat.needsUpdate = true;
 }
 
@@ -72,35 +88,6 @@ export function addCloudShadowsTo(root) {
     if (Array.isArray(o.material)) o.material.forEach(addCloudShadows);
     else addCloudShadows(o.material);
   });
-}
-
-// Upload the nearest clouds to (x, y) into the shader uniforms.
-const _pick = [];
-export function updateCloudUniforms(clouds, x, y) {
-  _pick.length = 0;
-  const cover = cloudCover.value;
-  for (let i = 0; i < clouds.length; i++) {
-    const c = clouds[i];
-    const f = cover >= 1 ? 1 : Math.min(1, Math.max(0, (cover * 1.2 - coverOf(i) * 0.9) / 0.3));
-    if (f <= 0.02) continue;
-    const R = Math.max(c.rx, c.ry) * f;
-    const d = Math.hypot(c.x - x, c.y - y) - R;
-    if (d < 700) _pick.push([d, c, f]);
-  }
-  _pick.sort((a, b) => a[0] - b[0]);
-  const U = cloudUniforms.uClouds.value;
-  const RT = cloudUniforms.uCloudRot.value;
-  for (let i = 0; i < MAX_CLOUDS; i++) {
-    const c = _pick[i] && _pick[i][1];
-    const f = c ? _pick[i][2] : 1;
-    if (!c) {
-      U[i].set(1e7, 1e7, 1e-6, 1e-6);
-      continue;
-    }
-    const a = ((c.angle || 0) * Math.PI) / 180;
-    U[i].set(c.x, c.y, 1 / (c.rx * f), 1 / (c.ry * f));
-    RT[i].set(Math.cos(a), Math.sin(a));
-  }
 }
 
 // Sky clouds: white low-poly puffs. Each sits up in the sky where its shadow

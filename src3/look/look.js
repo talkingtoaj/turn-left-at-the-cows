@@ -24,7 +24,7 @@ import { buildAOMap } from './aomap.js';
 import { makeGrade, gradeGLSL, creamTint, applyOverlay } from './grade.js';
 import { patchObjects, patchTerrain, patchTrunks, patchRocks, patchWetPlants, skyMaterial, WET } from './shaders.js';
 import { createWeatherClock, keyLooks, lookAt, emptyLook } from './weather.js';
-import { cloudCover, cloudUniforms } from '../world3d/clouds.js';
+import { setCloudWeather } from '../world3d/clouds.js';
 import { setSunDir } from '../world3d/world3d.js';
 import { missionLookFor } from './missionLook.js';
 
@@ -309,8 +309,7 @@ export async function createLook(renderer, params) {
           skyMat.uniforms.gain.value = cur.gain * (1 - 0.42 * rk) * (1 - 0.55 * st);
           skyMat.uniforms.skyMix.value = cur.skyMix;
           skyMat.uniforms.grey.value = cur.grey;
-          cloudCover.value = cur.cover;
-          cloudUniforms.uCloudDark.value = cur.dark;
+          setCloudWeather(cur.cover, cur.grey, rk);
         },
       };
       weather.update({ missionIndex: 0, clockMinutes: 0 });

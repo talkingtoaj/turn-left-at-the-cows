@@ -13,11 +13,12 @@ import { MISSION_LIST } from '../game/missionList.js';
 import { loadProgress, nextUnfinishedIndex, canSaveProgress } from '../game/progress.js';
 import { timerText } from '../hud/format.js';
 import { milesText } from '../units.js';
-import { unlockAudio, isMuted, setMuted, onMuteChange } from '../audio/context.js';
+import { unlockAudio, sharedAudioContext, isMuted, setMuted, onMuteChange } from '../audio/context.js';
 import { available as mapsAvailable } from '../net/mapsApi.js';
 import { getRecords, recordRows } from '../net/records.js';
 import { touristFor } from '../game/tourists.js';
 import { tipsEnabled, setTipsEnabled } from '../game/tips.js';
+import { WAKE_MS, MARKS, CATCH_MS, CRANK_FROM_MS, startsWithKey, keyTurn, newChain, stepChain, restSway } from '../../src3/keystart.js';
 
 export const TITLE = 'Turn Left at the Cows';
 // Tagline is the owner's own words (SPEC 9p). The subline was removed (I10-splash-subline).
@@ -135,6 +136,77 @@ const COMPASS = `<svg class="sp-compass" viewBox="0 0 88 88" aria-hidden="true">
   <circle cx="44" cy="44" r="3" fill="#3a3128"/>
 </svg>`;
 
+// The ignition switch (#98), and the little instrument cluster that wakes when it turns.
+const KEY_C = { x: 75, y: 70 }; // the bezel's centre in the key's drawing
+const KEY_HOLE = 19; // how far the keychain's hole is from the centre, near one end of the head
+const polar = (deg, r) => [KEY_C.x + r * Math.sin((deg * Math.PI) / 180), KEY_C.y - r * Math.cos((deg * Math.PI) / 180)];
+// A fuzzy outline: an ellipse with n little bumps round it, for fur.
+function fuzz(cx, cy, rx, ry, n, bump) {
+  let d = '';
+  for (let i = 0; i < n; i++) {
+    const a0 = (i / n) * 2 * Math.PI, a1 = ((i + 1) / n) * 2 * Math.PI, am = (a0 + a1) / 2;
+    const p = (a, k) => `${(cx + (rx + k) * Math.cos(a)).toFixed(1)},${(cy + (ry + k) * Math.sin(a)).toFixed(1)}`;
+    d += (i ? '' : 'M' + p(a0, 0)) + ` Q${p(am, bump * 2)} ${p(a1, 0)}`;
+  }
+  return d + ' Z';
+}
+// The keychain's charm: a furry little dwarf (pointy hat, bead eyes, big nose,
+// a white fur beard over a brown fur body, boots peeking out). Hangs from the
+// chain's end at y 28; about 60 wide and 100 tall.
+const DWARF = `
+    <path d="${fuzz(0, 96, 26, 26, 22, 2.5)}" fill="#7a5a40" stroke="#5c4130" stroke-width="0.8"/>
+    <ellipse cx="-10" cy="126" rx="8" ry="5" fill="#4a2e1c"/><ellipse cx="10" cy="126" rx="8" ry="5" fill="#4a2e1c"/>
+    <ellipse cx="0" cy="73" rx="16" ry="8" fill="#f2c7a5"/>
+    <path d="${fuzz(0, 101, 21, 24, 18, 2.5)}" fill="#f4f0e6" stroke="#cdc5b4" stroke-width="0.8"/>
+    ${[-14, -9, -4, 1, 6, 11, 15].map((x, k) => `<path d="M${x},${88 + (k % 3) * 5} q${k % 2 ? 2 : -2},7 0,13" fill="none" stroke="#d6cebd" stroke-width="1" stroke-linecap="round"/>`).join('')}
+    <ellipse cx="-12" cy="78" rx="4" ry="2.6" fill="#ee9a8c" opacity="0.7"/><ellipse cx="12" cy="78" rx="4" ry="2.6" fill="#ee9a8c" opacity="0.7"/>
+    <circle cx="0" cy="80" r="7" fill="#e5846e" stroke="#b55c48" stroke-width="0.8"/>
+    <circle cx="-2.4" cy="77.6" r="2.2" fill="#fff" opacity="0.55"/>
+    <path d="M2,30 C-3,40 -13,52 -21,65 L21,65 C14,52 8,40 2,30 Z" fill="url(#spk-fob)" stroke="#4a130e" stroke-width="1"/>
+    <path d="${fuzz(0, 66, 22, 4, 16, 1.6)}" fill="#f4f0e6" stroke="#cdc5b4" stroke-width="0.7"/>
+    <circle cx="-7.5" cy="72.5" r="2.6" fill="#111"/><circle cx="7.5" cy="72.5" r="2.6" fill="#111"/>
+    <circle cx="-6.6" cy="71.6" r="0.9" fill="#fff"/><circle cx="8.4" cy="71.6" r="0.9" fill="#fff"/>
+    <circle cx="2" cy="30" r="2.4" fill="none" stroke="#9a9ea4" stroke-width="1.3"/>`;
+
+// A 1980s ignition: chrome bezel set in the dash, OFF ACC ON START round it, a
+// car key in the slot and a keychain hanging from it. From the driver's seat
+// the key points at you, so only the plastic head shows, edge on, as a thick
+// bar across the lock; the metal is inside. Not a button: it is only drawn,
+// the game turns it.
+const KEY = `<svg class="sp-keysvg" viewBox="0 0 150 186" aria-hidden="true" focusable="false">
+  <defs>
+    <radialGradient id="spk-chrome" cx="35%" cy="30%" r="80%"><stop offset="0" stop-color="#f4f5f7"/><stop offset="0.45" stop-color="#a9adb3"/><stop offset="1" stop-color="#5d6065"/></radialGradient>
+    <radialGradient id="spk-face" cx="40%" cy="35%" r="75%"><stop offset="0" stop-color="#6a6d73"/><stop offset="1" stop-color="#2a2b2e"/></radialGradient>
+    <linearGradient id="spk-head" x1="0" x2="1"><stop offset="0" stop-color="#3a3b40"/><stop offset="0.35" stop-color="#1d1e21"/><stop offset="1" stop-color="#101113"/></linearGradient>
+    <linearGradient id="spk-fob" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#c0392f"/><stop offset="1" stop-color="#7a231c"/></linearGradient>
+  </defs>
+  <circle cx="75" cy="72" r="46" fill="#000" opacity="0.35"/>
+  <circle cx="75" cy="70" r="42" fill="#151618"/>
+  <circle cx="75" cy="70" r="39" fill="url(#spk-chrome)" stroke="#2c2d30" stroke-width="1"/>
+  <circle cx="75" cy="70" r="31" fill="#17181a" stroke="#8b8f95" stroke-width="1.2"/>
+  <circle cx="75" cy="70" r="20" fill="url(#spk-face)" stroke="#9a9ea4" stroke-width="1"/>
+  ${MARKS.map((m) => {
+    const [x1, y1] = polar(m.deg, 42.5), [x2, y2] = polar(m.deg, 48), [tx, ty] = polar(m.deg, 61);
+    return `<path d="M${x1.toFixed(1)},${y1.toFixed(1)} L${x2.toFixed(1)},${y2.toFixed(1)}" stroke="#d8d4c4" stroke-width="1.6" stroke-linecap="round"/><text x="${tx.toFixed(1)}" y="${(ty + 3).toFixed(1)}" text-anchor="middle" font-family="Oswald, 'Arial Narrow', sans-serif" font-weight="600" font-size="9" letter-spacing="0.5" fill="#e8e3d0">${m.name}</text>`;
+  }).join('')}
+  <g class="sp-keyturn" transform="translate(75 70) rotate(${MARKS[0].deg})">
+    <rect x="-4" y="-25" width="13" height="52" rx="6" fill="#000" opacity="0.45"/>
+    <rect x="-5.5" y="-27" width="12" height="52" rx="6" fill="#08080a"/>
+    <rect x="-6.5" y="-27.5" width="11" height="51" rx="5.5" fill="url(#spk-head)" stroke="#5a5d64" stroke-width="0.9"/>
+    <path d="M-4.6,-21 V19" stroke="#6b6e75" stroke-width="1.1" stroke-linecap="round" opacity="0.7"/>
+  </g>
+  <g class="sp-chain" transform="translate(${polar(MARKS[0].deg, KEY_HOLE).map((v) => v.toFixed(2)).join(' ')})">
+    <ellipse cx="0" cy="5" rx="4.4" ry="6" fill="none" stroke="#b9bdc3" stroke-width="1.5"/>
+    <path d="M0,11 V17" stroke="#9a9ea4" stroke-width="1.6" stroke-linecap="round"/>
+    <ellipse cx="0" cy="20" rx="2.4" ry="3.6" fill="none" stroke="#9a9ea4" stroke-width="1.3"/>
+    <path d="M0,24 V28" stroke="#9a9ea4" stroke-width="1.6" stroke-linecap="round"/>
+    ${DWARF}
+  </g>
+</svg>`;
+const GAUGE = (cls) => `<svg class="sp-gauge" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="#101113" stroke="#55575c" stroke-width="2"/>
+  <g stroke="#b9b6ac" stroke-width="1.5"><path d="M8,34 l3,-2 M6,24 h4 M10,13 l3,2 M24,6 v4 M38,13 l-3,2 M42,24 h-4 M40,34 l-3,-2"/></g>
+  <g class="${cls}"><path d="M24,26 L24,9" stroke="#e04a3a" stroke-width="2" stroke-linecap="round"/></g><circle cx="24" cy="26" r="3" fill="#3a3c40"/></svg>`;
+
 // ---------- small helpers ----------
 
 function readFlag(key) {
@@ -159,7 +231,11 @@ function writeFlag(key) {
 // load(index) is awaited when the player starts; the screen then fades.
 // phone: a touch-only device (keyboard game): show a note and a share
 // button instead of Play.
-export function showSplash({ version = '3d', load, preferred = null, phone = false }) {
+// keystart: 'fly' | 'wake' | 'fade' | 'off' (src3/keystart.js keyStartMode).
+// With fly or wake, load(index, { wake, setFly, rect }) gets a promise that
+// settles when the dash has woken, a way to report the shot's progress, and
+// the glass rectangle.
+export function showSplash({ version = '3d', load, preferred = null, phone = false, keystart = 'off' }) {
   injectUiStyle();
   const style = document.createElement('style');
   style.dataset.owner = 'splash';
@@ -286,6 +362,7 @@ export function showSplash({ version = '3d', load, preferred = null, phone = fal
 
   const go = el('div', 'sp-go', pad);
   let btn = null;
+  let keyBtn = null;
   let errBox = null;
   if (!phone) {
     btn = el('button', 'sp-play', go);
@@ -294,6 +371,14 @@ export function showSplash({ version = '3d', load, preferred = null, phone = fal
     const big = allDone ? 'Drive again' : anyDone ? 'Continue' : 'Play';
     el('b', null, btn, big);
     el('small', null, btn, `${first + 1}. ${MISSION_LIST[first].title}`);
+    // The ignition switch (only drawn, not a button) and the dash that wakes.
+    keyBtn = el('div', 'sp-key', go);
+    keyBtn.setAttribute('aria-hidden', 'true');
+    keyBtn.innerHTML = KEY;
+    const cluster = el('div', 'sp-cluster', go);
+    cluster.setAttribute('aria-hidden', 'true');
+    cluster.innerHTML = GAUGE('sp-n1') + GAUGE('sp-n2')
+      + '<span class="sp-lamp sp-l-batt"></span><span class="sp-lamp sp-l-oil"></span><span class="sp-lamp sp-l-check"></span><span class="sp-lamp sp-l-radio"></span>';
   } else {
     const box = el('div', 'sp-phone', go);
     el('strong', null, box, 'Made for keyboard on a laptop or desktop');
@@ -424,13 +509,30 @@ export function showSplash({ version = '3d', load, preferred = null, phone = fal
     for (const b of buttons) b.disabled = true;
     if (btn) btn.querySelector('b').textContent = 'Starting…';
     if (errBox) errBox.remove();
+    // The dash wakes (CSS) while the game starts; the game waits for it.
+    // Only mission 1 gets the key turn and the fly-out (#98); the rest jump straight in.
+    const waking = (keystart === 'fly' || keystart === 'wake') && startsWithKey(MISSION_LIST[index].id);
+    let wake = Promise.resolve();
+    if (waking) {
+      turnAt = performance.now();
+      wake = new Promise((r) => setTimeout(() => { root.classList.add('sp-wake'); r(); }, CATCH_MS)).then(() => new Promise((r) => setTimeout(r, WAKE_MS)));
+    }
     try {
-      await load(index);
+      await load(index, waking ? {
+        wake,
+        crankAt: turnAt + CRANK_FROM_MS, // the engine sound waits for START
+        rect: () => api.windshieldRect(),
+        // The painting (when the world was not drawn behind the glass yet) goes at once.
+        setFly: (p) => { root.classList.add('sp-flying'); root.style.setProperty('--fly', String(p)); },
+      } : undefined);
     } catch (e) {
       console.warn('[splash] the game could not start', e);
       errBox = el('p', 'sp-err', pad, 'The game could not start in this browser. It needs WebGL (3D graphics); try another browser or computer.');
       errBox.setAttribute('role', 'alert');
       for (const b of buttons) b.disabled = false;
+      root.classList.remove('sp-wake');
+      root.style.removeProperty('--fly');
+      turnAt = 0;
       if (btn) btn.querySelector('b').textContent = 'Try again';
       going = false;
       return;
@@ -445,12 +547,53 @@ export function showSplash({ version = '3d', load, preferred = null, phone = fal
     }, 520);
     resolveStarted();
   };
+  // The key and its keychain: sways at rest, turns by itself on a mission 1 start.
+  let turnAt = 0;
+  if (keyBtn && (keystart === 'fly' || keystart === 'wake')) {
+    const turner = keyBtn.querySelector('.sp-keyturn');
+    const chainEl = keyBtn.querySelector('.sp-chain');
+    const chain = newChain(0);
+    const born = performance.now();
+    let last = born;
+    let lastMark = 0;
+    const tick = () => {
+      const c = sharedAudioContext();
+      if (!c || c.state !== 'running' || isMuted()) return;
+      const t = c.currentTime;
+      const o = c.createOscillator();
+      const g = c.createGain();
+      o.type = 'square';
+      o.frequency.setValueAtTime(1500, t);
+      o.frequency.exponentialRampToValueAtTime(300, t + 0.03);
+      g.gain.setValueAtTime(0.06, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+      o.connect(g).connect(c.destination);
+      o.start(t);
+      o.stop(t + 0.06);
+    };
+    const frame = () => {
+      if (!keyBtn.isConnected) return;
+      const now = performance.now();
+      const ms = turnAt ? now - turnAt : 0;
+      const { deg, mark } = keyTurn(ms);
+      if (mark !== lastMark) { if (turnAt) tick(); lastMark = mark; }
+      turner.setAttribute('transform', 'translate(75 70) rotate(' + deg.toFixed(2) + ')');
+      const rad = (deg * Math.PI) / 180;
+      const px = 75 + KEY_HOLE * Math.sin(rad);
+      const py = KEY_C.y - KEY_HOLE * Math.cos(rad);
+      stepChain(chain, (now - last) / 1000, px, turnAt ? 0 : restSway(now - born));
+      last = now;
+      chainEl.setAttribute('transform', 'translate(' + px.toFixed(2) + ' ' + py.toFixed(2) + ') rotate(' + (-chain.psi * 180 / Math.PI).toFixed(2) + ')');
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  }
   if (btn) {
     btn.addEventListener('click', () => start(first));
     btn.focus({ preventScroll: true });
   }
 
-  return {
+  const api = {
     first,
     started,
     // Where the windshield glass is (CSS px), for drawing the live world.
@@ -464,4 +607,5 @@ export function showSplash({ version = '3d', load, preferred = null, phone = fal
       performance.mark('world-visible');
     },
   };
+  return api;
 }

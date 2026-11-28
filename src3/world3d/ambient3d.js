@@ -9,7 +9,7 @@ import { DEG } from '../../src/drive/geom.js';
 import { createTraffic3D } from './traffic3d.js';
 import { box } from './shapes.js';
 import { canopyTopAt } from './trees.js';
-import { buildSkyClouds, updateCloudUniforms } from './clouds.js';
+import { buildSkyClouds, tickCloudShadows, addCloudShadowsTo } from './clouds.js';
 import { FOG_COLOR } from './world3d.js';
 import { cowLook, cowPose, PATCH_FREQ } from './cowLook.js';
 import { cowHornPose } from '../../src/world/hornHeard.js';
@@ -19,7 +19,7 @@ import { sheepGeo, horseGeo, deerGeo, coatMaterial } from './animals3d.js';
 const BIRD_R = 260; // show birds within this range of the focus
 const CAR_R = 650;
 const ANIMAL_R = 450;
-const MAX_BIRDS = 400;
+const MAX_BIRDS = 760; // trees (about 260) plus field flocks and wire birds (#97)
 const MAX_ANIMALS = 160;
 const MAX_DUST = 500;
 const MAX_SMOKE = 900;
@@ -319,6 +319,7 @@ const perchZ = (t) => (t.kind === 'pine' ? 1.25 : t.kind === 'willow' ? 1.2 : 1.
 
 export function createAmbient3D(scene, opts) {
   const { terrain, surfaceAt, scenery, sunDir, campfire, chimneyFix } = opts;
+  let cloudScan = 4; // seconds to the next look for unpatched materials (#96)
   const groundAt = (x, y) => terrain.heightAt(x, y);
   const trees = scenery.trees;
 
@@ -582,7 +583,10 @@ export function createAmbient3D(scene, opts) {
       smoke.end();
 
       // Clouds: shadows near the focus; sky puffs fade out in top view.
-      updateCloudUniforms(amb.clouds, fx, fz);
+      tickCloudShadows(amb.wind, dt);
+      // Things added after the world was built (road crew, tow truck, fallen trees) get shadows too.
+      cloudScan -= dt;
+      if (cloudScan <= 0) { cloudScan = 4; addCloudShadowsTo(scene); }
       sky.update(amb.clouds, camera, topE < 0.6);
     },
   };

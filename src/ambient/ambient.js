@@ -20,6 +20,7 @@ import { carPaint } from './carpaint.js'; // traffic paint: real rural colors, s
 import { trafficType } from './carkit.js'; // some types have their own colors (the 4x4 #44, work vans #46)
 import { farmDogsIn, dogStart, stepDog, dogHeld, dogLook } from '../world/farmDog.js';
 import { HORN_HEAR, cowHears, dogHears } from '../world/hornHeard.js';
+import { createFieldBirds } from './fieldbirds.js'; // field flocks and wire birds (#97)
 
 // Level of detail: things within NEAR_R of the player get full updates.
 const NEAR_R = 600;
@@ -40,7 +41,7 @@ function turnToward(h, target, maxStep) {
 const fwdX = (h) => Math.sin(h * DEG);
 const fwdY = (h) => -Math.cos(h * DEG);
 
-export function createAmbient(world, scenery) {
+export function createAmbient(world, scenery, opts = {}) {
   const rng = makeRng((world.seed ^ 0x5a17b3) >>> 0);
   const R = (a, b) => a + rng() * (b - a);
   // Birds keep to the older trees: the rows and dead trees (#69, t.more)
@@ -1129,6 +1130,9 @@ export function createAmbient(world, scenery) {
       flocks.push(f);
     }
   }
+  // Field flocks and birds on the wire (#97): drawn with the same bird meshes.
+  const fieldBirds = createFieldBirds(world, { enabled: opts.fieldBirds !== false });
+  birds.push(...fieldBirds.birds);
   function launchFlock(f, ti) {
     if (ti < 0) return;
     f.flying = true;
@@ -1620,6 +1624,7 @@ export function createAmbient(world, scenery) {
     chimneys, // additive: [{ id, x, y, z }] chimney tops (z = metres above ground)
     playerSurface: 'paved', // additive: surface under the player car ('paved'|'dirt'|'grass')
     flocks, // additive (internal-ish): bird groups
+    fieldBirds, // #97: field flocks and wire birds (state, for checks and shots)
     carState, // internal: per-car traffic state, same order as cars (for tools/check-traffic.mjs)
     // internal: road ends at the map edge with no junction, [{ x, y }] (for tools/check-traffic.mjs)
     edgeEnds: net.flatMap((n) => [0, 1].filter((e) => n.edgeEnd[e]).map((e) => { const p = n.pts[e ? n.pts.length - 1 : 0]; return { x: p[0], y: p[1] }; })),
@@ -1710,6 +1715,8 @@ export function createAmbient(world, scenery) {
           }
         }
       }
+
+      fieldBirds.step(dt, time, player, events);
 
       // Animals and people: only near the player.
       for (let i = 0; i < animalState.length; i++) {

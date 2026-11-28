@@ -15,6 +15,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { state } from '../../src/state.js';
 import { currentMissionId } from '../../src/game/tourists.js';
 import { personLook, newAct, actStep, personPose, BONES, PERSON_SCALE } from './peopleLook.js';
+import { pointBearing, pointVector, pointFacing } from '../../src/game/pointing.js';
 import { localHears } from '../../src/world/hornHeard.js';
 import { localToWorld } from '../../src/drive/geom.js';
 import { DECK_TOP } from './ground.js';
@@ -533,7 +534,7 @@ export function buildLocals(world, terrain, audit = null) {
   let clock = 0;
   let hornN = 0; // the last horn (amb.horn.n) the locals heard (#74)
   const poseIn = { moving: false, walk: 0, headYaw: null };
-  const actIn = { carDist: Infinity, carSpeed: 0, onFoot: false, moving: false, talking: false };
+  const actIn = { carDist: Infinity, carSpeed: 0, onFoot: false, moving: false, talking: false, pointVec: null };
   return {
     object: group,
     people,
@@ -570,9 +571,17 @@ export function buildLocals(world, terrain, audit = null) {
         }
         const watch = !moving && d2 < 60 * 60;
         const toViewer = Math.atan2(-dx, -dy); // model faces -z
+        // Pointing (#93): state.talkPoint is where this page of the answer sends
+        // you; "left" and "right" are the player's, who faces the local.
+        // Pointing behind them, they turn side-on so the arm shows.
+        let pointB = null;
+        if (state.talkingTo === p.id && state.talkPoint && !moving) {
+          pointB = pointBearing(state.talkPoint, (Math.atan2(p.x - car.x, -(p.y - car.y)) * 180) / Math.PI);
+        }
         let target;
         if (p.sit) target = p.yaw; // sitting: only the head turns to look
         else if (moving) target = -(pos.heading * Math.PI) / 180;
+        else if (watch && pointB != null) target = -(pointFacing(pointB, (-toViewer * 180) / Math.PI) * Math.PI) / 180;
         else if (watch) target = toViewer;
         else target = pos ? -(pos.heading * Math.PI) / 180 : p.yaw;
         let d = target - p.yaw;
@@ -593,6 +602,7 @@ export function buildLocals(world, terrain, audit = null) {
         actIn.onFoot = !!state.onFoot;
         actIn.moving = moving;
         actIn.talking = state.talkingTo === p.id;
+        actIn.pointVec = pointB != null ? pointVector(pointB, (-p.yaw * 180) / Math.PI) : null;
         actStep(p.act, actIn, dt);
         poseIn.moving = moving;
         poseIn.walk = p.walk;

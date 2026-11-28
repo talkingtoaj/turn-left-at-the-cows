@@ -5,7 +5,7 @@
 // graphite #4a4a48, ink #3a3128, barn red #b3261e, sky #6f9fb8, straw #d9b45a.
 
 export const SPLASH_CSS = `
-.sp { position: fixed; inset: 0; z-index: 1000; display: grid; grid-template-rows: minmax(190px, 42vh) 1fr;
+.sp { position: fixed; inset: 0; z-index: 1000; display: grid; grid-template-rows: max(190px, calc(42vh + var(--fly, 0) * 58vh)) 1fr;
   color: #f1ead6; font-family: Georgia, "Libre Baskerville", serif; overflow: hidden; transition: opacity 0.5s; }
 .sp * { box-sizing: border-box; }
 .sp.sp-out { opacity: 0; pointer-events: none; }
@@ -16,8 +16,8 @@ export const SPLASH_CSS = `
 .sp-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* Windshield: transparent glass in a dark frame, so the world (#app) shows. */
-.sp-top { position: relative; overflow: hidden; padding: 14px 16px 0; }
-.sp-glass { position: relative; height: 100%; border-radius: 34px 34px 10px 10px / 40px 40px 10px 10px;
+.sp-top { position: relative; overflow: hidden; padding: calc((1 - var(--fly, 0)) * 14px) calc((1 - var(--fly, 0)) * 16px) 0; }
+.sp-glass { position: relative; height: 100%; border-radius: calc((1 - var(--fly, 0)) * 34px) calc((1 - var(--fly, 0)) * 34px) calc((1 - var(--fly, 0)) * 10px) calc((1 - var(--fly, 0)) * 10px) / calc((1 - var(--fly, 0)) * 40px) calc((1 - var(--fly, 0)) * 40px) calc((1 - var(--fly, 0)) * 10px) calc((1 - var(--fly, 0)) * 10px);
   box-shadow: 0 0 0 200px #1c1d1f, inset 0 0 0 3px #2b2c2f, inset 0 0 40px rgba(0,0,0,0.45); }
 .sp-paint { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; transition: opacity 1.4s ease;
   background: linear-gradient(#6f9fb8 0%, #a9c6d2 55%, #dfe3d6 70%); }
@@ -53,10 +53,34 @@ body[data-world="live"] .sp-paint { opacity: 0; }
 @keyframes sp-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes sp-out { to { opacity: 0; transform: translateY(8px); } }
 
+/* Turn the key to start (SPEC 9s, #91): the dash wakes, then the glass grows
+   to the whole screen (--fly, set by src3/main.js) while the dash slides off. */
+.sp-flying .sp-paint { transition: none; opacity: 0; }
+.sp-sign { opacity: calc(1 - var(--fly, 0) * 2.5); }
+.sp-mirror { opacity: calc(1 - var(--fly, 0) * 2); }
+.sp-key { flex: 0 0 auto; width: 150px; height: 186px; pointer-events: none; user-select: none; }
+.sp-keysvg { display: block; width: 100%; height: 100%; overflow: visible; }
+.sp-cluster { display: flex; align-items: center; gap: 6px; padding: 5px 8px; background: #101113; border: 1px solid #3a3c40; border-radius: 8px; }
+.sp-gauge { width: 42px; height: 42px; display: block; }
+.sp-gauge g[class^="sp-n"] { transform-origin: 24px 26px; transform: rotate(-120deg); }
+.sp-wake .sp-n1 { animation: sp-sweep 0.8s ease-in-out 0.25s both; }
+.sp-wake .sp-n2 { animation: sp-sweep 0.8s ease-in-out 0.32s both; }
+.sp-lamp { width: 10px; height: 10px; border-radius: 50%; background: #2b2c2f; box-shadow: inset 0 0 0 1px #3a3c40; }
+.sp-wake .sp-l-batt { animation: sp-lamp-red 0.8s ease-out 0.25s both; }
+.sp-wake .sp-l-oil { animation: sp-lamp-amber 0.8s ease-out 0.25s both; }
+.sp-wake .sp-l-check { animation: sp-lamp-amber 0.65s ease-out 0.25s both; }
+.sp-wake .sp-l-radio { animation: sp-lamp-glow 0.4s ease-out 0.4s both; }
+@keyframes sp-sweep { 0% { transform: rotate(-120deg); } 55% { transform: rotate(120deg); } 100% { transform: rotate(-110deg); } }
+@keyframes sp-lamp-red { 0%, 70% { background: #e04a3a; box-shadow: 0 0 8px 2px rgba(224,74,58,0.8); } 100% { background: #2b2c2f; box-shadow: none; } }
+@keyframes sp-lamp-amber { 0%, 70% { background: #e6b450; box-shadow: 0 0 8px 2px rgba(230,180,80,0.8); } 100% { background: #2b2c2f; box-shadow: none; } }
+@keyframes sp-lamp-glow { from { background: #2b2c2f; } to { background: #e6b450; box-shadow: 0 0 10px 3px rgba(230,180,80,0.7); } }
+@media (prefers-reduced-motion: reduce) { .sp-wake .sp-n1, .sp-wake .sp-n2, .sp-wake .sp-lamp { animation: none; } }
+
 /* Dash. */
 .sp-dash { position: relative; display: grid; grid-template-columns: minmax(280px, 36%) 1fr; gap: clamp(14px, 2.5vw, 34px);
   padding: 18px clamp(16px, 3vw, 40px) 18px; min-height: 0;
-  background: linear-gradient(#3a3c40, #1c1d1f 22px), #1c1d1f; border-top: 1px solid #4a4c51; }
+  background: linear-gradient(#3a3c40, #1c1d1f 22px), #1c1d1f; border-top: 1px solid #4a4c51;
+  opacity: calc(1 - var(--fly, 0) * 1.6); }
 .sp-dash::before { content: ''; position: absolute; left: 0; right: 0; top: -1px; height: 6px; background: linear-gradient(#55575c, transparent); opacity: 0.5; }
 
 /* Notepad: the list of jobs and the big button. */
@@ -173,7 +197,7 @@ body[data-world="live"] .sp-paint { opacity: 0; }
 
 /* Short screens: tighten. */
 @media (max-height: 640px) and (min-width: 761px) {
-  .sp { grid-template-rows: minmax(150px, 36vh) 1fr; }
+  .sp { grid-template-rows: max(150px, calc(36vh + var(--fly, 0) * 64vh)) 1fr; }
   .sp-map { max-width: calc((100vh - 36vh - 50px) * 820 / 470); }
   .sp-map.sp-1987 { max-width: calc((100vh - 36vh - 50px) * 840 / 576); }
   .sp-play b { font-size: 24px; }
@@ -184,7 +208,7 @@ body[data-world="live"] .sp-paint { opacity: 0; }
 /* Phones and narrow windows: one column that scrolls; map below the list. */
 @media (max-width: 760px) {
   .sp { display: block; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-  .sp-top { height: 34vh; min-height: 220px; padding: 10px 10px 0; }
+  .sp-top { height: calc(34vh + var(--fly, 0) * 66vh); min-height: 220px; padding: 10px 10px 0; }
   .sp-sign { left: 12px; top: 22px; padding: 10px 12px; }
   .sp-sign h1 { font-size: clamp(26px, 8vw, 36px); }
   .sp-arrow { display: none; }

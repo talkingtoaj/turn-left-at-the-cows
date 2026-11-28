@@ -38,7 +38,7 @@ import { createAmbient3D } from './world3d/ambient3d.js';
 import { createStopSigns3D } from './world3d/stopsigns3d.js';
 import { createParked3D } from './world3d/parked3d.js';
 import { parkedIn } from '../src/world/parked.js';
-import { addCloudShadowsTo, cloudUniforms } from './world3d/clouds.js';
+import { addCloudShadowsTo, cloudUniforms, setCloudShadowsEnabled } from './world3d/clouds.js';
 import { campfireOf } from './world3d/landmarks3d.js';
 import { SUN_DIR } from './world3d/world3d.js';
 import { createStats } from './stats.js';
@@ -52,6 +52,8 @@ import { createWetness } from '../src/game/wetness.js';
 import { createWeatherClock } from './look/weather.js';
 import { createRain3D } from './world3d/rain3d.js';
 import { createPlanes3D } from './world3d/planes3d.js';
+import { createRoadCrew } from './world3d/roadcrew3d.js'; // showpiece: the road crew (#95)
+import { createDuster3D } from './world3d/duster3d.js'; // #90 crop duster, mission 1
 import { createTow } from './tow3d.js';
 import { createOnFoot } from './onfoot.js';
 import { WALK, localsAround, carGap } from '../src/game/onfoot.js';
@@ -62,6 +64,7 @@ import { createTips, TIP_CONTEXT, setTipsEnabled, resetTips, bridgeOutStep } fro
 import { playerMarks } from '../src/game/startSketch.js';
 import { createTipsView } from './hud/tips.js';
 import { warningLights } from '../src/game/damage.js';
+import { FLY_MS, MENU_FOV, flyState, lerp3, eyePose } from './keystart.js';
 
 const READ_RANGE = 15; // you read a sign (and learn its names) this close, facing its front
 const MAX_DT_MS = 50;
@@ -134,6 +137,8 @@ let amb3d = null;
 let dh = null;
 let rain3d = null;
 let planes = null; // light planes, in a region with an airfield
+let crew = null; // the road crew showpiece (#95, ?showpieces=on|off)
+let duster = null; // the crop duster over Highway 9 (#90)
 let lightning = null; // lightning flashes in heavy rain (round 12)
 let thunder = null; // when and where they strike (src/game/thunder.js)
 let wetness = null;
@@ -153,12 +158,13 @@ function disposeRegion() {
   if (!scene) return 0;
   if (dh && dh.dispose) dh.dispose();
   if (lightning) lightning.dispose();
+  if (crew) crew.dispose();
   scene.remove(car3d.object);
   const keep = collectKeep([car3d.object], look ? look.keepTextures() : []);
   const n = gpuSet ? disposeTracked(gpuSet, keep) : 0;
   scene.clear();
   renderer.renderLists.dispose();
-  scene = scenery = collider = world3d = amb = amb3d = dh = rain3d = planes = lightning = thunder = null;
+  scene = scenery = collider = world3d = amb = amb3d = dh = rain3d = planes = crew = duster = lightning = thunder = null;
   gpuSet = null;
   return n;
 }
@@ -220,7 +226,7 @@ async function buildRegion(id, title, quiet = false, mission = 0) {
     await step(0.78, 'Waking the locals');
     // Ambient life (shared logic). Car5 is the surplus 6x6 on some missions (#45; ?sixbysix=on|off).
     setSixBySixDay(`${WORLD.seed}:${currentMissionId(state)}`, params.get('sixbysix'));
-    amb = createAmbient(WORLD, scenery);
+    amb = createAmbient(WORLD, scenery, { fieldBirds: params.get('fieldbirds') !== 'off' }); // #97
     // Smoke from chimneys our models put somewhere other than the shared house formula.
     const chimneyFix = [];
     for (const ch of amb.chimneys || []) {
@@ -233,6 +239,7 @@ async function buildRegion(id, title, quiet = false, mission = 0) {
     });
     createStopSigns3D(scene, amb.stopSigns, world3d.terrain);
     createParked3D(scene, { list: parkedIn(id), terrain: world3d.terrain, env: look ? look.carEnv() : null }); // parked semis (#47)
+    setCloudShadowsEnabled(params.get('cloudshadows') !== 'off'); // #96
     addCloudShadowsTo(scene);
     if (look) look.afterAmbient(scene);
     // Damage, potholes and road hazards (also the ?hazard, ?fallen, ?spot dev flags).
@@ -241,6 +248,8 @@ async function buildRegion(id, title, quiet = false, mission = 0) {
     rain3d = createRain3D(scene, { reducedMotion: reducedMotion() });
     // Light planes flying circuits from the airfield (src/world/airfield.js).
     planes = createPlanes3D(scene, WORLD, world3d.terrain);
+    crew = createRoadCrew({ scene, world: WORLD, terrain: world3d.terrain, collider, params });
+    duster = createDuster3D(scene, WORLD, world3d.terrain, params); // ?duster=off|now
     // The tow truck that comes after a breakdown (src3/tow3d.js).
     tow.attach(scene, world3d);
     // Lightning in heavy rain; its thunder is played by the audio.
@@ -304,7 +313,7 @@ async function followMission() {
 // ---------- UI wiring (see CONTRACT3.md) ----------
 
 const ui = document.getElementById('ui');
-const map = createMapOverlay(ui, { onClose: () => { runtime.paused = false; state.inputLocked = false; } });
+const map = createMapOverlay(ui, { onClose: () => { runtime.paused = false; state.inputLocked = false; }, rain: () => (wetness ? wetness.rain : 0) });
 const radio = createRadio();
 const hud = createHUD(ui, { radio, openMap: () => { runtime.paused = true; state.inputLocked = true; foot.release(); map.open(); } });
 // Breakdowns end in a tow to the nearest garage, not a lost mission.
@@ -434,6 +443,10 @@ const ear = { x: 0, y: 0, heading: 0 };
 function frame(now) {
   requestAnimationFrame(frame);
   if (loading > 0 || !scene) return;
+  if (keyFly) {
+    flyFrame(now);
+    return;
+  }
   if (menu) {
     menuFrame(now);
     return;
@@ -592,13 +605,15 @@ function frame(now) {
   ear.y = foot.active ? foot.walker.y : car.y;
   ear.heading = foot.active ? foot.walker.yaw : car.heading;
   // Planes by the game clock (seconds), so the same time shows the same sky.
-  if (planes) {
+  if (planes || duster) {
     camera.updateMatrixWorld();
     listener.x = ear.x;
     listener.y = ear.y;
     listener.z = groundAt(ear.x, ear.y) + (foot.active ? WALK.eye : 1.2);
-    planes.update(state.clockMinutes * 60, camera, scene.fog.color, wetness.rain, listener);
+    if (planes) planes.update(state.clockMinutes * 60, camera, scene.fog.color, wetness.rain, listener);
+    if (duster) duster.update(state.missionIndex, state.clockMinutes * 60, camera, listener);
   }
+  if (crew) crew.update(dt, { camera, ear, detail: res.detail, paused: runtime.paused, missionIndex: state.missionIndex });
   // Lightning in heavy rain, and its thunder 3 s per km later.
   if (!runtime.paused && thunder) {
     if (!thunderForced) {
@@ -617,7 +632,7 @@ function frame(now) {
   // 20 fps a capped clock fell behind and left silence after each clip.
   radio.update(Math.min(rawMs, 10000) / 1000, { region: regionId, x: ear.x, y: ear.y, paused: runtime.paused, inCar: !foot.active });
   audio.update(dt, state, amb, {
-    paused: runtime.paused, rain: wetness, planes: planes ? planes.sound : null, tow: tow.sound,
+    paused: runtime.paused, rain: wetness, planes: [...(planes ? planes.sound : []), ...(duster ? [duster.sound] : [])], tow: tow.sound,
     listener: ear, onFoot: foot.active, vehicles: dh.hz.vehicles,
   });
 
@@ -677,7 +692,7 @@ function updateLookAt() {
     }
   }
   const hit = pickLookable(lookablesFor(WORLD), eye, w.yaw, w.pitch, groundAt, planeSpots);
-  state.lookAt = hit ? { topicId: hit.item.topicId, d: hit.d, dir: compassWord(hit.bearing) } : null;
+  state.lookAt = hit ? { topicId: hit.item.topicId, d: hit.d, dir: compassWord(hit.bearing), bearing: hit.bearing } : null;
 }
 
 // Tips: fill the context, let the engine pick, show it.
@@ -897,10 +912,121 @@ function menuFrame(now) {
   if (menu.still && menu.frames >= 4) menu.done = true;
 }
 
+// ---------- key start shot (SPEC 9s, #91; rules in src3/keystart.js) ----------
+// From the driver's seat, out through the windshield and down to the chase
+// view, drawn into the start screen's growing glass. The game clock, input
+// and the car stand still until it ends; the world, rain and sound go on.
+let keyFly = null;
+const flyEye = { x: 0, y: 0, z: 0 };
+const flyEyeLook = { x: 0, y: 0, z: 0 };
+const flyChase = { x: 0, y: 0, z: 0 };
+const flyChaseLook = { x: 0, y: 0, z: 0 };
+const flyPos = { x: 0, y: 0, z: 0 };
+const flyLook = { x: 0, y: 0, z: 0 };
+
+function beginFly(opts) {
+  return new Promise((resolve) => {
+    if (menu) exitMenu(); // the storm shot's rain stops, the menu's view ends
+    car3d.update(state.car, 0, world3d.surfaceAt, 0, state.damage || null, null);
+    carPos.copy(car3d.object.position);
+    // Where the chase view will be: let the rig snap there once and read it.
+    rig.first = true;
+    camera.aspect = window.innerWidth / window.innerHeight;
+    rig.update(carPos, state.car.heading, 0, runtime.cameraMode, groundAt, state.view.northUp);
+    Object.assign(flyChase, camera.position);
+    Object.assign(flyChaseLook, rig.target);
+    const toFov = camera.fov;
+    const p = eyePose(carPos, state.car.heading);
+    Object.assign(flyEye, p.eye);
+    Object.assign(flyEyeLook, p.look);
+    car3d.object.visible = false; // the camera starts inside it
+    renderer.shadowMap.autoUpdate = true;
+    keyFly = { t0: 0, toFov, opts, resolve };
+    startLoop();
+  });
+}
+
+function flyFrame(now) {
+  const f = keyFly;
+  if (!f.t0) f.t0 = now;
+  const rawMs = Math.max(0, now - (f.prev || now));
+  f.prev = now;
+  const dt = Math.min(rawMs, MAX_DT_MS) / 1000;
+  // Dev: ?keyflyat=0.5 holds the shot half way (for frame strips; software rendering is too slow to catch it moving).
+  const hold = parseFloat(params.get('keyflyat'));
+  const s = flyState(Number.isFinite(hold) ? hold * FLY_MS : now - f.t0);
+  stats.begin(now);
+  const car = state.car;
+  // Camera: from the seat to the chase pose, looking where each looks.
+  lerp3(flyPos, flyEye, flyChase, s.cam);
+  lerp3(flyLook, flyEyeLook, flyChaseLook, s.cam);
+  camera.position.set(flyPos.x, flyPos.y, flyPos.z);
+  camera.up.set(0, 1, 0);
+  camera.lookAt(flyLook.x, flyLook.y, flyLook.z);
+  car3d.object.visible = s.cam > 0.1;
+  // Draw into the glass, which grows to the screen as the dash slides away.
+  if (f.opts.setFly) f.opts.setFly(s.dash);
+  const r = f.opts.rect ? f.opts.rect() : null;
+  const W = window.innerWidth;
+  const H = window.innerHeight;
+  const vw = r ? Math.max(1, r.w) : W;
+  const vh = r ? Math.max(1, r.h) : H;
+  const vx = r ? r.x : 0;
+  const vy = r ? H - r.y - vh : 0;
+  const fov = MENU_FOV + (f.toFov - MENU_FOV) * s.cam;
+  if (camera.aspect !== vw / vh || camera.fov !== fov) {
+    camera.aspect = vw / vh;
+    camera.fov = fov;
+    camera.updateProjectionMatrix();
+  }
+  car3d.update(car, 0, world3d.surfaceAt, 0, state.damage || null, null);
+  tow.update(dt, car3d.object);
+  ear.x = car.x;
+  ear.y = car.y;
+  ear.heading = car.heading;
+  scene.fog.near = 150 * (1 - 0.45 * wetness.rain) * (look ? look.fogK.near : 1);
+  scene.fog.far = 420 * (1 - 0.25 * wetness.rain) * (look ? look.fogK.far : 1);
+  const far = scene.fog.far + 30;
+  if (camera.far !== far) {
+    camera.far = far;
+    camera.updateProjectionMatrix();
+  }
+  camera.updateMatrixWorld();
+  amb.update(dt, state);
+  radio.update(Math.min(rawMs, 10000) / 1000, { region: regionId, x: ear.x, y: ear.y, paused: false, inCar: true });
+  audio.update(dt, state, amb, { paused: false, rain: wetness, planes: [...(planes ? planes.sound : []), ...(duster ? [duster.sound] : [])], tow: tow.sound, listener: ear, onFoot: false, vehicles: dh.hz.vehicles });
+  if (planes) planes.update(state.clockMinutes * 60, camera, scene.fog.color, wetness.rain, listener);
+  if (lightning) lightning.update(dt, camera, wetness.rain);
+  if (look) look.update(state, wetness.rain, wetness.wet, Math.max(lightning ? lightning.storm : 0, wetness.gloom));
+  world3d.puddles.update(wetness.puddle, wetness.rain, now / 1000, scene.fog.color);
+  rain3d.update(dt, now / 1000, camera, wetness.rain, scene.fog.color, { rainbow: wetness.rainbow, sunDir: SUN_DIR });
+  world3d.update(now / 1000, dt, car, rig.focus, rig.shadowRadius, camera, amb);
+  amb3d.update(amb, dt, camera, rig.focus, scene.fog, 0, renderer, dh.hz.animals);
+  dh.render(dt, rig.focus, car3d.object, camera, scene.fog, renderer);
+  renderer.setViewport(vx, vy, vw, vh);
+  renderer.setScissor(vx, vy, vw, vh);
+  renderer.setScissorTest(true);
+  renderer.render(scene, camera);
+  stats.end(statsExtra);
+  if (!Number.isFinite(hold) && (s.done || now - f.t0 > FLY_MS + 1500)) endFly();
+}
+
+function endFly() {
+  const { resolve } = keyFly;
+  keyFly = null;
+  restoreView();
+  resolve();
+}
+
 function exitMenu() {
   if (!menu) return;
   menuWeather(false);
   menu = null;
+  restoreView();
+}
+
+// The whole window again, the game's field of view, the car showing.
+function restoreView() {
   renderer.setScissorTest(false);
   renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
   camera.fov = 62;
@@ -967,6 +1093,7 @@ function exposeDebug() {
   window.__restartWeather = restartWeather;
   window.__rain3d = rain3d;
   window.__planes = planes;
+  window.__duster = duster;
   window.__towScene = tow;
   window.__foot = foot;
   window.__collider = collider;
@@ -986,12 +1113,16 @@ function exposeDebug() {
 // The region may already be built (preloadMenu): then this only places the
 // car. If that build is still going, its load screen shows now.
 let started = false;
-export async function startGame(index = 0) {
+// opts (src3/boot.js, from the start screen's key): { wake, crankAt, fly, rect, setFly }.
+export async function startGame(index = 0, opts = null) {
   started = true;
   const t0 = performance.now();
   // The start screen made and resumed the AudioContext in its click.
   audio.wake();
-  audio.ignition();
+  // With the key start (#98) the crank waits until the key reaches START.
+  const crankIn = opts && opts.crankAt ? opts.crankAt - performance.now() : 0;
+  if (crankIn > 0) setTimeout(() => audio.ignition(), crankIn);
+  else audio.ignition();
   radio.start();
   if (currentLs) currentLs.reveal();
   index = resolveIndex(index);
@@ -1010,7 +1141,9 @@ export async function startGame(index = 0) {
   const home = STATIONS.find((s) => s.id === (missionRegion(state, m) === 'brandt' ? 'brandt' : 'ashford'));
   if (home) radio.setStation(home.id);
   radio.setOn(true);
-  exitMenu();
+  // The key start's camera shot begins from the menu's own state (beginFly), so the menu stays until then.
+  const flying = !!(opts && opts.fly && !(menu && menu.still));
+  if (!flying) exitMenu();
   restartWeather();
   foot.reset();
   state.onFoot = false;
@@ -1021,6 +1154,8 @@ export async function startGame(index = 0) {
   }
   // Dev: ?shifts=now opens the win screen with sample marks (src3/devShifts.js).
   if (params.get('shifts') === 'now') (await import('./devShifts.js')).fakeShiftRun(state);
+  if (opts && opts.wake) await opts.wake; // the dash finishes waking first
+  if (flying) await beginFly(opts);
   last = performance.now();
   startLoop();
   // The sharp sky downloads now and swaps in when it is here (SPEC 9n).
