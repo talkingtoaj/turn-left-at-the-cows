@@ -701,6 +701,10 @@ export function createHUD(root, { openMap, radio } = {}) {
   // Things that shifted (SPEC 9p): the printed map (with your marks when you
   // drew on it) beside the same sheet as it really is now, each shift
   // circled, labelled and ticked if you saw it, and the count.
+  // Height the win panel spends on everything but the two maps: heading, arrival
+  // line, tabs, map titles, the count line and the sticky footer. If the count
+  // line hides under the footer, raise this.
+  const SHIFT_PANEL_CHROME = 400;
   function buildShiftCompare(panel, def) {
     const tally = shiftTally(def, state.shiftsSeen);
     const seen = new Set(tally.rows.filter((r) => r.seen).map((r) => r.shift.id));
@@ -711,8 +715,8 @@ export function createHUD(root, { openMap, radio } = {}) {
     // As big as fits: two side by side, with the heading and count above the dash.
     const dash = parseFloat(getComputedStyle(hud).getPropertyValue('--hud-dash-h')) || 0;
     const panelW = Math.min(1240, window.innerWidth - 32) - 48;
-    const byH = (window.innerHeight - dash - 24 - 340) * (SHIFT_CROP.w / SHIFT_CROP.h);
-    const w = Math.round(Math.max(260, Math.min(600, (panelW - 22) / 2, byH)));
+    const byH = (window.innerHeight - dash - 24 - SHIFT_PANEL_CHROME) * (SHIFT_CROP.w / SHIFT_CROP.h);
+    const w = Math.round(Math.max(180, Math.min(600, (panelW - 22) / 2, byH)));
     const wrap = el('div', 'hud-shift', panel);
     const pair = el('div', 'hud-shift-pair', wrap);
     // The animated version (#94): the same maps drawn in order. ?winfx=off or
