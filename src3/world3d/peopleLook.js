@@ -11,6 +11,7 @@
 // same and no two look alike.
 
 import { makeRng, hashString } from '../../src/drive/geom.js';
+import { aimArm } from '../../src/game/pointing.js';
 
 // Every local is drawn this much bigger than life (owner's playtest, #87:
 // Dot at the bridge was easy to miss). The one place people are scaled:
@@ -240,13 +241,26 @@ export const WAVE_NEAR = 22; // m: the car pulling up this close gets a wave
 export const WAVE_REARM = 45; // m: and must have been this far away first
 export const PULL_UP = 6; // m/s: slower than this counts as pulling up
 
+export const POINT_S = 0.3; // s: the arm takes this long to rise and to drop (#93)
+
+// point: 0..1 blend of the pointing arm. pointVec: where it aims, in the
+// person's own frame (src/game/pointing.js pointVector). pointArm: +1 right
+// arm, -1 left; picked when a point starts and held until it ends.
 export function newAct() {
-  return { armed: false, wave: 0, talk: 0, time: 0, waveIn: 0 };
+  return { armed: false, wave: 0, talk: 0, time: 0, waveIn: 0, point: 0, pointVec: [0, 0, -1], pointArm: 1 };
 }
 
-// input: { carDist (m, the player's car), carSpeed (m/s), onFoot, moving, talking }
+// input: { carDist (m, the player's car), carSpeed (m/s), onFoot, moving, talking,
+//          pointVec (aim in the person's frame, or null for no point) }
 export function actStep(a, inp, dt) {
   a.time += dt;
+  if (inp.pointVec && inp.talking && !inp.moving) {
+    // A new point picks the arm on the side they point to; the aim follows
+    // the body as it turns.
+    if (a.point <= 0) a.pointArm = inp.pointVec[0] < -0.35 ? -1 : 1;
+    a.pointVec = inp.pointVec;
+    a.point = Math.min(1, a.point + dt / POINT_S);
+  } else a.point = Math.max(0, a.point - dt / POINT_S);
   if (inp.carDist > WAVE_REARM) a.armed = true;
   // A wave owed to the horn (#74, hornHeard.js localHears): after its delay,
   // unless already waving. It counts as the pull-up wave too.
@@ -370,7 +384,7 @@ export function personPose(look, a, t, inp) {
   }
   // A wave: the right arm up and out, the hand swinging side to side. Not
   // sitting fishing: that hand holds the rod out over the water.
-  if (a.wave > 0 && !look.seated) {
+  if (a.wave > 0 && !look.seated && a.point <= 0) {
     const e = smooth((WAVE_S - a.wave) / 0.35) * smooth(a.wave / 0.4);
     rot.uaR[0] = rot.uaR[0] * (1 - e) + e * 0.25;
     rot.uaR[1] = rot.uaR[1] * (1 - e);
@@ -378,6 +392,22 @@ export function personPose(look, a, t, inp) {
     rot.faR[0] = rot.faR[0] * (1 - e);
     rot.faR[1] = rot.faR[1] * (1 - e);
     rot.faR[2] = rot.faR[2] * (1 - e) + e * (0.35 * Math.sin(a.time * 10));
+  }
+  // Pointing (#93): the arm rises to aim along pointVec, straight, with a
+  // small tremble of the hand. Not the fishing rod hand.
+  if (a.point > 0 && look.idle !== 'cast') {
+    const e = smooth(a.point);
+    const L = a.pointArm < 0;
+    const ua = L ? rot.uaL : rot.uaR;
+    const fa = L ? rot.faL : rot.faR;
+    const { a: ax, c: az } = aimArm(a.pointVec, a.pointArm);
+    ua[0] = ua[0] * (1 - e) + e * ax;
+    ua[1] = ua[1] * (1 - e);
+    ua[2] = ua[2] * (1 - e) + e * az;
+    fa[0] = fa[0] * (1 - e) + e * (0.08 + 0.03 * Math.sin(t * 6 + s));
+    fa[1] = fa[1] * (1 - e);
+    fa[2] = fa[2] * (1 - e);
+    rot.head[0] -= e * 0.04;
   }
   // The head turns to what they watch before the body does; a slow look
   // around when nothing is near.

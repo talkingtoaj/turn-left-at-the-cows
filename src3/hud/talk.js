@@ -18,9 +18,10 @@
 import { WORLD } from '../../src/world/world.js';
 import { state } from '../../src/state.js';
 import {
-  openTalk, ask, askWhatsThat, topicChoices, topicLabel, listTopics, getNpc, learnMentions,
+  openTalk, ask, askWhatsThat, whatsThatKnows, topicChoices, topicLabel, listTopics, getNpc, learnMentions,
 } from '../../src/game/dialogue.js';
 import { speak } from '../../src/audio/voice.js';
+import { POINT_ON, pointFromText, thingPoint } from '../../src/game/pointing.js';
 import { openTourist, answerTourist, touristReplies } from '../../src/game/tourists.js';
 
 const CSS = `
@@ -128,6 +129,8 @@ export function createTalk(root) {
     nameEl.textContent = d.title;
     qEl.textContent = p.q || '';
     qEl.style.display = p.q ? 'block' : 'none';
+    // The local points while this answer is on screen (people3d.js reads it).
+    state.talkPoint = !POINT_ON || d.tourist || !p.topicId ? null : p.thing ? p.thing : pointFromText(p.text);
     textEl.textContent = '';
     // Underline the first 4 names mentioned (not the one being answered).
     // A stranger (the tourist) mumbles too, but has no names to ask about.
@@ -243,6 +246,7 @@ export function createTalk(root) {
     if (!d) return;
     d = null;
     state.talkingTo = null;
+    state.talkPoint = null;
     closeAsk();
     speak(null);
     box.style.display = 'none';
@@ -358,7 +362,11 @@ export function createTalk(root) {
       }
     },
     whatsThat(npcId, topicId, dir) {
-      begin(npcId, pagesFor(askWhatsThat(npcId, topicId, state), topicId, `You: What's that? (pointing ${dir})`));
+      // They point at the thing you are looking at, if they know it.
+      const thing = thingPoint(whatsThatKnows(npcId, topicId), state.lookAt ? state.lookAt.bearing : NaN);
+      const pages = pagesFor(askWhatsThat(npcId, topicId, state), topicId, `You: What's that? (pointing ${dir})`);
+      if (thing) for (const pg of pages) pg.thing = thing;
+      begin(npcId, pages);
     },
     // A note card for a moment (a note to yourself, no one to ask).
     note(text, small = 'in your notebook') {
