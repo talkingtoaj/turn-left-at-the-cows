@@ -49,8 +49,10 @@ function tube(r0, r1, z0, z1, y, color, seg = 6) {
 // One plane as a single geometry with vertex colours.
 // kind: 'high' (Cessna-like high wing) | 'low' (Piper-like low wing).
 // prop: 'blades' (parked: two still blades) | 'none' (flying: a disc is separate).
-export function planeGeometry({ kind = 'high', color = 0xc0392b, prop = 'blades' } = {}) {
-  const WHITE = 0xf2f1ec;
+// body: the paint of the fuselage and wings (white by default; the crop duster
+// is yellow). boom: a spray bar under the wing (the crop duster, #90).
+export function planeGeometry({ kind = 'high', color = 0xc0392b, prop = 'blades', body = 0xf2f1ec, boom = false } = {}) {
+  const WHITE = body;
   const GREY = 0x8a8f94;
   const DARK = 0x262c33;
   const TYRE = 0x1e1e1e;
@@ -81,6 +83,10 @@ export function planeGeometry({ kind = 'high', color = 0xc0392b, prop = 'blades'
       const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
       parts.push(part(g, GREY, new THREE.Matrix4().compose(a.clone().add(b).multiplyScalar(0.5), q, new THREE.Vector3(1, 1, 1))));
     }
+  }
+  if (boom) {
+    parts.push(bx(8.6, 0.07, 0.07, 0, wy - 0.3, -0.1, DARK));
+    for (const sx of [-1, 1]) parts.push(bx(0.07, 0.3, 0.07, sx * 3.4, wy - 0.15, -0.1, DARK));
   }
   // Tail: horizontal stabiliser and fin with the plane's colour.
   parts.push(bx(3.4, 0.1, 0.85, 0, yF + 0.2, 4.25, WHITE));

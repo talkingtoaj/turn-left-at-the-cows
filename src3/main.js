@@ -53,6 +53,7 @@ import { createWeatherClock } from './look/weather.js';
 import { createRain3D } from './world3d/rain3d.js';
 import { createPlanes3D } from './world3d/planes3d.js';
 import { createRoadCrew } from './world3d/roadcrew3d.js'; // showpiece: the road crew (#95)
+import { createDuster3D } from './world3d/duster3d.js'; // #90 crop duster, mission 1
 import { createTow } from './tow3d.js';
 import { createOnFoot } from './onfoot.js';
 import { WALK, localsAround, carGap } from '../src/game/onfoot.js';
@@ -136,6 +137,7 @@ let dh = null;
 let rain3d = null;
 let planes = null; // light planes, in a region with an airfield
 let crew = null; // the road crew showpiece (#95, ?showpieces=on|off)
+let duster = null; // the crop duster over Highway 9 (#90)
 let lightning = null; // lightning flashes in heavy rain (round 12)
 let thunder = null; // when and where they strike (src/game/thunder.js)
 let wetness = null;
@@ -161,7 +163,7 @@ function disposeRegion() {
   const n = gpuSet ? disposeTracked(gpuSet, keep) : 0;
   scene.clear();
   renderer.renderLists.dispose();
-  scene = scenery = collider = world3d = amb = amb3d = dh = rain3d = planes = crew = lightning = thunder = null;
+  scene = scenery = collider = world3d = amb = amb3d = dh = rain3d = planes = crew = duster = lightning = thunder = null;
   gpuSet = null;
   return n;
 }
@@ -245,6 +247,7 @@ async function buildRegion(id, title, quiet = false, mission = 0) {
     // Light planes flying circuits from the airfield (src/world/airfield.js).
     planes = createPlanes3D(scene, WORLD, world3d.terrain);
     crew = createRoadCrew({ scene, world: WORLD, terrain: world3d.terrain, collider, params });
+    duster = createDuster3D(scene, WORLD, world3d.terrain, params); // ?duster=off|now
     // The tow truck that comes after a breakdown (src3/tow3d.js).
     tow.attach(scene, world3d);
     // Lightning in heavy rain; its thunder is played by the audio.
@@ -596,12 +599,13 @@ function frame(now) {
   ear.y = foot.active ? foot.walker.y : car.y;
   ear.heading = foot.active ? foot.walker.yaw : car.heading;
   // Planes by the game clock (seconds), so the same time shows the same sky.
-  if (planes) {
+  if (planes || duster) {
     camera.updateMatrixWorld();
     listener.x = ear.x;
     listener.y = ear.y;
     listener.z = groundAt(ear.x, ear.y) + (foot.active ? WALK.eye : 1.2);
-    planes.update(state.clockMinutes * 60, camera, scene.fog.color, wetness.rain, listener);
+    if (planes) planes.update(state.clockMinutes * 60, camera, scene.fog.color, wetness.rain, listener);
+    if (duster) duster.update(state.missionIndex, state.clockMinutes * 60, camera, listener);
   }
   if (crew) crew.update(dt, { camera, ear, detail: res.detail, paused: runtime.paused, missionIndex: state.missionIndex });
   // Lightning in heavy rain, and its thunder 3 s per km later.
@@ -622,7 +626,7 @@ function frame(now) {
   // 20 fps a capped clock fell behind and left silence after each clip.
   radio.update(Math.min(rawMs, 10000) / 1000, { region: regionId, x: ear.x, y: ear.y, paused: runtime.paused, inCar: !foot.active });
   audio.update(dt, state, amb, {
-    paused: runtime.paused, rain: wetness, planes: planes ? planes.sound : null, tow: tow.sound,
+    paused: runtime.paused, rain: wetness, planes: planes ? planes.sound : duster ? [duster.sound] : null, tow: tow.sound,
     listener: ear, onFoot: foot.active, vehicles: dh.hz.vehicles,
   });
 
@@ -972,6 +976,7 @@ function exposeDebug() {
   window.__restartWeather = restartWeather;
   window.__rain3d = rain3d;
   window.__planes = planes;
+  window.__duster = duster;
   window.__towScene = tow;
   window.__foot = foot;
   window.__collider = collider;
