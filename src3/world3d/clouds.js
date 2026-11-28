@@ -18,17 +18,8 @@ export const cloudUniforms = {
 let enabled = true;
 export function setCloudShadowsEnabled(on) { enabled = !!on; }
 
-// Cloud cover, 0..1 (the weather sets it; 1 = every ambient cloud). The sky
-// puffs use it; the shadows use it for how much land is covered.
-export const cloudCover = { value: 1 };
-const weatherNow = { cover: 1, grey: 0, rain: 0 };
-
 // Called when the weather changes (src3/look/look.js).
 export function setCloudWeather(cover, grey, rain) {
-  cloudCover.value = cover;
-  weatherNow.cover = cover;
-  weatherNow.grey = grey;
-  weatherNow.rain = rain;
   const p = cloudShadowParams(cover, grey, rain);
   cloudUniforms.uCloudAmt.value = p.amt;
   cloudUniforms.uCloudThr.value = thresholdFor(p.frac);
@@ -98,10 +89,6 @@ export function addCloudShadowsTo(root) {
     else addCloudShadows(o.material);
   });
 }
-
-// The ambient clouds still move (the sky puffs use them); their shadows are
-// the noise above now.
-export function updateCloudUniforms() {}
 
 // Sky clouds: white low-poly puffs. Each sits up in the sky where its shadow
 // would fall on the ambient shadow ellipse. Drawn shrunk towards the camera so

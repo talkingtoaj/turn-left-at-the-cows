@@ -22,6 +22,10 @@ _Avoid_: lost driver, hitchhiker
 The screen at the end of a mission: your map snapshots, the trip stats, a line from the person you delivered to, and ticked extras like helping the tourist. There is no score.
 _Avoid_: score screen, results screen
 
+**Showpiece**:
+Heavy optional scenery, such as the road crew, shown only when the frame rate has room. It is decided while still out of sight, so it never pops in or out in view.
+_Avoid_: optional asset, extra
+
 ## Maps
 
 **Map**:

@@ -3,7 +3,7 @@
 // mist trail behind it while it works the field. 3 draw calls while it is in
 // the sky (body, prop disc, mist), none otherwise.
 //
-//   createDuster3D(scene, world, terrain, params) -> null | { sound, update(state, camera, listener, clockSec) }
+//   createDuster3D(scene, world, terrain, params) -> null | { sound, update(missionIndex, clockSec, camera, listener) }
 //     null in any region but Fenwick, or with ?duster=off.
 //     ?duster=now starts the flight at once (for shots) instead of when the
 //     opening rain has cleared.
