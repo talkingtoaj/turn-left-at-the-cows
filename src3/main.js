@@ -677,7 +677,7 @@ function updateLookAt() {
     }
   }
   const hit = pickLookable(lookablesFor(WORLD), eye, w.yaw, w.pitch, groundAt, planeSpots);
-  state.lookAt = hit ? { topicId: hit.item.topicId, d: hit.d, dir: compassWord(hit.bearing) } : null;
+  state.lookAt = hit ? { topicId: hit.item.topicId, d: hit.d, dir: compassWord(hit.bearing), bearing: hit.bearing } : null;
 }
 
 // Tips: fill the context, let the engine pick, show it.
