@@ -3,21 +3,15 @@ Turn Left at the Cows: source available, all rights reserved
 Copyright (c) 2026 AJ. All rights reserved.
 
 This repository is public so people can read the code and learn from it. It is
-our entry for GitHub Game Off 2026. Reading it is fine.
+our entry for GitHub Game Off 2026. Reading it is fine, and so is viewing and
+forking it on GitHub, as GitHub's terms allow.
 
 You may not copy, change, share, sell or reuse any part of it (the code, the
 3D models built in code, the art, sound, music, writing, the title or the
 characters), in whole or in part, without written permission from the owner.
 
-Earlier commits carried a CC0 dedication or an MIT license. As of 28 Nov 2026
-this license covers the whole repository.
+Earlier commits carried a CC0 dedication or an MIT license. From Nov 28, 2026
+on, this license covers the whole repository.
 
-More detail on the art, sound, music and writing is in ASSETS-LICENSE.
-
-Third-party material keeps its own terms. The sky maps, textures, 3D models and
-sound effects we use from other people are CC0 (public domain). They are listed
-in public/look/SOURCES.md and public/sounds/SOURCES.md. The fonts Oswald, Caveat
-and Libre Baskerville are loaded from Google Fonts under the SIL Open Font
-License. three.js is MIT licensed.
-
-You are welcome to play the game and to stream or record it.
+More detail on the art, sound, music and writing, and the terms of the
+third-party material we use, is in ASSETS-LICENSE.
