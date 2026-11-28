@@ -440,3 +440,18 @@ The owner rated every open idea 1 to 5 (ratings in the artifact https://claude.a
 - **Tree rows:** rows on both sides of some stretches, like old farm lanes, mostly dirt roads near farms, none in town.
 - **The 6x6:** only the Hartley one stays parked; Okafor's goes. The 25% driving roll stays.
 - Main street is the biggest job and runs in its own worktree so it holds up nothing else.
+
+### 9s. "Oh wow" moments for the first 10 minutes (LOCKED, 28 Nov 2026, two brainstorm rounds)
+The owner wants the last days spent on moments that make a player say "oh wow", weighted to what they meet in the first 10 minutes of mission 1. Ranked by wow, by how sure a player sees it early, and by how little work it takes. Build in this order; if time runs out, the top of the list is what ships.
+
+1. **Crop duster over Highway 9.** A low crop-spraying plane (the mission 3 plane model) dives over a field beside Highway 9 early in mission 1, sprays a mist trail, pulls up and banks round at the end of the field, and crosses the highway low. Engine with a pitch drop as it passes. Timed for just after the opening rain clears.
+2. **Turn the key to start.** On the start screen the ignition key starts the game: engine crank, the dash wakes (needles sweep up and back, lamps light and go out, the radio lamp glows), then the camera pulls back out through the windshield and down into the chase view. Continue does the same.
+3. to 6. **The map screen** (one lane, `src3/map/map.js`): the map **unfolds** from the passenger seat along its fold lines with a paper sound and folds away on close; a **simpler toolbar** (Pencil, Eraser, Text, one road button cycling thin / dashed / thick, three ink dots, one Stamps button opening a drawer of the stamps, Undo, Clear tucked away); a **real pencil** (pencil-tip cursor, soft scratch sound while drawing, graphite strokes); **rain on the map** (damp spots land while it's open in rain and dry slowly).
+7. **Locals point the way.** While a local gives directions they raise an arm and point the way they mean, right or wrong. No new lines.
+8. **Animated win screen.** A pencil traces the 1992 county over the player's map, each shift is circled one by one with a tick if seen, and the count rolls up.
+9. **Showpiece gate, then a road crew.** Showpieces (heavy optional scenery) appear only when the frame rate has room: decided while still out of sight, never popping in or out in view, using the resolution scaler (`src3/resscale.js`); `?showpieces=on|off`. First showpiece: a road crew with an excavator clearing a ditch along the mission 1 route after the storm, with a dump truck and a worker who waves. Not at the washed-out bridge (it would give that trap away).
+10. **Cloud shadows** sliding over the fields.
+
+- **Later if time:** birds lifting off, tire spray on wet roads, the start screen coming alive, sun shafts, a hot-air balloon, Darlene's note tucked in the visor. **After the jam:** irrigation sprinkler, combine, in-car view (9o's "no in-car view" stands), Ray's joy flight.
+- **Every ticket** sits behind a URL flag so a shaky one can be switched off, brings before and after shots, and keeps 60 FPS on built-in graphics (`docs/agents/frame-rate.md`). New spoken or written lines go through the review rule.
+- **Shipping:** the current build is submitted on 29 Nov as planned; this work goes out as an itch update before 1 Dec 13:37 PST.
