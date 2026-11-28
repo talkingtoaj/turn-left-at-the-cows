@@ -79,10 +79,44 @@ export function renderShiftMapCanvas({ def, world = WORLD, shifts, seen, sketch 
   return c;
 }
 
+// The same sheet in pieces, for the animated win screen (#94). base is the
+// map and your marks with no circles; mark(i, part) is a see-through canvas
+// of one piece of shift i ('ring', 'label' or 'tick'), laid out exactly as
+// the finished sheet lays it, so the pieces add up to renderShiftMapCanvas.
+// at(i) is where shift i's ring sits in the canvas, in canvas pixels.
+export function renderShiftLayers({ def, world = WORLD, shifts, seen, sketch = null, labels = false }, cssWidth) {
+  const dpr = window.devicePixelRatio || 1;
+  const s = (cssWidth / SHIFT_CROP.w) * dpr;
+  const make = () => {
+    const c = document.createElement('canvas');
+    c.width = Math.round(SHIFT_CROP.w * s);
+    c.height = Math.round(SHIFT_CROP.h * s);
+    const ctx = c.getContext('2d');
+    ctx.setTransform(s, 0, 0, s, -SHIFT_CROP.x * s, -SHIFT_CROP.y * s);
+    return { c, ctx };
+  };
+  const b = make();
+  const { townBoxes } = paintPrintedMap(b.ctx, def, world);
+  if (sketch) drawSketchItems(new CanvasGraphics(b.ctx), b.ctx, sketch, Math.min(2, Math.max(1, 0.4 * (SHIFT_CROP.w / cssWidth))));
+  const { P } = printFrame(PAPER, def.bounds);
+  return {
+    base: b.c,
+    scale: s,
+    at: (i) => { const [x, y] = P(shifts[i].at); return [(x - SHIFT_CROP.x) * s, (y - SHIFT_CROP.y) * s]; },
+    mark: (i, part) => {
+      const m = make();
+      drawShiftMarks(new CanvasGraphics(m.ctx), m.ctx, def, shifts, seen, labels, townBoxes, { i, part });
+      return m.c;
+    },
+  };
+}
+
 // Red pencil circles round each shift; with labels, the label beside it and
 // a tick when seen (grey, one ring, when missed). Labels dodge each other and
 // stay inside the crop and off the printed town names.
-function drawShiftMarks(g, ctx, def, shifts, seen, labels, townBoxes = []) {
+// only: { i, part } draws just that piece of shift i (still laying out all).
+function drawShiftMarks(g, ctx, def, shifts, seen, labels, townBoxes = [], only = null) {
+  const want = (i, part) => !only || (only.i === i && only.part === part);
   const { frame, P } = printFrame(PAPER, def.bounds);
   const R = 17;
   const SIZE = 23;
@@ -106,7 +140,7 @@ function drawShiftMarks(g, ctx, def, shifts, seen, labels, townBoxes = []) {
         const rr = R * (0.92 + rnd() * 0.16) + k * 2;
         pts.push({ x: x + Math.cos(a) * rr * 1.08, y: y + Math.sin(a) * rr });
       }
-      if (!labels || hit || k === 0) g.strokePoints(pts, false);
+      if (want(i, 'ring') && (!labels || hit || k === 0)) g.strokePoints(pts, false);
     }
     if (!labels) return;
     ctx.save();
@@ -146,7 +180,7 @@ function drawShiftMarks(g, ctx, def, shifts, seen, labels, townBoxes = []) {
     const { lx, ly, toLeft, centre } = pick;
     placed.push(box(lx, ly));
     // A short pencil lead line when the label had to move off the ring.
-    if (Math.abs(ly - y) > 4) {
+    if (Math.abs(ly - y) > 4 && want(i, 'label')) {
       g.lineStyle(1.6, hit ? RED_PENCIL : GREY, 0.8);
       const dir = Math.sign(ly - y);
       if (centre) g.lineBetween(x, y + dir * (R + 2), Math.max(lx + 4, Math.min(lx + tw - 4, x)), ly - dir * SIZE * 0.5);
@@ -154,10 +188,13 @@ function drawShiftMarks(g, ctx, def, shifts, seen, labels, townBoxes = []) {
     }
     let tx = lx;
     if (hit) {
-      g.lineStyle(3.2, GREEN, 1);
-      g.strokePoints([{ x: lx + 2, y: ly + 1 }, { x: lx + 8, y: ly + 7 }, { x: lx + 19, y: ly - 9 }], false);
+      if (want(i, 'tick')) {
+        g.lineStyle(3.2, GREEN, 1);
+        g.strokePoints([{ x: lx + 2, y: ly + 1 }, { x: lx + 8, y: ly + 7 }, { x: lx + 19, y: ly - 9 }], false);
+      }
       tx += 26;
     }
+    if (!want(i, 'label')) return;
     // Paper-coloured halo so the words read over roads and grid lines.
     ctx.save();
     ctx.font = `${SIZE}px ${HAND}`;
