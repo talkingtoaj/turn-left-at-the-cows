@@ -18,6 +18,7 @@ import { available as mapsAvailable } from '../net/mapsApi.js';
 import { getRecords, recordRows } from '../net/records.js';
 import { touristFor } from '../game/tourists.js';
 import { tipsEnabled, setTipsEnabled } from '../game/tips.js';
+import { WAKE_MS } from '../../src3/keystart.js';
 
 export const TITLE = 'Turn Left at the Cows';
 // Tagline is the owner's own words (SPEC 9p). The subline was removed (I10-splash-subline).
@@ -135,6 +136,17 @@ const COMPASS = `<svg class="sp-compass" viewBox="0 0 88 88" aria-hidden="true">
   <circle cx="44" cy="44" r="3" fill="#3a3128"/>
 </svg>`;
 
+// The ignition key, and the little instrument cluster that wakes when it turns.
+const KEY = `<svg class="sp-keysvg" viewBox="0 0 64 64" aria-hidden="true">
+  <circle cx="32" cy="32" r="28" fill="#26272a" stroke="#55575c" stroke-width="2"/>
+  <rect x="29" y="4" width="6" height="8" fill="#e6b450"/>
+  <g class="sp-keyturn"><path d="M32,18 C24,18 20,23 20,28 C20,32 23,35 27,36 L27,54 L33,54 L33,50 L37,50 L37,46 L33,46 L33,36 C38,35 44,32 44,26 C44,21 39,18 32,18 Z" fill="#c9ccd1" stroke="#8c8f94" stroke-width="1.5"/>
+    <circle cx="32" cy="26" r="4" fill="#26272a"/></g>
+</svg>`;
+const GAUGE = (cls) => `<svg class="sp-gauge" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="#101113" stroke="#55575c" stroke-width="2"/>
+  <g stroke="#b9b6ac" stroke-width="1.5"><path d="M8,34 l3,-2 M6,24 h4 M10,13 l3,2 M24,6 v4 M38,13 l-3,2 M42,24 h-4 M40,34 l-3,-2"/></g>
+  <g class="${cls}"><path d="M24,26 L24,9" stroke="#e04a3a" stroke-width="2" stroke-linecap="round"/></g><circle cx="24" cy="26" r="3" fill="#3a3c40"/></svg>`;
+
 // ---------- small helpers ----------
 
 function readFlag(key) {
@@ -159,7 +171,11 @@ function writeFlag(key) {
 // load(index) is awaited when the player starts; the screen then fades.
 // phone: a touch-only device (keyboard game): show a note and a share
 // button instead of Play.
-export function showSplash({ version = '3d', load, preferred = null, phone = false }) {
+// keystart: 'fly' | 'wake' | 'fade' | 'off' (src3/keystart.js keyStartMode).
+// With fly or wake, load(index, { wake, setFly, rect }) gets a promise that
+// settles when the dash has woken, a way to report the shot's progress, and
+// the glass rectangle.
+export function showSplash({ version = '3d', load, preferred = null, phone = false, keystart = 'off' }) {
   injectUiStyle();
   const style = document.createElement('style');
   style.dataset.owner = 'splash';
@@ -286,6 +302,7 @@ export function showSplash({ version = '3d', load, preferred = null, phone = fal
 
   const go = el('div', 'sp-go', pad);
   let btn = null;
+  let keyBtn = null;
   let errBox = null;
   if (!phone) {
     btn = el('button', 'sp-play', go);
@@ -294,6 +311,15 @@ export function showSplash({ version = '3d', load, preferred = null, phone = fal
     const big = allDone ? 'Drive again' : anyDone ? 'Continue' : 'Play';
     el('b', null, btn, big);
     el('small', null, btn, `${first + 1}. ${MISSION_LIST[first].title}`);
+    // The ignition key (a second way to start) and the dash that wakes.
+    keyBtn = el('button', 'sp-key', go);
+    keyBtn.type = 'button';
+    keyBtn.setAttribute('aria-label', 'Turn the key to start');
+    keyBtn.innerHTML = KEY;
+    const cluster = el('div', 'sp-cluster', go);
+    cluster.setAttribute('aria-hidden', 'true');
+    cluster.innerHTML = GAUGE('sp-n1') + GAUGE('sp-n2')
+      + '<span class="sp-lamp sp-l-batt"></span><span class="sp-lamp sp-l-oil"></span><span class="sp-lamp sp-l-check"></span><span class="sp-lamp sp-l-radio"></span>';
   } else {
     const box = el('div', 'sp-phone', go);
     el('strong', null, box, 'Made for keyboard on a laptop or desktop');
@@ -424,13 +450,27 @@ export function showSplash({ version = '3d', load, preferred = null, phone = fal
     for (const b of buttons) b.disabled = true;
     if (btn) btn.querySelector('b').textContent = 'Starting…';
     if (errBox) errBox.remove();
+    // The dash wakes (CSS) while the game starts; the game waits for it.
+    const waking = keystart === 'fly' || keystart === 'wake';
+    let wake = Promise.resolve();
+    if (waking) {
+      root.classList.add('sp-wake');
+      wake = new Promise((r) => setTimeout(r, WAKE_MS));
+    }
     try {
-      await load(index);
+      await load(index, waking ? {
+        wake,
+        rect: () => api.windshieldRect(),
+        // The painting (when the world was not drawn behind the glass yet) goes at once.
+        setFly: (p) => { root.classList.add('sp-flying'); root.style.setProperty('--fly', String(p)); },
+      } : undefined);
     } catch (e) {
       console.warn('[splash] the game could not start', e);
       errBox = el('p', 'sp-err', pad, 'The game could not start in this browser. It needs WebGL (3D graphics); try another browser or computer.');
       errBox.setAttribute('role', 'alert');
       for (const b of buttons) b.disabled = false;
+      root.classList.remove('sp-wake');
+      root.style.removeProperty('--fly');
       if (btn) btn.querySelector('b').textContent = 'Try again';
       going = false;
       return;
@@ -445,12 +485,13 @@ export function showSplash({ version = '3d', load, preferred = null, phone = fal
     }, 520);
     resolveStarted();
   };
+  if (keyBtn) keyBtn.addEventListener('click', () => start(first));
   if (btn) {
     btn.addEventListener('click', () => start(first));
     btn.focus({ preventScroll: true });
   }
 
-  return {
+  const api = {
     first,
     started,
     // Where the windshield glass is (CSS px), for drawing the live world.
@@ -464,4 +505,5 @@ export function showSplash({ version = '3d', load, preferred = null, phone = fal
       performance.mark('world-visible');
     },
   };
+  return api;
 }
