@@ -15,6 +15,7 @@ import { clearProgress } from '../src/game/progress.js';
 import { clearIntroSeen } from '../src/ui/introCard.js';
 import { missionIndexById } from '../src/game/missionList.js';
 import { prefetchSounds } from '../src/audio/sounds.js';
+import { keyStartMode } from './keystart.js';
 
 const params = new URLSearchParams(window.location.search);
 if (params.get('reset') === 'progress') {
@@ -52,14 +53,18 @@ function hasWebGL() {
 let gameP = null;
 const game = () => (gameP ||= import('./main.js'));
 
+// Turn the key to start (SPEC 9s, #91). ?keystart=off keeps the plain start.
+const keystart = keyStartMode({ flag: params.get('keystart'), reducedMotion, weak, phone: touchOnly });
+
 document.body.classList.add('menu-open');
 const splash = showSplash({
   version: '3d',
   preferred: asked >= 0 ? asked : null,
   phone: touchOnly,
-  load: async (index) => {
+  keystart,
+  load: async (index, ks) => {
     const g = await game();
-    await g.startGame(index);
+    await g.startGame(index, ks ? { ...ks, fly: keystart === 'fly' } : undefined);
   },
 });
 
