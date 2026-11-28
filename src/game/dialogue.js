@@ -168,6 +168,15 @@ function hash01(s) {
   return (h >>> 0) / 4294967296;
 }
 
+// Will this local say something about the thing (so they point at it)? The
+// same test askWhatsThat uses, with no side effects.
+export function whatsThatKnows(npcId, topicId) {
+  const npc = getNpc(npcId);
+  const t = TOPIC_BY_ID[topicId];
+  if (!npc || !t) return false;
+  return !!(npc.topics && npc.topics[topicId]) || hash01(`${npcId}:${topicId}`) < t.fame;
+}
+
 // "What's that?" about something you are looking at, asked of a local
 // standing with you. Someone with lines about it says them (and you learn
 // the name); otherwise a well-known thing gets its name ("That? That's the
@@ -179,7 +188,7 @@ export function askWhatsThat(npcId, topicId, state) {
   if (!npc || !t) return [];
   if (npc.topics && npc.topics[topicId]) return ask(npcId, topicId, state);
   meet(state, npcId);
-  const knows = hash01(`${npcId}:${topicId}`) < t.fame;
+  const knows = whatsThatKnows(npcId, topicId);
   const name = t.label.charAt(0).toUpperCase() + t.label.slice(1);
   const text = knows
     ? (t.kind === 'farm' ? `That? That's ${t.label}.` : `That? ${name}. Been there as long as I can remember.`)
