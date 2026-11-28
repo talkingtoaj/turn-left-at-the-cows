@@ -138,11 +138,13 @@ const COMPASS = `<svg class="sp-compass" viewBox="0 0 88 88" aria-hidden="true">
 
 // The ignition switch (#98), and the little instrument cluster that wakes when it turns.
 const KEY_C = { x: 75, y: 70 }; // the bezel's centre in the key's drawing
-const KEY_HOLE = 39; // how far the hole is from the centre
+const KEY_HOLE = 19; // how far the keychain's hole is from the centre, near one end of the head
 const polar = (deg, r) => [KEY_C.x + r * Math.sin((deg * Math.PI) / 180), KEY_C.y - r * Math.cos((deg * Math.PI) / 180)];
 // A 1980s ignition: chrome bezel set in the dash, OFF ACC ON START round it, a
-// car key in the slot (plastic head, metal collar, hole) and a keychain
-// hanging from the hole. Not a button: it is only drawn, the game turns it.
+// car key in the slot and a keychain hanging from it. From the driver's seat
+// the key points at you, so only the plastic head shows, edge on, as a thick
+// bar across the lock; the metal is inside. Not a button: it is only drawn,
+// the game turns it.
 const KEY = `<svg class="sp-keysvg" viewBox="0 0 150 186" aria-hidden="true" focusable="false">
   <defs>
     <radialGradient id="spk-chrome" cx="35%" cy="30%" r="80%"><stop offset="0" stop-color="#f4f5f7"/><stop offset="0.45" stop-color="#a9adb3"/><stop offset="1" stop-color="#5d6065"/></radialGradient>
@@ -160,13 +162,10 @@ const KEY = `<svg class="sp-keysvg" viewBox="0 0 150 186" aria-hidden="true" foc
     return `<path d="M${x1.toFixed(1)},${y1.toFixed(1)} L${x2.toFixed(1)},${y2.toFixed(1)}" stroke="#d8d4c4" stroke-width="1.6" stroke-linecap="round"/><text x="${tx.toFixed(1)}" y="${(ty + 3).toFixed(1)}" text-anchor="middle" font-family="Oswald, 'Arial Narrow', sans-serif" font-weight="600" font-size="9" letter-spacing="0.5" fill="#e8e3d0">${m.name}</text>`;
   }).join('')}
   <g class="sp-keyturn" transform="translate(75 70) rotate(${MARKS[0].deg})">
-    <rect x="-4.5" y="-10" width="9" height="20" rx="2.5" fill="#050506"/>
-    <path d="M-2.4,-15 V-1 H-1 V-3 H0.6 V-5.5 H2.4 V-15 Z" fill="#d6d9de" stroke="#7d8187" stroke-width="0.7"/>
-    <path d="M-6,-14 H6 L7,-19 H-7 Z" fill="url(#spk-chrome)" stroke="#6a6d73" stroke-width="0.8"/>
-    <path d="M-7.5,-19 H7.5 C12,-23 13,-31 12,-39 C11,-46 6,-48 0,-48 C-6,-48 -11,-46 -12,-39 C-13,-31 -12,-23 -7.5,-19 Z" fill="url(#spk-head)" stroke="#5a5d64" stroke-width="1"/>
-    <path d="M-9,-23 C-10.5,-30 -9.5,-38 -7,-44" fill="none" stroke="#6b6e75" stroke-width="1.2" stroke-linecap="round" opacity="0.8"/>
-    <path d="M-3,-24 V-31 M0,-24 V-31 M3,-24 V-31" stroke="#050506" stroke-width="0.9" opacity="0.8"/>
-    <circle cx="0" cy="-39" r="3.8" fill="#0a0a0b" stroke="#55575c" stroke-width="0.8"/>
+    <rect x="-4" y="-25" width="13" height="52" rx="6" fill="#000" opacity="0.45"/>
+    <rect x="-5.5" y="-27" width="12" height="52" rx="6" fill="#08080a"/>
+    <rect x="-6.5" y="-27.5" width="11" height="51" rx="5.5" fill="url(#spk-head)" stroke="#5a5d64" stroke-width="0.9"/>
+    <path d="M-4.6,-21 V19" stroke="#6b6e75" stroke-width="1.1" stroke-linecap="round" opacity="0.7"/>
   </g>
   <g class="sp-chain" transform="translate(${polar(MARKS[0].deg, KEY_HOLE).map((v) => v.toFixed(2)).join(' ')})">
     <ellipse cx="0" cy="5" rx="4.4" ry="6" fill="none" stroke="#b9bdc3" stroke-width="1.5"/>
