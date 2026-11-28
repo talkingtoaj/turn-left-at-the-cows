@@ -19,7 +19,7 @@ import { sheepGeo, horseGeo, deerGeo, coatMaterial } from './animals3d.js';
 const BIRD_R = 260; // show birds within this range of the focus
 const CAR_R = 650;
 const ANIMAL_R = 450;
-const MAX_BIRDS = 400;
+const MAX_BIRDS = 760; // trees (about 260) plus field flocks and wire birds (#97)
 const MAX_ANIMALS = 160;
 const MAX_DUST = 500;
 const MAX_SMOKE = 900;

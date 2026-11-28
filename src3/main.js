@@ -226,7 +226,7 @@ async function buildRegion(id, title, quiet = false, mission = 0) {
     await step(0.78, 'Waking the locals');
     // Ambient life (shared logic). Car5 is the surplus 6x6 on some missions (#45; ?sixbysix=on|off).
     setSixBySixDay(`${WORLD.seed}:${currentMissionId(state)}`, params.get('sixbysix'));
-    amb = createAmbient(WORLD, scenery);
+    amb = createAmbient(WORLD, scenery, { fieldBirds: params.get('fieldbirds') !== 'off' }); // #97
     // Smoke from chimneys our models put somewhere other than the shared house formula.
     const chimneyFix = [];
     for (const ch of amb.chimneys || []) {
