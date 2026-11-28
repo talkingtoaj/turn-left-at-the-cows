@@ -28,6 +28,11 @@ import {
   MAP_W as W, MAP_H as H, PAPER, STAMP_SCALE, SKETCH_PAPER, HAND, LABEL_SIZE, THIN_W, THICK_W,
   drawSketchPaper as paintSketchPaper, drawSketchItems, drawStroke as paintStroke,
 } from './sketchRender.js';
+import {
+  unfoldMode, FOLD_SECONDS, FADE_SECONDS, nextRoad, roadFlags, roadOf, grainPoints, endDots, isGraphite, strokeSeed,
+  spawnCrumbs, stepCrumbs, crumbAlpha, stepDamp,
+} from './pencil.js';
+import { prefetchMapSounds, playUnfold, scratchStart, scratchMove, scratchStop } from './mapSound.js';
 
 const OLD_PAPER = 0xe6d6ab;
 const SERIF = 'Georgia, serif';
@@ -108,6 +113,10 @@ let historyEpoch = 0; // state.sketchEpoch the undo stack belongs to
 let notebookOpen = false;
 let penDashed = false;
 let penThick = false;
+// Damp spots from rain (a look only, not in the sketch). Kept here so they
+// survive the map closing and dry on their own (#92).
+let dampSpots = [];
+let dampAt = 0;
 
 const STYLE = `
 .map-overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
@@ -115,6 +124,32 @@ const STYLE = `
 .map-overlay.map-open { display: flex; }
 .map-wrap { position: relative; }
 .map-canvas { display: block; touch-action: none; outline: none; }
+.map-cursor-pencil { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Cpath d='M2 30 L5 21 L22 4 L28 10 L11 27 Z' fill='%23e0b13a' stroke='%233a3128' stroke-width='1.5' stroke-linejoin='round'/%3E%3Cpath d='M2 30 L5 21 L11 27 Z' fill='%23d9c9a3' stroke='%233a3128' stroke-width='1.5' stroke-linejoin='round'/%3E%3Cpath d='M2 30 L3.6 25.4 L6.6 28.4 Z' fill='%23555'/%3E%3Cpath d='M22 4 L28 10 L30 8 Q31 5 28 2 Q25 1 22 4Z' fill='%23e58a9a' stroke='%233a3128' stroke-width='1.5'/%3E%3C/svg%3E") 2 30, crosshair; }
+/* The map unfolds (#92): a stack of three folded panels slides up and opens, then
+   gives way to the map. Class map-fold, map-fade (reduced motion) or map-nofx (?mapfx=off). */
+.map-cover { position: absolute; left: ${PAPER.x}px; top: ${PAPER.y}px; width: ${PAPER.w}px; height: ${PAPER.h}px;
+  perspective: 1800px; pointer-events: none; display: none; transform-origin: 0 100%; opacity: 1;
+  transform: translate(0, 62%) scale(0.5); transition: transform ${FOLD_SECONDS}s cubic-bezier(.2,.8,.25,1), opacity .12s; }
+.map-fold .map-cover { display: block; }
+.map-fold.map-in .map-cover { transform: none; opacity: 0; transition: transform ${FOLD_SECONDS}s cubic-bezier(.2,.8,.25,1), opacity .14s ease ${FOLD_SECONDS * 0.6}s; }
+.map-p { position: absolute; top: 0; height: 100%; width: ${PAPER.w / 3}px; transform-style: preserve-3d; box-sizing: border-box;
+  background: linear-gradient(90deg, #f6f1e1, #e7dec2); box-shadow: inset -1px 0 0 rgba(60,45,25,0.25), 0 0 14px rgba(0,0,0,0.25); }
+.map-p1 { left: 0; }
+.map-p2 { left: 100%; width: 100%; transform-origin: 0 50%; transform: rotateY(-176deg); transition: transform ${FOLD_SECONDS * 0.85}s ease-in-out 0.03s; }
+.map-p3 { left: 100%; width: 100%; transform-origin: 0 50%; transform: rotateY(176deg); transition: transform ${FOLD_SECONDS * 0.85}s ease-in-out 0.03s; }
+.map-fold.map-in .map-p2, .map-fold.map-in .map-p3 { transform: none; }
+.map-fold .map-canvas { opacity: 0; transition: opacity .1s; }
+.map-fold.map-in .map-canvas { opacity: 1; transition: opacity .16s ease ${FOLD_SECONDS * 0.55}s; }
+.map-fade .map-canvas { opacity: 0; transition: opacity ${FADE_SECONDS}s; }
+.map-fade.map-in .map-canvas { opacity: 1; }
+.map-overlay.map-fold, .map-overlay.map-fade { background: rgba(29, 23, 18, 0); transition: background-color ${FOLD_SECONDS}s, backdrop-filter ${FOLD_SECONDS}s; }
+.map-overlay.map-fold.map-in, .map-overlay.map-fade.map-in { background: rgba(29, 23, 18, 0.82); }
+.map-overlay.map-fold.map-in { backdrop-filter: blur(3px); }
+.map-overlay.map-closing { pointer-events: none; }
+.map-damp { position: absolute; left: ${PAPER.x}px; top: ${PAPER.y}px; width: ${PAPER.w}px; height: ${PAPER.h}px; overflow: hidden;
+  pointer-events: none; mix-blend-mode: multiply; }
+.map-damp i { position: absolute; border-radius: 50%; display: block;
+  background: radial-gradient(circle, rgba(92,78,50,0.10) 0 38%, rgba(92,78,50,0.30) 60%, rgba(92,78,50,0) 72%); }
 .map-layer { position: absolute; left: 0; top: 0; width: ${W}px; height: ${H}px; transform-origin: 0 0; pointer-events: none; }
 .map-notes { position: absolute; display: none; flex-direction: column; pointer-events: auto;
   background: #fbf6e4; border: 1px solid #b9ab8a; border-radius: 4px; box-shadow: 3px 4px 0 rgba(0,0,0,0.18);
@@ -184,13 +219,22 @@ function iconDashed(g, x, y) {
   for (let i = 0; i < 3; i++) g.lineBetween(x - 11 + i * 8, y + 5 - i * 5, x - 7 + i * 8, y + 2.5 - i * 5);
 }
 
+function iconThin(g, x, y) {
+  g.lineStyle(1.8, 0x555555, 1);
+  g.lineBetween(x - 10, y + 6, x + 10, y - 6);
+}
+
 function iconThick(g, x, y) {
   g.lineStyle(5, 0x555555, 1);
   g.lineBetween(x - 10, y + 6, x + 10, y - 6);
 }
 
-export function createMapOverlay(root, { onClose } = {}) {
+export function createMapOverlay(root, { onClose, rain = () => 0 } = {}) {
   injectStyle();
+  // ?mapfx=off turns off the unfold, the pencil feel and the rain spots (#92).
+  const FX = new URLSearchParams(window.location.search).get('mapfx') !== 'off';
+  const reducedMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  if (FX) prefetchMapSounds();
   const el = document.createElement('div');
   el.className = 'map-overlay';
   const wrap = document.createElement('div');
@@ -203,6 +247,22 @@ export function createMapOverlay(root, { onClose } = {}) {
   const layer = document.createElement('div');
   layer.className = 'map-layer';
   wrap.appendChild(layer);
+  const damp = document.createElement('div');
+  damp.className = 'map-damp';
+  layer.appendChild(damp);
+  // The folded panels of the unfold (CSS does the moving).
+  const cover = document.createElement('div');
+  cover.className = 'map-cover';
+  const p1 = document.createElement('div');
+  p1.className = 'map-p map-p1';
+  const p2 = document.createElement('div');
+  p2.className = 'map-p map-p2';
+  const p3 = document.createElement('div');
+  p3.className = 'map-p map-p3';
+  p2.appendChild(p3);
+  p1.appendChild(p2);
+  cover.appendChild(p1);
+  layer.appendChild(cover);
   const notes = document.createElement('div');
   notes.className = 'map-notes';
   Object.assign(notes.style, {
@@ -247,57 +307,96 @@ export function createMapOverlay(root, { onClose } = {}) {
   let hover = null; // { x, y } logical pointer position
   let hoverTip = null;
   let pointerDown = false;
+  let drawerOpen = false; // the stamps drawer
+  let crumbs = []; // eraser crumbs { x, y, vx, vy, age, size }
+  let crumbRaf = 0;
+  let crumbAt = 0;
+  let lastMove = null; // { x, y, t } for the pencil speed
+  let dampTimer = 0;
+  let closeTimer = 0;
 
   // ------------------------------------------------------------ toolbar layout
 
-  const buttons = [];
+  const buttons = []; // always on the toolbar
+  const drawerButtons = []; // inside the stamps drawer, only while it is open
+  let drawerBox = null;
   let statusY = 0;
+  let stampsBtn = null;
+  const road = () => roadOf(penDashed, penThick);
+  const ROAD_TIP = {
+    thin: 'Road: thin line (click for a dirt road)',
+    dash: 'Road: dashed, dirt (click for a main road)',
+    thick: 'Road: thick, main (click for thin)',
+  };
   (function layoutToolbar() {
     const colX = [31, 69];
     const size = 34;
-    let y = PAPER.y + 12;
-    const headers = [];
-    const header = (text) => { headers.push({ text, y }); y += 24; };
-    const grid = (items) => {
-      items.forEach((item, i) => {
-        buttons.push({ ...item, x: colX[i % 2], y: y + Math.floor(i / 2) * (size + 4), w: size, h: size });
-      });
-      y += Math.ceil(items.length / 2) * (size + 4) + 6;
+    let y = PAPER.y + 30;
+    const pair = (l, r) => {
+      buttons.push({ ...l, x: colX[0], y, w: size, h: size });
+      buttons.push({ ...r, x: colX[1], y, w: size, h: size });
+      y += size + 8;
     };
-    header('Tools');
-    grid([
-      { id: 'pencil', tip: 'Pencil', icon: iconPencil, onClick: () => setTool('pencil') },
-      { id: 'eraser', tip: 'Eraser', icon: iconEraser, onClick: () => setTool('eraser') },
-      { id: 'text', tip: 'Text label', text: 'Aa', onClick: () => setTool('text') },
-    ]);
-    header('Ink');
-    grid(INKS.map((c) => ({
-      id: 'ink_' + c.id,
-      tip: c.name,
-      icon: (gg, x, yy) => { gg.fillStyle(c.color, 1); gg.fillCircle(x, yy, 9); },
-      onClick: () => setInk(c),
-    })));
-    header('Line');
-    grid([
-      { id: 'dash', tip: 'Dashed line (dirt road)', icon: iconDashed, toggle: () => penDashed, onClick: () => togglePen('dash') },
-      { id: 'thick', tip: 'Thick line (main road)', icon: iconThick, toggle: () => penThick, onClick: () => togglePen('thick') },
-    ]);
-    header('Stamps');
-    grid(STAMP_KINDS.map((kind) => ({
-      id: 'stamp_' + kind,
-      tip: STAMP_NAMES[kind],
-      icon: (gg, x, yy) => drawStamp(gg, kind, x, yy + 1, 0x3a3128, 0.7, seedFrom(kind)),
-      onClick: () => setTool('stamp', kind),
-    })));
-    y += 2;
-    buttons.push({ id: 'undo', tip: 'Undo (Ctrl+Z)', text: 'Undo', x: colX[0], y, w: 36, h: 26, onClick: () => undo() });
-    buttons.push({ id: 'clear', tip: 'Clear all', text: 'Clear', x: colX[1], y, w: 36, h: 26, onClick: () => clickClear() });
-    y += 22;
+    pair(
+      { id: 'pencil', tip: 'Pencil', icon: iconPencil, active: () => tool === 'pencil', onClick: () => setTool('pencil') },
+      { id: 'eraser', tip: 'Eraser', icon: iconEraser, active: () => tool === 'eraser', onClick: () => setTool('eraser') },
+    );
+    pair(
+      { id: 'text', tip: 'Text label', text: 'Aa', active: () => tool === 'text', onClick: () => setTool('text') },
+      {
+        id: 'road',
+        tip: () => ROAD_TIP[road()],
+        icon: (gg, x, yy) => (road() === 'dash' ? iconDashed : road() === 'thick' ? iconThick : iconThin)(gg, x, yy),
+        active: () => tool === 'pencil' && road() !== 'thin',
+        onClick: () => cycleRoad(),
+      },
+    );
+    // Three small ink dots.
+    INKS.forEach((c, i) => {
+      buttons.push({
+        id: 'ink_' + c.id, tip: c.name, x: [24, 50, 76][i], y: y + 4, w: 24, h: 24,
+        icon: (gg, x, yy) => { gg.fillStyle(c.color, 1); gg.fillCircle(x, yy, 7); },
+        active: () => ink === c, onClick: () => setInk(c),
+      });
+    });
+    y += 38;
+    stampsBtn = {
+      id: 'stamps', tip: 'Stamps: church, tree, bridge and more', text: 'Stamps', x: 50, y: y + 8, w: 72, h: 32,
+      active: () => tool === 'stamp' || drawerOpen, onClick: () => toggleDrawer(),
+    };
+    buttons.push(stampsBtn);
+    y += 42;
+    buttons.push({ id: 'undo', tip: 'Undo (Ctrl+Z)', text: 'Undo', x: 50, y: y + 6, w: 72, h: 28, onClick: () => undo() });
+    y += 36;
     statusY = Math.min(y, PAPER.y + PAPER.h - 30);
-    buttons.headers = headers;
+
+    // The drawer: the 9 stamps, then Clear tucked at the bottom behind a confirm.
+    const cell = 48;
+    const pad = 8;
+    const boxW = cell * 3 + pad * 2;
+    const boxH = cell * 3 + pad * 3 + 28;
+    const bx = PAPER.x + 4;
+    const by = Math.max(PAPER.y + 4, Math.min(stampsBtn.y - 16, PAPER.y + PAPER.h - boxH - 4));
+    drawerBox = { x: bx, y: by, w: boxW, h: boxH };
+    STAMP_KINDS.forEach((kind, i) => {
+      drawerButtons.push({
+        id: 'stamp_' + kind, tip: STAMP_NAMES[kind], w: cell - 4, h: cell - 4,
+        x: bx + pad + (i % 3) * cell + cell / 2, y: by + pad + Math.floor(i / 3) * cell + cell / 2,
+        icon: (gg, x, yy) => drawStamp(gg, kind, x, yy + 1, 0x3a3128, 0.7, seedFrom(kind)),
+        active: () => tool === 'stamp' && stampKind === kind,
+        onClick: () => { setTool('stamp', kind); closeDrawer(); },
+      });
+    });
+    drawerButtons.push({
+      id: 'clear', tip: 'Clear all: wipes every mark on your sketch', text: 'Clear sketch', w: cell * 3, h: 28,
+      x: bx + boxW / 2, y: by + pad * 2 + cell * 3 + 14, onClick: () => clickClear(),
+    });
   })();
 
-  const hitButton = (x, y) => buttons.find((b) => Math.abs(x - b.x) <= b.w / 2 && Math.abs(y - b.y) <= b.h / 2);
+  const tipOf = (b) => (typeof b.tip === 'function' ? b.tip() : b.tip);
+  const inBox = (x, y, b) => Math.abs(x - b.x) <= b.w / 2 && Math.abs(y - b.y) <= b.h / 2;
+  const hitButton = (x, y) => (drawerOpen && drawerButtons.find((b) => inBox(x, y, b))) || buttons.find((b) => inBox(x, y, b));
+  const inDrawer = (x, y) => drawerOpen && x >= drawerBox.x && x <= drawerBox.x + drawerBox.w && y >= drawerBox.y && y <= drawerBox.y + drawerBox.h;
   const hitTab = (x, y) => TABS.find((t) => x >= t.x && x <= t.x + t.w && y >= PAPER.y - 32 && y <= PAPER.y);
   const hitClose = (x, y) => Math.hypot(x - CLOSE.x, y - CLOSE.y) <= CLOSE.r;
   const hitNoteBtn = (x, y) =>
@@ -387,13 +486,71 @@ export function createMapOverlay(root, { onClose } = {}) {
     return { x: lbl.x, y: lbl.y - h / 2, right: lbl.x + w, bottom: lbl.y + h / 2 };
   }
 
+  // Graphite look on top of a pencil stroke: a thin grainy line (the paper
+  // showing through) and rough dots where the pencil touched and lifted.
+  // Rendering only; the stroke data is untouched. Blue, red and dashed roads keep their plain look.
+  function graphite(s) {
+    if (!isGraphite(s) || s.dash || !s.points || s.points.length < 2) return;
+    const w = s.width || THIN_W;
+    const seed = strokeSeed(s);
+    ctx.save();
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.setLineDash([1.4, 2.4]);
+    ctx.lineWidth = Math.max(0.8, w * 0.5);
+    ctx.strokeStyle = 'rgba(243,238,224,0.4)';
+    ctx.beginPath();
+    grainPoints(s.points, seed).forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.lineWidth = 0.7;
+    ctx.strokeStyle = 'rgba(50,50,50,0.28)';
+    ctx.beginPath();
+    grainPoints(s.points, seed + 1).forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(70,70,70,0.5)';
+    for (const d of endDots(s)) {
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function addCrumbs(x, y) {
+    if (!FX) return;
+    crumbs = crumbs.concat(spawnCrumbs(x, y, Math.random, 4));
+    if (!crumbRaf) {
+      crumbAt = performance.now();
+      crumbRaf = requestAnimationFrame(crumbLoop);
+    }
+  }
+
+  function crumbLoop(now) {
+    crumbRaf = 0;
+    if (!open) { crumbs = []; return; }
+    const dt = Math.min(0.05, (now - crumbAt) / 1000);
+    crumbAt = now;
+    crumbs = stepCrumbs(crumbs, dt);
+    requestRender();
+    if (crumbs.length) crumbRaf = requestAnimationFrame(crumbLoop);
+  }
+
   function drawSketch() {
     paintSheet(state.sketch);
     drawSketchItems(g, ctx, state.sketch);
-    if (current) drawStroke(current);
+    if (FX) for (const s of state.sketch.strokes) graphite(s);
+    if (current) {
+      drawStroke(current);
+      if (FX) graphite(current);
+    }
     if (typing) {
       drawText(ctx, typing.x, typing.y, typing.text + (typing.caret ? '|' : ' '),
         { fontFamily: HAND, fontSize: LABEL_SIZE + 'px', color: rgba(typing.color) }, [0, 0.5]);
+    }
+    for (const c of crumbs) {
+      g.fillStyle(0x7a6f60, crumbAlpha(c));
+      g.fillRect(c.x - c.size / 2, c.y - c.size / 2, c.size, c.size);
     }
     // Eraser shows a small ring under the pointer.
     if (tool === 'eraser' && hover && inPaper(hover.x, hover.y)) {
@@ -443,31 +600,29 @@ export function createMapOverlay(root, { onClose } = {}) {
     return 'Click to place: ' + STAMP_NAMES[stampKind];
   }
 
+  function drawButton(b) {
+    const on = b.active ? b.active() : false;
+    const x0 = b.x - b.w / 2;
+    const y0 = b.y - b.h / 2;
+    g.fillStyle(0xf3eee0, 1);
+    g.fillRect(x0, y0, b.w, b.h);
+    g.lineStyle(on ? 3 : 1, on ? 0xe0a030 : 0x8c7f6a, 1);
+    g.strokeRect(x0, y0, b.w, b.h);
+    if (b.icon) b.icon(g, b.x, b.y);
+    if (b.text) {
+      let text = b.text;
+      let color = '#3a3128';
+      if (b.id === 'clear' && clearArmed) { text = 'Sure? Click again'; color = '#c0392b'; }
+      drawText(ctx, b.x, b.y, text, {
+        fontFamily: b.id === 'text' ? HAND : SERIF, fontSize: b.id === 'text' ? '16px' : b.id === 'stamps' || b.id === 'clear' ? '13px' : '11px', color,
+      }, [0.5, 0.5]);
+    }
+  }
+
   function drawToolbar() {
     g.fillStyle(0x3b3027, 0.95);
     g.fillRoundedRect(8, PAPER.y, 84, PAPER.h, 8);
-    for (const h of buttons.headers) {
-      drawText(ctx, 50, h.y, h.text, { fontFamily: SERIF, fontSize: '11px', color: '#d8ccb4' }, [0.5, 0.5]);
-    }
-    const activeId = tool === 'stamp' ? 'stamp_' + stampKind : tool;
-    for (const b of buttons) {
-      const on = b.id === activeId || b.id === 'ink_' + ink.id || (b.toggle && b.toggle());
-      const x0 = b.x - b.w / 2;
-      const y0 = b.y - b.h / 2;
-      g.fillStyle(0xf3eee0, 1);
-      g.fillRect(x0, y0, b.w, b.h);
-      g.lineStyle(on ? 3 : 1, on ? 0xe0a030 : 0x8c7f6a, 1);
-      g.strokeRect(x0, y0, b.w, b.h);
-      if (b.icon) b.icon(g, b.x, b.y);
-      if (b.text) {
-        let text = b.text;
-        let color = '#3a3128';
-        if (b.id === 'clear' && clearArmed) { text = 'Sure?'; color = '#c0392b'; }
-        drawText(ctx, b.x, b.y, text, {
-          fontFamily: b.id === 'text' ? HAND : SERIF, fontSize: b.id === 'text' ? '16px' : '11px', color,
-        }, [0.5, 0.5]);
-      }
-    }
+    for (const b of buttons) drawButton(b);
     ctx.save();
     ctx.font = `10px ${SERIF}`;
     const lines = wrapText(ctx, statusText(), 76);
@@ -475,6 +630,11 @@ export function createMapOverlay(root, { onClose } = {}) {
     lines.forEach((line, i) => {
       drawText(ctx, 50, statusY + i * 12, line, { fontFamily: SERIF, fontSize: '10px', color: '#d8ccb4' }, [0.5, 0]);
     });
+    if (drawerOpen) {
+      g.fillStyle(0x3b3027, 0.97);
+      g.fillRoundedRect(drawerBox.x, drawerBox.y, drawerBox.w, drawerBox.h, 8);
+      for (const b of drawerButtons) drawButton(b);
+    }
   }
 
   function render() {
@@ -510,6 +670,7 @@ export function createMapOverlay(root, { onClose } = {}) {
 
   function showTab(id) {
     if (typing) commitTyping();
+    drawerOpen = false;
     tab = id;
     lastTab = id;
     hoverTip = null;
@@ -535,11 +696,25 @@ export function createMapOverlay(root, { onClose } = {}) {
     requestRender();
   }
 
-  function togglePen(which) {
-    if (which === 'dash') penDashed = !penDashed;
-    else penThick = !penThick;
+  // The road button: thin, dashed (dirt), thick (main), round and round.
+  function cycleRoad() {
+    const f = roadFlags(nextRoad(roadOf(penDashed, penThick)));
+    penDashed = f.dashed;
+    penThick = f.thick;
     // Line styles belong to the pencil.
     if (tool !== 'pencil') setTool('pencil');
+    requestRender();
+  }
+
+  function toggleDrawer() {
+    if (drawerOpen) closeDrawer();
+    else { drawerOpen = true; requestRender(); }
+  }
+
+  function closeDrawer() {
+    drawerOpen = false;
+    clearArmed = false;
+    clearTimeout(clearTimer);
     requestRender();
   }
 
@@ -641,7 +816,7 @@ export function createMapOverlay(root, { onClose } = {}) {
       sk.stamps = [];
       sk.labels = [];
     }
-    requestRender();
+    closeDrawer();
   }
 
   function pushHistory(action) {
@@ -692,6 +867,7 @@ export function createMapOverlay(root, { onClose } = {}) {
     if (!best) return;
     const [item] = sk[best.list].splice(best.index, 1);
     pushHistory({ type: 'remove', list: best.list, item, index: best.index });
+    addCrumbs(x, y);
     requestRender();
   }
 
@@ -765,6 +941,11 @@ export function createMapOverlay(root, { onClose } = {}) {
     }
     // Ignore the same key press (or its auto repeat) that opened the map.
     if (e.repeat || performance.now() - openedAt < 200) return;
+    if (key === 'Escape' && drawerOpen) {
+      e.preventDefault();
+      closeDrawer();
+      return;
+    }
     if (key === 'Escape' || key === 'm' || key === 'M') {
       e.preventDefault();
       close();
@@ -784,6 +965,8 @@ export function createMapOverlay(root, { onClose } = {}) {
     if (tab !== 'sketch') return;
     const b = hitButton(x, y);
     if (b) { b.onClick(); return; }
+    if (inDrawer(x, y)) return;
+    if (drawerOpen) closeDrawer();
 
     // Clicking anywhere while typing places the label first.
     if (typing) { commitTyping(); return; }
@@ -795,6 +978,7 @@ export function createMapOverlay(root, { onClose } = {}) {
     try { canvas.setPointerCapture(e.pointerId); } catch { /* ignore */ }
     if (tool === 'pencil') {
       current = newStroke(rx, ry);
+      if (FX) { scratchStart(); lastMove = { x, y, t: performance.now() }; }
     } else if (tool === 'eraser') {
       eraseAt(rx, ry);
     } else if (tool === 'text') {
@@ -814,12 +998,14 @@ export function createMapOverlay(root, { onClose } = {}) {
 
     // Toolbar hint and cursor.
     const b = tab === 'sketch' ? hitButton(x, y) : null;
-    const tip = b ? b.tip : hitNoteBtn(x, y) ? 'Notebook: what people told you' : null;
+    const tip = b ? tipOf(b) : hitNoteBtn(x, y) ? 'Notebook: what people told you' : null;
     if (tip !== hoverTip) hoverTip = tip;
     let cursor = 'default';
     if (b || hitTab(x, y) || hitClose(x, y) || hitNoteBtn(x, y)) cursor = 'pointer';
-    else if (tab === 'sketch' && inPaper(x, y)) cursor = tool === 'text' ? 'text' : tool === 'eraser' ? 'none' : 'crosshair';
-    canvas.style.cursor = cursor;
+    else if (tab === 'sketch' && inPaper(x, y)) cursor = tool === 'text' ? 'text' : tool === 'eraser' ? 'none' : FX && tool === 'pencil' ? 'pencil' : 'crosshair';
+    // 'pencil' is the pencil-tip cursor from the style sheet.
+    canvas.classList.toggle('map-cursor-pencil', cursor === 'pencil');
+    canvas.style.cursor = cursor === 'pencil' ? '' : cursor;
 
     if (tab === 'sketch') {
       const cx = clamp(Math.round(x), PAPER.x, PAPER.x + PAPER.w);
@@ -828,6 +1014,11 @@ export function createMapOverlay(root, { onClose } = {}) {
         const pts = current.points;
         const [lx, ly] = pts[pts.length - 1];
         if (Math.hypot(cx - lx, cy - ly) >= 2.5) pts.push([cx, cy]);
+        if (FX && lastMove) {
+          const now = performance.now();
+          scratchMove(Math.hypot(x - lastMove.x, y - lastMove.y) / Math.max(1, now - lastMove.t));
+          lastMove = { x, y, t: now };
+        }
       }
       if (tool === 'eraser' && pointerDown && inPaper(x, y)) eraseAt(x, y);
     }
@@ -836,6 +1027,8 @@ export function createMapOverlay(root, { onClose } = {}) {
 
   function onPointerUp(e) {
     pointerDown = false;
+    lastMove = null;
+    scratchStop();
     try { canvas.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
     if (!current) return;
     const stroke = current;
@@ -896,6 +1089,12 @@ export function createMapOverlay(root, { onClose } = {}) {
     hover = null;
     hoverTip = null;
     pointerDown = false;
+    drawerOpen = false;
+    crumbs = [];
+    clearTimeout(closeTimer);
+    el.classList.remove('map-closing', 'map-fold', 'map-fade', 'map-nofx');
+    const mode = unfoldMode({ fx: FX, reduced: reducedMotion() });
+    el.classList.add(mode === 'none' ? 'map-nofx' : 'map-' + mode);
     el.classList.add('map-open');
     fit();
     renderNotes(true);
@@ -904,6 +1103,46 @@ export function createMapOverlay(root, { onClose } = {}) {
     window.addEventListener('keypress', onKey, true);
     window.addEventListener('resize', onResize);
     render();
+    if (mode === 'none') {
+      el.classList.add('map-in');
+    } else {
+      void el.offsetWidth; // let the folded look paint once, then unfold
+      el.classList.add('map-in');
+      playUnfold(1);
+    }
+    if (FX) startDamp();
+  }
+
+  // ------------------------------------------------------------ rain spots
+
+  // Spots keep drying while the map is shut (they catch up here), and grow
+  // while it is open in rain.
+  function startDamp() {
+    const now = performance.now();
+    if (dampAt) dampSpots = stepDamp(dampSpots, (now - dampAt) / 1000, { rain: 0, open: false, rng: Math.random, paper: PAPER });
+    dampAt = now;
+    renderDamp();
+    clearInterval(dampTimer);
+    dampTimer = setInterval(tickDamp, 250);
+  }
+
+  function tickDamp() {
+    const now = performance.now();
+    dampSpots = stepDamp(dampSpots, Math.min(1, (now - dampAt) / 1000), { rain: rain(), open: true, rng: Math.random, paper: PAPER });
+    dampAt = now;
+    renderDamp();
+  }
+
+  function renderDamp() {
+    while (damp.children.length < dampSpots.length) damp.appendChild(document.createElement('i'));
+    while (damp.children.length > dampSpots.length) damp.lastChild.remove();
+    dampSpots.forEach((s, i) => {
+      const d = damp.children[i];
+      d.style.left = s.x - PAPER.x - s.r + 'px';
+      d.style.top = s.y - PAPER.y - s.r + 'px';
+      d.style.width = d.style.height = s.r * 2 + 'px';
+      d.style.opacity = s.a.toFixed(2);
+    });
   }
 
   function close() {
@@ -917,7 +1156,20 @@ export function createMapOverlay(root, { onClose } = {}) {
     open = false;
     if (rafId) cancelAnimationFrame(rafId);
     rafId = 0;
-    el.classList.remove('map-open');
+    scratchStop();
+    drawerOpen = false;
+    clearInterval(dampTimer);
+    dampAt = performance.now();
+    el.classList.remove('map-in');
+    if (el.classList.contains('map-nofx')) {
+      el.classList.remove('map-open');
+    } else {
+      // Folds away, then hides. Clicks go nowhere meanwhile.
+      el.classList.add('map-closing');
+      playUnfold(1.5);
+      const secs = el.classList.contains('map-fold') ? FOLD_SECONDS : FADE_SECONDS;
+      closeTimer = setTimeout(() => el.classList.remove('map-open', 'map-closing'), secs * 1000 + 60);
+    }
     window.removeEventListener('keydown', onKey, true);
     window.removeEventListener('keypress', onKey, true);
     window.removeEventListener('resize', onResize);

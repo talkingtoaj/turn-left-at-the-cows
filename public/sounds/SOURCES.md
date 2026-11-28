@@ -103,4 +103,11 @@ Round 13 (sound layers, ticket 26): 10 new files, all Freesound CC0 (each checke
 | car/ignition.mp3 | 138099 | Car Start (0.1 to 1.9 s) | snakebarney | https://freesound.org/people/snakebarney/sounds/138099/ |
 | car/window_wind.mp3 | 506910 | Ambiance_Wind_Forest_Calm_Loop_Stereo.wav (2 to 16 s) | Nox_Sound | https://freesound.org/people/Nox_Sound/sounds/506910/ |
 
+Map (#92): two Freesound CC0 files (each checked as CC0 through the Freesound API by `tools/sounds/fs_get.py`), made mono 44.1 kHz at 64 kbps with ffmpeg (the scratch also got a 120 Hz highpass and short fades). `map/unfold.mp3` plays when the map opens and, sped up 1.5x, when it folds away. `map/scratch.mp3` loops while a pencil stroke is drawn, louder when the hand moves faster. No ElevenLabs calls: 0 credits.
+
+| File | Freesound id | Name | Author | URL |
+|---|---|---|---|---|
+| map/unfold.mp3 | 447931 | Unfold a map | Breviceps | https://freesound.org/people/Breviceps/sounds/447931/ |
+| map/scratch.mp3 | 211247 | Scribble | Tomoyo Ichijouji | https://freesound.org/people/Tomoyo%20Ichijouji/sounds/211247/ |
+
 Farm dog (#68): two files cut from one Freesound CC0 clip (checked as CC0 through the API by `tools/sounds/fs_get.py`), an Australian Shepherd, a herding dog like a collie: `animals/collie1.mp3` one bark and `animals/collie2.mp3` three quick barks. Made mono 44.1 kHz, 120 Hz highpass, short fades, 64 kbps by hand with ffmpeg. No ElevenLabs calls: 0 credits.

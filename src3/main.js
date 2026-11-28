@@ -304,7 +304,7 @@ async function followMission() {
 // ---------- UI wiring (see CONTRACT3.md) ----------
 
 const ui = document.getElementById('ui');
-const map = createMapOverlay(ui, { onClose: () => { runtime.paused = false; state.inputLocked = false; } });
+const map = createMapOverlay(ui, { onClose: () => { runtime.paused = false; state.inputLocked = false; }, rain: () => (wetness ? wetness.rain : 0) });
 const radio = createRadio();
 const hud = createHUD(ui, { radio, openMap: () => { runtime.paused = true; state.inputLocked = true; foot.release(); map.open(); } });
 // Breakdowns end in a tow to the nearest garage, not a lost mission.
