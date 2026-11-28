@@ -52,6 +52,7 @@ import { createWetness } from '../src/game/wetness.js';
 import { createWeatherClock } from './look/weather.js';
 import { createRain3D } from './world3d/rain3d.js';
 import { createPlanes3D } from './world3d/planes3d.js';
+import { createRoadCrew } from './world3d/roadcrew3d.js'; // showpiece: the road crew (#95)
 import { createTow } from './tow3d.js';
 import { createOnFoot } from './onfoot.js';
 import { WALK, localsAround, carGap } from '../src/game/onfoot.js';
@@ -134,6 +135,7 @@ let amb3d = null;
 let dh = null;
 let rain3d = null;
 let planes = null; // light planes, in a region with an airfield
+let crew = null; // the road crew showpiece (#95, ?showpieces=on|off)
 let lightning = null; // lightning flashes in heavy rain (round 12)
 let thunder = null; // when and where they strike (src/game/thunder.js)
 let wetness = null;
@@ -153,12 +155,13 @@ function disposeRegion() {
   if (!scene) return 0;
   if (dh && dh.dispose) dh.dispose();
   if (lightning) lightning.dispose();
+  if (crew) crew.dispose();
   scene.remove(car3d.object);
   const keep = collectKeep([car3d.object], look ? look.keepTextures() : []);
   const n = gpuSet ? disposeTracked(gpuSet, keep) : 0;
   scene.clear();
   renderer.renderLists.dispose();
-  scene = scenery = collider = world3d = amb = amb3d = dh = rain3d = planes = lightning = thunder = null;
+  scene = scenery = collider = world3d = amb = amb3d = dh = rain3d = planes = crew = lightning = thunder = null;
   gpuSet = null;
   return n;
 }
@@ -241,6 +244,7 @@ async function buildRegion(id, title, quiet = false, mission = 0) {
     rain3d = createRain3D(scene, { reducedMotion: reducedMotion() });
     // Light planes flying circuits from the airfield (src/world/airfield.js).
     planes = createPlanes3D(scene, WORLD, world3d.terrain);
+    crew = createRoadCrew({ scene, world: WORLD, terrain: world3d.terrain, collider, params });
     // The tow truck that comes after a breakdown (src3/tow3d.js).
     tow.attach(scene, world3d);
     // Lightning in heavy rain; its thunder is played by the audio.
@@ -599,6 +603,7 @@ function frame(now) {
     listener.z = groundAt(ear.x, ear.y) + (foot.active ? WALK.eye : 1.2);
     planes.update(state.clockMinutes * 60, camera, scene.fog.color, wetness.rain, listener);
   }
+  if (crew) crew.update(dt, { camera, ear, detail: res.detail, paused: runtime.paused, missionIndex: state.missionIndex });
   // Lightning in heavy rain, and its thunder 3 s per km later.
   if (!runtime.paused && thunder) {
     if (!thunderForced) {
