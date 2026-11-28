@@ -16,6 +16,8 @@ export const SPOTS = {
   pasture: { at: [1452, 2230], road: 'mill_lane', toward: [1452, 2400] }, // bumpy sheep pasture by Mill Lane (pf_18)
   hay: { at: [610, 1975], road: 'creek_rd', toward: [600, 2200] }, // smooth mown hay west of Creek Road (pf_11)
   scrub: { at: [610, 1920], road: 'creek_rd', toward: [600, 2200] }, // rough scrub east of Creek Road
+  roadcrew: { at: [2060, 2134], road: 'hwy9', toward: [2124, 2121] }, // Highway 9, 60 m before the road crew (#95)
+  duster: { at: [1850, 2180], road: 'hwy9', toward: [2000, 2150] }, // Highway 9 at the crop duster's field (#90)
   plowed: { at: [2400, 1255], road: 'hwy9', toward: [2400, 1100] }, // plowed field by Highway 9 (pf_5)
   // Region 2, Brandt country (mission 3, the airfield).
   airfield: { region: 'brandt', at: [3318, 1100], road: 'pike_ln', toward: [3326, 1052] }, // top of Pike Lane at the club's gate
