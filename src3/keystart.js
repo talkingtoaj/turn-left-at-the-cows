@@ -66,7 +66,8 @@ const smoothStep = (v) => {
 // The keychain: a pendulum hanging from the key's hole. psi is its angle from
 // straight down (radians, positive swings right). pivotX is the hole's x on
 // screen in px. The swing is pushed by how fast the hole speeds up sideways.
-export const CHAIN = { len: 48, pull: 51, damp: 2.2, max: 1.1 };
+// The dwarf charm hangs about 80 px below the hole, so it swings slower than a small fob.
+export const CHAIN = { len: 80, pull: 30, damp: 1.8, max: 1.1 };
 export function newChain(pivotX = 0) {
   return { psi: 0, w: 0, x1: pivotX, x2: pivotX, seeded: false };
 }

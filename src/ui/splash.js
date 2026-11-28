@@ -140,6 +140,34 @@ const COMPASS = `<svg class="sp-compass" viewBox="0 0 88 88" aria-hidden="true">
 const KEY_C = { x: 75, y: 70 }; // the bezel's centre in the key's drawing
 const KEY_HOLE = 19; // how far the keychain's hole is from the centre, near one end of the head
 const polar = (deg, r) => [KEY_C.x + r * Math.sin((deg * Math.PI) / 180), KEY_C.y - r * Math.cos((deg * Math.PI) / 180)];
+// A fuzzy outline: an ellipse with n little bumps round it, for fur.
+function fuzz(cx, cy, rx, ry, n, bump) {
+  let d = '';
+  for (let i = 0; i < n; i++) {
+    const a0 = (i / n) * 2 * Math.PI, a1 = ((i + 1) / n) * 2 * Math.PI, am = (a0 + a1) / 2;
+    const p = (a, k) => `${(cx + (rx + k) * Math.cos(a)).toFixed(1)},${(cy + (ry + k) * Math.sin(a)).toFixed(1)}`;
+    d += (i ? '' : 'M' + p(a0, 0)) + ` Q${p(am, bump * 2)} ${p(a1, 0)}`;
+  }
+  return d + ' Z';
+}
+// The keychain's charm: a furry little dwarf (pointy hat, bead eyes, big nose,
+// a white fur beard over a brown fur body, boots peeking out). Hangs from the
+// chain's end at y 28; about 60 wide and 100 tall.
+const DWARF = `
+    <path d="${fuzz(0, 96, 26, 26, 22, 2.5)}" fill="#7a5a40" stroke="#5c4130" stroke-width="0.8"/>
+    <ellipse cx="-10" cy="126" rx="8" ry="5" fill="#4a2e1c"/><ellipse cx="10" cy="126" rx="8" ry="5" fill="#4a2e1c"/>
+    <ellipse cx="0" cy="73" rx="16" ry="8" fill="#f2c7a5"/>
+    <path d="${fuzz(0, 101, 21, 24, 18, 2.5)}" fill="#f4f0e6" stroke="#cdc5b4" stroke-width="0.8"/>
+    ${[-14, -9, -4, 1, 6, 11, 15].map((x, k) => `<path d="M${x},${88 + (k % 3) * 5} q${k % 2 ? 2 : -2},7 0,13" fill="none" stroke="#d6cebd" stroke-width="1" stroke-linecap="round"/>`).join('')}
+    <ellipse cx="-12" cy="78" rx="4" ry="2.6" fill="#ee9a8c" opacity="0.7"/><ellipse cx="12" cy="78" rx="4" ry="2.6" fill="#ee9a8c" opacity="0.7"/>
+    <circle cx="0" cy="80" r="7" fill="#e5846e" stroke="#b55c48" stroke-width="0.8"/>
+    <circle cx="-2.4" cy="77.6" r="2.2" fill="#fff" opacity="0.55"/>
+    <path d="M2,30 C-3,40 -13,52 -21,65 L21,65 C14,52 8,40 2,30 Z" fill="url(#spk-fob)" stroke="#4a130e" stroke-width="1"/>
+    <path d="${fuzz(0, 66, 22, 4, 16, 1.6)}" fill="#f4f0e6" stroke="#cdc5b4" stroke-width="0.7"/>
+    <circle cx="-7.5" cy="72.5" r="2.6" fill="#111"/><circle cx="7.5" cy="72.5" r="2.6" fill="#111"/>
+    <circle cx="-6.6" cy="71.6" r="0.9" fill="#fff"/><circle cx="8.4" cy="71.6" r="0.9" fill="#fff"/>
+    <circle cx="2" cy="30" r="2.4" fill="none" stroke="#9a9ea4" stroke-width="1.3"/>`;
+
 // A 1980s ignition: chrome bezel set in the dash, OFF ACC ON START round it, a
 // car key in the slot and a keychain hanging from it. From the driver's seat
 // the key points at you, so only the plastic head shows, edge on, as a thick
@@ -172,9 +200,7 @@ const KEY = `<svg class="sp-keysvg" viewBox="0 0 150 186" aria-hidden="true" foc
     <path d="M0,11 V17" stroke="#9a9ea4" stroke-width="1.6" stroke-linecap="round"/>
     <ellipse cx="0" cy="20" rx="2.4" ry="3.6" fill="none" stroke="#9a9ea4" stroke-width="1.3"/>
     <path d="M0,24 V28" stroke="#9a9ea4" stroke-width="1.6" stroke-linecap="round"/>
-    <rect x="-7.5" y="30" width="15" height="22" rx="5" fill="url(#spk-fob)" stroke="#4a130e" stroke-width="1"/>
-    <circle cx="0" cy="35" r="1.8" fill="#2a0b08"/>
-    <path d="M-4.5,40 C-4,45 -3,47 -2,48" fill="none" stroke="#f0a49a" stroke-width="1" opacity="0.6" stroke-linecap="round"/>
+    ${DWARF}
   </g>
 </svg>`;
 const GAUGE = (cls) => `<svg class="sp-gauge" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="#101113" stroke="#55575c" stroke-width="2"/>
