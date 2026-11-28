@@ -442,7 +442,7 @@ The owner rated every open idea 1 to 5 (ratings in the artifact https://claude.a
 - Main street is the biggest job and runs in its own worktree so it holds up nothing else.
 
 ### 9s. "Oh wow" moments for the first 10 minutes (LOCKED, 28 Nov 2026, two brainstorm rounds)
-Tickets: #90 to #96.
+Tickets: #90 to #98.
 The owner wants the last days spent on moments that make a player say "oh wow", weighted to what they meet in the first 10 minutes of mission 1. Ranked by wow, by how sure a player sees it early, and by how little work it takes. Build in this order; if time runs out, the top of the list is what ships.
 
 1. **Crop duster over Highway 9.** A low crop-spraying plane (the mission 3 plane model) dives over a field beside Highway 9 early in mission 1, sprays a mist trail, pulls up and banks round at the end of the field, and crosses the highway low. Engine with a pitch drop as it passes. Timed for just after the opening rain clears.
@@ -453,6 +453,7 @@ The owner wants the last days spent on moments that make a player say "oh wow", 
 9. **Showpiece gate, then a road crew.** Showpieces (heavy optional scenery) appear only when the frame rate has room: decided while still out of sight, never popping in or out in view, using the resolution scaler (`src3/resscale.js`); `?showpieces=on|off`. First showpiece: a road crew with an excavator clearing a ditch along the mission 1 route after the storm, with a dump truck and a worker who waves. Not at the washed-out bridge (it would give that trap away).
 10. **Cloud shadows** sliding over the fields.
 
-- **Later if time:** birds lifting off, tire spray on wet roads, the start screen coming alive, sun shafts, a hot-air balloon, Darlene's note tucked in the visor. **After the jam:** irrigation sprinkler, combine, in-car view (9o's "no in-car view" stands), Ray's joy flight.
+- **Added 28 Nov (owner):** birds lifting off fields and power lines as you pass (#97). The key start reworked (#98): a real ignition switch with a key and a swinging keychain, not clickable; Play or Continue on mission 1 turns it by itself (OFF, ACC, ON, START), then the crank, dash wake and fly-out; every other mission starts straight away.
+- **Later if time:** tire spray on wet roads, the start screen coming alive, sun shafts, a hot-air balloon, Darlene's note tucked in the visor. **After the jam:** irrigation sprinkler, combine, in-car view (9o's "no in-car view" stands), Ray's joy flight.
 - **Every ticket** sits behind a URL flag so a shaky one can be switched off, brings before and after shots, and keeps 60 FPS on built-in graphics (`docs/agents/frame-rate.md`). New spoken or written lines go through the review rule.
 - **Shipping:** the current build is submitted on 29 Nov as planned; this work goes out as an itch update before 1 Dec 13:37 PST.

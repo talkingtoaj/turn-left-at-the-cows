@@ -18,7 +18,7 @@ import { available as mapsAvailable } from '../net/mapsApi.js';
 import { getRecords, recordRows } from '../net/records.js';
 import { touristFor } from '../game/tourists.js';
 import { tipsEnabled, setTipsEnabled } from '../game/tips.js';
-import { WAKE_MS, MARKS, TURN_MS, CATCH_MS, startsWithKey, keyTurn, newChain, stepChain, restSway } from '../../src3/keystart.js';
+import { WAKE_MS, MARKS, TURN_MS, CATCH_MS, CRANK_FROM_MS, startsWithKey, keyTurn, newChain, stepChain, restSway } from '../../src3/keystart.js';
 
 export const TITLE = 'Turn Left at the Cows';
 // Tagline is the owner's own words (SPEC 9p). The subline was removed (I10-splash-subline).
@@ -495,6 +495,7 @@ export function showSplash({ version = '3d', load, preferred = null, phone = fal
     try {
       await load(index, waking ? {
         wake,
+        crankAt: turnAt + CRANK_FROM_MS, // the engine sound waits for START
         rect: () => api.windshieldRect(),
         // The painting (when the world was not drawn behind the glass yet) goes at once.
         setFly: (p) => { root.classList.add('sp-flying'); root.style.setProperty('--fly', String(p)); },

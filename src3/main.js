@@ -994,7 +994,7 @@ function flyFrame(now) {
   camera.updateMatrixWorld();
   amb.update(dt, state);
   radio.update(Math.min(rawMs, 10000) / 1000, { region: regionId, x: ear.x, y: ear.y, paused: false, inCar: true });
-  audio.update(dt, state, amb, { paused: false, rain: wetness, planes: planes ? planes.sound : null, tow: tow.sound, listener: ear, onFoot: false, vehicles: dh.hz.vehicles });
+  audio.update(dt, state, amb, { paused: false, rain: wetness, planes: [...(planes ? planes.sound : []), ...(duster ? [duster.sound] : [])], tow: tow.sound, listener: ear, onFoot: false, vehicles: dh.hz.vehicles });
   if (planes) planes.update(state.clockMinutes * 60, camera, scene.fog.color, wetness.rain, listener);
   if (lightning) lightning.update(dt, camera, wetness.rain);
   if (look) look.update(state, wetness.rain, wetness.wet, Math.max(lightning ? lightning.storm : 0, wetness.gloom));
@@ -1113,13 +1113,16 @@ function exposeDebug() {
 // The region may already be built (preloadMenu): then this only places the
 // car. If that build is still going, its load screen shows now.
 let started = false;
-// opts (src3/boot.js, from the start screen's key): { wake, fly, rect, setFly }.
+// opts (src3/boot.js, from the start screen's key): { wake, crankAt, fly, rect, setFly }.
 export async function startGame(index = 0, opts = null) {
   started = true;
   const t0 = performance.now();
   // The start screen made and resumed the AudioContext in its click.
   audio.wake();
-  audio.ignition();
+  // With the key start (#98) the crank waits until the key reaches START.
+  const crankIn = opts && opts.crankAt ? opts.crankAt - performance.now() : 0;
+  if (crankIn > 0) setTimeout(() => audio.ignition(), crankIn);
+  else audio.ignition();
   radio.start();
   if (currentLs) currentLs.reveal();
   index = resolveIndex(index);
