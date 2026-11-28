@@ -13,12 +13,12 @@ import { MISSION_LIST } from '../game/missionList.js';
 import { loadProgress, nextUnfinishedIndex, canSaveProgress } from '../game/progress.js';
 import { timerText } from '../hud/format.js';
 import { milesText } from '../units.js';
-import { unlockAudio, isMuted, setMuted, onMuteChange } from '../audio/context.js';
+import { unlockAudio, sharedAudioContext, isMuted, setMuted, onMuteChange } from '../audio/context.js';
 import { available as mapsAvailable } from '../net/mapsApi.js';
 import { getRecords, recordRows } from '../net/records.js';
 import { touristFor } from '../game/tourists.js';
 import { tipsEnabled, setTipsEnabled } from '../game/tips.js';
-import { WAKE_MS } from '../../src3/keystart.js';
+import { WAKE_MS, MARKS, TURN_MS, CATCH_MS, startsWithKey, keyTurn, newChain, stepChain, restSway } from '../../src3/keystart.js';
 
 export const TITLE = 'Turn Left at the Cows';
 // Tagline is the owner's own words (SPEC 9p). The subline was removed (I10-splash-subline).
@@ -136,12 +136,47 @@ const COMPASS = `<svg class="sp-compass" viewBox="0 0 88 88" aria-hidden="true">
   <circle cx="44" cy="44" r="3" fill="#3a3128"/>
 </svg>`;
 
-// The ignition key, and the little instrument cluster that wakes when it turns.
-const KEY = `<svg class="sp-keysvg" viewBox="0 0 64 64" aria-hidden="true">
-  <circle cx="32" cy="32" r="28" fill="#26272a" stroke="#55575c" stroke-width="2"/>
-  <rect x="29" y="4" width="6" height="8" fill="#e6b450"/>
-  <g class="sp-keyturn"><path d="M32,18 C24,18 20,23 20,28 C20,32 23,35 27,36 L27,54 L33,54 L33,50 L37,50 L37,46 L33,46 L33,36 C38,35 44,32 44,26 C44,21 39,18 32,18 Z" fill="#c9ccd1" stroke="#8c8f94" stroke-width="1.5"/>
-    <circle cx="32" cy="26" r="4" fill="#26272a"/></g>
+// The ignition switch (#98), and the little instrument cluster that wakes when it turns.
+const KEY_C = { x: 75, y: 70 }; // the bezel's centre in the key's drawing
+const KEY_HOLE = 39; // how far the hole is from the centre
+const polar = (deg, r) => [KEY_C.x + r * Math.sin((deg * Math.PI) / 180), KEY_C.y - r * Math.cos((deg * Math.PI) / 180)];
+// A 1980s ignition: chrome bezel set in the dash, OFF ACC ON START round it, a
+// car key in the slot (plastic head, metal collar, hole) and a keychain
+// hanging from the hole. Not a button: it is only drawn, the game turns it.
+const KEY = `<svg class="sp-keysvg" viewBox="0 0 150 186" aria-hidden="true" focusable="false">
+  <defs>
+    <radialGradient id="spk-chrome" cx="35%" cy="30%" r="80%"><stop offset="0" stop-color="#f4f5f7"/><stop offset="0.45" stop-color="#a9adb3"/><stop offset="1" stop-color="#5d6065"/></radialGradient>
+    <radialGradient id="spk-face" cx="40%" cy="35%" r="75%"><stop offset="0" stop-color="#6a6d73"/><stop offset="1" stop-color="#2a2b2e"/></radialGradient>
+    <linearGradient id="spk-head" x1="0" x2="1"><stop offset="0" stop-color="#3a3b40"/><stop offset="0.35" stop-color="#1d1e21"/><stop offset="1" stop-color="#101113"/></linearGradient>
+    <linearGradient id="spk-fob" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#c0392f"/><stop offset="1" stop-color="#7a231c"/></linearGradient>
+  </defs>
+  <circle cx="75" cy="72" r="46" fill="#000" opacity="0.35"/>
+  <circle cx="75" cy="70" r="42" fill="#151618"/>
+  <circle cx="75" cy="70" r="39" fill="url(#spk-chrome)" stroke="#2c2d30" stroke-width="1"/>
+  <circle cx="75" cy="70" r="31" fill="#17181a" stroke="#8b8f95" stroke-width="1.2"/>
+  <circle cx="75" cy="70" r="20" fill="url(#spk-face)" stroke="#9a9ea4" stroke-width="1"/>
+  ${MARKS.map((m) => {
+    const [x1, y1] = polar(m.deg, 42.5), [x2, y2] = polar(m.deg, 48), [tx, ty] = polar(m.deg, 61);
+    return `<path d="M${x1.toFixed(1)},${y1.toFixed(1)} L${x2.toFixed(1)},${y2.toFixed(1)}" stroke="#d8d4c4" stroke-width="1.6" stroke-linecap="round"/><text x="${tx.toFixed(1)}" y="${(ty + 3).toFixed(1)}" text-anchor="middle" font-family="Oswald, 'Arial Narrow', sans-serif" font-weight="600" font-size="9" letter-spacing="0.5" fill="#e8e3d0">${m.name}</text>`;
+  }).join('')}
+  <g class="sp-keyturn" transform="translate(75 70) rotate(${MARKS[0].deg})">
+    <rect x="-4.5" y="-10" width="9" height="20" rx="2.5" fill="#050506"/>
+    <path d="M-2.4,-15 V-1 H-1 V-3 H0.6 V-5.5 H2.4 V-15 Z" fill="#d6d9de" stroke="#7d8187" stroke-width="0.7"/>
+    <path d="M-6,-14 H6 L7,-19 H-7 Z" fill="url(#spk-chrome)" stroke="#6a6d73" stroke-width="0.8"/>
+    <path d="M-7.5,-19 H7.5 C12,-23 13,-31 12,-39 C11,-46 6,-48 0,-48 C-6,-48 -11,-46 -12,-39 C-13,-31 -12,-23 -7.5,-19 Z" fill="url(#spk-head)" stroke="#5a5d64" stroke-width="1"/>
+    <path d="M-9,-23 C-10.5,-30 -9.5,-38 -7,-44" fill="none" stroke="#6b6e75" stroke-width="1.2" stroke-linecap="round" opacity="0.8"/>
+    <path d="M-3,-24 V-31 M0,-24 V-31 M3,-24 V-31" stroke="#050506" stroke-width="0.9" opacity="0.8"/>
+    <circle cx="0" cy="-39" r="3.8" fill="#0a0a0b" stroke="#55575c" stroke-width="0.8"/>
+  </g>
+  <g class="sp-chain" transform="translate(${polar(MARKS[0].deg, KEY_HOLE).map((v) => v.toFixed(2)).join(' ')})">
+    <ellipse cx="0" cy="5" rx="4.4" ry="6" fill="none" stroke="#b9bdc3" stroke-width="1.5"/>
+    <path d="M0,11 V17" stroke="#9a9ea4" stroke-width="1.6" stroke-linecap="round"/>
+    <ellipse cx="0" cy="20" rx="2.4" ry="3.6" fill="none" stroke="#9a9ea4" stroke-width="1.3"/>
+    <path d="M0,24 V28" stroke="#9a9ea4" stroke-width="1.6" stroke-linecap="round"/>
+    <rect x="-7.5" y="30" width="15" height="22" rx="5" fill="url(#spk-fob)" stroke="#4a130e" stroke-width="1"/>
+    <circle cx="0" cy="35" r="1.8" fill="#2a0b08"/>
+    <path d="M-4.5,40 C-4,45 -3,47 -2,48" fill="none" stroke="#f0a49a" stroke-width="1" opacity="0.6" stroke-linecap="round"/>
+  </g>
 </svg>`;
 const GAUGE = (cls) => `<svg class="sp-gauge" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="#101113" stroke="#55575c" stroke-width="2"/>
   <g stroke="#b9b6ac" stroke-width="1.5"><path d="M8,34 l3,-2 M6,24 h4 M10,13 l3,2 M24,6 v4 M38,13 l-3,2 M42,24 h-4 M40,34 l-3,-2"/></g>
@@ -311,10 +346,9 @@ export function showSplash({ version = '3d', load, preferred = null, phone = fal
     const big = allDone ? 'Drive again' : anyDone ? 'Continue' : 'Play';
     el('b', null, btn, big);
     el('small', null, btn, `${first + 1}. ${MISSION_LIST[first].title}`);
-    // The ignition key (a second way to start) and the dash that wakes.
-    keyBtn = el('button', 'sp-key', go);
-    keyBtn.type = 'button';
-    keyBtn.setAttribute('aria-label', 'Turn the key to start');
+    // The ignition switch (only drawn, not a button) and the dash that wakes.
+    keyBtn = el('div', 'sp-key', go);
+    keyBtn.setAttribute('aria-hidden', 'true');
     keyBtn.innerHTML = KEY;
     const cluster = el('div', 'sp-cluster', go);
     cluster.setAttribute('aria-hidden', 'true');
@@ -451,11 +485,12 @@ export function showSplash({ version = '3d', load, preferred = null, phone = fal
     if (btn) btn.querySelector('b').textContent = 'Starting…';
     if (errBox) errBox.remove();
     // The dash wakes (CSS) while the game starts; the game waits for it.
-    const waking = keystart === 'fly' || keystart === 'wake';
+    // Only mission 1 gets the key turn and the fly-out (#98); the rest jump straight in.
+    const waking = (keystart === 'fly' || keystart === 'wake') && startsWithKey(MISSION_LIST[index].id);
     let wake = Promise.resolve();
     if (waking) {
-      root.classList.add('sp-wake');
-      wake = new Promise((r) => setTimeout(r, WAKE_MS));
+      turnAt = performance.now();
+      wake = new Promise((r) => setTimeout(() => { root.classList.add('sp-wake'); r(); }, CATCH_MS)).then(() => new Promise((r) => setTimeout(r, WAKE_MS)));
     }
     try {
       await load(index, waking ? {
@@ -471,6 +506,7 @@ export function showSplash({ version = '3d', load, preferred = null, phone = fal
       for (const b of buttons) b.disabled = false;
       root.classList.remove('sp-wake');
       root.style.removeProperty('--fly');
+      turnAt = 0;
       if (btn) btn.querySelector('b').textContent = 'Try again';
       going = false;
       return;
@@ -485,7 +521,47 @@ export function showSplash({ version = '3d', load, preferred = null, phone = fal
     }, 520);
     resolveStarted();
   };
-  if (keyBtn) keyBtn.addEventListener('click', () => start(first));
+  // The key and its keychain: sways at rest, turns by itself on a mission 1 start.
+  let turnAt = 0;
+  if (keyBtn && (keystart === 'fly' || keystart === 'wake')) {
+    const turner = keyBtn.querySelector('.sp-keyturn');
+    const chainEl = keyBtn.querySelector('.sp-chain');
+    const chain = newChain(0);
+    const born = performance.now();
+    let last = born;
+    let lastMark = 0;
+    const tick = () => {
+      const c = sharedAudioContext();
+      if (!c || c.state !== 'running' || isMuted()) return;
+      const t = c.currentTime;
+      const o = c.createOscillator();
+      const g = c.createGain();
+      o.type = 'square';
+      o.frequency.setValueAtTime(1500, t);
+      o.frequency.exponentialRampToValueAtTime(300, t + 0.03);
+      g.gain.setValueAtTime(0.06, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+      o.connect(g).connect(c.destination);
+      o.start(t);
+      o.stop(t + 0.06);
+    };
+    const frame = () => {
+      if (!keyBtn.isConnected) return;
+      const now = performance.now();
+      const ms = turnAt ? now - turnAt : 0;
+      const { deg, mark } = keyTurn(ms);
+      if (mark !== lastMark) { if (turnAt) tick(); lastMark = mark; }
+      turner.setAttribute('transform', 'translate(75 70) rotate(' + deg.toFixed(2) + ')');
+      const rad = (deg * Math.PI) / 180;
+      const px = 75 + KEY_HOLE * Math.sin(rad);
+      const py = KEY_C.y - KEY_HOLE * Math.cos(rad);
+      stepChain(chain, (now - last) / 1000, px, turnAt ? 0 : restSway(now - born));
+      last = now;
+      chainEl.setAttribute('transform', 'translate(' + px.toFixed(2) + ' ' + py.toFixed(2) + ') rotate(' + (-chain.psi * 180 / Math.PI).toFixed(2) + ')');
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  }
   if (btn) {
     btn.addEventListener('click', () => start(first));
     btn.focus({ preventScroll: true });

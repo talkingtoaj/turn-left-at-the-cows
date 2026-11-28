@@ -58,13 +58,8 @@ body[data-world="live"] .sp-paint { opacity: 0; }
 .sp-flying .sp-paint { transition: none; opacity: 0; }
 .sp-sign { opacity: calc(1 - var(--fly, 0) * 2.5); }
 .sp-mirror { opacity: calc(1 - var(--fly, 0) * 2); }
-.sp-key { flex: 0 0 auto; width: 58px; height: 58px; padding: 0; background: none; border: 0; border-radius: 50%; cursor: pointer;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
-.sp-key:hover .sp-keysvg circle:first-child { stroke: #e6b450; }
-.sp-key:disabled { cursor: progress; }
-.sp-keysvg { display: block; width: 100%; height: 100%; }
-.sp-keyturn { transform-origin: 32px 26px; }
-.sp-wake .sp-keyturn { animation: sp-keyturn 0.35s ease-out both; }
+.sp-key { flex: 0 0 auto; width: 150px; height: 186px; pointer-events: none; user-select: none; }
+.sp-keysvg { display: block; width: 100%; height: 100%; overflow: visible; }
 .sp-cluster { display: flex; align-items: center; gap: 6px; padding: 5px 8px; background: #101113; border: 1px solid #3a3c40; border-radius: 8px; }
 .sp-gauge { width: 42px; height: 42px; display: block; }
 .sp-gauge g[class^="sp-n"] { transform-origin: 24px 26px; transform: rotate(-120deg); }
@@ -75,12 +70,11 @@ body[data-world="live"] .sp-paint { opacity: 0; }
 .sp-wake .sp-l-oil { animation: sp-lamp-amber 0.8s ease-out 0.25s both; }
 .sp-wake .sp-l-check { animation: sp-lamp-amber 0.65s ease-out 0.25s both; }
 .sp-wake .sp-l-radio { animation: sp-lamp-glow 0.4s ease-out 0.4s both; }
-@keyframes sp-keyturn { to { transform: rotate(38deg); } }
 @keyframes sp-sweep { 0% { transform: rotate(-120deg); } 55% { transform: rotate(120deg); } 100% { transform: rotate(-110deg); } }
 @keyframes sp-lamp-red { 0%, 70% { background: #e04a3a; box-shadow: 0 0 8px 2px rgba(224,74,58,0.8); } 100% { background: #2b2c2f; box-shadow: none; } }
 @keyframes sp-lamp-amber { 0%, 70% { background: #e6b450; box-shadow: 0 0 8px 2px rgba(230,180,80,0.8); } 100% { background: #2b2c2f; box-shadow: none; } }
 @keyframes sp-lamp-glow { from { background: #2b2c2f; } to { background: #e6b450; box-shadow: 0 0 10px 3px rgba(230,180,80,0.7); } }
-@media (prefers-reduced-motion: reduce) { .sp-wake .sp-keyturn, .sp-wake .sp-n1, .sp-wake .sp-n2, .sp-wake .sp-lamp { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .sp-wake .sp-n1, .sp-wake .sp-n2, .sp-wake .sp-lamp { animation: none; } }
 
 /* Dash. */
 .sp-dash { position: relative; display: grid; grid-template-columns: minmax(280px, 36%) 1fr; gap: clamp(14px, 2.5vw, 34px);
