@@ -6,6 +6,8 @@ import { headingText, clockText, timerText } from '../../src/hud/format.js';
 import { mphFromMps, odometerHundredths, milesText } from '../../src/units.js';
 import { noteLandmark } from '../../src/game/dialogue.js';
 import { createTalk } from './talk.js';
+import { createShiftShow } from './winShow.js';
+import { winFxMode } from './winShowTimeline.js';
 import { currentMission, currentGoal, nextMission, MISSIONS } from '../../src/game/missions.js';
 import { finishMission } from '../../src/game/update.js';
 import { compassHeading, warningLights, PARTS } from '../../src/game/damage.js';
@@ -713,11 +715,18 @@ export function createHUD(root, { openMap, radio } = {}) {
     const w = Math.round(Math.max(260, Math.min(600, (panelW - 22) / 2, byH)));
     const wrap = el('div', 'hud-shift', panel);
     const pair = el('div', 'hud-shift-pair', wrap);
+    // The animated version (#94): the same maps drawn in order. ?winfx=off or
+    // reduced motion keep the plain screen; ?shifts=now gives the finished frame.
+    const reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    const fx = winFxMode(window.location.search, reduced);
+    const show = fx.mode === 'off' ? null
+      : createShiftShow({ def, now, shifts, seen, marks, w, countText: (n) => shiftCountText(n, tally.total) });
+    let sideNo = 0;
     const side = (title, sub, make) => {
       const col = el('div', 'hud-shift-map', pair);
       const h = el('h3', null, col, title);
       if (sub) el('small', null, h, sub);
-      const c = make(w);
+      const c = show ? (sideNo++ === 0 ? show.left : show.right) : make(w);
       c.style.width = w + 'px';
       col.appendChild(c);
       c.addEventListener('click', () => zoomCanvas(make, `${title}${sub ? ' ' + sub : ''}`, SHIFT_CROP.w / SHIFT_CROP.h));
@@ -728,7 +737,14 @@ export function createHUD(root, { openMap, radio } = {}) {
     // line id: T32-shift-head-now
     side('As it really is,', String(PRESENT_YEAR),
       (cw) => renderShiftMapCanvas({ def: now, shifts, seen, labels: true }, cw));
-    el('div', 'hud-shift-count', wrap, shiftCountText(tally.seen, tally.total));
+    const countEl = el('div', 'hud-shift-count', wrap, shiftCountText(tally.seen, tally.total));
+    if (show) {
+      window.__winshow = show; // dev: renderAt(seconds), finish()
+      show.countEl = countEl;
+      if (fx.mode === 'play') show.start(winShade);
+      else if (fx.mode === 'at') show.renderAt(fx.at);
+      else show.finish();
+    }
   }
 
   function buildWin() {
