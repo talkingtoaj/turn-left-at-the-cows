@@ -38,7 +38,7 @@ import { createAmbient3D } from './world3d/ambient3d.js';
 import { createStopSigns3D } from './world3d/stopsigns3d.js';
 import { createParked3D } from './world3d/parked3d.js';
 import { parkedIn } from '../src/world/parked.js';
-import { addCloudShadowsTo, cloudUniforms } from './world3d/clouds.js';
+import { addCloudShadowsTo, cloudUniforms, setCloudShadowsEnabled } from './world3d/clouds.js';
 import { campfireOf } from './world3d/landmarks3d.js';
 import { SUN_DIR } from './world3d/world3d.js';
 import { createStats } from './stats.js';
@@ -239,6 +239,7 @@ async function buildRegion(id, title, quiet = false, mission = 0) {
     });
     createStopSigns3D(scene, amb.stopSigns, world3d.terrain);
     createParked3D(scene, { list: parkedIn(id), terrain: world3d.terrain, env: look ? look.carEnv() : null }); // parked semis (#47)
+    setCloudShadowsEnabled(params.get('cloudshadows') !== 'off'); // #96
     addCloudShadowsTo(scene);
     if (look) look.afterAmbient(scene);
     // Damage, potholes and road hazards (also the ?hazard, ?fallen, ?spot dev flags).

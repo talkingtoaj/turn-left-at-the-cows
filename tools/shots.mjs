@@ -517,6 +517,8 @@ await page.waitForSelector('button');
 await page.keyboard.press('Enter');
 await page.waitForFunction(() => window.__three && window.__state, null, { timeout: 120000 });
 await page.waitForTimeout(1500);
+// SHOTS_CLOUDOFF=<metres> slides the cloud shadows east first (#96), for strips of one view.
+if (process.env.SHOTS_CLOUDOFF) await page.evaluate((m) => { window.__cloudUniforms.uCloudOff.value.x += m; }, Number(process.env.SHOTS_CLOUDOFF));
 // Dismiss the mission card.
 await page.keyboard.press('Enter');
 await page.waitForTimeout(500);
